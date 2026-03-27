@@ -1,8 +1,0 @@
-name = "agent-daemon-webhook"
-main = "worker.ts"
-compatibility_date = "2025-01-01"
-
-# Set secrets with:
-# wrangler secret put LINEAR_WEBHOOK_SECRET
-# wrangler secret put TUNNEL_URL
-# wrangler secret put TUNNEL_SECRET
