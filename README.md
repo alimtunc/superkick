@@ -1,28 +1,28 @@
-# agent-daemon
+# superkick
 
-Local daemon that listens to Linear webhooks and autonomously processes issues using AI agents (Claude Code or Codex) orchestrated via Temporal.
+Local daemon that turns Linear issues into pull requests using AI agents (Claude Code or Codex), orchestrated via Temporal.
 
 ## How it works
 
 ```
-Linear (label "agent") → Cloudflare Worker → Tunnel → Local daemon → Temporal workflow
-                                                                          │
-                                                                     Clone/fetch repo
-                                                                     Create worktree
-                                                                          │
-                                                                     Run LLM (1 prompt)
-                                                                          │
-                                                                     git push + gh pr create
-                                                                          │
-                                                                     Slack notification
+Linear (label "agent") --> Cloudflare Worker --> Tunnel --> Local daemon --> Temporal workflow
+                                                                                |
+                                                                          Clone/fetch repo
+                                                                          Create worktree
+                                                                                |
+                                                                          Run AI agent
+                                                                                |
+                                                                          git push + gh pr create
+                                                                                |
+                                                                          Update Linear + Slack
 ```
 
-1. You add the `agent` label (or `agent:codex` to override the LLM) to a Linear issue
+1. Add the `agent` label (or `agent:codex` to override the LLM) to a Linear issue
 2. Cloudflare Worker receives the webhook, validates signature, forwards via tunnel
-3. Local Hono server receives the request and starts a Temporal workflow
-4. Workflow resolves the repo (via `repos.yml`), clones it, creates a worktree
-5. Reads `.claude-agent.yml` from the repo, runs the configured LLM with a single prompt
-6. On success: commits, pushes, opens a PR via `gh`, notifies Slack
+3. Local Hono server receives the request, starts a Temporal workflow
+4. Workflow resolves the repo (via `repos.yml`), clones it, creates a git worktree
+5. Reads `.claude-agent.yml` from the repo, runs the configured agent with a single prompt
+6. On success: commits, pushes, opens a PR via `gh`, updates Linear status to "In Review", notifies Slack
 7. You review and merge
 
 ## Prerequisites
@@ -31,7 +31,7 @@ Linear (label "agent") → Cloudflare Worker → Tunnel → Local daemon → Tem
 - [pnpm](https://pnpm.io/) >= 10
 - [Temporal CLI](https://docs.temporal.io/cli) (`brew install temporal`)
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) (`npm i -g @anthropic-ai/claude-code`)
-- [GitHub CLI](https://cli.github.com/) (`brew install gh`) — authenticated
+- [GitHub CLI](https://cli.github.com/) (`brew install gh`) -- authenticated
 - [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
 - [Wrangler](https://developers.cloudflare.com/workers/wrangler/)
 
@@ -54,7 +54,6 @@ cp .env.example .env
 
 ```bash
 cp repos.yml.example repos.yml
-# Map your Linear team keys to git repos
 ```
 
 ```yaml
@@ -94,9 +93,34 @@ wrangler deploy
 
 ### 7. Configure Linear webhook
 
-In Linear Settings → Webhooks:
+In Linear Settings > Webhooks:
 - URL: `https://agent-daemon-webhook.<your-workers>.workers.dev/webhook/linear`
 - Events: Issue updates
+
+## Dashboard
+
+Access the live dashboard at `http://localhost:3100/dashboard` to monitor workflows in real-time.
+
+**API endpoints:**
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/workflows` | List all workflows |
+| `GET /api/workflows/:id` | Workflow details + logs |
+| `GET /api/workflows/:id/logs` | SSE stream (real-time logs) |
+| `POST /api/workflows/:id/cancel` | Cancel a running workflow |
+
+## Logging
+
+Each workflow produces a JSONL log file in `./logs/{workflowId}.jsonl`.
+
+```json
+{"ts": "2026-03-27T10:00:00Z", "workflowId": "issue-123", "step": "runAgent", "level": "info", "message": "Agent started"}
+```
+
+Levels: `info`, `warn`, `error`, `stdout`, `stderr`.
+
+Logs are streamed in real-time to the dashboard via SSE.
 
 ## Per-repo configuration
 
@@ -114,7 +138,7 @@ context: |
   Your project description, conventions, and stack info.
 ```
 
-## Choosing the LLM
+## Choosing the agent
 
 - **Default**: set `default_agent` in `.claude-agent.yml` (`claude` or `codex`)
 - **Override per issue**: use the label `agent:codex` or `agent:claude` in Linear
@@ -125,28 +149,32 @@ context: |
 ```
 src/
   server/
-    index.ts              ← Hono HTTP server
-    webhookRoute.ts       ← Webhook route + label parsing
+    index.ts              -- Hono HTTP server
+    webhookRoute.ts       -- Webhook route + label parsing
+    dashboardRoute.ts     -- Dashboard API endpoints
+    dashboardHtml.ts      -- Dashboard UI
   temporal/
-    worker.ts             ← Temporal worker setup
+    worker.ts             -- Temporal worker setup
     workflows/
-      issueWorkflow.ts    ← Main orchestration workflow
+      issueWorkflow.ts    -- Main orchestration workflow
     activities/
-      linear.ts           ← Linear API
-      config.ts           ← repos.yml + .claude-agent.yml parsing
-      repo.ts             ← git clone/fetch/worktree
-      github.ts           ← gh pr create
-      slack.ts            ← Slack notification
+      linear.ts           -- Linear API (fetch issue, update status)
+      config.ts           -- repos.yml + .claude-agent.yml parsing
+      repo.ts             -- git clone/fetch/worktree
+      github.ts           -- git push + gh pr create
+      slack.ts            -- Slack notification
+      logStep.ts          -- JSONL structured logging
       agents/
-        run.ts            ← Unified agent runner (Claude/Codex)
-      index.ts            ← Activity exports
+        run.ts            -- Unified agent runner (Claude/Codex)
+      index.ts            -- Activity exports
   shared/
-    types.ts              ← TypeScript types + Zod schemas
-    env.ts                ← Environment config
+    types.ts              -- TypeScript types + Zod schemas
+    env.ts                -- Environment config
+    logs.ts               -- Log utilities
 cloudflare/
-  worker.ts               ← CF Worker (webhook relay)
+  worker.ts               -- CF Worker (webhook relay)
   wrangler.toml
-repos.yml                 ← Team → repo mapping
+repos.yml                 -- Team -> repo mapping
 ```
 
 ## Environment variables
@@ -164,3 +192,7 @@ repos.yml                 ← Team → repo mapping
 | `AGENT_WORKTREES_DIR` | No | Default: `./worktrees` |
 | `AGENT_REPOS_DIR` | No | Default: `./repos` |
 | `CLOUDFLARE_TUNNEL_SECRET` | No | Secret for tunnel auth |
+
+## License
+
+MIT
