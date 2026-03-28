@@ -1,28 +1,23 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useDashboardRuns } from "./hooks/useDashboardRuns";
-import { useWatchedSessions } from "./hooks/useWatchedSessions";
-import { WatchedSessionsProvider } from "./context/WatchedSessionsContext";
-import { ControlCenter } from "./pages/ControlCenter";
-import { RunDetailRoute } from "./pages/RunDetail";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { RouterProvider } from "@tanstack/react-router";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { router } from "@/router";
 
-function AppRoutes() {
-  const d = useDashboardRuns();
-  const watched = useWatchedSessions(d.runs);
-
-  return (
-    <WatchedSessionsProvider value={watched}>
-      <Routes>
-        <Route path="/" element={<ControlCenter dashboard={d} />} />
-        <Route path="/runs/:id" element={<RunDetailRoute refTime={d.refTime} />} />
-      </Routes>
-    </WatchedSessionsProvider>
-  );
-}
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 10_000,
+      retry: 1,
+    },
+  },
+});
 
 export function App() {
   return (
-    <BrowserRouter>
-      <AppRoutes />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }

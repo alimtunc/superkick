@@ -1,5 +1,5 @@
-import type { RunStep, StepStatus } from "../types";
-import { fmtDuration } from "./dashboard/utils";
+import type { RunStep, StepStatus } from "@/types";
+import { fmtDuration } from "@/lib/domain";
 
 const statusIcon: Record<StepStatus, string> = {
   pending: "\u25cb",
@@ -33,9 +33,7 @@ export function StepTimeline({ steps }: { steps: RunStep[] }) {
           key={step.id}
           className="flex items-center gap-3 rounded border border-edge/50 bg-graphite/50 px-3 py-2 text-sm"
         >
-          <span className={`text-base ${statusColor[step.status]}`}>
-            {statusIcon[step.status]}
-          </span>
+          <span className={`text-base ${statusColor[step.status]}`}>{statusIcon[step.status]}</span>
           <span className="font-data text-fog w-28 text-[12px]">{step.step_key}</span>
           <span className="text-dim text-[11px]">
             {step.status}

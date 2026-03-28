@@ -1,12 +1,10 @@
-import type { RunStep, ReviewSwarmResult } from "../types";
+import type { RunStep, ReviewSwarmResult } from "@/types";
 
 function parseReviewResult(step: RunStep): ReviewSwarmResult | null {
   if (!step.output_json) return null;
   try {
     const parsed =
-      typeof step.output_json === "string"
-        ? JSON.parse(step.output_json)
-        : step.output_json;
+      typeof step.output_json === "string" ? JSON.parse(step.output_json) : step.output_json;
     if (parsed && Array.isArray(parsed.findings)) return parsed as ReviewSwarmResult;
     return null;
   } catch {
@@ -41,11 +39,11 @@ export function ReviewResults({ steps }: { steps: RunStep[] }) {
           <div key={step.id} className={`panel ${glowClass} p-4`}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-fog">Review Swarm</h3>
-              <span className={`font-data text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${
-                result.gate_passed
-                  ? "bg-mineral-dim text-mineral"
-                  : "bg-oxide-dim text-oxide"
-              }`}>
+              <span
+                className={`font-data text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${
+                  result.gate_passed ? "bg-mineral-dim text-mineral" : "bg-oxide-dim text-oxide"
+                }`}
+              >
                 {result.gate_passed ? "PASSED" : "FAILED"}
               </span>
             </div>
