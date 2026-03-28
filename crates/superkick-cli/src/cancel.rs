@@ -1,6 +1,3 @@
-use std::net::TcpStream;
-use std::time::Duration;
-
 #[derive(clap::Args)]
 pub struct CancelArgs {
     /// Run ID to cancel (omit to cancel the latest active run)
@@ -14,22 +11,14 @@ pub struct CancelArgs {
 pub fn run(args: CancelArgs) -> anyhow::Result<()> {
     let base = format!("http://127.0.0.1:{}", args.port);
 
-    // Check server is reachable
-    let addr: std::net::SocketAddr = format!("127.0.0.1:{}", args.port).parse()?;
-    if TcpStream::connect_timeout(&addr, Duration::from_millis(500)).is_err() {
-        anyhow::bail!(
-            "No Superkick server on port {}. Start one with: superkick serve",
-            args.port
-        );
-    }
+    crate::net::ensure_server_reachable(args.port)?;
 
     let run_id = match args.run_id {
         Some(id) => id,
         None => find_latest_active_run(&base)?,
     };
 
-    let resp = ureq::post(format!("{base}/runs/{run_id}/cancel"))
-        .send_empty();
+    let resp = ureq::post(format!("{base}/runs/{run_id}/cancel")).send_empty();
 
     match resp {
         Ok(resp) if resp.status() == 200 => {

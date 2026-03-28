@@ -108,7 +108,10 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         .with_state(state);
 
     let local_addr = cfg.listener.local_addr()?;
-    println!("Superkick server running on http://127.0.0.1:{}", local_addr.port());
+    println!(
+        "Superkick server running on http://127.0.0.1:{}",
+        local_addr.port()
+    );
     println!("Press Ctrl+C to stop.");
     tracing::info!("superkick-api listening on {local_addr}");
 

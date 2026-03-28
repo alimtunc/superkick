@@ -12,6 +12,9 @@ pub use validate::validate;
 
 use std::path::Path;
 
+/// Default config file name used across the CLI.
+pub const CONFIG_FILENAME: &str = "superkick.yaml";
+
 /// Load and validate a Superkick config from a YAML string.
 pub fn load_str(yaml: &str) -> anyhow::Result<SuperkickConfig> {
     let config: SuperkickConfig =
