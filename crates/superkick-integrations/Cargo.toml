@@ -1,0 +1,13 @@
+[package]
+name = "superkick-integrations"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+superkick-core = { path = "../superkick-core" }
+superkick-storage = { path = "../superkick-storage" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+tracing.workspace = true

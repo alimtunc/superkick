@@ -1,0 +1,61 @@
+//! Repository trait definitions.
+
+use anyhow::Result;
+use superkick_core::{
+    AgentSession, AgentSessionId, Artifact, ArtifactId, EventId, Interrupt, InterruptId, Run,
+    RunEvent, RunId, RunStep, StepId,
+};
+
+/// Repository for `Run` entities.
+pub trait RunRepo: Send + Sync {
+    fn insert(&self, run: &Run) -> impl Future<Output = Result<()>> + Send;
+    fn get(&self, id: RunId) -> impl Future<Output = Result<Option<Run>>> + Send;
+    fn list_all(&self) -> impl Future<Output = Result<Vec<Run>>> + Send;
+    fn update(&self, run: &Run) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// Repository for `RunStep` entities.
+pub trait RunStepRepo: Send + Sync {
+    fn insert(&self, step: &RunStep) -> impl Future<Output = Result<()>> + Send;
+    fn get(&self, id: StepId) -> impl Future<Output = Result<Option<RunStep>>> + Send;
+    fn list_by_run(&self, run_id: RunId) -> impl Future<Output = Result<Vec<RunStep>>> + Send;
+    fn update(&self, step: &RunStep) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// Repository for `RunEvent` entities.
+pub trait RunEventRepo: Send + Sync {
+    fn insert(&self, event: &RunEvent) -> impl Future<Output = Result<()>> + Send;
+    fn get(&self, id: EventId) -> impl Future<Output = Result<Option<RunEvent>>> + Send;
+    fn list_by_run(&self, run_id: RunId) -> impl Future<Output = Result<Vec<RunEvent>>> + Send;
+}
+
+/// Repository for `AgentSession` entities.
+pub trait AgentSessionRepo: Send + Sync {
+    fn insert(&self, session: &AgentSession) -> impl Future<Output = Result<()>> + Send;
+    fn get(
+        &self,
+        id: AgentSessionId,
+    ) -> impl Future<Output = Result<Option<AgentSession>>> + Send;
+    fn list_by_run(
+        &self,
+        run_id: RunId,
+    ) -> impl Future<Output = Result<Vec<AgentSession>>> + Send;
+    fn update(&self, session: &AgentSession) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// Repository for `Interrupt` entities.
+pub trait InterruptRepo: Send + Sync {
+    fn insert(&self, interrupt: &Interrupt) -> impl Future<Output = Result<()>> + Send;
+    fn get(&self, id: InterruptId) -> impl Future<Output = Result<Option<Interrupt>>> + Send;
+    fn list_by_run(&self, run_id: RunId) -> impl Future<Output = Result<Vec<Interrupt>>> + Send;
+    fn update(&self, interrupt: &Interrupt) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// Repository for `Artifact` entities.
+pub trait ArtifactRepo: Send + Sync {
+    fn insert(&self, artifact: &Artifact) -> impl Future<Output = Result<()>> + Send;
+    fn get(&self, id: ArtifactId) -> impl Future<Output = Result<Option<Artifact>>> + Send;
+    fn list_by_run(&self, run_id: RunId) -> impl Future<Output = Result<Vec<Artifact>>> + Send;
+}
+
+use std::future::Future;

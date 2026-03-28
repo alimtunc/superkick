@@ -1,0 +1,13 @@
+[package]
+name = "superkick-config"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+superkick-core = { path = "../superkick-core" }
+serde.workspace = true
+serde_yaml.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+indoc = "2"

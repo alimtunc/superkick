@@ -1,0 +1,135 @@
+use anyhow::Result;
+use sqlx::SqlitePool;
+use superkick_core::{Run, RunId, RunState, StepKey, TriggerSource};
+
+use crate::repo::RunRepo;
+
+pub struct SqliteRunRepo {
+    pool: SqlitePool,
+}
+
+impl SqliteRunRepo {
+    pub fn new(pool: SqlitePool) -> Self {
+        Self { pool }
+    }
+}
+
+impl RunRepo for SqliteRunRepo {
+    async fn insert(&self, run: &Run) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO runs (id, issue_id, issue_identifier, repo_slug, state, trigger_source, current_step_key, base_branch, worktree_path, branch_name, started_at, updated_at, finished_at, error_message)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+        )
+        .bind(run.id.0.to_string())
+        .bind(&run.issue_id)
+        .bind(&run.issue_identifier)
+        .bind(&run.repo_slug)
+        .bind(run.state.to_string())
+        .bind(ser_json(&run.trigger_source))
+        .bind(run.current_step_key.map(|k| k.to_string()))
+        .bind(&run.base_branch)
+        .bind(&run.worktree_path)
+        .bind(&run.branch_name)
+        .bind(run.started_at.to_rfc3339())
+        .bind(run.updated_at.to_rfc3339())
+        .bind(run.finished_at.map(|t| t.to_rfc3339()))
+        .bind(&run.error_message)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn get(&self, id: RunId) -> Result<Option<Run>> {
+        let row = sqlx::query_as::<_, RunRow>("SELECT * FROM runs WHERE id = ?1")
+            .bind(id.0.to_string())
+            .fetch_optional(&self.pool)
+            .await?;
+        row.map(|r| r.into_domain()).transpose()
+    }
+
+    async fn list_all(&self) -> Result<Vec<Run>> {
+        let rows = sqlx::query_as::<_, RunRow>("SELECT * FROM runs ORDER BY started_at DESC")
+            .fetch_all(&self.pool)
+            .await?;
+        rows.into_iter().map(|r| r.into_domain()).collect()
+    }
+
+    async fn update(&self, run: &Run) -> Result<()> {
+        sqlx::query(
+            "UPDATE runs SET state = ?1, trigger_source = ?2, current_step_key = ?3, worktree_path = ?4, branch_name = ?5, updated_at = ?6, finished_at = ?7, error_message = ?8 WHERE id = ?9",
+        )
+        .bind(run.state.to_string())
+        .bind(ser_json(&run.trigger_source))
+        .bind(run.current_step_key.map(|k| k.to_string()))
+        .bind(&run.worktree_path)
+        .bind(&run.branch_name)
+        .bind(run.updated_at.to_rfc3339())
+        .bind(run.finished_at.map(|t| t.to_rfc3339()))
+        .bind(&run.error_message)
+        .bind(run.id.0.to_string())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct RunRow {
+    id: String,
+    issue_id: String,
+    issue_identifier: String,
+    repo_slug: String,
+    state: String,
+    trigger_source: String,
+    current_step_key: Option<String>,
+    base_branch: String,
+    worktree_path: Option<String>,
+    branch_name: Option<String>,
+    started_at: String,
+    updated_at: String,
+    finished_at: Option<String>,
+    error_message: Option<String>,
+}
+
+impl RunRow {
+    fn into_domain(self) -> Result<Run> {
+        Ok(Run {
+            id: RunId(uuid::Uuid::parse_str(&self.id)?),
+            issue_id: self.issue_id,
+            issue_identifier: self.issue_identifier,
+            repo_slug: self.repo_slug,
+            state: de_json::<RunState>(&self.state)?,
+            trigger_source: de_json::<TriggerSource>(&self.trigger_source)?,
+            current_step_key: self
+                .current_step_key
+                .as_deref()
+                .map(|s| de_json::<StepKey>(s))
+                .transpose()?,
+            base_branch: self.base_branch,
+            worktree_path: self.worktree_path,
+            branch_name: self.branch_name,
+            started_at: chrono::DateTime::parse_from_rfc3339(&self.started_at)?.to_utc(),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)?.to_utc(),
+            finished_at: self
+                .finished_at
+                .as_deref()
+                .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
+                .transpose()?,
+            error_message: self.error_message,
+        })
+    }
+}
+
+/// Serialize a serde value to its JSON string (for enums this produces the snake_case string).
+fn ser_json<T: serde::Serialize>(val: &T) -> String {
+    // serde_json::to_string wraps strings in quotes — we strip them for plain enum values.
+    let s = serde_json::to_string(val).expect("enum serialization cannot fail");
+    s.trim_matches('"').to_string()
+}
+
+/// Deserialize a snake_case string back to a serde‑tagged enum.
+fn de_json<T: serde::de::DeserializeOwned>(s: &str) -> Result<T> {
+    // Wrap in quotes so serde_json can parse as a JSON string.
+    let quoted = format!("\"{s}\"");
+    Ok(serde_json::from_str(&quoted)?)
+}
