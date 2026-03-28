@@ -1,0 +1,16 @@
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { RunList } from "./pages/RunList";
+import { RunDetail } from "./pages/RunDetail";
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<RunList />} />
+        <Route path="/runs/:id" element={<RunDetail />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;

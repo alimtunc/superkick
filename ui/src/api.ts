@@ -1,0 +1,59 @@
+import type { Run, RunStep, RunEvent, Interrupt, InterruptAction } from "./types";
+
+const BASE = "/api";
+
+export async function fetchRuns(): Promise<Run[]> {
+  const res = await fetch(`${BASE}/runs`);
+  if (!res.ok) throw new Error(`GET /runs failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchRun(
+  id: string,
+): Promise<{ run: Run; steps: RunStep[]; interrupts: Interrupt[] }> {
+  const res = await fetch(`${BASE}/runs/${id}`);
+  if (!res.ok) throw new Error(`GET /runs/${id} failed: ${res.status}`);
+  return res.json();
+}
+
+export async function answerInterrupt(
+  runId: string,
+  interruptId: string,
+  action: InterruptAction,
+): Promise<void> {
+  const res = await fetch(`${BASE}/runs/${runId}/interrupts/${interruptId}/answer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(action),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: `status ${res.status}` }));
+    throw new Error(body.error || `answer interrupt failed: ${res.status}`);
+  }
+}
+
+export function subscribeToRunEvents(
+  runId: string,
+  onEvent: (event: RunEvent) => void,
+  onDone: () => void,
+  onError: (err: Event) => void,
+): () => void {
+  const es = new EventSource(`${BASE}/runs/${runId}/events`);
+
+  es.addEventListener("run_event", (e) => {
+    const data: RunEvent = JSON.parse(e.data);
+    onEvent(data);
+  });
+
+  es.addEventListener("done", () => {
+    es.close();
+    onDone();
+  });
+
+  es.onerror = (err) => {
+    es.close();
+    onError(err);
+  };
+
+  return () => es.close();
+}
