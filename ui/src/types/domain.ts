@@ -1,3 +1,5 @@
+// ── Run state machine ──────────────────────────────────────────────────
+
 export type RunState =
   | "queued"
   | "preparing"
@@ -22,6 +24,8 @@ export type StepKey =
 
 export type StepStatus = "pending" | "running" | "succeeded" | "failed" | "skipped";
 
+// ── Events ─────────────────────────────────────────────────────────────
+
 export type EventKind =
   | "state_change"
   | "step_started"
@@ -35,6 +39,8 @@ export type EventKind =
   | "error";
 
 export type EventLevel = "debug" | "info" | "warn" | "error";
+
+// ── Core entities ──────────────────────────────────────────────────────
 
 export interface Run {
   id: string;
@@ -78,6 +84,8 @@ export interface RunEvent {
   payload_json: string | null;
 }
 
+// ── Interrupts ─────────────────────────────────────────────────────────
+
 export type InterruptStatus = "pending" | "resolved" | "dismissed";
 
 export interface Interrupt {
@@ -96,6 +104,8 @@ export type InterruptAction =
   | { action: "retry_step" }
   | { action: "continue_with_note"; note: string }
   | { action: "abort_run" };
+
+// ── Review ─────────────────────────────────────────────────────────────
 
 export interface ReviewFinding {
   agent_name: string;

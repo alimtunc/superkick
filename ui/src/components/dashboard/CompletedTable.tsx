@@ -1,6 +1,10 @@
-import { Link } from "react-router-dom";
-import type { Run } from "../../types";
-import { fmtDuration } from "./utils";
+import { Link } from "@tanstack/react-router";
+import type { Run } from "@/types";
+
+interface CompletedTableProps {
+  completed: Run[];
+}
+import { fmtDuration } from "@/lib/domain";
 import { SectionTitle } from "./SectionTitle";
 
 function fmtRunDuration(r: Run): string {
@@ -8,7 +12,7 @@ function fmtRunDuration(r: Run): string {
   return fmtDuration(new Date(r.finished_at).getTime() - new Date(r.started_at).getTime());
 }
 
-export function CompletedTable({ completed }: { completed: Run[] }) {
+export function CompletedTable({ completed }: CompletedTableProps) {
   return (
     <section className="fade-up delay-4">
       <SectionTitle title="COMPLETED" accent="mineral" count={completed.length} />
@@ -28,20 +32,38 @@ export function CompletedTable({ completed }: { completed: Run[] }) {
             </thead>
             <tbody>
               {completed
-                .sort((a, b) => new Date(b.finished_at!).getTime() - new Date(a.finished_at!).getTime())
+                .toSorted(
+                  (a, b) => new Date(b.finished_at!).getTime() - new Date(a.finished_at!).getTime(),
+                )
                 .slice(0, 15)
                 .map((run) => (
-                  <tr key={run.id} className="border-b border-edge/50 hover:bg-slate-deep/50 transition-colors">
+                  <tr
+                    key={run.id}
+                    className="border-b border-edge/50 hover:bg-slate-deep/50 transition-colors"
+                  >
                     <td className="px-3 py-2">
-                      <Link to={`/runs/${run.id}`} className="font-data text-mineral hover:text-neon-green transition-colors">
+                      <Link
+                        to="/runs/$runId"
+                        params={{ runId: run.id }}
+                        className="font-data text-mineral hover:text-neon-green transition-colors"
+                      >
                         {run.issue_identifier}
                       </Link>
                     </td>
                     <td className="px-3 py-2 text-silver hidden sm:table-cell">{run.repo_slug}</td>
                     <td className="px-3 py-2 font-data text-fog">{fmtRunDuration(run)}</td>
-                    <td className="px-3 py-2 font-data text-dim truncate max-w-40 hidden md:table-cell">{run.branch_name ?? "--"}</td>
+                    <td className="px-3 py-2 font-data text-dim truncate max-w-40 hidden md:table-cell">
+                      {run.branch_name ?? "--"}
+                    </td>
                     <td className="px-3 py-2 text-right font-data text-dim">
-                      {run.finished_at ? new Date(run.finished_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "--"}
+                      {run.finished_at
+                        ? new Date(run.finished_at).toLocaleString([], {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "--"}
                     </td>
                   </tr>
                 ))}
