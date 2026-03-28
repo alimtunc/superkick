@@ -87,7 +87,10 @@ fn any_active_state_can_fail() {
         RunState::OpeningPr,
     ];
     for s in active {
-        assert!(s.can_transition_to(RunState::Failed), "{s} should be able to fail");
+        assert!(
+            s.can_transition_to(RunState::Failed),
+            "{s} should be able to fail"
+        );
     }
 }
 

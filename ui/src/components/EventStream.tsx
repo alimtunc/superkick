@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import type { RunEvent, EventLevel } from "../types";
+import { useEffect, useReducer, useRef } from "react";
 import { subscribeToRunEvents } from "../api";
+import type { EventLevel, RunEvent } from "../types";
 
 const levelColor: Record<EventLevel, string> = {
   debug: "text-gray-500",
@@ -9,65 +9,96 @@ const levelColor: Record<EventLevel, string> = {
   error: "text-red-400",
 };
 
-export function EventStream({ runId, active }: { runId: string; active: boolean }) {
-  const [events, setEvents] = useState<RunEvent[]>([]);
-  const [connected, setConnected] = useState(false);
-  const [done, setDone] = useState(false);
+interface EventStreamProps {
+  runId: string;
+  active: boolean;
+}
+
+interface EventStreamState {
+  events: RunEvent[];
+  connected: boolean;
+  done: boolean;
+}
+
+type EventStreamAction =
+  | { type: "event_received"; event: RunEvent }
+  | { type: "stream_done" }
+  | { type: "stream_error" };
+
+const initialState: EventStreamState = {
+  events: [],
+  connected: true,
+  done: false,
+};
+
+function eventStreamReducer(
+  state: EventStreamState,
+  action: EventStreamAction,
+): EventStreamState {
+  switch (action.type) {
+    case "event_received":
+      return { ...state, events: [...state.events, action.event] };
+    case "stream_done":
+      return { ...state, connected: false, done: true };
+    case "stream_error":
+      return { ...state, connected: false };
+    default:
+      return state;
+  }
+}
+
+export function EventStream({ runId, active }: EventStreamProps) {
+  return active ? (
+    <ActiveEventStream key={runId} runId={runId} />
+  ) : (
+    <p className="text-sm text-gray-500">Click &quot;Watch Live&quot; to stream events.</p>
+  );
+}
+
+function ActiveEventStream({ runId }: { runId: string }) {
+  const [state, dispatch] = useReducer(eventStreamReducer, initialState);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!active) return;
-
-    setEvents([]);
-    setConnected(true);
-    setDone(false);
-
-    const unsub = subscribeToRunEvents(
+    return subscribeToRunEvents(
       runId,
-      (ev) => setEvents((prev) => [...prev, ev]),
-      () => {
-        setConnected(false);
-        setDone(true);
+      (event) => {
+        dispatch({ type: "event_received", event });
       },
-      () => setConnected(false),
+      () => {
+        dispatch({ type: "stream_done" });
+      },
+      () => {
+        dispatch({ type: "stream_error" });
+      },
     );
-
-    return unsub;
-  }, [runId, active]);
+  }, [runId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [events.length]);
-
-  if (!active && events.length === 0) {
-    return (
-      <p className="text-gray-500 text-sm">
-        Click &quot;Watch Live&quot; to stream events.
-      </p>
-    );
-  }
+  }, [state.events.length]);
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-2 text-xs">
-        {connected && (
+      <div className="mb-2 flex items-center gap-2 text-xs">
+        {state.connected ? (
           <span className="flex items-center gap-1 text-green-400">
-            <span className="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-green-400" />
             Live
           </span>
-        )}
-        {done && <span className="text-gray-500">Stream ended</span>}
-        <span className="text-gray-600">{events.length} events</span>
+        ) : null}
+        {state.done ? <span className="text-gray-500">Stream ended</span> : null}
+        <span className="text-gray-600">{state.events.length} events</span>
       </div>
-      <div className="max-h-96 overflow-y-auto rounded bg-slate-900 p-3 font-mono text-xs space-y-0.5">
-        {events.map((ev) => (
-          <div key={ev.id} className="flex gap-2">
-            <span className="text-gray-600 shrink-0">
-              {new Date(ev.ts).toLocaleTimeString()}
+      <div className="max-h-96 space-y-0.5 overflow-y-auto rounded bg-slate-900 p-3 font-mono text-xs">
+        {state.events.map((event) => (
+          <div key={event.id} className="flex gap-2">
+            <span className="shrink-0 text-gray-600">
+              {new Date(event.ts).toLocaleTimeString()}
             </span>
-            <span className={`shrink-0 w-14 ${levelColor[ev.level]}`}>{ev.level}</span>
-            <span className="text-slate-500 shrink-0 w-28">{ev.kind}</span>
-            <span className="text-slate-300 break-all">{ev.message}</span>
+            <span className={`w-14 shrink-0 ${levelColor[event.level]}`}>{event.level}</span>
+            <span className="w-28 shrink-0 text-slate-500">{event.kind}</span>
+            <span className="break-all text-slate-300">{event.message}</span>
           </div>
         ))}
         <div ref={bottomRef} />

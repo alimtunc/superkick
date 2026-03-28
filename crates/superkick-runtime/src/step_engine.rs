@@ -8,18 +8,18 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use chrono::Utc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tracing::{info, warn};
 
+use superkick_config::InterruptPolicy;
 use superkick_config::{SuperkickConfig, WorkflowStep};
 use superkick_core::{
     AgentProvider, Artifact, ArtifactKind, EventKind, EventLevel, InterruptAction, RunEvent,
     RunState, RunStep, StepKey, StepStatus,
 };
-use superkick_config::InterruptPolicy;
 use superkick_storage::repo::{
     AgentSessionRepo, ArtifactRepo, InterruptRepo, RunEventRepo, RunRepo, RunStepRepo,
 };
@@ -43,6 +43,17 @@ pub struct StepEngine<R, ST, E, A, AR, I> {
     config: SuperkickConfig,
 }
 
+pub struct StepEngineDeps<R, ST, E, A, AR, I> {
+    pub run_repo: Arc<R>,
+    pub step_repo: Arc<ST>,
+    pub event_repo: Arc<E>,
+    pub session_repo: Arc<A>,
+    pub artifact_repo: Arc<AR>,
+    pub interrupt_repo: Arc<I>,
+    pub repo_cache: RepoCache,
+    pub config: SuperkickConfig,
+}
+
 impl<R, ST, E, A, AR, I> StepEngine<R, ST, E, A, AR, I>
 where
     R: RunRepo + 'static,
@@ -52,26 +63,17 @@ where
     AR: ArtifactRepo + 'static,
     I: InterruptRepo + 'static,
 {
-    pub fn new(
-        run_repo: Arc<R>,
-        step_repo: Arc<ST>,
-        event_repo: Arc<E>,
-        session_repo: Arc<A>,
-        artifact_repo: Arc<AR>,
-        interrupt_repo: Arc<I>,
-        repo_cache: RepoCache,
-        config: SuperkickConfig,
-    ) -> Self {
-        let supervisor = AgentSupervisor::new(session_repo, Arc::clone(&event_repo));
+    pub fn new(deps: StepEngineDeps<R, ST, E, A, AR, I>) -> Self {
+        let supervisor = AgentSupervisor::new(deps.session_repo, Arc::clone(&deps.event_repo));
         Self {
-            run_repo,
-            step_repo,
-            event_repo,
-            interrupt_repo,
-            artifact_repo,
+            run_repo: deps.run_repo,
+            step_repo: deps.step_repo,
+            event_repo: deps.event_repo,
+            interrupt_repo: deps.interrupt_repo,
+            artifact_repo: deps.artifact_repo,
             supervisor,
-            repo_cache,
-            config,
+            repo_cache: deps.repo_cache,
+            config: deps.config,
         }
     }
 
@@ -82,7 +84,12 @@ where
     /// can resume from the same checkout.
     pub async fn execute(&self, mut run: superkick_core::Run) -> Result<()> {
         // Preflight: verify required external tools are reachable.
-        self.preflight_check(&run).await?;
+        if let Err(err) = self.preflight_check(&run).await {
+            self.fail_run(&mut run, format!("preflight failed: {err:#}"))
+                .await?;
+            self.cleanup_worktree(&run).await;
+            return Ok(());
+        }
 
         let result = self.execute_inner(&mut run).await;
 
@@ -110,142 +117,155 @@ where
                     handle.await.context("setup task panicked")??;
                 }
             }
+
             let run_state = step_key_to_run_state(step_key);
 
-            // Transition run state.
-            if let Err(e) = run.transition_to(run_state) {
-                self.fail_run(run, format!("invalid transition: {e}"))
-                    .await?;
-                return Ok(());
-            }
-            run.current_step_key = Some(step_key);
-            self.run_repo.update(run).await?;
-            self.emit(
-                run,
-                None,
-                EventKind::StateChange,
-                EventLevel::Info,
-                format!("run state → {run_state}"),
-            )
-            .await;
-
-            // Create and persist the step.
-            let mut step = RunStep::new(run.id, step_key, 1);
-            self.step_repo.insert(&step).await?;
-
-            // Execute with retries.
-            let max_attempts = self.config.budget.max_retries_per_step + 1;
-            let mut succeeded = false;
-
-            for attempt in 1..=max_attempts {
-                step.attempt = attempt;
-                step.status = StepStatus::Running;
-                step.started_at = Some(Utc::now());
-                step.error_message = None;
-                self.step_repo.update(&step).await?;
-
-                self.emit(
-                    run,
-                    Some(step.id),
-                    EventKind::StepStarted,
-                    EventLevel::Info,
-                    format!("step {step_key} started (attempt {attempt}/{max_attempts})"),
-                )
-                .await;
-
-                let worktree_path = run.worktree_path.as_deref().map(PathBuf::from);
-
-                match self
-                    .execute_step(step_key, run, &step, worktree_path.as_deref())
-                    .await
-                {
-                    Ok(()) => {
-                        step.status = StepStatus::Succeeded;
-                        step.finished_at = Some(Utc::now());
-                        self.step_repo.update(&step).await?;
-
-                        self.emit(
-                            run,
-                            Some(step.id),
-                            EventKind::StepCompleted,
-                            EventLevel::Info,
-                            format!("step {step_key} completed"),
-                        )
-                        .await;
-
-                        // After Prepare succeeds, spawn setup commands in background.
-                        if step_key == StepKey::Prepare
-                            && !self.config.runner.setup_commands.is_empty()
-                        {
-                            let cmds: Vec<String> =
-                                self.config.runner.setup_commands.clone();
-                            let wt = PathBuf::from(
-                                run.worktree_path.as_deref().unwrap(),
-                            );
-                            let run_id = run.id;
-                            setup_handle = Some(tokio::spawn(async move {
-                                for cmd_str in &cmds {
-                                    info!(
-                                        run_id = %run_id,
-                                        command = %cmd_str,
-                                        "running setup command (background)"
-                                    );
-                                    let output = Command::new("sh")
-                                        .args(["-c", cmd_str.as_str()])
-                                        .current_dir(&wt)
-                                        .output()
-                                        .await
-                                        .with_context(|| {
-                                            format!("failed to run setup command: {cmd_str}")
-                                        })?;
-                                    if !output.status.success() {
-                                        let stderr =
-                                            String::from_utf8_lossy(&output.stderr);
-                                        bail!(
-                                            "setup command '{}' failed (exit {}): {}",
-                                            cmd_str,
-                                            output.status.code().unwrap_or(-1),
-                                            stderr.trim()
-                                        );
-                                    }
-                                }
-                                Ok(())
-                            }));
-                        }
-
-                        succeeded = true;
-                        break;
+            'step_retry: loop {
+                let state_changed = if run.state != run_state {
+                    if let Err(e) = run.transition_to(run_state) {
+                        self.fail_run(run, format!("invalid transition: {e}"))
+                            .await?;
+                        return Ok(());
                     }
-                    Err(e) => {
-                        let msg = format!("{e:#}");
-                        step.status = StepStatus::Failed;
-                        step.finished_at = Some(Utc::now());
-                        step.error_message = Some(msg.clone());
-                        self.step_repo.update(&step).await?;
+                    true
+                } else {
+                    false
+                };
 
-                        self.emit(
-                            run,
-                            Some(step.id),
-                            EventKind::StepFailed,
-                            EventLevel::Error,
-                            format!(
-                                "step {step_key} failed (attempt {attempt}/{max_attempts}): {msg}"
-                            ),
-                        )
-                        .await;
+                run.current_step_key = Some(step_key);
+                self.run_repo.update(run).await?;
 
-                        if attempt < max_attempts {
-                            info!(
-                                step = %step_key,
-                                attempt,
-                                "retrying step after failure"
-                            );
+                if state_changed {
+                    self.emit(
+                        run,
+                        None,
+                        EventKind::StateChange,
+                        EventLevel::Info,
+                        format!("run state → {run_state}"),
+                    )
+                    .await;
+                }
+
+                // Create and persist the step.
+                let mut step = RunStep::new(run.id, step_key, 1);
+                self.step_repo.insert(&step).await?;
+
+                // Execute with retries.
+                let max_attempts = self.config.budget.max_retries_per_step + 1;
+                let mut succeeded = false;
+
+                for attempt in 1..=max_attempts {
+                    step.attempt = attempt;
+                    step.status = StepStatus::Running;
+                    step.started_at = Some(Utc::now());
+                    step.error_message = None;
+                    self.step_repo.update(&step).await?;
+
+                    self.emit(
+                        run,
+                        Some(step.id),
+                        EventKind::StepStarted,
+                        EventLevel::Info,
+                        format!("step {step_key} started (attempt {attempt}/{max_attempts})"),
+                    )
+                    .await;
+
+                    let worktree_path = run.worktree_path.as_deref().map(PathBuf::from);
+
+                    match self
+                        .execute_step(step_key, run, &step, worktree_path.as_deref())
+                        .await
+                    {
+                        Ok(()) => {
+                            step.status = StepStatus::Succeeded;
+                            step.finished_at = Some(Utc::now());
+                            self.step_repo.update(&step).await?;
+
+                            self.emit(
+                                run,
+                                Some(step.id),
+                                EventKind::StepCompleted,
+                                EventLevel::Info,
+                                format!("step {step_key} completed"),
+                            )
+                            .await;
+
+                            // After Prepare succeeds, spawn setup commands in background.
+                            if step_key == StepKey::Prepare
+                                && !self.config.runner.setup_commands.is_empty()
+                            {
+                                let cmds: Vec<String> = self.config.runner.setup_commands.clone();
+                                let wt = PathBuf::from(
+                                    run.worktree_path
+                                        .as_deref()
+                                        .context("worktree path missing after prepare step")?,
+                                );
+                                let run_id = run.id;
+                                setup_handle = Some(tokio::spawn(async move {
+                                    for cmd_str in &cmds {
+                                        info!(
+                                            run_id = %run_id,
+                                            command = %cmd_str,
+                                            "running setup command (background)"
+                                        );
+                                        let output = Command::new("sh")
+                                            .args(["-c", cmd_str.as_str()])
+                                            .current_dir(&wt)
+                                            .output()
+                                            .await
+                                            .with_context(|| {
+                                                format!("failed to run setup command: {cmd_str}")
+                                            })?;
+                                        if !output.status.success() {
+                                            let stderr = String::from_utf8_lossy(&output.stderr);
+                                            bail!(
+                                                "setup command '{}' failed (exit {}): {}",
+                                                cmd_str,
+                                                output.status.code().unwrap_or(-1),
+                                                stderr.trim()
+                                            );
+                                        }
+                                    }
+                                    Ok(())
+                                }));
+                            }
+
+                            succeeded = true;
+                            break;
+                        }
+                        Err(e) => {
+                            let msg = format!("{e:#}");
+                            step.status = StepStatus::Failed;
+                            step.finished_at = Some(Utc::now());
+                            step.error_message = Some(msg.clone());
+                            self.step_repo.update(&step).await?;
+
+                            self.emit(
+                                run,
+                                Some(step.id),
+                                EventKind::StepFailed,
+                                EventLevel::Error,
+                                format!(
+                                    "step {step_key} failed (attempt {attempt}/{max_attempts}): {msg}"
+                                ),
+                            )
+                            .await;
+
+                            if attempt < max_attempts {
+                                info!(
+                                    step = %step_key,
+                                    attempt,
+                                    "retrying step after failure"
+                                );
+                            }
                         }
                     }
                 }
-            }
 
-            if !succeeded {
+                if succeeded {
+                    break;
+                }
+
                 let error_msg = format!(
                     "step {step_key} failed after {max_attempts} attempt(s): {}",
                     step.error_message.as_deref().unwrap_or("unknown")
@@ -290,50 +310,57 @@ where
                         "run paused for human interrupt"
                     );
 
-                    // Poll until the interrupt is resolved.
                     let action = self.wait_for_interrupt(interrupt.id).await?;
 
                     match action {
                         InterruptAction::RetryStep => {
                             info!(run_id = %run.id, "retrying step after interrupt");
-                            // Re-transition from WaitingHuman back to current step state.
-                            let resume_state = step_key_to_run_state(step_key);
-                            run.transition_to(resume_state)
+                            run.transition_to(run_state)
                                 .context("failed to resume after retry")?;
+                            run.error_message = None;
+                            run.current_step_key = Some(step_key);
                             self.run_repo.update(run).await?;
                             self.emit(
-                                run, None, EventKind::StateChange, EventLevel::Info,
-                                format!("run state → {resume_state} (retrying after interrupt)"),
-                            ).await;
-                            // Re-execute the same step by continuing the outer loop
-                            // (the for loop will move to next step, so we need to
-                            //  re-run this step — but we can't easily. Instead, just
-                            //  bail and let the caller re-queue.)
-                            // For now, treat retry same as re-queue.
-                            bail!("retry requested — run should be re-queued");
+                                run,
+                                None,
+                                EventKind::StateChange,
+                                EventLevel::Info,
+                                format!("run state → {run_state} (retrying after interrupt)"),
+                            )
+                            .await;
+                            continue 'step_retry;
                         }
                         InterruptAction::ContinueWithNote { note } => {
                             info!(run_id = %run.id, note = %note, "skipping step after interrupt");
-                            let resume_state = step_key_to_run_state(step_key);
-                            run.transition_to(resume_state)
+                            run.transition_to(run_state)
                                 .context("failed to resume after continue")?;
+                            run.error_message = None;
+                            run.current_step_key = Some(step_key);
                             self.run_repo.update(run).await?;
                             self.emit(
-                                run, None, EventKind::StateChange, EventLevel::Info,
-                                format!("run state → {resume_state} (continue with note: {note})"),
-                            ).await;
-                            // Skip this step and continue to the next one.
-                            continue;
+                                run,
+                                None,
+                                EventKind::StateChange,
+                                EventLevel::Info,
+                                format!("run state → {run_state} (continue with note: {note})"),
+                            )
+                            .await;
+                            break 'step_retry;
                         }
                         InterruptAction::AbortRun => {
                             info!(run_id = %run.id, "aborting run after interrupt");
                             run.transition_to(RunState::Cancelled)
                                 .context("failed to cancel after abort")?;
+                            run.current_step_key = None;
                             self.run_repo.update(run).await?;
                             self.emit(
-                                run, None, EventKind::StateChange, EventLevel::Info,
+                                run,
+                                None,
+                                EventKind::StateChange,
+                                EventLevel::Info,
                                 "run state → cancelled (aborted by human)".into(),
-                            ).await;
+                            )
+                            .await;
                             return Ok(());
                         }
                     }
@@ -369,13 +396,12 @@ where
     /// error instead of dying mid-pipeline.
     async fn preflight_check(&self, run: &superkick_core::Run) -> Result<()> {
         // git is always required.
-        check_tool_exists("git").await.context(
-            "git is not installed or not on PATH — install it: https://git-scm.com",
-        )?;
+        check_tool_exists("git")
+            .await
+            .context("git is not installed or not on PATH — install it: https://git-scm.com")?;
 
         // Determine which agent CLIs the workflow will need.
-        let mut needed_agents: std::collections::HashSet<&str> =
-            std::collections::HashSet::new();
+        let mut needed_agents: std::collections::HashSet<&str> = std::collections::HashSet::new();
         for ws in &self.config.workflow.steps {
             match ws {
                 WorkflowStep::Plan { agent } | WorkflowStep::Code { agent } => {
@@ -429,9 +455,7 @@ where
         }
 
         let repo_root = PathBuf::from(&self.config.runner.repo_root);
-        let bare_path = self
-            .repo_cache
-            .cache_path(&run.repo_slug);
+        let bare_path = self.repo_cache.cache_path(&run.repo_slug);
 
         match WorktreeManager::new(
             bare_path,
@@ -750,7 +774,7 @@ where
         // Ensure the worktree has a remote pointing to GitHub.
         let clone_url = crate::worktree::github_clone_url(&run.repo_slug);
         let remote_check = crate::git::git_raw(worktree, &["remote", "get-url", "origin"]).await;
-        if remote_check.is_err() || !remote_check.unwrap().status.success() {
+        if !matches!(remote_check, Ok(output) if output.status.success()) {
             crate::git::git(worktree, &["remote", "add", "origin", &clone_url])
                 .await
                 .context("failed to add origin remote to worktree")?;
@@ -1054,7 +1078,10 @@ where
             let sem = Arc::clone(&semaphore);
             let name = agent_name.clone();
             let gated = tokio::spawn(async move {
-                let _permit = sem.acquire().await.expect("semaphore closed");
+                let _permit = sem
+                    .acquire()
+                    .await
+                    .context("review swarm semaphore closed")?;
                 join.await.context("review agent task panicked")?
             });
 
@@ -1087,7 +1114,11 @@ where
                             "review agent '{}' finished (exit {}): {}",
                             agent_name,
                             agent_result.session.exit_code.unwrap_or(-1),
-                            if passed { "passed" } else { "findings detected" }
+                            if passed {
+                                "passed"
+                            } else {
+                                "findings detected"
+                            }
                         ),
                     )
                     .await;
@@ -1267,7 +1298,10 @@ async fn check_tool_exists(tool: &str) -> Result<()> {
         .await
         .with_context(|| format!("`{tool}` not found on PATH"))?;
     if !output.success() {
-        bail!("`{tool} --version` exited with {}", output.code().unwrap_or(-1));
+        bail!(
+            "`{tool} --version` exited with {}",
+            output.code().unwrap_or(-1)
+        );
     }
     Ok(())
 }

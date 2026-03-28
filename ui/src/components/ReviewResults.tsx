@@ -59,7 +59,9 @@ export function ReviewResults({ steps }: { steps: RunStep[] }) {
 
             <p className="text-xs text-slate-400 mb-3">
               {result.passed_count}/{result.total_agents} agents passed
-              {result.failed_count > 0 && ` · ${result.failed_count} reported findings`}
+              {result.failed_count > 0
+                ? ` · ${result.failed_count} reported findings`
+                : ""}
             </p>
 
             <div className="space-y-1">

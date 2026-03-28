@@ -2,39 +2,31 @@
 
 use std::sync::Arc;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use tracing::info;
 
 use superkick_core::{
     EventKind, EventLevel, Interrupt, InterruptAction, InterruptId, InterruptStatus, RunEvent,
     RunId, RunState, StepId,
 };
-use superkick_storage::repo::{InterruptRepo, RunEventRepo, RunRepo, RunStepRepo};
+use superkick_storage::repo::{InterruptRepo, RunEventRepo, RunRepo};
 
 /// Handles the lifecycle of human interrupts.
-pub struct InterruptService<R, ST, E, I> {
+pub struct InterruptService<R, E, I> {
     run_repo: Arc<R>,
-    step_repo: Arc<ST>,
     event_repo: Arc<E>,
     interrupt_repo: Arc<I>,
 }
 
-impl<R, ST, E, I> InterruptService<R, ST, E, I>
+impl<R, E, I> InterruptService<R, E, I>
 where
     R: RunRepo + 'static,
-    ST: RunStepRepo + 'static,
     E: RunEventRepo + 'static,
     I: InterruptRepo + 'static,
 {
-    pub fn new(
-        run_repo: Arc<R>,
-        step_repo: Arc<ST>,
-        event_repo: Arc<E>,
-        interrupt_repo: Arc<I>,
-    ) -> Self {
+    pub fn new(run_repo: Arc<R>, event_repo: Arc<E>, interrupt_repo: Arc<I>) -> Self {
         Self {
             run_repo,
-            step_repo,
             event_repo,
             interrupt_repo,
         }
@@ -47,11 +39,7 @@ where
         step_id: Option<StepId>,
         question: String,
     ) -> Result<Interrupt> {
-        let mut run = self
-            .run_repo
-            .get(run_id)
-            .await?
-            .context("run not found")?;
+        let mut run = self.run_repo.get(run_id).await?.context("run not found")?;
 
         // Transition to WaitingHuman.
         run.transition_to(RunState::WaitingHuman)
@@ -87,6 +75,7 @@ where
     /// Answer a pending interrupt and execute the chosen action.
     pub async fn answer_interrupt(
         &self,
+        run_id: RunId,
         interrupt_id: InterruptId,
         action: InterruptAction,
     ) -> Result<()> {
@@ -100,18 +89,18 @@ where
             bail!("interrupt is not pending (status: {:?})", interrupt.status);
         }
 
-        let mut run = self
-            .run_repo
-            .get(interrupt.run_id)
-            .await?
-            .context("run not found")?;
+        if interrupt.run_id != run_id {
+            bail!("interrupt does not belong to run {run_id}");
+        }
+
+        let run = self.run_repo.get(run_id).await?.context("run not found")?;
 
         if run.state != RunState::WaitingHuman {
             bail!("run is not in waiting_human state (state: {})", run.state);
         }
 
         // Resolve the interrupt.
-        interrupt.resolve(&action);
+        interrupt.resolve(&action)?;
         self.interrupt_repo.update(&interrupt).await?;
 
         self.emit(
@@ -126,68 +115,13 @@ where
         // Execute the action.
         match &action {
             InterruptAction::RetryStep => {
-                // Transition back to Queued so the engine can re-execute.
-                run.transition_to(RunState::Queued)
-                    .context("cannot transition run back to queued for retry")?;
-                run.error_message = None;
-                self.run_repo.update(&run).await?;
-
-                self.emit(
-                    run.id,
-                    None,
-                    EventKind::StateChange,
-                    EventLevel::Info,
-                    "run state → queued (retry after interrupt)".into(),
-                )
-                .await;
-
-                info!(run_id = %run.id, "run requeued after interrupt retry");
+                info!(run_id = %run.id, "interrupt answered with retry_step");
             }
             InterruptAction::ContinueWithNote { note } => {
-                // Dismiss the blockage and continue from where we left off.
-                // Transition to the next logical state — back to the step that was running.
-                // We use the step that caused the interrupt to determine where to resume.
-                let resume_state = if let Some(step_id) = interrupt.run_step_id {
-                    if let Some(step) = self.step_repo.get(step_id).await? {
-                        crate::step_engine::step_key_to_run_state(step.step_key)
-                    } else {
-                        RunState::Queued
-                    }
-                } else {
-                    RunState::Queued
-                };
-
-                run.transition_to(resume_state)
-                    .context("cannot transition run to resume state")?;
-                run.error_message = None;
-                self.run_repo.update(&run).await?;
-
-                self.emit(
-                    run.id,
-                    None,
-                    EventKind::StateChange,
-                    EventLevel::Info,
-                    format!("run state → {resume_state} (continue with note: {note})"),
-                )
-                .await;
-
-                info!(run_id = %run.id, "run continued after interrupt with note");
+                info!(run_id = %run.id, note = %note, "interrupt answered with continue_with_note");
             }
             InterruptAction::AbortRun => {
-                run.transition_to(RunState::Cancelled)
-                    .context("cannot transition run to cancelled")?;
-                self.run_repo.update(&run).await?;
-
-                self.emit(
-                    run.id,
-                    None,
-                    EventKind::StateChange,
-                    EventLevel::Info,
-                    "run state → cancelled (aborted by human)".into(),
-                )
-                .await;
-
-                info!(run_id = %run.id, "run aborted after interrupt");
+                info!(run_id = %run.id, "interrupt answered with abort_run");
             }
         }
 

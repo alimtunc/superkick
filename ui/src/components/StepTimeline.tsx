@@ -41,16 +41,16 @@ export function StepTimeline({ steps }: { steps: RunStep[] }) {
           <span className="font-mono text-slate-300 w-32">{step.step_key}</span>
           <span className="text-slate-500 text-xs">
             {step.status}
-            {step.attempt > 1 && ` (attempt ${step.attempt})`}
+            {step.attempt > 1 ? ` (attempt ${step.attempt})` : ""}
           </span>
           <span className="ml-auto text-slate-500 text-xs font-mono">
             {formatDuration(step.started_at, step.finished_at)}
           </span>
-          {step.error_message && (
+          {step.error_message ? (
             <span className="text-red-400 text-xs truncate max-w-64" title={step.error_message}>
               {step.error_message}
             </span>
-          )}
+          ) : null}
         </div>
       ))}
     </div>

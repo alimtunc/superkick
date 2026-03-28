@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/superkick-api",
+    "crates/superkick-cli",
     "crates/superkick-config",
     "crates/superkick-core",
     "crates/superkick-integrations",

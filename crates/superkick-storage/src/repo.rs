@@ -27,19 +27,18 @@ pub trait RunEventRepo: Send + Sync {
     fn insert(&self, event: &RunEvent) -> impl Future<Output = Result<()>> + Send;
     fn get(&self, id: EventId) -> impl Future<Output = Result<Option<RunEvent>>> + Send;
     fn list_by_run(&self, run_id: RunId) -> impl Future<Output = Result<Vec<RunEvent>>> + Send;
+    fn list_by_run_from_offset(
+        &self,
+        run_id: RunId,
+        offset: usize,
+    ) -> impl Future<Output = Result<Vec<RunEvent>>> + Send;
 }
 
 /// Repository for `AgentSession` entities.
 pub trait AgentSessionRepo: Send + Sync {
     fn insert(&self, session: &AgentSession) -> impl Future<Output = Result<()>> + Send;
-    fn get(
-        &self,
-        id: AgentSessionId,
-    ) -> impl Future<Output = Result<Option<AgentSession>>> + Send;
-    fn list_by_run(
-        &self,
-        run_id: RunId,
-    ) -> impl Future<Output = Result<Vec<AgentSession>>> + Send;
+    fn get(&self, id: AgentSessionId) -> impl Future<Output = Result<Option<AgentSession>>> + Send;
+    fn list_by_run(&self, run_id: RunId) -> impl Future<Output = Result<Vec<AgentSession>>> + Send;
     fn update(&self, session: &AgentSession) -> impl Future<Output = Result<()>> + Send;
 }
 

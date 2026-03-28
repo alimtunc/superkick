@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::error::CoreError;
 use crate::id::{InterruptId, RunId, StepId};
 
 /// Status of a human interrupt.
@@ -53,10 +54,11 @@ impl Interrupt {
         }
     }
 
-    pub fn resolve(&mut self, action: &InterruptAction) {
+    pub fn resolve(&mut self, action: &InterruptAction) -> Result<(), CoreError> {
         self.status = InterruptStatus::Resolved;
-        self.answer_json = Some(serde_json::to_value(action).expect("action serialization"));
+        self.answer_json = Some(serde_json::to_value(action)?);
         self.resolved_at = Some(Utc::now());
+        Ok(())
     }
 
     pub fn dismiss(&mut self) {

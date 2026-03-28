@@ -2,6 +2,7 @@ use anyhow::Result;
 use sqlx::SqlitePool;
 use superkick_core::{Interrupt, InterruptId, InterruptStatus, RunId, StepId};
 
+use super::codec::{deserialize_enum, serialize_enum};
 use crate::repo::InterruptRepo;
 
 pub struct SqliteInterruptRepo {
@@ -25,7 +26,7 @@ impl InterruptRepo for SqliteInterruptRepo {
         .bind(interrupt.run_step_id.map(|id| id.0.to_string()))
         .bind(&interrupt.question)
         .bind(interrupt.context_json.as_ref().map(|v| v.to_string()))
-        .bind(ser_enum(&interrupt.status))
+        .bind(serialize_enum(&interrupt.status)?)
         .bind(interrupt.answer_json.as_ref().map(|v| v.to_string()))
         .bind(interrupt.created_at.to_rfc3339())
         .bind(interrupt.resolved_at.map(|t| t.to_rfc3339()))
@@ -56,7 +57,7 @@ impl InterruptRepo for SqliteInterruptRepo {
         sqlx::query(
             "UPDATE interrupts SET status = ?1, answer_json = ?2, resolved_at = ?3 WHERE id = ?4",
         )
-        .bind(ser_enum(&interrupt.status))
+        .bind(serialize_enum(&interrupt.status)?)
         .bind(interrupt.answer_json.as_ref().map(|v| v.to_string()))
         .bind(interrupt.resolved_at.map(|t| t.to_rfc3339()))
         .bind(interrupt.id.0.to_string())
@@ -95,7 +96,7 @@ impl InterruptRow {
                 .as_deref()
                 .map(serde_json::from_str)
                 .transpose()?,
-            status: de_enum::<InterruptStatus>(&self.status)?,
+            status: deserialize_enum::<InterruptStatus>(&self.status)?,
             answer_json: self
                 .answer_json
                 .as_deref()
@@ -109,16 +110,4 @@ impl InterruptRow {
                 .transpose()?,
         })
     }
-}
-
-fn ser_enum<T: serde::Serialize>(val: &T) -> String {
-    serde_json::to_string(val)
-        .expect("enum serialization cannot fail")
-        .trim_matches('"')
-        .to_string()
-}
-
-fn de_enum<T: serde::de::DeserializeOwned>(s: &str) -> Result<T> {
-    let quoted = format!("\"{s}\"");
-    Ok(serde_json::from_str(&quoted)?)
 }

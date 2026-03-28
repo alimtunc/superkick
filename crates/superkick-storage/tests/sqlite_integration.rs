@@ -101,8 +101,20 @@ async fn run_list_all() -> Result<()> {
     let pool = setup().await?;
     let repo = SqliteRunRepo::new(pool);
 
-    let r1 = Run::new("a".into(), "SK-1".into(), "o/r".into(), TriggerSource::Manual, "main".into());
-    let r2 = Run::new("b".into(), "SK-2".into(), "o/r".into(), TriggerSource::Retry, "main".into());
+    let r1 = Run::new(
+        "a".into(),
+        "SK-1".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        "main".into(),
+    );
+    let r2 = Run::new(
+        "b".into(),
+        "SK-2".into(),
+        "o/r".into(),
+        TriggerSource::Retry,
+        "main".into(),
+    );
     repo.insert(&r1).await?;
     repo.insert(&r2).await?;
 
@@ -117,7 +129,13 @@ async fn step_insert_and_list() -> Result<()> {
     let run_repo = SqliteRunRepo::new(pool.clone());
     let step_repo = SqliteRunStepRepo::new(pool);
 
-    let run = Run::new("i".into(), "SK-1".into(), "o/r".into(), TriggerSource::Manual, "main".into());
+    let run = Run::new(
+        "i".into(),
+        "SK-1".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        "main".into(),
+    );
     run_repo.insert(&run).await?;
 
     let step = RunStep::new(run.id, StepKey::Plan, 1);
@@ -140,7 +158,13 @@ async fn step_update() -> Result<()> {
     let run_repo = SqliteRunRepo::new(pool.clone());
     let step_repo = SqliteRunStepRepo::new(pool);
 
-    let run = Run::new("i".into(), "SK-1".into(), "o/r".into(), TriggerSource::Manual, "main".into());
+    let run = Run::new(
+        "i".into(),
+        "SK-1".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        "main".into(),
+    );
     run_repo.insert(&run).await?;
 
     let mut step = RunStep::new(run.id, StepKey::Code, 1);
@@ -162,10 +186,22 @@ async fn event_insert_and_list() -> Result<()> {
     let run_repo = SqliteRunRepo::new(pool.clone());
     let event_repo = SqliteRunEventRepo::new(pool);
 
-    let run = Run::new("i".into(), "SK-1".into(), "o/r".into(), TriggerSource::Manual, "main".into());
+    let run = Run::new(
+        "i".into(),
+        "SK-1".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        "main".into(),
+    );
     run_repo.insert(&run).await?;
 
-    let event = RunEvent::new(run.id, None, EventKind::StateChange, EventLevel::Info, "started".into());
+    let event = RunEvent::new(
+        run.id,
+        None,
+        EventKind::StateChange,
+        EventLevel::Info,
+        "started".into(),
+    );
     let event_id = event.id;
     event_repo.insert(&event).await?;
 
@@ -186,7 +222,13 @@ async fn agent_session_insert_and_list() -> Result<()> {
     let step_repo = SqliteRunStepRepo::new(pool.clone());
     let session_repo = SqliteAgentSessionRepo::new(pool);
 
-    let run = Run::new("i".into(), "SK-1".into(), "o/r".into(), TriggerSource::Manual, "main".into());
+    let run = Run::new(
+        "i".into(),
+        "SK-1".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        "main".into(),
+    );
     run_repo.insert(&run).await?;
 
     let step = RunStep::new(run.id, StepKey::Code, 1);
@@ -223,7 +265,13 @@ async fn agent_session_update() -> Result<()> {
     let step_repo = SqliteRunStepRepo::new(pool.clone());
     let session_repo = SqliteAgentSessionRepo::new(pool);
 
-    let run = Run::new("i".into(), "SK-1".into(), "o/r".into(), TriggerSource::Manual, "main".into());
+    let run = Run::new(
+        "i".into(),
+        "SK-1".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        "main".into(),
+    );
     run_repo.insert(&run).await?;
     let step = RunStep::new(run.id, StepKey::Code, 1);
     step_repo.insert(&step).await?;
@@ -259,7 +307,13 @@ async fn interrupt_insert_resolve_and_list() -> Result<()> {
     let run_repo = SqliteRunRepo::new(pool.clone());
     let int_repo = SqliteInterruptRepo::new(pool);
 
-    let run = Run::new("i".into(), "SK-1".into(), "o/r".into(), TriggerSource::Manual, "main".into());
+    let run = Run::new(
+        "i".into(),
+        "SK-1".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        "main".into(),
+    );
     run_repo.insert(&run).await?;
 
     let mut interrupt = Interrupt::new(run.id, None, "Approve plan?".into());
@@ -272,7 +326,7 @@ async fn interrupt_insert_resolve_and_list() -> Result<()> {
 
     interrupt.resolve(&InterruptAction::ContinueWithNote {
         note: "approved".into(),
-    });
+    })?;
     int_repo.update(&interrupt).await?;
 
     let fetched = int_repo.get(iid).await?.unwrap();
@@ -290,7 +344,13 @@ async fn artifact_insert_and_list() -> Result<()> {
     let run_repo = SqliteRunRepo::new(pool.clone());
     let art_repo = SqliteArtifactRepo::new(pool);
 
-    let run = Run::new("i".into(), "SK-1".into(), "o/r".into(), TriggerSource::Manual, "main".into());
+    let run = Run::new(
+        "i".into(),
+        "SK-1".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        "main".into(),
+    );
     run_repo.insert(&run).await?;
 
     let artifact = Artifact::new(run.id, ArtifactKind::Plan, "/tmp/plan.md".into());

@@ -2,6 +2,7 @@
 
 mod agent_sessions;
 mod artifacts;
+mod codec;
 mod events;
 mod interrupts;
 mod runs;

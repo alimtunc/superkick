@@ -268,16 +268,13 @@ fn reject_review_swarm_with_undefined_agent() {
                 - ghost
     "};
     let err = load_str(yaml).unwrap_err();
-    assert!(
-        err.to_string().contains("ghost"),
-        "unexpected error: {err}"
-    );
+    assert!(err.to_string().contains("ghost"), "unexpected error: {err}");
 }
 
 #[test]
 fn load_example_file() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/superkick.yaml");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/superkick.yaml");
     let config = crate::load_file(&path).expect("example config should parse successfully");
     assert_eq!(config.version, 1);
     assert_eq!(config.workflow.steps.len(), 5);

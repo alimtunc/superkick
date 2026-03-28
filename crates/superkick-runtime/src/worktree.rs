@@ -38,11 +38,7 @@ impl WorktreeManager {
     /// - `bare_repo` — path to the bare-clone cache directory.
     /// - `worktree_root` — parent directory where worktrees are placed.
     /// - `prefix` — prefix for directory and branch names (e.g. "superkick").
-    pub async fn new(
-        bare_repo: PathBuf,
-        worktree_root: PathBuf,
-        prefix: String,
-    ) -> Result<Self> {
+    pub async fn new(bare_repo: PathBuf, worktree_root: PathBuf, prefix: String) -> Result<Self> {
         tokio::fs::create_dir_all(&worktree_root)
             .await
             .with_context(|| {
@@ -104,11 +100,9 @@ impl WorktreeManager {
         // Try origin/<branch> first (mirror clones), then fall back to <branch>.
         let start_point = {
             let origin_ref = format!("origin/{base_branch}");
-            let result = git::git_raw(&self.bare_repo, &["rev-parse", "--verify", &origin_ref]).await;
-            if result.is_ok() && result.unwrap().status.success() {
-                origin_ref
-            } else {
-                base_branch.to_string()
+            match git::git_raw(&self.bare_repo, &["rev-parse", "--verify", &origin_ref]).await {
+                Ok(output) if output.status.success() => origin_ref,
+                Ok(_) | Err(_) => base_branch.to_string(),
             }
         };
 
@@ -126,7 +120,7 @@ impl WorktreeManager {
                 "add",
                 "-b",
                 &branch,
-                wt_path.to_str().unwrap(),
+                path_as_str(&wt_path)?,
                 &start_point,
             ],
         )
@@ -191,7 +185,7 @@ impl WorktreeManager {
         // `git worktree remove --force` removes the directory and the metadata.
         let result = git::git(
             &self.bare_repo,
-            &["worktree", "remove", "--force", wt_path.to_str().unwrap()],
+            &["worktree", "remove", "--force", path_as_str(wt_path)?],
         )
         .await;
 
@@ -246,4 +240,9 @@ pub fn default_worktree_root(repo_root: &Path) -> PathBuf {
 /// Build a clone URL from a repo slug (owner/repo → https://github.com/owner/repo.git).
 pub fn github_clone_url(repo_slug: &str) -> String {
     format!("https://github.com/{repo_slug}.git")
+}
+
+fn path_as_str(path: &Path) -> Result<&str> {
+    path.to_str()
+        .with_context(|| format!("path is not valid UTF-8: {}", path.display()))
 }

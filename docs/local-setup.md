@@ -1,16 +1,19 @@
 # Local Setup
 
-Get superkick running locally against a real GitHub repo.
+Superkick is installed **once per machine**, then **configured per repository**.
 
-## Prerequisites
+---
+
+## Step 1 — Machine setup (one-time)
+
+### Prerequisites
 
 | Tool | Purpose | Install |
 |------|---------|---------|
 | Rust (1.82+) | Build | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
 | git | Repo operations | system package manager |
 | gh | PR creation | `brew install gh` / [cli.github.com](https://cli.github.com) |
-| claude | AI agent (plan/code) | [claude.ai/download](https://claude.ai/download) |
-| curl + jq | Demo scripts | system package manager |
+| claude **or** codex | AI agent (plan/code/review) | [claude.ai/download](https://claude.ai/download) / `npm i -g @openai/codex` |
 
 Authenticate `gh` before running:
 
@@ -18,36 +21,65 @@ Authenticate `gh` before running:
 gh auth login
 ```
 
-## Build
+### Build
 
 ```bash
 cargo build --release
 ```
 
-The binary lands at `target/release/superkick-api`.
+This produces two binaries:
 
-## Configure
+| Binary | Path | Purpose |
+|--------|------|---------|
+| `superkick` | `target/release/superkick` | CLI — doctor, init |
+| `superkick-api` | `target/release/superkick-api` | HTTP server + runtime engine |
 
-Copy and edit the example config:
+### Verify your machine
 
 ```bash
-cp examples/superkick.yaml superkick.yaml
+superkick doctor
 ```
 
-Edit `superkick.yaml` to point at your target repo and adjust the workflow.
-Key fields:
+This checks that `git`, `gh`, and at least one agent CLI (`claude` or `codex`) are available on your `PATH`. It tells you exactly what is missing and how to install it.
+
+---
+
+## Step 2 — Repository configuration (per project)
+
+### Initialize
+
+From the root of your repository:
+
+```bash
+superkick init
+```
+
+This creates a starter `superkick.yaml`. It will **not** overwrite an existing config.
+
+### Configure
+
+Edit `superkick.yaml` to match your project. Key fields:
 
 ```yaml
 runner:
   repo_root: .          # where worktrees/cache live (relative to cwd)
   base_branch: main     # branch to fork worktrees from
+  setup_commands:
+    - pnpm install --frozen-lockfile
 
 agents:
   implementation:
     provider: claude     # or codex
+
+workflow:
+  steps:
+    - type: commands
+      run:
+        - pnpm lint
+        - pnpm test
 ```
 
-## Environment variables
+### Environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -57,19 +89,27 @@ agents:
 | `SUPERKICK_CACHE_DIR` | `.superkick-cache` | Bare clone cache directory |
 | `RUST_LOG` | (none) | Log level, e.g. `info` or `superkick_runtime=debug` |
 
-## Start the server
+---
+
+## Step 3 — Run
+
+### Start the server
 
 ```bash
-SUPERKICK_CONFIG=superkick.yaml \
-DATABASE_URL=sqlite:superkick.db \
-PORT=3100 \
-RUST_LOG=info \
-cargo run -p superkick-api
+superkick serve
+```
+
+Or with options:
+
+```bash
+RUST_LOG=info superkick serve -c superkick.yaml -p 3100
 ```
 
 The server auto-runs SQLite migrations on first start.
 
-## Trigger a run
+> **Legacy:** you can still use `cargo run -p superkick-api` with env vars, but the CLI is the recommended entry point.
+
+### Trigger a run
 
 ```bash
 curl -X POST http://127.0.0.1:3100/runs \
@@ -85,7 +125,7 @@ curl -X POST http://127.0.0.1:3100/runs \
 This returns the created run immediately. The engine executes in the background:
 `Prepare (clone + worktree) -> Plan -> Code -> Commands -> Review -> PR`.
 
-## Observe
+### Observe
 
 Poll the run:
 
@@ -97,7 +137,7 @@ curl http://127.0.0.1:3100/runs/<run-id> | jq
 curl -N http://127.0.0.1:3100/runs/<run-id>/events
 ```
 
-## Handle interrupts
+### Handle interrupts
 
 When a step fails and the policy is `ask_human`, the run pauses in `waiting_human`.
 
@@ -120,6 +160,8 @@ curl -X POST http://127.0.0.1:3100/runs/<run-id>/interrupts/<interrupt-id>/answe
   -H "Content-Type: application/json" \
   -d '"AbortRun"'
 ```
+
+---
 
 ## Demo script
 

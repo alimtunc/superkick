@@ -23,18 +23,18 @@ export function InterruptPanel({ runId, interrupts, onAnswered }: InterruptPanel
         />
       ))}
 
-      {resolved.length > 0 && (
+      {resolved.length > 0 ? (
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-slate-400">History</h3>
           {resolved.map((interrupt) => (
             <ResolvedInterrupt key={interrupt.id} interrupt={interrupt} />
           ))}
         </div>
-      )}
+      ) : null}
 
-      {interrupts.length === 0 && (
+      {interrupts.length === 0 ? (
         <p className="text-sm text-slate-500">No interrupts.</p>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -75,9 +75,9 @@ function PendingInterrupt({
             {new Date(interrupt.created_at).toLocaleString()}
           </p>
 
-          {error && (
+          {error ? (
             <p className="mt-2 text-sm text-red-400 bg-red-900/30 rounded p-2">{error}</p>
-          )}
+          ) : null}
 
           <div className="mt-3 space-y-2">
             <div className="flex gap-2">
@@ -136,14 +136,14 @@ function ResolvedInterrupt({ interrupt }: { interrupt: Interrupt }) {
             <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">
               {actionLabel}
             </span>
-            {answer?.note && (
+            {answer?.note ? (
               <span className="text-xs text-slate-500 italic">"{answer.note}"</span>
-            )}
-            {interrupt.resolved_at && (
+            ) : null}
+            {interrupt.resolved_at ? (
               <span className="text-xs text-slate-600">
                 {new Date(interrupt.resolved_at).toLocaleString()}
               </span>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
