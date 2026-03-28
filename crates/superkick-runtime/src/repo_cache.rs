@@ -53,9 +53,7 @@ impl RepoCache {
             info!(repo_slug, path = %bare_path.display(), "removing cached repo");
             tokio::fs::remove_dir_all(&bare_path)
                 .await
-                .with_context(|| {
-                    format!("failed to remove cache dir: {}", bare_path.display())
-                })?;
+                .with_context(|| format!("failed to remove cache dir: {}", bare_path.display()))?;
         }
         Ok(())
     }
@@ -94,11 +92,7 @@ impl RepoCache {
                 "--bare",
                 "--quiet",
                 clone_url,
-                tmp_path
-                    .file_name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap(),
+                tmp_dir_name(&tmp_path)?,
             ],
         )
         .await
@@ -123,6 +117,12 @@ impl RepoCache {
 /// Replace characters that are unsafe in directory names.
 fn sanitise_slug(slug: &str) -> String {
     slug.replace('/', "--")
+}
+
+fn tmp_dir_name(path: &Path) -> Result<&str> {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .with_context(|| format!("path has no UTF-8 file name: {}", path.display()))
 }
 
 #[cfg(test)]

@@ -2,17 +2,17 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
+use axum::Router;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Json};
 use axum::routing::{get, post};
-use axum::Router;
 use serde::Deserialize;
 use tracing_subscriber::EnvFilter;
 
 use superkick_core::{InterruptAction, InterruptId, Run, RunId, TriggerSource};
-use superkick_runtime::{InterruptService, RepoCache, StepEngine};
+use superkick_runtime::{InterruptService, RepoCache, StepEngine, StepEngineDeps};
 use superkick_storage::repo::{InterruptRepo, RunEventRepo, RunRepo, RunStepRepo};
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteInterruptRepo, SqliteRunEventRepo,
@@ -30,12 +30,7 @@ type Engine = StepEngine<
     SqliteInterruptRepo,
 >;
 
-type IntService = InterruptService<
-    SqliteRunRepo,
-    SqliteRunStepRepo,
-    SqliteRunEventRepo,
-    SqliteInterruptRepo,
->;
+type IntService = InterruptService<SqliteRunRepo, SqliteRunEventRepo, SqliteInterruptRepo>;
 
 #[derive(Clone)]
 struct AppState {
@@ -55,12 +50,10 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    let config_path = std::env::var("SUPERKICK_CONFIG")
-        .unwrap_or_else(|_| "superkick.yaml".into());
+    let config_path = std::env::var("SUPERKICK_CONFIG").unwrap_or_else(|_| "superkick.yaml".into());
     let config = superkick_config::load_file(std::path::Path::new(&config_path))?;
 
-    let db_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite:superkick.db".into());
+    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:superkick.db".into());
     let pool = superkick_storage::connect(&db_url).await?;
 
     let run_repo = Arc::new(SqliteRunRepo::new(pool.clone()));
@@ -75,20 +68,19 @@ async fn main() -> anyhow::Result<()> {
     );
     let repo_cache = RepoCache::new(cache_root).await?;
 
-    let engine = Arc::new(StepEngine::new(
-        Arc::clone(&run_repo),
-        Arc::clone(&step_repo),
-        Arc::clone(&event_repo),
-        Arc::clone(&session_repo),
-        Arc::clone(&artifact_repo),
-        Arc::clone(&interrupt_repo),
+    let engine = Arc::new(StepEngine::new(StepEngineDeps {
+        run_repo: Arc::clone(&run_repo),
+        step_repo: Arc::clone(&step_repo),
+        event_repo: Arc::clone(&event_repo),
+        session_repo: Arc::clone(&session_repo),
+        artifact_repo: Arc::clone(&artifact_repo),
+        interrupt_repo: Arc::clone(&interrupt_repo),
         repo_cache,
         config,
-    ));
+    }));
 
     let interrupt_service = Arc::new(InterruptService::new(
         Arc::clone(&run_repo),
-        Arc::clone(&step_repo),
         Arc::clone(&event_repo),
         Arc::clone(&interrupt_repo),
     ));
@@ -234,10 +226,10 @@ async fn get_run_events(
     let run_repo = Arc::clone(&state.run_repo);
 
     let stream = async_stream::stream! {
-        let mut last_count: usize = 0;
+        let mut offset: usize = 0;
 
         loop {
-            let events = match event_repo.list_by_run(run_id).await {
+            let events = match event_repo.list_by_run_from_offset(run_id, offset).await {
                 Ok(events) => events,
                 Err(e) => {
                     yield Ok(Event::default().event("error").data(e.to_string()));
@@ -245,8 +237,7 @@ async fn get_run_events(
                 }
             };
 
-            // Emit only new events since last poll.
-            for event in events.iter().skip(last_count) {
+            for event in &events {
                 let data = match serde_json::to_string(event) {
                     Ok(d) => d,
                     Err(e) => {
@@ -258,7 +249,7 @@ async fn get_run_events(
                     Event::default().event("run_event").data(data)
                 );
             }
-            last_count = events.len();
+            offset += events.len();
 
             // Check if run is terminal — if so, close the stream.
             if let Ok(Some(run)) = run_repo.get(run_id).await {
@@ -290,12 +281,12 @@ async fn list_interrupts(
 
 async fn answer_interrupt(
     State(state): State<AppState>,
-    Path((_run_id, interrupt_id)): Path<(uuid::Uuid, uuid::Uuid)>,
+    Path((run_id, interrupt_id)): Path<(uuid::Uuid, uuid::Uuid)>,
     Json(action): Json<InterruptAction>,
 ) -> Result<impl IntoResponse, AppError> {
     state
         .interrupt_service
-        .answer_interrupt(InterruptId(interrupt_id), action)
+        .answer_interrupt(RunId(run_id), InterruptId(interrupt_id), action)
         .await?;
     Ok(StatusCode::OK)
 }

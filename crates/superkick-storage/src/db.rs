@@ -1,8 +1,8 @@
 //! Database connection pool and migration runner.
 
 use anyhow::Result;
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::SqlitePool;
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::str::FromStr;
 
 /// Create a connection pool with WAL mode enabled and run migrations.

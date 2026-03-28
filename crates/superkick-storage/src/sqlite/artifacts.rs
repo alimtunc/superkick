@@ -2,6 +2,7 @@ use anyhow::Result;
 use sqlx::SqlitePool;
 use superkick_core::{Artifact, ArtifactId, ArtifactKind, RunId};
 
+use super::codec::{deserialize_enum, serialize_enum};
 use crate::repo::ArtifactRepo;
 
 pub struct SqliteArtifactRepo {
@@ -22,7 +23,7 @@ impl ArtifactRepo for SqliteArtifactRepo {
         )
         .bind(artifact.id.0.to_string())
         .bind(artifact.run_id.0.to_string())
-        .bind(ser_enum(&artifact.kind))
+        .bind(serialize_enum(&artifact.kind)?)
         .bind(&artifact.path_or_url)
         .bind(artifact.metadata_json.as_ref().map(|v| v.to_string()))
         .bind(artifact.created_at.to_rfc3339())
@@ -65,7 +66,7 @@ impl ArtifactRow {
         Ok(Artifact {
             id: ArtifactId(uuid::Uuid::parse_str(&self.id)?),
             run_id: RunId(uuid::Uuid::parse_str(&self.run_id)?),
-            kind: de_enum::<ArtifactKind>(&self.kind)?,
+            kind: deserialize_enum::<ArtifactKind>(&self.kind)?,
             path_or_url: self.path_or_url,
             metadata_json: self
                 .metadata_json
@@ -75,16 +76,4 @@ impl ArtifactRow {
             created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
         })
     }
-}
-
-fn ser_enum<T: serde::Serialize>(val: &T) -> String {
-    serde_json::to_string(val)
-        .expect("enum serialization cannot fail")
-        .trim_matches('"')
-        .to_string()
-}
-
-fn de_enum<T: serde::de::DeserializeOwned>(s: &str) -> Result<T> {
-    let quoted = format!("\"{s}\"");
-    Ok(serde_json::from_str(&quoted)?)
 }

@@ -2,6 +2,7 @@ use anyhow::Result;
 use sqlx::SqlitePool;
 use superkick_core::{AgentProvider, AgentSession, AgentSessionId, AgentStatus, RunId, StepId};
 
+use super::codec::{deserialize_enum, serialize_enum};
 use crate::repo::AgentSessionRepo;
 
 pub struct SqliteAgentSessionRepo {
@@ -26,7 +27,7 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
         .bind(session.provider.to_string())
         .bind(&session.command)
         .bind(session.pid.map(|p| p as i64))
-        .bind(ser_enum(&session.status))
+        .bind(serialize_enum(&session.status)?)
         .bind(session.started_at.to_rfc3339())
         .bind(session.finished_at.map(|t| t.to_rfc3339()))
         .bind(session.exit_code)
@@ -57,7 +58,7 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
         sqlx::query(
             "UPDATE agent_sessions SET status = ?1, pid = ?2, finished_at = ?3, exit_code = ?4 WHERE id = ?5",
         )
-        .bind(ser_enum(&session.status))
+        .bind(serialize_enum(&session.status)?)
         .bind(session.pid.map(|p| p as i64))
         .bind(session.finished_at.map(|t| t.to_rfc3339()))
         .bind(session.exit_code)
@@ -88,10 +89,10 @@ impl SessionRow {
             id: AgentSessionId(uuid::Uuid::parse_str(&self.id)?),
             run_id: RunId(uuid::Uuid::parse_str(&self.run_id)?),
             run_step_id: StepId(uuid::Uuid::parse_str(&self.run_step_id)?),
-            provider: de_enum::<AgentProvider>(&self.provider)?,
+            provider: deserialize_enum::<AgentProvider>(&self.provider)?,
             command: self.command,
             pid: self.pid.map(|p| p as u32),
-            status: de_enum::<AgentStatus>(&self.status)?,
+            status: deserialize_enum::<AgentStatus>(&self.status)?,
             started_at: chrono::DateTime::parse_from_rfc3339(&self.started_at)?.to_utc(),
             finished_at: self
                 .finished_at
@@ -101,16 +102,4 @@ impl SessionRow {
             exit_code: self.exit_code,
         })
     }
-}
-
-fn ser_enum<T: serde::Serialize>(val: &T) -> String {
-    serde_json::to_string(val)
-        .expect("enum serialization cannot fail")
-        .trim_matches('"')
-        .to_string()
-}
-
-fn de_enum<T: serde::de::DeserializeOwned>(s: &str) -> Result<T> {
-    let quoted = format!("\"{s}\"");
-    Ok(serde_json::from_str(&quoted)?)
 }

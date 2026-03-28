@@ -2,6 +2,7 @@ use anyhow::Result;
 use sqlx::SqlitePool;
 use superkick_core::{RunId, RunStep, StepId, StepKey, StepStatus};
 
+use super::codec::{deserialize_enum, serialize_enum};
 use crate::repo::RunStepRepo;
 
 pub struct SqliteRunStepRepo {
@@ -23,7 +24,7 @@ impl RunStepRepo for SqliteRunStepRepo {
         .bind(step.id.0.to_string())
         .bind(step.run_id.0.to_string())
         .bind(step.step_key.to_string())
-        .bind(ser_enum(&step.status))
+        .bind(serialize_enum(&step.status)?)
         .bind(step.attempt as i64)
         .bind(&step.agent_provider)
         .bind(step.started_at.map(|t| t.to_rfc3339()))
@@ -58,7 +59,7 @@ impl RunStepRepo for SqliteRunStepRepo {
         sqlx::query(
             "UPDATE run_steps SET status = ?1, agent_provider = ?2, started_at = ?3, finished_at = ?4, input_json = ?5, output_json = ?6, error_message = ?7 WHERE id = ?8",
         )
-        .bind(ser_enum(&step.status))
+        .bind(serialize_enum(&step.status)?)
         .bind(&step.agent_provider)
         .bind(step.started_at.map(|t| t.to_rfc3339()))
         .bind(step.finished_at.map(|t| t.to_rfc3339()))
@@ -92,8 +93,8 @@ impl StepRow {
         Ok(RunStep {
             id: StepId(uuid::Uuid::parse_str(&self.id)?),
             run_id: RunId(uuid::Uuid::parse_str(&self.run_id)?),
-            step_key: de_enum::<StepKey>(&self.step_key)?,
-            status: de_enum::<StepStatus>(&self.status)?,
+            step_key: deserialize_enum::<StepKey>(&self.step_key)?,
+            status: deserialize_enum::<StepStatus>(&self.status)?,
             attempt: self.attempt as u32,
             agent_provider: self.agent_provider,
             started_at: self
@@ -119,16 +120,4 @@ impl StepRow {
             error_message: self.error_message,
         })
     }
-}
-
-fn ser_enum<T: serde::Serialize>(val: &T) -> String {
-    serde_json::to_string(val)
-        .expect("enum serialization cannot fail")
-        .trim_matches('"')
-        .to_string()
-}
-
-fn de_enum<T: serde::de::DeserializeOwned>(s: &str) -> Result<T> {
-    let quoted = format!("\"{s}\"");
-    Ok(serde_json::from_str(&quoted)?)
 }

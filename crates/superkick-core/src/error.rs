@@ -8,4 +8,7 @@ pub enum CoreError {
 
     #[error("run is in terminal state: {0}")]
     TerminalState(RunState),
+
+    #[error("failed to serialize interrupt answer: {0}")]
+    InterruptAnswerSerialization(#[from] serde_json::Error),
 }

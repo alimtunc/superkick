@@ -2,6 +2,7 @@ use anyhow::Result;
 use sqlx::SqlitePool;
 use superkick_core::{EventId, EventKind, EventLevel, RunEvent, RunId, StepId};
 
+use super::codec::{deserialize_enum, serialize_enum};
 use crate::repo::RunEventRepo;
 
 pub struct SqliteRunEventRepo {
@@ -24,8 +25,8 @@ impl RunEventRepo for SqliteRunEventRepo {
         .bind(event.run_id.0.to_string())
         .bind(event.run_step_id.map(|id| id.0.to_string()))
         .bind(event.ts.to_rfc3339())
-        .bind(ser_enum(&event.kind))
-        .bind(ser_enum(&event.level))
+        .bind(serialize_enum(&event.kind)?)
+        .bind(serialize_enum(&event.level)?)
         .bind(&event.message)
         .bind(event.payload_json.as_ref().map(|v| v.to_string()))
         .execute(&self.pool)
@@ -47,6 +48,17 @@ impl RunEventRepo for SqliteRunEventRepo {
                 .bind(run_id.0.to_string())
                 .fetch_all(&self.pool)
                 .await?;
+        rows.into_iter().map(|r| r.into_domain()).collect()
+    }
+
+    async fn list_by_run_from_offset(&self, run_id: RunId, offset: usize) -> Result<Vec<RunEvent>> {
+        let rows = sqlx::query_as::<_, EventRow>(
+            "SELECT * FROM run_events WHERE run_id = ?1 ORDER BY ts LIMIT -1 OFFSET ?2",
+        )
+        .bind(run_id.0.to_string())
+        .bind(offset as i64)
+        .fetch_all(&self.pool)
+        .await?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 }
@@ -74,8 +86,8 @@ impl EventRow {
                 .map(|s| uuid::Uuid::parse_str(s).map(StepId))
                 .transpose()?,
             ts: chrono::DateTime::parse_from_rfc3339(&self.ts)?.to_utc(),
-            kind: de_enum::<EventKind>(&self.kind)?,
-            level: de_enum::<EventLevel>(&self.level)?,
+            kind: deserialize_enum::<EventKind>(&self.kind)?,
+            level: deserialize_enum::<EventLevel>(&self.level)?,
             message: self.message,
             payload_json: self
                 .payload_json
@@ -84,16 +96,4 @@ impl EventRow {
                 .transpose()?,
         })
     }
-}
-
-fn ser_enum<T: serde::Serialize>(val: &T) -> String {
-    serde_json::to_string(val)
-        .expect("enum serialization cannot fail")
-        .trim_matches('"')
-        .to_string()
-}
-
-fn de_enum<T: serde::de::DeserializeOwned>(s: &str) -> Result<T> {
-    let quoted = format!("\"{s}\"");
-    Ok(serde_json::from_str(&quoted)?)
 }

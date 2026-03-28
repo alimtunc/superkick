@@ -2,6 +2,7 @@ use anyhow::Result;
 use sqlx::SqlitePool;
 use superkick_core::{Run, RunId, RunState, StepKey, TriggerSource};
 
+use super::codec::{deserialize_enum, serialize_enum};
 use crate::repo::RunRepo;
 
 pub struct SqliteRunRepo {
@@ -24,8 +25,8 @@ impl RunRepo for SqliteRunRepo {
         .bind(&run.issue_id)
         .bind(&run.issue_identifier)
         .bind(&run.repo_slug)
-        .bind(run.state.to_string())
-        .bind(ser_json(&run.trigger_source))
+        .bind(serialize_enum(&run.state)?)
+        .bind(serialize_enum(&run.trigger_source)?)
         .bind(run.current_step_key.map(|k| k.to_string()))
         .bind(&run.base_branch)
         .bind(&run.worktree_path)
@@ -58,8 +59,8 @@ impl RunRepo for SqliteRunRepo {
         sqlx::query(
             "UPDATE runs SET state = ?1, trigger_source = ?2, current_step_key = ?3, worktree_path = ?4, branch_name = ?5, updated_at = ?6, finished_at = ?7, error_message = ?8 WHERE id = ?9",
         )
-        .bind(run.state.to_string())
-        .bind(ser_json(&run.trigger_source))
+        .bind(serialize_enum(&run.state)?)
+        .bind(serialize_enum(&run.trigger_source)?)
         .bind(run.current_step_key.map(|k| k.to_string()))
         .bind(&run.worktree_path)
         .bind(&run.branch_name)
@@ -98,12 +99,12 @@ impl RunRow {
             issue_id: self.issue_id,
             issue_identifier: self.issue_identifier,
             repo_slug: self.repo_slug,
-            state: de_json::<RunState>(&self.state)?,
-            trigger_source: de_json::<TriggerSource>(&self.trigger_source)?,
+            state: deserialize_enum::<RunState>(&self.state)?,
+            trigger_source: deserialize_enum::<TriggerSource>(&self.trigger_source)?,
             current_step_key: self
                 .current_step_key
                 .as_deref()
-                .map(|s| de_json::<StepKey>(s))
+                .map(deserialize_enum::<StepKey>)
                 .transpose()?,
             base_branch: self.base_branch,
             worktree_path: self.worktree_path,
@@ -118,18 +119,4 @@ impl RunRow {
             error_message: self.error_message,
         })
     }
-}
-
-/// Serialize a serde value to its JSON string (for enums this produces the snake_case string).
-fn ser_json<T: serde::Serialize>(val: &T) -> String {
-    // serde_json::to_string wraps strings in quotes — we strip them for plain enum values.
-    let s = serde_json::to_string(val).expect("enum serialization cannot fail");
-    s.trim_matches('"').to_string()
-}
-
-/// Deserialize a snake_case string back to a serde‑tagged enum.
-fn de_json<T: serde::de::DeserializeOwned>(s: &str) -> Result<T> {
-    // Wrap in quotes so serde_json can parse as a JSON string.
-    let quoted = format!("\"{s}\"");
-    Ok(serde_json::from_str(&quoted)?)
 }

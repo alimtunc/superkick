@@ -4,9 +4,19 @@ use crate::model::{SuperkickConfig, WorkflowStep};
 
 /// Validate internal consistency of a parsed config.
 pub fn validate(config: &SuperkickConfig) -> anyhow::Result<()> {
-    ensure!(config.version == 1, "unsupported config version: {} (expected 1)", config.version);
-    ensure!(!config.agents.is_empty(), "at least one agent must be defined");
-    ensure!(!config.workflow.steps.is_empty(), "workflow must have at least one step");
+    ensure!(
+        config.version == 1,
+        "unsupported config version: {} (expected 1)",
+        config.version
+    );
+    ensure!(
+        !config.agents.is_empty(),
+        "at least one agent must be defined"
+    );
+    ensure!(
+        !config.workflow.steps.is_empty(),
+        "workflow must have at least one step"
+    );
 
     for (i, step) in config.workflow.steps.iter().enumerate() {
         validate_step(config, step, i)?;
@@ -15,7 +25,11 @@ pub fn validate(config: &SuperkickConfig) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn validate_step(config: &SuperkickConfig, step: &WorkflowStep, index: usize) -> anyhow::Result<()> {
+fn validate_step(
+    config: &SuperkickConfig,
+    step: &WorkflowStep,
+    index: usize,
+) -> anyhow::Result<()> {
     match step {
         WorkflowStep::Plan { agent } | WorkflowStep::Code { agent } => {
             if !config.agents.contains_key(agent) {
@@ -26,7 +40,9 @@ fn validate_step(config: &SuperkickConfig, step: &WorkflowStep, index: usize) ->
         }
         WorkflowStep::Commands { run } => {
             if run.is_empty() {
-                bail!("workflow step {index}: commands step must have at least one command in `run`");
+                bail!(
+                    "workflow step {index}: commands step must have at least one command in `run`"
+                );
             }
         }
         WorkflowStep::ReviewSwarm { agents, .. } => {
