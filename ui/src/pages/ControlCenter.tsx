@@ -1,16 +1,15 @@
-import { useDashboardRuns } from "../hooks/useDashboardRuns";
+import type { DashboardData } from "../hooks/useDashboardRuns";
 import { MetricCard, KpiCell } from "../components/dashboard/MetricCards";
 import { BoardCol, SessionWatchRail } from "../components/dashboard/RunBoard";
 import { AlertRow } from "../components/dashboard/AlertRow";
+import { FocusedRunPanel } from "../components/dashboard/FocusedRunPanel";
 import { DistPanel, DurationRow } from "../components/dashboard/ReliabilityPanel";
 import { SectionTitle } from "../components/dashboard/SectionTitle";
 import { TopBar } from "../components/dashboard/TopBar";
 import { CompletedTable } from "../components/dashboard/CompletedTable";
-import { avgDuration, fmtElapsed, medianDuration, stateDistribution } from "../components/dashboard/utils";
+import { avgDuration, medianDuration, stateDistribution } from "../components/dashboard/utils";
 
-export function ControlCenter() {
-  const d = useDashboardRuns();
-
+export function ControlCenter({ dashboard: d }: { dashboard: DashboardData }) {
   return (
     <div className="min-h-screen bg-void">
       <TopBar
@@ -20,12 +19,13 @@ export function ControlCenter() {
         onRefresh={d.refresh}
       />
 
-      <SessionWatchRail active={d.active} refTime={d.refTime} />
+      <SessionWatchRail refTime={d.refTime} mode="overview" />
+      <FocusedRunPanel refTime={d.refTime} />
 
       <main className="mx-auto max-w-[1440px] px-6 py-10 space-y-12">
-        {d.error && (
+        {d.error ? (
           <div className="panel glow-red p-3 font-data text-[12px] text-oxide">{d.error}</div>
-        )}
+        ) : null}
 
         {/* ── Executive Summary + KPI ── */}
         <div className="space-y-4">
@@ -80,7 +80,7 @@ export function ControlCenter() {
               ))}
               {d.aging.map((run, i) => (
                 <AlertRow key={run.id} run={run} refTime={d.refTime}
-                  reason={`Aging — ${fmtElapsed(run.started_at, d.refTime)} elapsed`}
+                  reason={`Aging — ${d.oldestActive} elapsed`}
                   isLast={i === d.aging.length - 1}
                 />
               ))}

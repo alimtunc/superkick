@@ -146,3 +146,5 @@ export function useDashboardRuns() {
     oldestActive,
   };
 }
+
+export type DashboardData = ReturnType<typeof useDashboardRuns>;
