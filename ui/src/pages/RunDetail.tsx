@@ -1,78 +1,79 @@
-import { useState } from "react";
-import { useParams } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
-import { EventStream } from "@/components/run-detail/EventStream";
-import { InterruptPanel } from "@/components/run-detail/InterruptPanel";
-import { ReviewResults } from "@/components/run-detail/ReviewResults";
-import { RunDetailHeader } from "@/components/run-detail/RunDetailHeader";
-import { RunDetailsGrid } from "@/components/run-detail/RunDetailsGrid";
-import { SessionWatchRail } from "@/components/dashboard/SessionWatchRail";
-import { StepTimeline } from "@/components/run-detail/StepTimeline";
-import { SectionTitle } from "@/components/dashboard/SectionTitle";
-import { useRunDetail } from "@/hooks/useRunDetail";
-import { useWatchedSessionsStore } from "@/stores/watchedSessions";
-import { queryKeys } from "@/lib/queryKeys";
+import { useState } from 'react'
+
+import { SectionTitle } from '@/components/dashboard/SectionTitle'
+import { SessionWatchRail } from '@/components/dashboard/SessionWatchRail'
+import { EventStream } from '@/components/run-detail/EventStream'
+import { InterruptPanel } from '@/components/run-detail/InterruptPanel'
+import { ReviewResults } from '@/components/run-detail/ReviewResults'
+import { RunDetailHeader } from '@/components/run-detail/RunDetailHeader'
+import { RunDetailsGrid } from '@/components/run-detail/RunDetailsGrid'
+import { StepTimeline } from '@/components/run-detail/StepTimeline'
+import { useRunDetail } from '@/hooks/useRunDetail'
+import { queryKeys } from '@/lib/queryKeys'
+import { useWatchedSessionsStore } from '@/stores/watchedSessions'
+import { useQueryClient } from '@tanstack/react-query'
+import { useParams } from '@tanstack/react-router'
 
 export function RunDetailPage() {
-  const { runId } = useParams({ from: "/runs/$runId" });
-  const queryClient = useQueryClient();
-  const refTime = queryClient.getQueryState(queryKeys.runs.all)?.dataUpdatedAt || Date.now();
+	const { runId } = useParams({ from: '/runs/$runId' })
+	const queryClient = useQueryClient()
+	const refTime = queryClient.getQueryState(queryKeys.runs.all)?.dataUpdatedAt || Date.now()
 
-  return <RunDetail key={runId} runId={runId} refTime={refTime} />;
+	return <RunDetail key={runId} runId={runId} refTime={refTime} />
 }
 
 function RunDetail({ runId, refTime }: { runId: string; refTime: number }) {
-  const d = useRunDetail(runId);
-  const [streaming, setStreaming] = useState(false);
-  const { isWatched, toggleWatch, maxReached } = useWatchedSessionsStore();
-  const watched = isWatched(runId);
+	const d = useRunDetail(runId)
+	const [streaming, setStreaming] = useState(false)
+	const { isWatched, toggleWatch, maxReached } = useWatchedSessionsStore()
+	const watched = isWatched(runId)
 
-  if (d.loading) return <p className="p-6 text-dim font-data">Loading...</p>;
-  if (d.error) return <p className="p-6 text-oxide font-data">{d.error}</p>;
-  if (!d.run) return <p className="p-6 text-dim font-data">Run not found.</p>;
+	if (d.loading) return <p className="font-data p-6 text-dim">Loading...</p>
+	if (d.error) return <p className="font-data p-6 text-oxide">{d.error}</p>
+	if (!d.run) return <p className="font-data p-6 text-dim">Run not found.</p>
 
-  return (
-    <div className="min-h-screen bg-void">
-      <RunDetailHeader
-        run={d.run}
-        isTerminal={d.isTerminal}
-        streaming={streaming}
-        onToggleStream={() => setStreaming((v) => !v)}
-        onRefresh={d.refresh}
-        watched={watched}
-        maxReached={maxReached}
-        onToggleWatch={() => toggleWatch(runId)}
-        cancelConfirm={d.cancelConfirm}
-        onCancelRequest={() => d.setCancelConfirm(true)}
-        onCancelConfirm={d.handleCancel}
-        onCancelDismiss={() => d.setCancelConfirm(false)}
-        cancelling={d.cancelling}
-      />
+	return (
+		<div className="min-h-screen bg-void">
+			<RunDetailHeader
+				run={d.run}
+				isTerminal={d.isTerminal}
+				streaming={streaming}
+				onToggleStream={() => setStreaming((v) => !v)}
+				onRefresh={d.refresh}
+				watched={watched}
+				maxReached={maxReached}
+				onToggleWatch={() => toggleWatch(runId)}
+				cancelConfirm={d.cancelConfirm}
+				onCancelRequest={() => d.setCancelConfirm(true)}
+				onCancelConfirm={d.handleCancel}
+				onCancelDismiss={() => d.setCancelConfirm(false)}
+				cancelling={d.cancelling}
+			/>
 
-      <SessionWatchRail refTime={refTime} mode="detail" />
+			<SessionWatchRail refTime={refTime} mode="detail" />
 
-      <div className="mx-auto max-w-4xl px-5 py-6">
-        <RunDetailsGrid run={d.run} />
+			<div className="mx-auto max-w-4xl px-5 py-6">
+				<RunDetailsGrid run={d.run} />
 
-        <section className="mb-6">
-          <SectionTitle title="STEPS" />
-          <StepTimeline steps={d.steps} />
-        </section>
+				<section className="mb-6">
+					<SectionTitle title="STEPS" />
+					<StepTimeline steps={d.steps} />
+				</section>
 
-        <ReviewResults steps={d.steps} />
+				<ReviewResults steps={d.steps} />
 
-        {d.showInterrupts ? (
-          <section className="mb-6">
-            <SectionTitle title="INTERRUPTS" accent="gold" />
-            <InterruptPanel runId={d.run.id} interrupts={d.interrupts} onAnswered={d.syncRun} />
-          </section>
-        ) : null}
+				{d.showInterrupts ? (
+					<section className="mb-6">
+						<SectionTitle title="INTERRUPTS" accent="gold" />
+						<InterruptPanel runId={d.run.id} interrupts={d.interrupts} onAnswered={d.syncRun} />
+					</section>
+				) : null}
 
-        <section>
-          <SectionTitle title="EVENTS" />
-          <EventStream runId={d.run.id} active={streaming} onStateChange={d.syncRun} />
-        </section>
-      </div>
-    </div>
-  );
+				<section>
+					<SectionTitle title="EVENTS" />
+					<EventStream runId={d.run.id} active={streaming} onStateChange={d.syncRun} />
+				</section>
+			</div>
+		</div>
+	)
 }

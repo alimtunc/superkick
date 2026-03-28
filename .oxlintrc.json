@@ -1,0 +1,83 @@
+{
+	"$schema": "./ui/node_modules/oxlint/configuration_schema.json",
+	"plugins": ["react", "react-perf", "jsx-a11y", "typescript", "unicorn", "import"],
+	"categories": {
+		"correctness": "warn",
+		"suspicious": "warn",
+		"perf": "warn"
+	},
+	"rules": {
+		// Oxlint
+		"no-unused-expressions": "error",
+		"no-unused-vars": "error",
+		"no-inferrable-types": "warn",
+
+		// Unicorn
+		"unicorn/prefer-set-has": "off",
+		"unicorn/no-array-sort": "error",
+		"unicorn/no-array-reverse": "error",
+
+		// JSX-A11Y
+		"jsx-a11y/no-autofocus": "off",
+		"jsx-a11y/click-events-have-key-events": "off",
+		"jsx-a11y/no-new-array-as-prop": "off",
+		"jsx-a11y/mouse-events-have-key-events": "off",
+		"jsx-a11y/prefer-tag-over-role": "off",
+
+		// React
+		"react/react-in-jsx-scope": "off",
+		"react/jsx-curly-brace-presence": ["error", { "props": "never", "children": "never" }],
+		"react/self-closing-comp": ["error", { "component": true, "html": true }],
+		"react/jsx-no-undef": "error",
+		// React-Hooks
+		"react-hooks/exhaustive-deps": "error",
+		"react-hooks/rules-of-hooks": "error",
+		// React-Perf
+		"react-perf/jsx-no-new-function-as-prop": "off",
+		"react-perf/jsx-no-jsx-as-prop": "off",
+		"react-perf/jsx-no-new-object-as-prop": "off",
+		"react-perf/jsx-no-new-array-as-prop": "off",
+
+		// Typescript
+		"typescript/consistent-type-imports": [
+			"error",
+			{
+				"prefer": "type-imports",
+				"fixStyle": "separate-type-imports",
+				"disallowTypeAnnotations": false
+			}
+		],
+
+		// Import
+		"import/no-relative-packages": "warn",
+		"import/no-relative-imports": "warn",
+		"import/no-named-as-default": "off",
+		"import/no-unassigned-import": "off",
+		"no-restricted-imports": [
+			"error",
+			{
+				"patterns": [
+					{
+						"regex": "^(\\.\\./){2,}",
+						"message": "Use absolute imports with @superkick/* instead of deep relative imports (../../+)"
+					}
+				]
+			}
+		]
+	},
+	"ignorePatterns": [
+		"**/polyfills.ts",
+		"node_modules",
+		"dist",
+		"out",
+		"build",
+		"coverage",
+		"public",
+		"*.test.*",
+		"*.test.tsx",
+		"**/__tests__",
+		"**/*.test.*",
+		"**/node_modules",
+		"**/package.json"
+	]
+}
