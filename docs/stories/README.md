@@ -14,6 +14,14 @@ scoping, and implementation.
 2. `SK-STORY-002` Initialize a repository with `superkick init`
 3. `SK-STORY-003` Start the local service and open the dashboard
 4. `SK-STORY-004` Trigger a manual run from the CLI
+5. `SK-STORY-005` Multi-session rail and quick switching
+6. `SK-STORY-006` Distribute the CLI binary without requiring Rust
+
+## Current Near-Term Focus
+
+- `SK-STORY-004` closes the manual local-first trigger loop
+- `SK-STORY-005` turns the dashboard into a real multi-run supervision surface
+- `SK-STORY-006` reduces adoption friction once the product loop is stronger
 
 ## Working Rules
 

@@ -31,7 +31,7 @@ This produces two binaries:
 
 | Binary | Path | Purpose |
 |--------|------|---------|
-| `superkick` | `target/release/superkick` | CLI — doctor, init |
+| `superkick` | `target/release/superkick` | CLI — doctor, init, serve, status, cancel |
 | `superkick-api` | `target/release/superkick-api` | HTTP server + runtime engine |
 
 ### Verify your machine
@@ -108,6 +108,17 @@ RUST_LOG=info superkick serve -c superkick.yaml -p 3100
 The server auto-runs SQLite migrations on first start.
 
 > **Legacy:** you can still use `cargo run -p superkick-api` with env vars, but the CLI is the recommended entry point.
+
+### Check the server
+
+```bash
+superkick status
+```
+
+### Manual run trigger
+
+`superkick run <issue>` is the next CLI milestone.
+For now, manual run creation still goes through the HTTP API or the demo script below.
 
 ### Trigger a run
 

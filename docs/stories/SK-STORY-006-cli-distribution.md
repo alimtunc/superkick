@@ -1,4 +1,4 @@
-# SK-STORY-003 - Distribute the Superkick CLI Binary
+# SK-STORY-006 - Distribute the Superkick CLI Binary
 
 ## User Story
 

@@ -7,6 +7,29 @@ Use it together with:
 - `docs/v1-spec.md`
 - `docs/target-architecture.md`
 
+## Current status snapshot
+
+This plan started as a clean-slate implementation backlog.
+The codebase has now moved past the empty bootstrap stage and already includes:
+
+- Rust workspace and core crates
+- SQLite-backed run persistence
+- a local `superkick` CLI with `doctor`, `init`, `serve`, `status`, and `cancel`
+- a Control Center dashboard
+- SSE event streaming
+- interrupts and cancellation primitives
+
+Near-term work is now split across two layers:
+
+- **ticket plan in this document** for the architectural backbone
+- **story backlog in `docs/stories/`** for smaller product-facing iterations such as manual run, multi-session supervision, and CLI distribution
+
+Recommended next product slices after the current shipped baseline:
+
+1. `SK-STORY-004` manual run from the CLI
+2. `SK-STORY-005` multi-session rail and quick switching
+3. `SK-STORY-006` CLI distribution without a Rust requirement
+
 ## How to use this backlog with Claude
 
 For each ticket:

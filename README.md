@@ -1,54 +1,223 @@
-# superkick
+# Superkick
 
 From Linear issue to reviewed PR, on your own machine.
 
-Superkick is being rebuilt as a local-first agent orchestration product with:
+Superkick is a local-first agent orchestrator focused on the path from Linear issue to reviewed PR. The current codebase already provides the local control plane, CLI, dashboard, and run lifecycle foundations for that loop, and is now iterating toward the full end-to-end path.
 
-- a Rust runtime and control plane
-- a React dashboard
-- isolated `git worktree` execution
-- project-specific playbooks
-- human interrupts only on real blockage
-- review swarm before final PR handoff
+## Current status
 
-## Current repository state
+Today, the project already includes:
 
-This repository has been intentionally cleaned up to restart from the target architecture.
+- a local `superkick` CLI with `doctor`, `init`, `serve`, `status`, and `cancel`
+- a local HTTP control plane and SQLite-backed run state
+- a React Control Center dashboard with KPIs, attention zones, active runs, and completed work
+- run state transitions, interrupts, review results, and realtime event streaming
 
-What remains in the repo right now:
+The next product loop is now:
 
-- product specification
-- target architecture
-- implementation backlog and tickets
+`manual run -> multiple live runs -> multi-session supervision in one window`
 
-What was intentionally removed:
+## Target flow
 
-- the old Node/Temporal runtime
-- the old webhook/dashboard implementation
-- legacy config files tied to that runtime
-- generated runtime artifacts
+```
+                         superkick.yaml
+                              |
+   Linear issue               v
+   (In Progress)  --->  [ Control Plane ]
+                              |
+                    +---------+---------+
+                    |                   |
+               [ Worktree ]      [ Dashboard ]
+                    |              (live UI)
+                    v
+              +----------+
+              |  plan    |
+              +----------+
+                    |
+              +----------+
+              |  code    |  <-- claude / codex
+              +----------+
+                    |
+              +----------+
+              | commands |  <-- lint, test, build
+              +----------+
+                    |
+              +----------+       blocked?
+              |  review  |  -----> ask human
+              |  swarm   |  <----- resume
+              +----------+
+                    |
+              +----------+
+              | open PR  |
+              +----------+
+                    |
+                    v
+              Ready to merge
+```
 
-## Planning docs
+## Core ideas
 
-- [docs/v1-spec.md](docs/v1-spec.md)
-- [docs/target-architecture.md](docs/target-architecture.md)
-- [docs/implementation-plan.md](docs/implementation-plan.md)
+**Issue to PR, not agent platform.** The product is not a chatbot or a generic AI framework. It takes an issue, runs a complete engineering workflow, and outputs a PR.
 
-## Product contract
+**Playbook runtime.** Each project defines its own workflow: which agents to use, which commands to run, what review strategy to apply. Superkick executes that playbook, it does not impose a universal process.
 
-Superkick turns a Linear issue into a reviewed pull request on the user's own machine by executing a project-specific engineering playbook inside an isolated git worktree.
+**Human interrupt layer.** The system runs autonomously by default. It only pauses when it hits a real blocker or an explicit project checkpoint. No continuous chat loop.
 
-Short form:
+**Review swarm.** Before the PR is finalized, multiple review agents inspect the work in parallel. This is a native step, not an afterthought.
 
-`Linear issue -> local run -> playbook -> review swarm -> PR`
+**Local-first.** Everything runs on your machine. Your code, your git, your tools, your tokens. No SaaS dependency.
+
+## Stack
+
+| Layer | Tech |
+|-------|------|
+| Runtime | Rust, Tokio, Axum |
+| Storage | SQLite (WAL) |
+| Frontend | React, Vite, TypeScript |
+| Realtime | SSE |
+| Agents | Claude, Codex (subprocess) |
+| Git | git CLI, worktrees |
+| GitHub | gh CLI |
+
+## Project config
+
+Each repository has a `superkick.yaml` that declares the playbook:
+
+```yaml
+version: 1
+
+issue_source:
+  provider: linear
+  trigger: in_progress
+
+runner:
+  mode: local
+  base_branch: main
+
+agents:
+  implementation:
+    provider: claude
+  review:
+    provider: codex
+
+workflow:
+  steps:
+    - type: plan
+    - type: code
+    - type: commands
+      run: [pnpm lint, pnpm test]
+    - type: review_swarm
+    - type: pr
+
+interrupts:
+  on_blocked: ask_human
+
+budget:
+  max_retries_per_step: 2
+  token_budget: medium
+```
+
+## Getting started
+
+```bash
+# From the repo, install the CLI locally
+cargo install --path crates/superkick-cli
+
+# Check prerequisites
+superkick doctor
+
+# Initialize a repo
+cd your-project
+superkick init
+
+# Start the local service
+superkick serve
+
+# Check the local service
+superkick status
+```
+
+For now, manual run creation still goes through the API or the demo script.
+`superkick run <issue>` is the next CLI milestone.
+
+## Run lifecycle
+
+Every run moves through explicit states:
+
+```
+queued -> preparing -> planning -> coding -> running_commands -> reviewing -> opening_pr -> completed
+                                                    |
+                                              waiting_human  (on blockage)
+                                                    |
+                                                 resumed
+```
+
+## Dashboard
+
+The dashboard is now a local web control center with:
+
+- **Control Center home** -- summary metrics and operational visibility
+- **KPI ribbon** -- completed runs, active runs, success rate, run duration
+- **Attention zone** -- blocked runs, failed runs, pending human input
+- **Active runs board** -- live state grouped by stage
+- **Completed issues** -- recently finished work with timing and outcome
+- **Session watch rail foundation** -- an initial shell for multi-session supervision
+
+Next on the dashboard side:
+
+- persistent multi-session watching
+- fast focus switching between watched runs
+- deeper reliability analytics and KPI aggregation
+
+## Roadmap
+
+### Shipped foundations
+- [x] Rust workspace and crate structure
+- [x] CLI surface (`doctor`, `init`, `serve`, `status`, `cancel`)
+- [x] React dashboard with Control Center, KPIs, run board
+- [x] SQLite storage (runs, steps, artifacts, events, interrupts)
+- [x] Project config model and validation (`superkick.yaml`)
+- [x] Worktree lifecycle (create, use, cleanup)
+- [x] Step engine and agent supervisor
+- [x] SSE realtime event stream
+- [x] Interrupt service (create, resolve, persist)
+- [x] Run state transitions (`waiting_human` / resume)
+- [x] Interrupt panel in dashboard
+- [x] Review data model and storage
+- [x] Run isolation via worktrees
+
+### Next up
+- [ ] `superkick run <issue>` for manual local-first launch
+- [ ] Persistent multi-session rail and quick focus switching
+- [ ] Full pause/resume flow end-to-end
+- [ ] Parallel review agents and project-defined review gate
+- [ ] Issue ingestion from Linear
+- [ ] End-to-end agent execution through plan, code, commands, and PR creation
+
+### After that
+- [ ] Deeper KPI aggregation and reliability analytics
+- [ ] Concurrent run scheduling
+- [ ] Resource budgets
+- [ ] Queueing and fairness
+- [ ] CLI distribution without requiring a local Rust toolchain
+
+### Future
+- [ ] VPS runners
+- [ ] Multi-repo orchestration
+- [ ] Token and cost analytics
+- [ ] Additional issue trackers beyond Linear
 
 ## V1 scope
 
+V1 is intentionally narrow:
+
 - Linear only
-- single repo only
-- local runner only
-- one reliable run before multi-run
+- Single repo only
+- Local runner only
+- One reliable run before multi-run
 
-## Next step
+This is by design. The product proves itself on one path first: `Linear issue -> local run -> playbook -> review swarm -> PR`.
 
-Start with ticket `SK-001` from [docs/implementation-plan.md](docs/implementation-plan.md) to bootstrap the Rust workspace and React UI shell.
+## License
+
+MIT
