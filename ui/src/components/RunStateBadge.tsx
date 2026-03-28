@@ -1,22 +1,22 @@
 import type { RunState } from "../types";
 
-const colors: Record<RunState, string> = {
-  queued: "bg-gray-600 text-gray-200",
-  preparing: "bg-blue-800 text-blue-200",
-  planning: "bg-indigo-800 text-indigo-200",
-  coding: "bg-violet-800 text-violet-200",
-  running_commands: "bg-purple-800 text-purple-200",
-  reviewing: "bg-cyan-800 text-cyan-200",
-  waiting_human: "bg-yellow-800 text-yellow-200",
-  opening_pr: "bg-teal-800 text-teal-200",
-  completed: "bg-green-800 text-green-200",
-  failed: "bg-red-800 text-red-200",
-  cancelled: "bg-gray-700 text-gray-300",
+const styles: Record<RunState, string> = {
+  queued: "text-dim bg-dim/10",
+  preparing: "text-cyan bg-cyan-dim",
+  planning: "text-cyan bg-cyan-dim",
+  coding: "text-neon-green bg-mineral-dim",
+  running_commands: "text-neon-green bg-mineral-dim",
+  reviewing: "text-violet bg-violet-dim",
+  waiting_human: "text-gold bg-gold-dim",
+  opening_pr: "text-mineral bg-mineral-dim",
+  completed: "text-mineral bg-mineral-dim",
+  failed: "text-oxide bg-oxide-dim",
+  cancelled: "text-dim bg-dim/10",
 };
 
 export function RunStateBadge({ state }: { state: RunState }) {
   return (
-    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${colors[state]}`}>
+    <span className={`inline-block font-data rounded px-2 py-0.5 text-[10px] font-medium ${styles[state]}`}>
       {state.replace(/_/g, " ")}
     </span>
   );
