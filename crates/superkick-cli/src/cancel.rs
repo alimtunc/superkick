@@ -1,7 +1,7 @@
 #[derive(clap::Args)]
 pub struct CancelArgs {
-    /// Run ID to cancel (omit to cancel the latest active run)
-    pub run_id: Option<String>,
+    /// Run ID to cancel
+    pub run_id: String,
 
     /// Server port
     #[arg(short, long, default_value_t = 3100)]
@@ -13,10 +13,7 @@ pub fn run(args: CancelArgs) -> anyhow::Result<()> {
 
     crate::net::ensure_server_reachable(args.port)?;
 
-    let run_id = match args.run_id {
-        Some(id) => id,
-        None => find_latest_active_run(&base)?,
-    };
+    let run_id = &args.run_id;
 
     let resp = ureq::post(format!("{base}/runs/{run_id}/cancel")).send_empty();
 
@@ -34,27 +31,4 @@ pub fn run(args: CancelArgs) -> anyhow::Result<()> {
     }
 
     Ok(())
-}
-
-fn find_latest_active_run(base: &str) -> anyhow::Result<String> {
-    let resp = ureq::get(format!("{base}/runs")).call()?;
-    let body = resp.into_body().read_to_string()?;
-    let runs: Vec<serde_json::Value> = serde_json::from_str(&body)?;
-
-    let active = runs.iter().find(|r| {
-        let state = r["state"].as_str().unwrap_or("");
-        !matches!(state, "completed" | "failed" | "cancelled")
-    });
-
-    match active {
-        Some(r) => {
-            let id = r["id"].as_str().unwrap_or("").to_string();
-            if id.is_empty() {
-                anyhow::bail!("Found active run but could not read its ID");
-            }
-            println!("Found active run: {id}");
-            Ok(id)
-        }
-        None => anyhow::bail!("No active runs found."),
-    }
 }

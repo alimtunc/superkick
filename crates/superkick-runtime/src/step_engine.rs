@@ -12,6 +12,7 @@ use anyhow::{Context, Result, bail};
 use chrono::Utc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 use superkick_config::InterruptPolicy;
@@ -82,7 +83,11 @@ where
     /// Worktrees are cleaned up on completion and failure. Interrupt paths
     /// (WaitingHuman) intentionally leave the worktree in place so a retry
     /// can resume from the same checkout.
-    pub async fn execute(&self, mut run: superkick_core::Run) -> Result<()> {
+    pub async fn execute(
+        &self,
+        mut run: superkick_core::Run,
+        cancel_token: CancellationToken,
+    ) -> Result<()> {
         // Preflight: verify required external tools are reachable.
         if let Err(err) = self.preflight_check(&run).await {
             self.fail_run(&mut run, format!("preflight failed: {err:#}"))
@@ -91,7 +96,7 @@ where
             return Ok(());
         }
 
-        let result = self.execute_inner(&mut run).await;
+        let result = self.execute_inner(&mut run, &cancel_token).await;
 
         // Cleanup worktree on terminal outcomes (Completed, Failed).
         // WaitingHuman keeps the worktree alive for potential retry.
@@ -103,7 +108,11 @@ where
     }
 
     /// Inner execution loop, separated so cleanup runs regardless of outcome.
-    async fn execute_inner(&self, run: &mut superkick_core::Run) -> Result<()> {
+    async fn execute_inner(
+        &self,
+        run: &mut superkick_core::Run,
+        cancel_token: &CancellationToken,
+    ) -> Result<()> {
         // Build the step plan: Prepare + workflow steps from config.
         let step_keys = self.build_step_plan();
 
@@ -111,6 +120,24 @@ where
         let mut setup_handle: Option<tokio::task::JoinHandle<Result<()>>> = None;
 
         for step_key in step_keys {
+            // ── Cancellation check at step boundary ──
+            if cancel_token.is_cancelled() {
+                info!(run_id = %run.id, "run cancelled at step boundary");
+                run.transition_to(RunState::Cancelled)
+                    .context("failed to transition to Cancelled")?;
+                run.current_step_key = None;
+                self.run_repo.update(run).await?;
+                self.emit(
+                    run,
+                    None,
+                    EventKind::StateChange,
+                    EventLevel::Info,
+                    "run cancelled".into(),
+                )
+                .await;
+                return Ok(());
+            }
+
             // Before Code step, wait for setup commands to finish.
             if step_key == StepKey::Code {
                 if let Some(handle) = setup_handle.take() {
@@ -173,7 +200,7 @@ where
                     let worktree_path = run.worktree_path.as_deref().map(PathBuf::from);
 
                     match self
-                        .execute_step(step_key, run, &step, worktree_path.as_deref())
+                        .execute_step(step_key, run, &step, worktree_path.as_deref(), cancel_token)
                         .await
                     {
                         Ok(()) => {
@@ -234,6 +261,29 @@ where
                             break;
                         }
                         Err(e) => {
+                            // If cancelled, exit immediately — don't retry or create interrupts.
+                            if cancel_token.is_cancelled() {
+                                step.status = StepStatus::Failed;
+                                step.finished_at = Some(Utc::now());
+                                step.error_message = Some("cancelled".into());
+                                self.step_repo.update(&step).await?;
+
+                                info!(run_id = %run.id, "run cancelled during step {step_key}");
+                                run.transition_to(RunState::Cancelled)
+                                    .context("failed to transition to Cancelled")?;
+                                run.current_step_key = None;
+                                self.run_repo.update(run).await?;
+                                self.emit(
+                                    run,
+                                    None,
+                                    EventKind::StateChange,
+                                    EventLevel::Info,
+                                    "run cancelled".into(),
+                                )
+                                .await;
+                                return Ok(());
+                            }
+
                             let msg = format!("{e:#}");
                             step.status = StepStatus::Failed;
                             step.finished_at = Some(Utc::now());
@@ -310,7 +360,7 @@ where
                         "run paused for human interrupt"
                     );
 
-                    let action = self.wait_for_interrupt(interrupt.id).await?;
+                    let action = self.wait_for_interrupt(interrupt.id, cancel_token).await?;
 
                     match action {
                         InterruptAction::RetryStep => {
@@ -512,23 +562,27 @@ where
         run: &mut superkick_core::Run,
         step: &RunStep,
         worktree_path: Option<&std::path::Path>,
+        cancel_token: &CancellationToken,
     ) -> Result<()> {
         match key {
             StepKey::Prepare => self.execute_prepare(run).await,
             StepKey::Plan => {
                 let wt = require_worktree(worktree_path)?;
                 let agent_name = self.find_workflow_agent(key)?;
-                self.execute_agent(run, step, &agent_name, wt).await
+                self.execute_agent(run, step, &agent_name, wt, cancel_token)
+                    .await
             }
             StepKey::Code => {
                 let wt = require_worktree(worktree_path)?;
                 let agent_name = self.find_workflow_agent(key)?;
-                self.execute_agent(run, step, &agent_name, wt).await
+                self.execute_agent(run, step, &agent_name, wt, cancel_token)
+                    .await
             }
             StepKey::Commands => {
                 let wt = require_worktree(worktree_path)?;
                 let commands = self.find_workflow_commands()?;
-                self.execute_commands(run, step, &commands, wt).await
+                self.execute_commands(run, step, &commands, wt, cancel_token)
+                    .await
             }
             StepKey::CreatePr => {
                 let wt = require_worktree(worktree_path)?;
@@ -592,6 +646,7 @@ where
         step: &RunStep,
         agent_name: &str,
         worktree: &std::path::Path,
+        cancel_token: &CancellationToken,
     ) -> Result<()> {
         let agent_cfg = self
             .config
@@ -642,16 +697,22 @@ where
             timeout: DEFAULT_AGENT_TIMEOUT,
         };
 
-        let (_handle, join) = self
+        let (handle, join) = self
             .supervisor
             .launch(launch_cfg)
             .await
             .context("failed to launch agent")?;
 
-        let result = join
-            .await
-            .context("agent task panicked")?
-            .context("agent execution failed")?;
+        let result = tokio::select! {
+            res = join => {
+                res.context("agent task panicked")?
+                   .context("agent execution failed")?
+            }
+            _ = cancel_token.cancelled() => {
+                handle.cancel().await;
+                bail!("run cancelled during agent execution");
+            }
+        };
 
         if result.session.exit_code != Some(0) {
             bail!(
@@ -671,8 +732,12 @@ where
         step: &RunStep,
         commands: &[String],
         worktree: &std::path::Path,
+        cancel_token: &CancellationToken,
     ) -> Result<()> {
         for cmd_str in commands {
+            if cancel_token.is_cancelled() {
+                bail!("run cancelled before command: {cmd_str}");
+            }
             info!(run_id = %run.id, command = %cmd_str, "running command");
 
             self.emit(
@@ -1211,9 +1276,15 @@ where
     async fn wait_for_interrupt(
         &self,
         interrupt_id: superkick_core::InterruptId,
+        cancel_token: &CancellationToken,
     ) -> Result<InterruptAction> {
         loop {
-            tokio::time::sleep(Duration::from_secs(2)).await;
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_secs(2)) => {}
+                _ = cancel_token.cancelled() => {
+                    bail!("run cancelled while waiting for human interrupt");
+                }
+            }
 
             if let Some(interrupt) = self.interrupt_repo.get(interrupt_id).await? {
                 if interrupt.status == superkick_core::InterruptStatus::Resolved {
