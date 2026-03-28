@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "oxlint src/",
-    "fmt": "oxfmt --write src/",
-    "fmt:check": "oxfmt --check src/",
+    "lint": "oxlint -c ../.oxlintrc.json src/",
+    "fmt": "oxfmt -c ../.oxfmtrc.json --write src/",
+    "fmt:check": "oxfmt -c ../.oxfmtrc.json --check src/",
     "preview": "vite preview"
   },
   "dependencies": {
