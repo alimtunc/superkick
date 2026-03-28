@@ -1,4 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
+
+@theme {
+  /* ── Graphite Operations Atelier ── */
+  /* Surfaces */
+  --color-void: #0B0C0E;
+  --color-carbon: #111214;
+  --color-graphite: #181A1E;
+  --color-slate-deep: #1F2228;
+  --color-panel: #252830;
+  --color-edge: #2E323B;
+  --color-border: #363A45;
+
+  /* Text */
+  --color-fog: #E8E6E1;
+  --color-silver: #B0ADA6;
+  --color-ash: #7A7770;
+  --color-dim: #55524C;
+
+  /* Accents */
+  --color-neon-green: #3DDC84;
+  --color-mineral: #4CAF7D;
+  --color-mineral-dim: rgba(76, 175, 125, 0.12);
+  --color-oxide: #E85D4A;
+  --color-oxide-dim: rgba(232, 93, 74, 0.12);
+  --color-gold: #E5A913;
+  --color-gold-dim: rgba(229, 169, 19, 0.10);
+  --color-cyan: #4FC1E8;
+  --color-cyan-dim: rgba(79, 193, 232, 0.10);
+  --color-violet: #9B8AFF;
+  --color-violet-dim: rgba(155, 138, 255, 0.10);
+}
 
 *,
 *::before,
@@ -7,9 +39,73 @@
   margin: 0;
 }
 
+html {
+  font-size: 14px;
+}
+
 body {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: "DM Sans", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
-  background-color: #0f172a;
-  color: #e2e8f0;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-void);
+  color: var(--color-fog);
+}
+
+/* ── Mono for data ── */
+.font-data {
+  font-family: "DM Mono", "SF Mono", "Fira Code", monospace;
+}
+
+/* ── Panel base ── */
+.panel {
+  background: var(--color-graphite);
+  border: 1px solid var(--color-edge);
+  border-radius: 6px;
+}
+.panel-hover {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.panel-hover:hover {
+  border-color: var(--color-border);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.03), 0 4px 16px rgba(0,0,0,0.3);
+}
+
+/* ── Glow accents ── */
+.glow-green { box-shadow: inset 0 0 0 1px rgba(61, 220, 132, 0.15), 0 0 12px rgba(61, 220, 132, 0.06); }
+.glow-red { box-shadow: inset 0 0 0 1px rgba(232, 93, 74, 0.2), 0 0 12px rgba(232, 93, 74, 0.08); }
+.glow-gold { box-shadow: inset 0 0 0 1px rgba(229, 169, 19, 0.15), 0 0 12px rgba(229, 169, 19, 0.06); }
+
+/* ── Live pulse ── */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.live-pulse {
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+/* ── Fade in staggered ── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up {
+  animation: fade-up 0.35s ease-out both;
+}
+.delay-1 { animation-delay: 0.05s; }
+.delay-2 { animation-delay: 0.10s; }
+.delay-3 { animation-delay: 0.15s; }
+.delay-4 { animation-delay: 0.20s; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-edge); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-border); }
+
+/* ── Status bar indicators ── */
+.status-bar {
+  width: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
 }

@@ -13,7 +13,7 @@ export function InterruptPanel({ runId, interrupts, onAnswered }: InterruptPanel
   const resolved = interrupts.filter((i) => i.status !== "pending");
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {pending.map((interrupt) => (
         <PendingInterrupt
           key={interrupt.id}
@@ -25,7 +25,7 @@ export function InterruptPanel({ runId, interrupts, onAnswered }: InterruptPanel
 
       {resolved.length > 0 ? (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-slate-400">History</h3>
+          <h3 className="font-data text-[10px] uppercase tracking-wider text-dim">History</h3>
           {resolved.map((interrupt) => (
             <ResolvedInterrupt key={interrupt.id} interrupt={interrupt} />
           ))}
@@ -33,7 +33,7 @@ export function InterruptPanel({ runId, interrupts, onAnswered }: InterruptPanel
       ) : null}
 
       {interrupts.length === 0 ? (
-        <p className="text-sm text-slate-500">No interrupts.</p>
+        <p className="text-sm font-data text-dim">No interrupts.</p>
       ) : null}
     </div>
   );
@@ -66,17 +66,17 @@ function PendingInterrupt({
   };
 
   return (
-    <div className="rounded-lg border border-yellow-700 bg-yellow-900/20 p-4">
+    <div className="panel glow-gold border-l-2 border-l-gold p-4">
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 text-yellow-400 text-lg">!</span>
+        <span className="font-data text-gold text-base mt-0.5">!!</span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-yellow-200">{interrupt.question}</p>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-sm font-medium text-fog">{interrupt.question}</p>
+          <p className="font-data text-[10px] text-dim mt-1">
             {new Date(interrupt.created_at).toLocaleString()}
           </p>
 
           {error ? (
-            <p className="mt-2 text-sm text-red-400 bg-red-900/30 rounded p-2">{error}</p>
+            <p className="mt-2 text-[12px] text-oxide bg-oxide-dim rounded p-2 font-data">{error}</p>
           ) : null}
 
           <div className="mt-3 space-y-2">
@@ -84,16 +84,16 @@ function PendingInterrupt({
               <button
                 disabled={submitting}
                 onClick={() => submit({ action: "retry_step" })}
-                className="px-3 py-1.5 text-sm rounded bg-blue-800 hover:bg-blue-700 text-blue-200 transition-colors disabled:opacity-50"
+                className="font-data text-[11px] rounded border border-cyan/30 bg-cyan-dim text-cyan px-2.5 py-1 hover:bg-cyan/20 transition-colors disabled:opacity-40"
               >
-                Retry Step
+                RETRY
               </button>
               <button
                 disabled={submitting}
                 onClick={() => submit({ action: "abort_run" })}
-                className="px-3 py-1.5 text-sm rounded bg-red-800 hover:bg-red-700 text-red-200 transition-colors disabled:opacity-50"
+                className="font-data text-[11px] rounded border border-oxide/30 bg-oxide-dim text-oxide px-2.5 py-1 hover:bg-oxide/20 transition-colors disabled:opacity-40"
               >
-                Abort Run
+                ABORT
               </button>
             </div>
 
@@ -103,14 +103,14 @@ function PendingInterrupt({
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Add a note and continue..."
-                className="flex-1 px-3 py-1.5 text-sm rounded bg-slate-800 border border-slate-600 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-slate-400"
+                className="flex-1 px-2.5 py-1 text-[12px] rounded border border-edge bg-carbon text-fog placeholder-dim focus:outline-none focus:border-border font-data"
               />
               <button
                 disabled={submitting || !note.trim()}
                 onClick={() => submit({ action: "continue_with_note", note: note.trim() })}
-                className="px-3 py-1.5 text-sm rounded bg-green-800 hover:bg-green-700 text-green-200 transition-colors disabled:opacity-50"
+                className="font-data text-[11px] rounded border border-mineral/30 bg-mineral-dim text-mineral px-2.5 py-1 hover:bg-mineral/20 transition-colors disabled:opacity-40"
               >
-                Continue
+                CONTINUE
               </button>
             </div>
           </div>
@@ -125,22 +125,22 @@ function ResolvedInterrupt({ interrupt }: { interrupt: Interrupt }) {
   const actionLabel = answer?.action?.replace(/_/g, " ") ?? interrupt.status;
 
   return (
-    <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-3">
+    <div className="panel p-3">
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 text-slate-500 text-lg">
+        <span className="font-data text-dim text-base mt-0.5">
           {interrupt.status === "resolved" ? "\u2713" : "\u2014"}
         </span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-slate-400">{interrupt.question}</p>
+          <p className="text-[12px] text-silver">{interrupt.question}</p>
           <div className="flex items-center gap-2 mt-1">
-            <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">
+            <span className="font-data text-[10px] px-1.5 py-0.5 rounded bg-edge text-ash">
               {actionLabel}
             </span>
             {answer?.note ? (
-              <span className="text-xs text-slate-500 italic">"{answer.note}"</span>
+              <span className="text-[11px] text-dim italic">"{answer.note}"</span>
             ) : null}
             {interrupt.resolved_at ? (
-              <span className="text-xs text-slate-600">
+              <span className="font-data text-[10px] text-dim">
                 {new Date(interrupt.resolved_at).toLocaleString()}
               </span>
             ) : null}

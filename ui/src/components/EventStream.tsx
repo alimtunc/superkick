@@ -3,15 +3,16 @@ import { subscribeToRunEvents } from "../api";
 import type { EventLevel, RunEvent } from "../types";
 
 const levelColor: Record<EventLevel, string> = {
-  debug: "text-gray-500",
-  info: "text-slate-300",
-  warn: "text-yellow-400",
-  error: "text-red-400",
+  debug: "text-dim",
+  info: "text-silver",
+  warn: "text-gold",
+  error: "text-oxide",
 };
 
 interface EventStreamProps {
   runId: string;
   active: boolean;
+  onStateChange?: () => void;
 }
 
 interface EventStreamState {
@@ -47,15 +48,15 @@ function eventStreamReducer(
   }
 }
 
-export function EventStream({ runId, active }: EventStreamProps) {
+export function EventStream({ runId, active, onStateChange }: EventStreamProps) {
   return active ? (
-    <ActiveEventStream key={runId} runId={runId} />
+    <ActiveEventStream key={runId} runId={runId} onStateChange={onStateChange} />
   ) : (
-    <p className="text-sm text-gray-500">Click &quot;Watch Live&quot; to stream events.</p>
+    <p className="text-sm font-data text-dim">Click &quot;Watch Live&quot; to stream events.</p>
   );
 }
 
-function ActiveEventStream({ runId }: { runId: string }) {
+function ActiveEventStream({ runId, onStateChange }: { runId: string; onStateChange?: () => void }) {
   const [state, dispatch] = useReducer(eventStreamReducer, initialState);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -64,15 +65,14 @@ function ActiveEventStream({ runId }: { runId: string }) {
       runId,
       (event) => {
         dispatch({ type: "event_received", event });
+        if (event.kind === "state_change" || event.kind === "interrupt_created") {
+          onStateChange?.();
+        }
       },
-      () => {
-        dispatch({ type: "stream_done" });
-      },
-      () => {
-        dispatch({ type: "stream_error" });
-      },
+      () => dispatch({ type: "stream_done" }),
+      () => dispatch({ type: "stream_error" }),
     );
-  }, [runId]);
+  }, [runId, onStateChange]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -80,25 +80,25 @@ function ActiveEventStream({ runId }: { runId: string }) {
 
   return (
     <div>
-      <div className="mb-2 flex items-center gap-2 text-xs">
+      <div className="mb-2 flex items-center gap-3 text-[11px]">
         {state.connected ? (
-          <span className="flex items-center gap-1 text-green-400">
-            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-green-400" />
-            Live
+          <span className="flex items-center gap-1.5 text-neon-green font-data">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-neon-green live-pulse" />
+            LIVE
           </span>
         ) : null}
-        {state.done ? <span className="text-gray-500">Stream ended</span> : null}
-        <span className="text-gray-600">{state.events.length} events</span>
+        {state.done ? <span className="text-dim font-data">Stream ended</span> : null}
+        <span className="text-dim font-data">{state.events.length} events</span>
       </div>
-      <div className="max-h-96 space-y-0.5 overflow-y-auto rounded bg-slate-900 p-3 font-mono text-xs">
+      <div className="max-h-96 space-y-px overflow-y-auto rounded border border-edge bg-carbon p-2 font-data text-[11px]">
         {state.events.map((event) => (
-          <div key={event.id} className="flex gap-2">
-            <span className="shrink-0 text-gray-600">
+          <div key={event.id} className="flex gap-2 py-0.5">
+            <span className="shrink-0 text-dim">
               {new Date(event.ts).toLocaleTimeString()}
             </span>
-            <span className={`w-14 shrink-0 ${levelColor[event.level]}`}>{event.level}</span>
-            <span className="w-28 shrink-0 text-slate-500">{event.kind}</span>
-            <span className="break-all text-slate-300">{event.message}</span>
+            <span className={`w-12 shrink-0 ${levelColor[event.level]}`}>{event.level}</span>
+            <span className="w-28 shrink-0 text-ash">{event.kind}</span>
+            <span className="break-all text-fog">{event.message}</span>
           </div>
         ))}
         <div ref={bottomRef} />
