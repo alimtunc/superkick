@@ -1,10 +1,8 @@
 use std::io::{BufRead, BufReader};
-use std::net::{SocketAddr, TcpStream};
 use std::path::Path;
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(clap::Args)]
 pub struct RunArgs {
@@ -53,9 +51,7 @@ fn get_repo_slug() -> anyhow::Result<String> {
         .map_err(|_| anyhow::anyhow!("Could not run git. Is git installed?"))?;
 
     if !output.status.success() {
-        anyhow::bail!(
-            "Could not read git remote origin. Is this a git repository with a remote?"
-        );
+        anyhow::bail!("Could not read git remote origin. Is this a git repository with a remote?");
     }
 
     let raw = String::from_utf8_lossy(&output.stdout);
@@ -64,12 +60,13 @@ fn get_repo_slug() -> anyhow::Result<String> {
         .ok_or_else(|| anyhow::anyhow!("Could not parse repo slug from remote URL: {url}"))
 }
 
-const CONFIG_FILENAME: &str = "superkick.yaml";
-
 fn load_base_branch() -> anyhow::Result<String> {
-    let config_path = Path::new(CONFIG_FILENAME);
+    let config_path = Path::new(superkick_config::CONFIG_FILENAME);
     if !config_path.exists() {
-        anyhow::bail!("No {CONFIG_FILENAME} found. Run 'superkick init' first.");
+        anyhow::bail!(
+            "No {} found. Run 'superkick init' first.",
+            superkick_config::CONFIG_FILENAME,
+        );
     }
     let config = superkick_config::load_file(config_path)?;
     Ok(config.runner.base_branch)
@@ -168,7 +165,10 @@ fn handle_sse_line(event: &str, data: &str) {
     match event {
         "run_event" => {
             if let Ok(payload) = serde_json::from_str::<serde_json::Value>(data) {
-                let kind = payload["kind"].as_str().unwrap_or("event");
+                let kind = payload["kind"].as_str().unwrap_or_else(|| {
+                    eprintln!("  [warn] run_event missing 'kind' field");
+                    "event"
+                });
                 let message = payload["message"].as_str().unwrap_or("");
 
                 if kind == "state_changed" || !message.is_empty() {
@@ -192,14 +192,7 @@ pub fn run(args: RunArgs) -> anyhow::Result<()> {
     let repo_slug = get_repo_slug()?;
     let base_url = format!("http://127.0.0.1:{}", args.port);
 
-    // Check server is reachable
-    let addr: SocketAddr = format!("127.0.0.1:{}", args.port).parse()?;
-    if TcpStream::connect_timeout(&addr, Duration::from_millis(500)).is_err() {
-        anyhow::bail!(
-            "No Superkick server on port {}. Start one with: superkick serve",
-            args.port
-        );
-    }
+    crate::net::ensure_server_reachable(args.port)?;
 
     // Create the run
     let run_id = create_run(&base_url, &repo_slug, &args.issue, &base_branch)?;

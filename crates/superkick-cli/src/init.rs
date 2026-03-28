@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 
-const CONFIG_FILENAME: &str = "superkick.yaml";
+const CONFIG_FILENAME: &str = superkick_config::CONFIG_FILENAME;
 
 const STARTER_CONFIG: &str = r#"version: 1
 

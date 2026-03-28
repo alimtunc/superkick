@@ -41,9 +41,7 @@ const TOOLS: &[ToolCheck] = &[
 ];
 
 fn find_binary(binary: &str) -> Option<String> {
-    which::which(binary)
-        .ok()
-        .map(|p| p.display().to_string())
+    which::which(binary).ok().map(|p| p.display().to_string())
 }
 
 fn get_version(binary: &str) -> Option<String> {
@@ -103,7 +101,10 @@ pub fn run() -> anyhow::Result<()> {
     if !required_missing.is_empty() {
         println!("Required tools missing:");
         for tool in &required_missing {
-            println!("  - {} ({}): {}", tool.name, tool.purpose, tool.install_hint);
+            println!(
+                "  - {} ({}): {}",
+                tool.name, tool.purpose, tool.install_hint
+            );
         }
         println!();
         anyhow::bail!("Fix the required tools above before using Superkick.");
@@ -112,7 +113,10 @@ pub fn run() -> anyhow::Result<()> {
     if !has_agent {
         println!("No agent CLI found. Install at least one:");
         for tool in &agent_missing {
-            println!("  - {} ({}): {}", tool.name, tool.purpose, tool.install_hint);
+            println!(
+                "  - {} ({}): {}",
+                tool.name, tool.purpose, tool.install_hint
+            );
         }
         println!();
         anyhow::bail!("Superkick needs an agent CLI to plan, code, and review.");

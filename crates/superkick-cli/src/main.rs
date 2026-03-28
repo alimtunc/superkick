@@ -4,12 +4,16 @@ use tracing_subscriber::EnvFilter;
 mod cancel;
 mod doctor;
 mod init;
+mod net;
 mod run;
 mod serve;
 mod status;
 
 #[derive(Parser)]
-#[command(name = "superkick", about = "Superkick — turn issues into pull requests")]
+#[command(
+    name = "superkick",
+    about = "Superkick — turn issues into pull requests"
+)]
 #[command(version, propagate_version = true)]
 struct Cli {
     #[command(subcommand)]
