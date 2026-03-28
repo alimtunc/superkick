@@ -4,6 +4,7 @@
 /ui/node_modules/
 /ui/dist/
 worktrees/
+superkick-worktrees/
 repos/
 logs/
 *.db
@@ -12,4 +13,7 @@ logs/
 
 _bmad*
 .agents/
-.claude
+.claude/*
+!.claude/skills/
+
+.superkick-cache
