@@ -13,9 +13,9 @@ pub struct RunArgs {
     #[arg(short, long, default_value_t = 3100)]
     pub port: u16,
 
-    /// Don't follow the event stream after creating the run
-    #[arg(long)]
-    pub no_follow: bool,
+    /// Follow the event stream in the terminal
+    #[arg(short, long)]
+    pub follow: bool,
 }
 
 fn parse_repo_slug(url: &str) -> Option<String> {
@@ -202,11 +202,9 @@ pub fn run(args: RunArgs) -> anyhow::Result<()> {
     println!("  {base_url}/runs/{run_id}");
     println!();
 
-    if args.no_follow {
-        return Ok(());
+    if args.follow {
+        follow_events(&base_url, &run_id)?;
     }
-
-    follow_events(&base_url, &run_id)?;
 
     Ok(())
 }

@@ -1,6 +1,10 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
+
+use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 
 use axum::Router;
 use axum::extract::{Path, State};
@@ -39,6 +43,7 @@ struct AppState {
     interrupt_repo: Arc<SqliteInterruptRepo>,
     engine: Arc<Engine>,
     interrupt_service: Arc<IntService>,
+    run_tokens: Arc<Mutex<HashMap<RunId, CancellationToken>>>,
 }
 
 // ── Server config ─────────────────────────────────────────────────────
@@ -92,6 +97,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         interrupt_repo,
         engine,
         interrupt_service,
+        run_tokens: Arc::new(Mutex::new(HashMap::new())),
     };
 
     let app = Router::new()
@@ -177,10 +183,21 @@ async fn create_run(
 
     let engine = Arc::clone(&state.engine);
     let run_clone = run.clone();
+    let token = CancellationToken::new();
+    let spawn_token = token.clone();
+
+    {
+        let mut tokens = state.run_tokens.lock().await;
+        tokens.insert(run.id, token);
+    }
+
+    let run_tokens = Arc::clone(&state.run_tokens);
+    let run_id = run.id;
     tokio::spawn(async move {
-        if let Err(e) = engine.execute(run_clone).await {
+        if let Err(e) = engine.execute(run_clone, spawn_token).await {
             tracing::error!(error = %e, "run execution failed");
         }
+        run_tokens.lock().await.remove(&run_id);
     });
 
     Ok((StatusCode::CREATED, Json(run)))
@@ -282,18 +299,26 @@ async fn cancel_run(
     Path(id): Path<uuid::Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     let run_id = RunId(id);
+
+    // Signal the running task to stop first.
+    {
+        let mut tokens = state.run_tokens.lock().await;
+        if let Some(token) = tokens.remove(&run_id) {
+            token.cancel();
+        }
+    }
+
+    // Re-read run state after signalling — the task may have finished between
+    // the signal and this read, so we check the current state to avoid
+    // overwriting a completed run.
     let Some(mut run) = state.run_repo.get(run_id).await? else {
         return Err(AppError::NotFound("run not found"));
     };
     if run.state.is_terminal() || run.state == superkick_core::RunState::Failed {
-        return Err(AppError::BadRequest(format!(
-            "run is already in terminal state: {}",
-            run.state
-        )));
+        // Token was already cancelled above; the run finished on its own.
+        return Ok(Json(run));
     }
-    // TODO: This only updates DB state. A running StepEngine task is not
-    // signalled yet — it will continue until its next step boundary.
-    // Fix: thread a CancellationToken into StepEngine and trigger it here.
+
     run.transition_to(superkick_core::RunState::Cancelled)
         .map_err(|e| AppError::Internal(e.into()))?;
     state.run_repo.update(&run).await?;

@@ -8,7 +8,7 @@ Superkick is a local-first agent orchestrator focused on the path from Linear is
 
 Today, the project already includes:
 
-- a local `superkick` CLI with `doctor`, `init`, `serve`, `status`, and `cancel`
+- a local `superkick` CLI with `doctor`, `init`, `serve`, `run`, `status`, and `cancel`
 - a local HTTP control plane and SQLite-backed run state
 - a React Control Center dashboard with KPIs, attention zones, active runs, and completed work
 - run state transitions, interrupts, review results, and realtime event streaming
@@ -137,8 +137,59 @@ superkick serve
 superkick status
 ```
 
-For now, manual run creation still goes through the API or the demo script.
-`superkick run <issue>` is the next CLI milestone.
+## CLI reference
+
+### `superkick serve`
+
+Start the local server. Must be running before using `run`, `cancel`, or `status`.
+
+```bash
+superkick serve              # default port 3100
+superkick serve -p 4000      # custom port
+```
+
+### `superkick run <ISSUE>`
+
+Trigger a run for an issue. Returns immediately by default (daemon mode).
+
+```bash
+superkick run LES-56          # fire-and-forget
+superkick run LES-56 --follow # stay attached, stream events in terminal
+superkick run LES-56 -f       # short form
+```
+
+### `superkick status`
+
+Check server health and list active runs with their IDs.
+
+```bash
+superkick status              # checks ports 3100 and 3000
+superkick status -p 4000      # check a specific port
+```
+
+```
+  [ok]  Superkick server running on port 3100
+        http://127.0.0.1:3100
+
+  [>>]  LES-56  running/code  f6df0c65-1df0-4003-9866-450ba1bc9829
+```
+
+### `superkick cancel <RUN_ID>`
+
+Cancel an active run. Stops the running agent process immediately.
+
+```bash
+superkick status              # find the run ID
+superkick cancel f6df0c65-1df0-4003-9866-450ba1bc9829
+```
+
+### `superkick doctor`
+
+Check that required tools are installed (git, gh, agent CLIs).
+
+### `superkick init`
+
+Initialize a repository with a `superkick.yaml` config file.
 
 ## Run lifecycle
 
@@ -173,7 +224,7 @@ Next on the dashboard side:
 
 ### Shipped foundations
 - [x] Rust workspace and crate structure
-- [x] CLI surface (`doctor`, `init`, `serve`, `status`, `cancel`)
+- [x] CLI surface (`doctor`, `init`, `serve`, `run`, `status`, `cancel`)
 - [x] React dashboard with Control Center, KPIs, run board
 - [x] SQLite storage (runs, steps, artifacts, events, interrupts)
 - [x] Project config model and validation (`superkick.yaml`)
@@ -187,7 +238,8 @@ Next on the dashboard side:
 - [x] Run isolation via worktrees
 
 ### Next up
-- [ ] `superkick run <issue>` for manual local-first launch
+- [x] `superkick run <issue>` for manual local-first launch
+- [x] Real HTTP health checks and run cancellation
 - [ ] Persistent multi-session rail and quick focus switching
 - [ ] Full pause/resume flow end-to-end
 - [ ] Parallel review agents and project-defined review gate

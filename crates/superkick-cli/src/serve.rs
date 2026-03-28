@@ -31,18 +31,27 @@ pub async fn run(args: ServeArgs) -> anyhow::Result<()> {
     }
 
     let addr = format!("0.0.0.0:{}", args.port);
-    let listener = tokio::net::TcpListener::bind(&addr).await.map_err(|_| {
-        anyhow::anyhow!(
-            "Port {} is already in use.\n\n\
-             Check what's running:  lsof -i :{}\n\
-             Kill it:               kill $(lsof -ti :{})\n\
-             Or use another port:   superkick serve -p {}",
-            args.port,
-            args.port,
-            args.port,
-            args.port + 1
-        )
-    })?;
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .map_err(|e| match e.kind() {
+            std::io::ErrorKind::AddrInUse => anyhow::anyhow!(
+                "Port {} is already in use.\n\n\
+                 Check what's running:  lsof -i :{}\n\
+                 Kill it:               kill $(lsof -ti :{})\n\
+                 Or use another port:   superkick serve -p {}",
+                args.port,
+                args.port,
+                args.port,
+                args.port + 1
+            ),
+            std::io::ErrorKind::PermissionDenied => anyhow::anyhow!(
+                "Permission denied binding to port {}.\n\
+                 Try a port above 1024:  superkick serve -p {}",
+                args.port,
+                args.port.max(1025)
+            ),
+            _ => anyhow::anyhow!("Failed to bind to {}: {}", addr, e),
+        })?;
 
     superkick_api::run_server(ServerConfig {
         config_path: args.config,
