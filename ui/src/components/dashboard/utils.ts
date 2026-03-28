@@ -95,6 +95,18 @@ export const stepLabel: Record<string, string> = {
   commands: "Commands", review_swarm: "Review", create_pr: "PR", await_human: "Human",
 };
 
+// ── View state helpers ─────────────────────────────────────────────────
+
+export function shouldShowInterrupts(state: RunState, interruptCount: number): boolean {
+  return interruptCount > 0 || state === "waiting_human";
+}
+
+export function watchButtonClass(watched: boolean, maxReached: boolean): string {
+  if (watched) return "text-mineral hover:text-oxide";
+  if (maxReached) return "text-dim/30 cursor-not-allowed";
+  return "text-dim hover:text-mineral opacity-0 group-hover:opacity-100";
+}
+
 export const stateIcon: Partial<Record<RunState, string>> = {
   coding: "01",
   planning: "02",

@@ -32,6 +32,15 @@ export async function answerInterrupt(
   }
 }
 
+export async function cancelRun(id: string): Promise<Run> {
+  const res = await fetch(`${BASE}/runs/${id}/cancel`, { method: "POST" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: `status ${res.status}` }));
+    throw new Error(body.error || `cancel run failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export function subscribeToRunEvents(
   runId: string,
   onEvent: (event: RunEvent) => void,
