@@ -115,12 +115,25 @@ The server auto-runs SQLite migrations on first start.
 superkick status
 ```
 
-### Manual run trigger
-
-`superkick run <issue>` is the next CLI milestone.
-For now, manual run creation still goes through the HTTP API or the demo script below.
-
 ### Trigger a run
+
+```bash
+superkick run SK-001
+```
+
+This:
+1. Reads `superkick.yaml` for `base_branch`
+2. Derives `repo_slug` from your git remote
+3. Creates the run via the local server
+4. Streams live events to your terminal
+
+Options:
+- `--port <port>` — server port (default 3100)
+- `--no-follow` — create the run and exit immediately
+
+Press `Ctrl+C` to detach from the event stream. The run continues server-side.
+
+You can also create a run directly via the API:
 
 ```bash
 curl -X POST http://127.0.0.1:3100/runs \

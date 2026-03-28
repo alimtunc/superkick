@@ -4,6 +4,7 @@ use tracing_subscriber::EnvFilter;
 mod cancel;
 mod doctor;
 mod init;
+mod run;
 mod serve;
 mod status;
 
@@ -23,6 +24,8 @@ enum Commands {
     Doctor,
     /// Initialize a repository for Superkick
     Init,
+    /// Trigger a run for an issue
+    Run(run::RunArgs),
     /// Start the Superkick server
     Serve(serve::ServeArgs),
     /// Check if the Superkick server is running
@@ -36,6 +39,7 @@ fn main() -> anyhow::Result<()> {
         Commands::Cancel(args) => cancel::run(args),
         Commands::Doctor => doctor::run(),
         Commands::Init => init::run(),
+        Commands::Run(args) => run::run(args),
         Commands::Serve(args) => {
             tracing_subscriber::fmt()
                 .with_env_filter(EnvFilter::from_default_env())
