@@ -1,0 +1,24 @@
+pre-commit:
+  parallel: true
+  commands:
+    # ── Rust ────────────────────────────────────────────────────────────
+    rustfmt:
+      glob: "crates/**/*.rs"
+      run: cargo fmt -- --check
+    clippy:
+      glob: "crates/**/*.rs"
+      run: cargo clippy --workspace -- -D warnings
+
+    # ── Frontend ────────────────────────────────────────────────────────
+    oxlint:
+      root: ui/
+      glob: "src/**/*.{ts,tsx}"
+      run: pnpm lint {staged_files}
+    oxfmt:
+      root: ui/
+      glob: "src/**/*.{ts,tsx}"
+      run: pnpm fmt:check {staged_files}
+    typecheck:
+      root: ui/
+      glob: "src/**/*.{ts,tsx}"
+      run: pnpm tsc --noEmit
