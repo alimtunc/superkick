@@ -1,0 +1,46 @@
+version: 1
+
+issue_source:
+  provider: linear
+  trigger: in_progress
+
+runner:
+  mode: local
+  repo_root: .
+  base_branch: main
+  worktree_prefix: superkick
+  setup_commands:
+    - pnpm install --frozen-lockfile
+
+agents:
+  implementation:
+    provider: claude
+  review:
+    provider: claude
+
+workflow:
+  steps:
+    - type: plan
+      agent: implementation
+    - type: code
+      agent: implementation
+    - type: commands
+      run:
+        - pnpm install --frozen-lockfile
+    - type: review_swarm
+      agents:
+        - review
+        - review
+        - review
+    - type: pr
+      create: true
+      generate_description: true
+
+interrupts:
+  on_blocked: ask_human
+  on_review_conflict: ask_human
+
+budget:
+  max_retries_per_step: 2
+  max_parallel_agents: 3
+  token_budget: medium
