@@ -5,8 +5,8 @@ description: Comprehensive PR review for Superkick — Rust backend + React 19 f
 
 # Pre-PR Review — Superkick
 
-Full review before PR: Rust + React 19 + Clean Code.
-Launch **2 agents in parallel** and consolidate results.
+Review + fix before PR: Rust + React 19 + Clean Code.
+Launch **2 agents in parallel**, consolidate results, then **fix all critical issues**.
 
 ## Usage
 
@@ -66,18 +66,24 @@ Files: [list of modified ui/ files]
 
 3. **Consolidate reports** in the format below.
 
+4. **Fix all critical issues** — apply fixes directly to the code. Do NOT ask for confirmation on criticals.
+
+5. **Present suggested improvements** to the user — let them decide which to apply.
+
+6. **Run `just check`** after fixes to confirm nothing is broken.
+
 ## Output format
 
 ```markdown
 # Pre-PR Review — Superkick
 
-## Critical issues (X)
+## Critical issues (X) — FIXED
 
-- [file:line] - **[Category]** Description → Fix
+- [file:line] - **[Category]** Description → Fix applied
 
 ## Suggested improvements (X)
 
-- [file:line] - **[Category]** Description → Fix
+- [file:line] - **[Category]** Description → Suggested fix
 
 ## Positive points
 
@@ -85,10 +91,9 @@ Files: [list of modified ui/ files]
 
 ---
 
-PR ready
+All criticals fixed, X improvements to consider
 OR
-X critical issues to fix before PR
-X improvements to consider
+PR ready — no issues found
 ```
 
 Categories: `Error Handling`, `Ownership`, `Async`, `API Design`, `SQL`, `Clean Code`, `DRY`, `SOC`, `React 19`, `Composition`, `Bundle`, `Tailwind`.
