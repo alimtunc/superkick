@@ -14,7 +14,7 @@ use axum::response::{IntoResponse, Json};
 use axum::routing::{get, post};
 use serde::Deserialize;
 
-use superkick_core::{InterruptAction, InterruptId, Run, RunId, TriggerSource};
+use superkick_core::{InterruptAction, InterruptId, LinkedRunSummary, Run, RunId, TriggerSource};
 use superkick_integrations::linear::LinearClient;
 use superkick_runtime::{InterruptService, RepoCache, StepEngine, StepEngineDeps};
 use superkick_storage::repo::{InterruptRepo, RunEventRepo, RunRepo, RunStepRepo};
@@ -115,6 +115,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(health))
         .route("/issues", get(list_issues))
+        .route("/issues/{id}", get(get_issue))
         .route("/runs", post(create_run).get(list_runs))
         .route("/runs/{id}", get(get_run))
         .route("/runs/{id}/events", get(get_run_events))
@@ -170,6 +171,24 @@ async fn list_issues(
         .map_err(AppError::Internal)?;
 
     Ok(Json(response))
+}
+
+async fn get_issue(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let client = state
+        .linear_client
+        .as_ref()
+        .ok_or_else(|| AppError::ServiceUnavailable("LINEAR_API_KEY not configured"))?;
+
+    let mut detail = client.get_issue(&id).await.map_err(AppError::Internal)?;
+
+    // Enrich with linked runs from superkick-storage (SUP-19 ready).
+    let runs = state.run_repo.list_by_issue_id(&id).await?;
+    detail.linked_runs = runs.iter().map(LinkedRunSummary::from).collect();
+
+    Ok(Json(detail))
 }
 
 #[derive(Deserialize)]

@@ -2212,7 +2212,6 @@ dependencies = [
  "serde",
  "serde_json",
  "superkick-core",
- "thiserror",
  "tokio",
  "tracing",
 ]

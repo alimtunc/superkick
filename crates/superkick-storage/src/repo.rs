@@ -1,5 +1,7 @@
 //! Repository trait definitions.
 
+use std::future::Future;
+
 use anyhow::Result;
 use superkick_core::{
     AgentSession, AgentSessionId, Artifact, ArtifactId, EventId, Interrupt, InterruptId, Run,
@@ -12,6 +14,7 @@ pub trait RunRepo: Send + Sync {
     fn get(&self, id: RunId) -> impl Future<Output = Result<Option<Run>>> + Send;
     fn list_all(&self) -> impl Future<Output = Result<Vec<Run>>> + Send;
     fn update(&self, run: &Run) -> impl Future<Output = Result<()>> + Send;
+    fn list_by_issue_id(&self, issue_id: &str) -> impl Future<Output = Result<Vec<Run>>> + Send;
 }
 
 /// Repository for `RunStep` entities.
@@ -56,5 +59,3 @@ pub trait ArtifactRepo: Send + Sync {
     fn get(&self, id: ArtifactId) -> impl Future<Output = Result<Option<Artifact>>> + Send;
     fn list_by_run(&self, run_id: RunId) -> impl Future<Output = Result<Vec<Artifact>>> + Send;
 }
-
-use std::future::Future;

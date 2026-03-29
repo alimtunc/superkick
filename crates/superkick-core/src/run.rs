@@ -120,6 +120,27 @@ pub struct Run {
     pub error_message: Option<String>,
 }
 
+/// Lightweight run reference for embedding in issue detail payloads.
+/// Full run detail is accessed via `GET /runs/{id}`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinkedRunSummary {
+    pub id: String,
+    pub state: RunState,
+    pub started_at: DateTime<Utc>,
+    pub finished_at: Option<DateTime<Utc>>,
+}
+
+impl From<&Run> for LinkedRunSummary {
+    fn from(run: &Run) -> Self {
+        Self {
+            id: run.id.0.to_string(),
+            state: run.state,
+            started_at: run.started_at,
+            finished_at: run.finished_at,
+        }
+    }
+}
+
 impl Run {
     /// Create a new run in the `Queued` state.
     pub fn new(
