@@ -7,7 +7,7 @@ import { createRouter, createRootRoute, createRoute } from '@tanstack/react-rout
 // ── Root layout — AppShell provides sidebar + header + scrollable main ─
 
 const rootRoute = createRootRoute({
-	component: AppShell,
+	component: AppShell
 })
 
 // ── Routes ─────────────────────────────────────────────────────────────
@@ -15,7 +15,7 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/',
-	component: ControlCenter,
+	component: ControlCenter
 })
 
 const issuesRoute = createRoute({
@@ -23,7 +23,7 @@ const issuesRoute = createRoute({
 	path: '/issues',
 	component: () => (
 		<PlaceholderPage title="Issues" description="Linear issue sync and triage — coming with SUP-24." />
-	),
+	)
 })
 
 const runsRoute = createRoute({
@@ -31,13 +31,13 @@ const runsRoute = createRoute({
 	path: '/runs',
 	component: () => (
 		<PlaceholderPage title="Runs" description="Dedicated runs list — coming in a future iteration." />
-	),
+	)
 })
 
 const runDetailRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/runs/$runId',
-	component: RunDetailPage,
+	component: RunDetailPage
 })
 
 const sessionsRoute = createRoute({
@@ -45,7 +45,7 @@ const sessionsRoute = createRoute({
 	path: '/sessions',
 	component: () => (
 		<PlaceholderPage title="Sessions" description="Session monitoring and history — coming soon." />
-	),
+	)
 })
 
 const attentionRoute = createRoute({
@@ -53,15 +53,13 @@ const attentionRoute = createRoute({
 	path: '/attention',
 	component: () => (
 		<PlaceholderPage title="Attention" description="Items requiring human attention — coming soon." />
-	),
+	)
 })
 
 const settingsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/settings',
-	component: () => (
-		<PlaceholderPage title="Settings" description="Superkick configuration — coming soon." />
-	),
+	component: () => <PlaceholderPage title="Settings" description="Superkick configuration — coming soon." />
 })
 
 // ── Router ─────────────────────────────────────────────────────────────
@@ -73,7 +71,7 @@ const routeTree = rootRoute.addChildren([
 	runDetailRoute,
 	sessionsRoute,
 	attentionRoute,
-	settingsRoute,
+	settingsRoute
 ])
 
 export const router = createRouter({ routeTree })

@@ -1,7 +1,7 @@
 import { Outlet } from '@tanstack/react-router'
 
-import { Sidebar } from './Sidebar'
 import { ShellHeader } from './ShellHeader'
+import { Sidebar } from './Sidebar'
 
 export function AppShell() {
 	return (

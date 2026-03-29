@@ -1,12 +1,5 @@
 import { Link, useMatches } from '@tanstack/react-router'
-import {
-	LayoutDashboard,
-	ListTodo,
-	Play,
-	Radio,
-	AlertTriangle,
-	Settings,
-} from 'lucide-react'
+import { LayoutDashboard, ListTodo, Play, Radio, AlertTriangle, Settings } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 interface NavItem {
@@ -21,12 +14,10 @@ const NAV_ITEMS: NavItem[] = [
 	{ to: '/issues', label: 'Issues', icon: ListTodo },
 	{ to: '/runs', label: 'Runs', icon: Play, matchPrefix: '/runs' },
 	{ to: '/sessions', label: 'Sessions', icon: Radio },
-	{ to: '/attention', label: 'Attention', icon: AlertTriangle },
+	{ to: '/attention', label: 'Attention', icon: AlertTriangle }
 ]
 
-const BOTTOM_ITEMS: NavItem[] = [
-	{ to: '/settings', label: 'Settings', icon: Settings },
-]
+const BOTTOM_ITEMS: NavItem[] = [{ to: '/settings', label: 'Settings', icon: Settings }]
 
 function isActive(item: NavItem, pathname: string): boolean {
 	if (item.matchPrefix) {
@@ -43,9 +34,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
 			to={item.to}
 			className={[
 				'flex items-center gap-3 rounded-md px-3 py-2 text-[13px] font-medium transition-colors',
-				active
-					? 'bg-slate-deep text-fog'
-					: 'text-ash hover:bg-slate-deep/50 hover:text-silver',
+				active ? 'bg-slate-deep text-fog' : 'text-ash hover:bg-slate-deep/50 hover:text-silver'
 			].join(' ')}
 		>
 			<span className={active ? 'text-mineral' : 'text-dim'}>
@@ -65,9 +54,7 @@ export function Sidebar() {
 			{/* Brand */}
 			<div className="flex h-12 items-center gap-2 border-b border-edge px-4">
 				<div className="live-pulse h-2 w-2 rounded-full bg-neon-green" />
-				<span className="font-data text-[11px] tracking-wider text-silver uppercase">
-					Superkick
-				</span>
+				<span className="font-data text-[11px] tracking-wider text-silver uppercase">Superkick</span>
 			</div>
 
 			{/* Main nav */}

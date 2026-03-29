@@ -12,13 +12,11 @@ export function ShellHeader() {
 					{d.lastRefresh.toLocaleTimeString([], {
 						hour: '2-digit',
 						minute: '2-digit',
-						second: '2-digit',
+						second: '2-digit'
 					})}
 				</span>
 				{d.active.length > 0 ? (
-					<span className="font-data text-[11px] text-cyan">
-						{d.active.length} active
-					</span>
+					<span className="font-data text-[11px] text-cyan">{d.active.length} active</span>
 				) : null}
 			</div>
 			<div className="flex items-center gap-4">
