@@ -1,0 +1,10 @@
+export function IssuesPage() {
+	return (
+		<div className="flex flex-1 items-center justify-center p-10">
+			<div className="text-center">
+				<h1 className="font-data mb-2 text-sm tracking-wider text-silver uppercase">Issues</h1>
+				<p className="text-[13px] text-dim">Linear issue sync and triage.</p>
+			</div>
+		</div>
+	)
+}

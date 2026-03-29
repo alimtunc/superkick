@@ -1,7 +1,11 @@
 import { AppShell } from '@/components/shell/AppShell'
-import { ControlCenter } from '@/pages/ControlCenter'
-import { PlaceholderPage } from '@/pages/Placeholder'
+import { AttentionPage } from '@/pages/AttentionPage'
+import { IssuesPage } from '@/pages/IssuesPage'
+import { OverviewPage } from '@/pages/OverviewPage'
 import { RunDetailPage } from '@/pages/RunDetail'
+import { RunsPage } from '@/pages/RunsPage'
+import { SessionsPage } from '@/pages/SessionsPage'
+import { SettingsPage } from '@/pages/SettingsPage'
 import { createRouter, createRootRoute, createRoute } from '@tanstack/react-router'
 
 // ── Root layout — AppShell provides sidebar + header + scrollable main ─
@@ -15,23 +19,19 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/',
-	component: ControlCenter
+	component: OverviewPage
 })
 
 const issuesRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/issues',
-	component: () => (
-		<PlaceholderPage title="Issues" description="Linear issue sync and triage — coming with SUP-24." />
-	)
+	component: IssuesPage
 })
 
 const runsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/runs',
-	component: () => (
-		<PlaceholderPage title="Runs" description="Dedicated runs list — coming in a future iteration." />
-	)
+	component: RunsPage
 })
 
 const runDetailRoute = createRoute({
@@ -43,23 +43,19 @@ const runDetailRoute = createRoute({
 const sessionsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/sessions',
-	component: () => (
-		<PlaceholderPage title="Sessions" description="Session monitoring and history — coming soon." />
-	)
+	component: SessionsPage
 })
 
 const attentionRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/attention',
-	component: () => (
-		<PlaceholderPage title="Attention" description="Items requiring human attention — coming soon." />
-	)
+	component: AttentionPage
 })
 
 const settingsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/settings',
-	component: () => <PlaceholderPage title="Settings" description="Superkick configuration — coming soon." />
+	component: SettingsPage
 })
 
 // ── Router ─────────────────────────────────────────────────────────────
