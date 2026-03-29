@@ -4,6 +4,8 @@ This document is the execution backlog for building the Rust + React version of 
 
 Use it together with:
 
+- `docs/product-context.md`
+- `docs/launch-execution-context.md`
 - `docs/v1-spec.md`
 - `docs/target-architecture.md`
 
@@ -36,8 +38,11 @@ For each ticket:
 
 1. Give Claude the ticket section verbatim.
 2. Also give Claude `docs/target-architecture.md`.
-3. Instruct Claude to implement only that ticket and not future tickets.
-4. Ask Claude to return:
+3. If the ticket touches product intent or current Launch sequencing, also give Claude:
+   - `docs/product-context.md`
+   - `docs/launch-execution-context.md`
+4. Instruct Claude to implement only that ticket and not future tickets.
+5. Ask Claude to return:
    - changed files
    - architecture decisions taken
    - tests or manual verification
