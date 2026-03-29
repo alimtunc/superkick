@@ -20,13 +20,52 @@ async fn main() -> anyhow::Result<()> {
     let cache_dir =
         std::env::var("SUPERKICK_CACHE_DIR").unwrap_or_else(|_| ".superkick-cache".into());
 
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
+    let (listener, actual_port) = bind_with_fallback(port, 10).await?;
 
-    superkick_api::run_server(ServerConfig {
+    // Write the actual port so the frontend dev server can discover it.
+    let port_file = std::path::Path::new(&config_path)
+        .parent()
+        .unwrap_or(std::path::Path::new("."))
+        .join(".superkick-port");
+    std::fs::write(&port_file, actual_port.to_string())?;
+
+    let result = superkick_api::run_server(ServerConfig {
         config_path,
         database_url,
         cache_dir,
         listener,
     })
-    .await
+    .await;
+
+    // Clean up port file on shutdown.
+    let _ = std::fs::remove_file(&port_file);
+
+    result
+}
+
+/// Try binding to `start_port`, incrementing up to `max_attempts` times on failure.
+async fn bind_with_fallback(
+    start_port: u16,
+    max_attempts: u16,
+) -> anyhow::Result<(tokio::net::TcpListener, u16)> {
+    for offset in 0..max_attempts {
+        let port = start_port
+            .checked_add(offset)
+            .ok_or_else(|| anyhow::anyhow!("port overflow while scanning from {start_port}"))?;
+        match tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await {
+            Ok(listener) => {
+                if offset > 0 {
+                    eprintln!("Port {start_port} was busy — using {port} instead");
+                }
+                return Ok((listener, port));
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => continue,
+            Err(e) => return Err(e.into()),
+        }
+    }
+    anyhow::bail!(
+        "could not bind to any port in range {}..{}",
+        start_port,
+        start_port + max_attempts
+    )
 }

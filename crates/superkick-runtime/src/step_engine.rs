@@ -100,7 +100,7 @@ where
 
         // Cleanup worktree on terminal outcomes (Completed, Failed).
         // WaitingHuman keeps the worktree alive for potential retry.
-        if run.state.is_terminal() || run.state == RunState::Failed {
+        if run.state.is_terminal() {
             self.cleanup_worktree(&run).await;
         }
 
@@ -660,7 +660,7 @@ where
         args.extend(base_args.iter().map(|s| s.to_string()));
 
         // Build a prompt for the agent based on the step type.
-        let prompt = match step.step_key {
+        let base_prompt = match step.step_key {
             StepKey::Plan => format!(
                 "You are working on issue {} (id: {}). \
                  Analyze the codebase and create a detailed implementation plan. \
@@ -686,6 +686,14 @@ where
                 run.issue_identifier, run.issue_id, other,
             ),
         };
+
+        let default_instructions = &self.config.launch_profile.default_instructions;
+        let prompt = build_full_prompt(
+            &base_prompt,
+            Some(default_instructions.as_str()).filter(|s| !s.is_empty()),
+            run.operator_instructions.as_deref(),
+            self.handoff_for_step(step.step_key),
+        );
         args.push(prompt);
 
         let launch_cfg = AgentLaunchConfig {
@@ -1318,6 +1326,20 @@ where
         Ok(())
     }
 
+    /// Return handoff instructions if this step is the last agent step before PR.
+    fn handoff_for_step(&self, key: StepKey) -> Option<&str> {
+        let handoff = &self.config.launch_profile.handoff_instructions;
+        if handoff.is_empty() {
+            return None;
+        }
+        // Handoff applies to the Code step (last agent step before commands/review/PR).
+        if key == StepKey::Code {
+            Some(handoff.as_str())
+        } else {
+            None
+        }
+    }
+
     /// Emit a run event, logging on failure.
     async fn emit(
         &self,
@@ -1357,6 +1379,30 @@ fn agent_command(provider: &AgentProvider) -> (&'static str, Vec<&'static str>) 
 /// Require a worktree path, failing if Prepare hasn't run.
 fn require_worktree(path: Option<&std::path::Path>) -> Result<&std::path::Path> {
     path.context("worktree path not set — Prepare step must run first")
+}
+
+/// Assemble the full agent prompt from base + default + per-run + handoff sections.
+fn build_full_prompt(
+    base: &str,
+    default_instructions: Option<&str>,
+    per_run_instructions: Option<&str>,
+    handoff_instructions: Option<&str>,
+) -> String {
+    let mut parts = vec![base.to_string()];
+
+    if let Some(defaults) = default_instructions {
+        parts.push(format!(
+            "\n\n--- Default operator instructions ---\n{defaults}"
+        ));
+    }
+    if let Some(per_run) = per_run_instructions {
+        parts.push(format!("\n\n--- Run-specific instructions ---\n{per_run}"));
+    }
+    if let Some(hoff) = handoff_instructions {
+        parts.push(format!("\n\n--- Handoff instructions ---\n{hoff}"));
+    }
+
+    parts.join("")
 }
 
 /// Check that a CLI tool exists on PATH by running `<tool> --version`.

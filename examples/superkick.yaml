@@ -35,3 +35,10 @@ workflow:
 
 interrupts:
   on_blocked: ask_human
+
+launch_profile:
+  use_worktree: true
+  live_mode: false
+  skills: []
+  default_instructions: ""
+  handoff_instructions: ""

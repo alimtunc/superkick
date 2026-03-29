@@ -14,6 +14,7 @@ use axum::response::{IntoResponse, Json};
 use axum::routing::{get, post};
 use serde::{Deserialize, Serialize};
 
+use superkick_config::LaunchProfileConfig;
 use superkick_core::{
     CoreError, InterruptAction, InterruptId, LinkedRunSummary, Run, RunId, TriggerSource,
 };
@@ -50,6 +51,7 @@ struct AppState {
     run_tokens: Arc<Mutex<HashMap<RunId, CancellationToken>>>,
     repo_slug: String,
     base_branch: String,
+    launch_profile: LaunchProfileConfig,
 }
 
 // ── Server config ─────────────────────────────────────────────────────
@@ -67,6 +69,7 @@ pub struct ServerConfig {
 pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let config = superkick_config::load_file(std::path::Path::new(&cfg.config_path))?;
     let base_branch = config.runner.base_branch.clone();
+    let launch_profile = config.launch_profile.clone();
     let repo_slug = detect_repo_slug().unwrap_or_else(|| {
         tracing::warn!("could not detect repo_slug from git remote — /config will return empty");
         String::new()
@@ -121,6 +124,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         run_tokens: Arc::new(Mutex::new(HashMap::new())),
         repo_slug,
         base_branch,
+        launch_profile,
     };
 
     let app = Router::new()
@@ -210,6 +214,7 @@ struct CreateRunRequest {
     issue_identifier: String,
     #[serde(default = "default_base_branch")]
     base_branch: String,
+    operator_instructions: Option<String>,
 }
 
 fn default_base_branch() -> String {
@@ -242,6 +247,11 @@ async fn create_run(
         ));
     }
 
+    let operator_instructions = body
+        .operator_instructions
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
     let existing = state.run_repo.find_active_by_issue_id(&issue_id).await?;
     Run::guard_no_active(existing.as_ref(), &issue_identifier)?;
 
@@ -251,6 +261,7 @@ async fn create_run(
         repo_slug,
         TriggerSource::Manual,
         base_branch,
+        operator_instructions,
     );
 
     state.run_repo.insert(&run).await?;
@@ -342,7 +353,7 @@ async fn get_run_events(
             offset += events.len();
 
             if let Ok(Some(run)) = run_repo.get(run_id).await {
-                if run.state.is_terminal() || run.state == superkick_core::RunState::Failed {
+                if run.state.is_terminal() {
                     yield Ok(Event::default().event("done").data("run finished"));
                     break;
                 }
@@ -388,7 +399,7 @@ async fn cancel_run(
     let Some(mut run) = state.run_repo.get(run_id).await? else {
         return Err(AppError::NotFound("run not found"));
     };
-    if run.state.is_terminal() || run.state == superkick_core::RunState::Failed {
+    if run.state.is_terminal() {
         // Token was already cancelled above; the run finished on its own.
         return Ok(Json(run));
     }
@@ -417,12 +428,14 @@ async fn answer_interrupt(
 struct ConfigResponse {
     repo_slug: String,
     base_branch: String,
+    launch_profile: LaunchProfileConfig,
 }
 
 async fn get_config(State(state): State<AppState>) -> Json<ConfigResponse> {
     Json(ConfigResponse {
         repo_slug: state.repo_slug.clone(),
         base_branch: state.base_branch.clone(),
+        launch_profile: state.launch_profile.clone(),
     })
 }
 

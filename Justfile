@@ -3,15 +3,20 @@ check:
     cargo check --workspace
     cd ui && pnpm tsc --noEmit
 
-# Run API + dashboard in parallel
+# Run API + dashboard in parallel.
+# API writes .superkick-port on bind; dashboard reads it for proxy target.
 dev:
-    just dev-api & just dashboard & wait
+    just dev-api & just _wait-for-api && just dashboard & wait
 
 dev-api:
     cargo run -p superkick-api
 
 dashboard:
     cd ui && pnpm dev
+
+# Wait until the API has written its port file (max 10s).
+_wait-for-api:
+    bash -c 'for i in $(seq 1 20); do [ -f .superkick-port ] && exit 0; sleep 0.5; done; echo "warning: .superkick-port not found after 10s"'
 
 # Build everything
 build:

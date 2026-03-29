@@ -8,6 +8,7 @@ fn run_in(state: RunState) -> Run {
         "owner/repo".into(),
         TriggerSource::Manual,
         "main".into(),
+        None,
     );
     // Force to desired state for testing.
     run.state = state;

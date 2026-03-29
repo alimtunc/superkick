@@ -1,11 +1,13 @@
 import { DuplicateRunError } from '@/api'
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
 import { IssueComments } from '@/components/issue-detail/IssueComments'
+import { LaunchDialog } from '@/components/launch/LaunchDialog'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { Button } from '@/components/ui/button'
 import { useConfig } from '@/hooks/useConfig'
 import { useCreateRun } from '@/hooks/useCreateRun'
 import { useIssueDetail } from '@/hooks/useIssueDetail'
+import { useLaunchDialog } from '@/hooks/useLaunchDialog'
 import type { IssueDetailResponse, LinkedRunSummary } from '@/types'
 import { Link, useParams } from '@tanstack/react-router'
 
@@ -48,6 +50,11 @@ function IssueDetail({ issueId }: { issueId: string }) {
 function IssueDetailHeader({ issue, onRefresh }: { issue: IssueDetailResponse; onRefresh: () => void }) {
 	const { config } = useConfig()
 	const createRun = useCreateRun({ issueId: issue.id })
+	const launchProfile = config?.launch_profile
+	const dialog = useLaunchDialog({
+		defaultInstructions: launchProfile?.default_instructions ?? '',
+		defaultUseWorktree: launchProfile?.use_worktree ?? true
+	})
 
 	const activeRun = issue.linked_runs.find((r) => !['completed', 'failed', 'cancelled'].includes(r.state))
 
@@ -55,17 +62,18 @@ function IssueDetailHeader({ issue, onRefresh }: { issue: IssueDetailResponse; o
 
 	const activeRunId = activeRun?.id ?? duplicateError?.activeRunId
 
-	function handleStart() {
+	function handleLaunch() {
 		if (!config) return
-		createRun.mutate({
-			repo_slug: config.repo_slug,
-			issue_id: issue.id,
-			issue_identifier: issue.identifier,
-			base_branch: config.base_branch
+		createRun.launch({
+			config,
+			issueId: issue.id,
+			issueIdentifier: issue.identifier,
+			operatorInstructions: dialog.instructions || undefined,
+			onSuccess: dialog.closeDialog
 		})
 	}
 
-	const canStart = !!config?.repo_slug && !activeRun && !createRun.isPending
+	const canStart = !!config?.repo_slug && !!launchProfile && !activeRun && !createRun.isPending
 
 	return (
 		<header className="sticky top-0 z-50 border-b border-edge bg-carbon/90 backdrop-blur-md">
@@ -127,14 +135,28 @@ function IssueDetailHeader({ issue, onRefresh }: { issue: IssueDetailResponse; o
 						<Button
 							size="xs"
 							disabled={!canStart}
-							onClick={handleStart}
+							onClick={dialog.openDialog}
 							className="font-data text-[11px]"
 						>
-							{createRun.isPending ? 'STARTING...' : 'START'}
+							START
 						</Button>
 					)}
 				</div>
 			</div>
+
+			{launchProfile ? (
+				<LaunchDialog
+					open={dialog.open}
+					profile={launchProfile}
+					instructions={dialog.instructions}
+					useWorktree={dialog.useWorktree}
+					isPending={createRun.isPending}
+					onInstructionsChange={dialog.setInstructions}
+					onUseWorktreeChange={dialog.setUseWorktree}
+					onLaunch={handleLaunch}
+					onClose={dialog.closeDialog}
+				/>
+			) : null}
 		</header>
 	)
 }

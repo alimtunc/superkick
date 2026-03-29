@@ -17,4 +17,5 @@ _bmad*
 !.claude/skills/
 
 .superkick-cache
+.superkick-port
 superkick.yaml

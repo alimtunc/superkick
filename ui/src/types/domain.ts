@@ -46,6 +46,7 @@ export interface Run {
 	base_branch: string | null
 	worktree_path: string | null
 	branch_name: string | null
+	operator_instructions: string | null
 	started_at: string
 	updated_at: string
 	finished_at: string | null
@@ -203,6 +204,16 @@ export interface IssueDetailResponse {
 
 	// Optional: linked run state (SUP-19 ready)
 	linked_runs: LinkedRunSummary[]
+}
+
+// ── Launch profile ────────────────────────────────────────────────────
+
+export interface LaunchProfile {
+	use_worktree: boolean
+	live_mode: boolean
+	skills: string[]
+	default_instructions: string
+	handoff_instructions: string
 }
 
 // ── Review ─────────────────────────────────────────────────────────────
