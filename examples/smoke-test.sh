@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # ───────────────────────────────────────────────────────────────────────
-# Superkick smoke test
+# Superkick smoke test — API surface validation
 #
-# Validates that the API server starts, accepts requests, and rejects
-# bad input. Does NOT require external tools (claude, codex) or a real
-# repo — purely tests the API surface and validation layer.
+# This is NOT the product demo. This script validates the HTTP API
+# surface using raw curl calls. It does not require agent CLIs
+# (claude, codex) or a real repository.
+#
+# For the guided product demo, use: ./examples/demo.sh
+# For full setup instructions, see: docs/local-setup.md
 #
 # Usage:
 #   # Terminal 1: start the server
-#   SUPERKICK_CONFIG=examples/superkick.yaml DATABASE_URL=sqlite:superkick-test.db PORT=3100 cargo run -p superkick-api
+#   superkick serve
 #
 #   # Terminal 2: run the smoke tests
 #   ./examples/smoke-test.sh
