@@ -93,9 +93,8 @@ function PendingInterrupt({
 						</div>
 
 						<div className="flex gap-2">
-							<form.Field
-								name="note"
-								children={(field) => (
+							<form.Field name="note">
+								{(field) => (
 									<Field>
 										<Input
 											id={field.name}
@@ -110,7 +109,7 @@ function PendingInterrupt({
 										) : null}
 									</Field>
 								)}
-							/>
+							</form.Field>
 							<Button
 								variant="outline"
 								size="xs"
