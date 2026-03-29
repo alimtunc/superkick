@@ -33,7 +33,7 @@ function RunDetail({ runId, refTime }: { runId: string; refTime: number }) {
 	if (!d.run) return <p className="font-data p-6 text-dim">Run not found.</p>
 
 	return (
-		<div className="min-h-screen bg-void">
+		<>
 			<RunDetailHeader
 				run={d.run}
 				isTerminal={d.isTerminal}
@@ -74,6 +74,6 @@ function RunDetail({ runId, refTime }: { runId: string; refTime: number }) {
 					<EventStream runId={d.run.id} active={streaming} onStateChange={d.syncRun} />
 				</section>
 			</div>
-		</div>
+		</>
 	)
 }

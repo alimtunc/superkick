@@ -1,0 +1,88 @@
+import { Link, useMatches } from '@tanstack/react-router'
+import {
+	LayoutDashboard,
+	ListTodo,
+	Play,
+	Radio,
+	AlertTriangle,
+	Settings,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+
+interface NavItem {
+	to: string
+	label: string
+	icon: LucideIcon
+	matchPrefix?: string
+}
+
+const NAV_ITEMS: NavItem[] = [
+	{ to: '/', label: 'Overview', icon: LayoutDashboard },
+	{ to: '/issues', label: 'Issues', icon: ListTodo },
+	{ to: '/runs', label: 'Runs', icon: Play, matchPrefix: '/runs' },
+	{ to: '/sessions', label: 'Sessions', icon: Radio },
+	{ to: '/attention', label: 'Attention', icon: AlertTriangle },
+]
+
+const BOTTOM_ITEMS: NavItem[] = [
+	{ to: '/settings', label: 'Settings', icon: Settings },
+]
+
+function isActive(item: NavItem, pathname: string): boolean {
+	if (item.matchPrefix) {
+		return pathname.startsWith(item.matchPrefix)
+	}
+	return pathname === item.to
+}
+
+function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+	const active = isActive(item, pathname)
+	const Icon = item.icon
+	return (
+		<Link
+			to={item.to}
+			className={[
+				'flex items-center gap-3 rounded-md px-3 py-2 text-[13px] font-medium transition-colors',
+				active
+					? 'bg-slate-deep text-fog'
+					: 'text-ash hover:bg-slate-deep/50 hover:text-silver',
+			].join(' ')}
+		>
+			<span className={active ? 'text-mineral' : 'text-dim'}>
+				<Icon size={16} />
+			</span>
+			{item.label}
+		</Link>
+	)
+}
+
+export function Sidebar() {
+	const matches = useMatches()
+	const pathname = matches[matches.length - 1]?.pathname ?? '/'
+
+	return (
+		<aside className="flex h-screen w-52 shrink-0 flex-col border-r border-edge bg-carbon">
+			{/* Brand */}
+			<div className="flex h-12 items-center gap-2 border-b border-edge px-4">
+				<div className="live-pulse h-2 w-2 rounded-full bg-neon-green" />
+				<span className="font-data text-[11px] tracking-wider text-silver uppercase">
+					Superkick
+				</span>
+			</div>
+
+			{/* Main nav */}
+			<nav className="flex-1 space-y-1 px-2 py-3">
+				{NAV_ITEMS.map((item) => (
+					<NavLink key={item.to} item={item} pathname={pathname} />
+				))}
+			</nav>
+
+			{/* Bottom nav */}
+			<nav className="space-y-1 border-t border-edge px-2 py-3">
+				{BOTTOM_ITEMS.map((item) => (
+					<NavLink key={item.to} item={item} pathname={pathname} />
+				))}
+			</nav>
+		</aside>
+	)
+}
