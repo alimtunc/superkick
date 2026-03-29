@@ -32,7 +32,7 @@ export function ShellHeader() {
 				<Button
 					variant="outline"
 					size="xs"
-					onClick={d.refresh}
+					onClick={() => d.refresh()}
 					disabled={d.loading}
 					className="font-data text-[11px] text-silver hover:text-fog"
 				>
