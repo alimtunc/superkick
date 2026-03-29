@@ -23,7 +23,7 @@ function IssueDetail({ issueId }: { issueId: string }) {
 	return (
 		<div>
 			<IssueDetailHeader issue={issue} onRefresh={refresh} />
-			<div className="mx-auto max-w-4xl px-5 py-6">
+			<div className="mx-auto max-w-5xl px-5 py-6">
 				<IssueMetaGrid issue={issue} />
 				{issue.linked_runs.length > 0 ? <LinkedRuns runs={issue.linked_runs} /> : null}
 				{issue.description ? (
@@ -67,13 +67,13 @@ function IssueDetailHeader({ issue, onRefresh }: { issue: IssueDetailResponse; o
 
 	return (
 		<header className="sticky top-0 z-50 border-b border-edge bg-carbon/90 backdrop-blur-md">
-			<div className="mx-auto flex h-12 max-w-4xl items-center justify-between px-5">
+			<div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-5">
 				<div className="flex items-center gap-3">
 					<Link
-						to="/"
+						to="/issues"
 						className="font-data text-[11px] text-dim transition-colors hover:text-silver"
 					>
-						&larr; CONTROL CENTER
+						&larr; ISSUES
 					</Link>
 					<span className="text-edge">|</span>
 					<span className="font-data text-[11px] font-medium text-fog">{issue.identifier}</span>
