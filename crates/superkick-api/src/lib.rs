@@ -242,7 +242,6 @@ async fn create_run(
         ));
     }
 
-    // SUP-20: duplicate active run guard.
     let existing = state.run_repo.find_active_by_issue_id(&issue_id).await?;
     Run::guard_no_active(existing.as_ref(), &issue_identifier)?;
 

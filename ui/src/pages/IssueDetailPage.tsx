@@ -51,7 +51,6 @@ function IssueDetailHeader({ issue, onRefresh }: { issue: IssueDetailResponse; o
 
 	const duplicateError = createRun.error instanceof DuplicateRunError ? createRun.error : null
 
-	// Use API-reported active run ID when the local list hasn't refreshed yet.
 	const activeRunId = activeRun?.id ?? duplicateError?.activeRunId
 
 	function handleStart() {
