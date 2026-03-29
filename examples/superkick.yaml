@@ -6,41 +6,32 @@ issue_source:
 
 runner:
   mode: local
-  repo_root: .
   base_branch: main
-  worktree_prefix: superkick
   setup_commands:
-    - pnpm install --frozen-lockfile
+    - cargo build
 
 agents:
-  implementation:
+  planner:
     provider: claude
-  review:
+  coder:
+    provider: claude
+  reviewer:
     provider: claude
 
 workflow:
   steps:
     - type: plan
-      agent: implementation
+      agent: planner
     - type: code
-      agent: implementation
+      agent: coder
     - type: commands
       run:
-        - pnpm install --frozen-lockfile
+        - cargo test
+        - cargo clippy -- -D warnings
     - type: review_swarm
-      agents:
-        - review
-        - review
-        - review
+      agents: [reviewer, reviewer]
     - type: pr
       create: true
-      generate_description: true
 
 interrupts:
   on_blocked: ask_human
-  on_review_conflict: ask_human
-
-budget:
-  max_retries_per_step: 2
-  max_parallel_agents: 3
-  token_budget: medium

@@ -93,28 +93,34 @@ issue_source:
 runner:
   mode: local
   base_branch: main
+  setup_commands:
+    - cargo build
 
 agents:
-  implementation:
+  planner:
     provider: claude
-  review:
-    provider: codex
+  coder:
+    provider: claude
+  reviewer:
+    provider: claude
 
 workflow:
   steps:
     - type: plan
+      agent: planner
     - type: code
+      agent: coder
     - type: commands
-      run: [pnpm lint, pnpm test]
+      run:
+        - cargo test
+        - cargo clippy -- -D warnings
     - type: review_swarm
+      agents: [reviewer, reviewer]
     - type: pr
+      create: true
 
 interrupts:
   on_blocked: ask_human
-
-budget:
-  max_retries_per_step: 2
-  token_budget: medium
 ```
 
 ## Getting started
@@ -135,6 +141,9 @@ superkick serve
 
 # Check the local service
 superkick status
+
+# Launch a run
+superkick run SK-001 --follow
 ```
 
 ## CLI reference
