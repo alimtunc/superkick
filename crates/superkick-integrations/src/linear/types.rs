@@ -27,8 +27,32 @@ pub struct LinearIssueListItem {
     pub priority: IssuePriority,
     pub labels: Vec<IssueLabel>,
     pub assignee: Option<IssueAssignee>,
+    pub project: Option<IssueProject>,
+    pub parent: Option<IssueParentRef>,
+    pub children: Vec<IssueChildRef>,
     pub url: String,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Minimal parent issue reference for launch context.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IssueParentRef {
+    pub id: String,
+    pub identifier: String,
+    pub title: String,
+}
+
+/// Child issue reference with enough context for inline display.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IssueChildRef {
+    pub id: String,
+    pub identifier: String,
+    pub title: String,
+    pub status: IssueStatus,
+    pub priority: IssuePriority,
+    pub labels: Vec<IssueLabel>,
+    pub assignee: Option<IssueAssignee>,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -98,6 +122,8 @@ pub struct IssueDetailResponse {
     pub cycle: Option<IssueCycle>,
     pub estimate: Option<f32>,
     pub due_date: Option<String>,
+    pub parent: Option<IssueParentRef>,
+    pub children: Vec<IssueChildRef>,
 
     // ── Optional: review-relevant context (SUP-21 ready) ──
     pub comments: Vec<IssueComment>,
@@ -150,13 +176,11 @@ pub(crate) struct GqlData {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GqlIssueConnection {
     pub nodes: Vec<GqlIssue>,
-    #[allow(dead_code)]
     pub page_info: GqlPageInfo,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)] // Fields needed for deserialization; pagination used later.
 pub(crate) struct GqlPageInfo {
     pub has_next_page: bool,
     pub end_cursor: Option<String>,
@@ -170,6 +194,36 @@ pub(crate) struct GqlIssue {
     pub title: String,
     pub url: String,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub state: GqlIssueState,
+    pub priority: u8,
+    pub priority_label: String,
+    pub labels: GqlLabelConnection,
+    pub assignee: Option<GqlUser>,
+    pub project: Option<GqlProject>,
+    pub parent: Option<GqlIssueRef>,
+    #[serde(default)]
+    pub children: Option<GqlChildConnection>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlIssueRef {
+    pub id: String,
+    pub identifier: String,
+    pub title: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlChildConnection {
+    pub nodes: Vec<GqlChildIssue>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GqlChildIssue {
+    pub id: String,
+    pub identifier: String,
+    pub title: String,
     pub updated_at: DateTime<Utc>,
     pub state: GqlIssueState,
     pub priority: u8,
@@ -236,6 +290,9 @@ pub(crate) struct GqlIssueDetail {
     pub cycle: Option<GqlCycle>,
     pub estimate: Option<f32>,
     pub due_date: Option<String>,
+    pub parent: Option<GqlIssueRef>,
+    #[serde(default)]
+    pub children: Option<GqlChildConnection>,
     pub comments: GqlCommentConnection,
 }
 
@@ -339,6 +396,40 @@ impl From<GqlIssueDetail> for IssueDetailResponse {
             }),
             estimate: g.estimate,
             due_date: g.due_date,
+            parent: g.parent.map(|p| IssueParentRef {
+                id: p.id,
+                identifier: p.identifier,
+                title: p.title,
+            }),
+            children: g
+                .children
+                .into_iter()
+                .flat_map(|c| c.nodes)
+                .map(|c| IssueChildRef {
+                    id: c.id,
+                    identifier: c.identifier,
+                    title: c.title,
+                    status: IssueStatus::from(c.state),
+                    priority: IssuePriority {
+                        value: c.priority,
+                        label: c.priority_label,
+                    },
+                    labels: c
+                        .labels
+                        .nodes
+                        .into_iter()
+                        .map(|l| IssueLabel {
+                            name: l.name,
+                            color: l.color,
+                        })
+                        .collect(),
+                    assignee: c.assignee.map(|a| IssueAssignee {
+                        name: a.name,
+                        avatar_url: a.avatar_url,
+                    }),
+                    updated_at: c.updated_at,
+                })
+                .collect(),
             url: g.url,
             created_at: g.created_at,
             updated_at: g.updated_at,
@@ -403,6 +494,41 @@ impl From<GqlIssue> for LinearIssueListItem {
                 name: a.name,
                 avatar_url: a.avatar_url,
             }),
+            project: g.project.map(|p| IssueProject { name: p.name }),
+            parent: g.parent.map(|p| IssueParentRef {
+                id: p.id,
+                identifier: p.identifier,
+                title: p.title,
+            }),
+            children: g
+                .children
+                .into_iter()
+                .flat_map(|c| c.nodes)
+                .map(|c| IssueChildRef {
+                    id: c.id,
+                    identifier: c.identifier,
+                    title: c.title,
+                    status: IssueStatus::from(c.state),
+                    priority: IssuePriority {
+                        value: c.priority,
+                        label: c.priority_label,
+                    },
+                    labels: c
+                        .labels
+                        .nodes
+                        .into_iter()
+                        .map(|l| IssueLabel {
+                            name: l.name,
+                            color: l.color,
+                        })
+                        .collect(),
+                    assignee: c.assignee.map(|a| IssueAssignee {
+                        name: a.name,
+                        avatar_url: a.avatar_url,
+                    }),
+                    updated_at: c.updated_at,
+                })
+                .collect(),
             url: g.url,
             created_at: g.created_at,
             updated_at: g.updated_at,
@@ -439,6 +565,31 @@ mod tests {
                 name: "Alice".into(),
                 avatar_url: Some("https://example.com/alice.png".into()),
             }),
+            project: Some(GqlProject {
+                name: "Superkick Product".into(),
+            }),
+            parent: Some(GqlIssueRef {
+                id: "parent-1".into(),
+                identifier: "SUP-10".into(),
+                title: "Auth epic".into(),
+            }),
+            children: Some(GqlChildConnection {
+                nodes: vec![GqlChildIssue {
+                    id: "child-1".into(),
+                    identifier: "SUP-43".into(),
+                    title: "Fix Safari login".into(),
+                    updated_at: Utc::now(),
+                    state: GqlIssueState {
+                        state_type: "unstarted".into(),
+                        name: "Todo".into(),
+                        color: "#bbb".into(),
+                    },
+                    priority: 3,
+                    priority_label: "Medium".into(),
+                    labels: GqlLabelConnection { nodes: vec![] },
+                    assignee: None,
+                }],
+            }),
         }
     }
 
@@ -455,15 +606,25 @@ mod tests {
         assert_eq!(item.labels[0].name, "bug");
         assert!(item.assignee.is_some());
         assert_eq!(item.assignee.unwrap().name, "Alice");
+        assert_eq!(item.project.as_ref().unwrap().name, "Superkick Product");
+        assert_eq!(item.parent.as_ref().unwrap().identifier, "SUP-10");
+        assert_eq!(item.children.len(), 1);
+        assert_eq!(item.children[0].identifier, "SUP-43");
     }
 
     #[test]
-    fn gql_issue_without_assignee() {
+    fn gql_issue_without_optional_fields() {
         let mut gql = sample_gql_issue();
         gql.assignee = None;
+        gql.project = None;
+        gql.parent = None;
+        gql.children = None;
 
         let item = LinearIssueListItem::from(gql);
         assert!(item.assignee.is_none());
+        assert!(item.project.is_none());
+        assert!(item.parent.is_none());
+        assert!(item.children.is_empty());
     }
 
     #[test]
@@ -471,16 +632,23 @@ mod tests {
         let item = LinearIssueListItem::from(sample_gql_issue());
         let json = serde_json::to_value(&item).unwrap();
 
-        assert!(json.get("id").is_some());
-        assert!(json.get("identifier").is_some());
-        assert!(json.get("title").is_some());
-        assert!(json.get("status").is_some());
-        assert!(json.get("priority").is_some());
-        assert!(json.get("labels").is_some());
-        assert!(json.get("assignee").is_some());
-        assert!(json.get("url").is_some());
-        assert!(json.get("created_at").is_some());
-        assert!(json.get("updated_at").is_some());
+        for key in [
+            "id",
+            "identifier",
+            "title",
+            "status",
+            "priority",
+            "labels",
+            "assignee",
+            "project",
+            "parent",
+            "children",
+            "url",
+            "created_at",
+            "updated_at",
+        ] {
+            assert!(json.get(key).is_some(), "missing field: {key}");
+        }
     }
 
     #[test]
@@ -533,6 +701,28 @@ mod tests {
             }),
             estimate: Some(3.0),
             due_date: Some("2026-04-01".into()),
+            parent: Some(GqlIssueRef {
+                id: "parent-1".into(),
+                identifier: "SUP-10".into(),
+                title: "Auth epic".into(),
+            }),
+            children: Some(GqlChildConnection {
+                nodes: vec![GqlChildIssue {
+                    id: "child-1".into(),
+                    identifier: "SUP-43".into(),
+                    title: "Fix Safari login".into(),
+                    updated_at: Utc::now(),
+                    state: GqlIssueState {
+                        state_type: "unstarted".into(),
+                        name: "Todo".into(),
+                        color: "#bbb".into(),
+                    },
+                    priority: 3,
+                    priority_label: "Medium".into(),
+                    labels: GqlLabelConnection { nodes: vec![] },
+                    assignee: None,
+                }],
+            }),
             comments: GqlCommentConnection {
                 nodes: vec![GqlComment {
                     id: "comment-1".into(),
@@ -565,6 +755,9 @@ mod tests {
         assert_eq!(detail.cycle.as_ref().unwrap().number, 3);
         assert_eq!(detail.estimate, Some(3.0));
         assert_eq!(detail.due_date.as_deref(), Some("2026-04-01"));
+        assert_eq!(detail.parent.as_ref().unwrap().identifier, "SUP-10");
+        assert_eq!(detail.children.len(), 1);
+        assert_eq!(detail.children[0].identifier, "SUP-43");
         assert_eq!(detail.comments.len(), 1);
         assert_eq!(detail.comments[0].body, "Reproducible on Safari 17+");
         assert!(detail.comments[0].parent_id.is_none());
@@ -580,6 +773,8 @@ mod tests {
         gql.cycle = None;
         gql.estimate = None;
         gql.due_date = None;
+        gql.parent = None;
+        gql.children = None;
         gql.comments = GqlCommentConnection { nodes: vec![] };
 
         let detail = IssueDetailResponse::from(gql);
@@ -589,6 +784,8 @@ mod tests {
         assert!(detail.cycle.is_none());
         assert!(detail.estimate.is_none());
         assert!(detail.due_date.is_none());
+        assert!(detail.parent.is_none());
+        assert!(detail.children.is_empty());
         assert!(detail.comments.is_empty());
     }
 
@@ -619,6 +816,8 @@ mod tests {
             "cycle",
             "estimate",
             "due_date",
+            "parent",
+            "children",
             "comments",
             "linked_runs",
         ] {
@@ -658,6 +857,8 @@ mod tests {
                     "cycle": null,
                     "estimate": null,
                     "dueDate": null,
+                    "parent": null,
+                    "children": { "nodes": [] },
                     "comments": { "nodes": [
                         {
                             "id": "c1",
@@ -703,7 +904,10 @@ mod tests {
                         "priority": 1,
                         "priorityLabel": "Urgent",
                         "labels": { "nodes": [] },
-                        "assignee": null
+                        "assignee": null,
+                        "project": null,
+                        "parent": null,
+                        "children": { "nodes": [] }
                     }],
                     "pageInfo": { "hasNextPage": false, "endCursor": null }
                 }
