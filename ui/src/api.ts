@@ -10,6 +10,43 @@ import type {
 
 const BASE = '/api'
 
+// ── Config ────────────────────────────────────────────────────────────
+
+export interface ServerConfigResponse {
+	repo_slug: string
+	base_branch: string
+}
+
+export async function fetchConfig(): Promise<ServerConfigResponse> {
+	const res = await fetch(`${BASE}/config`)
+	if (!res.ok) throw new Error(`GET /config failed: ${res.status}`)
+	return res.json()
+}
+
+// ── Run creation ──────────────────────────────────────────────────────
+
+export interface CreateRunRequest {
+	repo_slug: string
+	issue_id: string
+	issue_identifier: string
+	base_branch?: string
+}
+
+export async function createRun(req: CreateRunRequest): Promise<Run> {
+	const res = await fetch(`${BASE}/runs`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(req)
+	})
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
+		throw new Error(body.error || `create run failed: ${res.status}`)
+	}
+	return res.json()
+}
+
+// ── Issues ────────────────────────────────────────────────────────────
+
 export async function fetchIssues(limit = 50): Promise<IssueListResponse> {
 	const res = await fetch(`${BASE}/issues?limit=${limit}`)
 	if (!res.ok) throw new Error(`GET /issues failed: ${res.status}`)

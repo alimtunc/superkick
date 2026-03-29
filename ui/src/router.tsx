@@ -1,5 +1,6 @@
 import { AppShell } from '@/components/shell/AppShell'
 import { AttentionPage } from '@/pages/AttentionPage'
+import { IssueDetailPage } from '@/pages/IssueDetailPage'
 import { IssuesPage } from '@/pages/IssuesPage'
 import { OverviewPage } from '@/pages/OverviewPage'
 import { RunDetailPage } from '@/pages/RunDetail'
@@ -26,6 +27,12 @@ const issuesRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/issues',
 	component: IssuesPage
+})
+
+const issueDetailRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/issues/$issueId',
+	component: IssueDetailPage
 })
 
 const runsRoute = createRoute({
@@ -63,6 +70,7 @@ const settingsRoute = createRoute({
 const routeTree = rootRoute.addChildren([
 	indexRoute,
 	issuesRoute,
+	issueDetailRoute,
 	runsRoute,
 	runDetailRoute,
 	sessionsRoute,

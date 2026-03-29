@@ -12,7 +12,7 @@ use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Json};
 use axum::routing::{get, post};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use superkick_core::{InterruptAction, InterruptId, LinkedRunSummary, Run, RunId, TriggerSource};
 use superkick_integrations::linear::LinearClient;
@@ -46,6 +46,8 @@ struct AppState {
     interrupt_service: Arc<IntService>,
     linear_client: Option<Arc<LinearClient>>,
     run_tokens: Arc<Mutex<HashMap<RunId, CancellationToken>>>,
+    repo_slug: String,
+    base_branch: String,
 }
 
 // ── Server config ─────────────────────────────────────────────────────
@@ -62,6 +64,11 @@ pub struct ServerConfig {
 
 pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let config = superkick_config::load_file(std::path::Path::new(&cfg.config_path))?;
+    let base_branch = config.runner.base_branch.clone();
+    let repo_slug = detect_repo_slug().unwrap_or_else(|| {
+        tracing::warn!("could not detect repo_slug from git remote — /config will return empty");
+        String::new()
+    });
 
     let pool = superkick_storage::connect(&cfg.database_url).await?;
 
@@ -110,10 +117,13 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         interrupt_service,
         linear_client,
         run_tokens: Arc::new(Mutex::new(HashMap::new())),
+        repo_slug,
+        base_branch,
     };
 
     let app = Router::new()
         .route("/health", get(health))
+        .route("/config", get(get_config))
         .route("/issues", get(list_issues))
         .route("/issues/{id}", get(get_issue))
         .route("/runs", post(create_run).get(list_runs))
@@ -394,6 +404,55 @@ async fn answer_interrupt(
         .answer_interrupt(RunId(run_id), InterruptId(interrupt_id), action)
         .await?;
     Ok(StatusCode::OK)
+}
+
+// ── Config endpoint ───────────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct ConfigResponse {
+    repo_slug: String,
+    base_branch: String,
+}
+
+async fn get_config(State(state): State<AppState>) -> Json<ConfigResponse> {
+    Json(ConfigResponse {
+        repo_slug: state.repo_slug.clone(),
+        base_branch: state.base_branch.clone(),
+    })
+}
+
+fn detect_repo_slug() -> Option<String> {
+    let output = std::process::Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let url = String::from_utf8_lossy(&output.stdout);
+    parse_repo_slug(url.trim())
+}
+
+fn parse_repo_slug(url: &str) -> Option<String> {
+    // SSH: git@github.com:owner/repo.git
+    if let Some(path) = url.strip_prefix("git@github.com:") {
+        let slug = path.strip_suffix(".git").unwrap_or(path);
+        if slug.contains('/') && !slug.starts_with('/') {
+            return Some(slug.to_string());
+        }
+    }
+    // HTTPS: https://github.com/owner/repo.git
+    if let Some(rest) = url
+        .strip_prefix("https://github.com/")
+        .or_else(|| url.strip_prefix("http://github.com/"))
+    {
+        let slug = rest.strip_suffix(".git").unwrap_or(rest);
+        let slug = slug.trim_end_matches('/');
+        if slug.contains('/') && slug.matches('/').count() == 1 {
+            return Some(slug.to_string());
+        }
+    }
+    None
 }
 
 // ── Error handling ─────────────────────────────────────────────────────
