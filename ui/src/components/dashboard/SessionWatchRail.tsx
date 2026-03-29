@@ -16,12 +16,13 @@ interface SessionWatchRailProps {
 export function SessionWatchRail({ refTime, mode = 'overview' }: SessionWatchRailProps) {
 	const { ids, focusedId, focus, unwatch, clearFocus } = useWatchedSessionsStore()
 	const queryClient = useQueryClient()
-	const allRuns = queryClient.getQueryData<Run[]>(queryKeys.runs.all) ?? []
 
 	const watchedRuns = useMemo(() => {
+		const allRuns = queryClient.getQueryData<Run[]>(queryKeys.runs.all) ?? []
 		const map = new Map(allRuns.map((r) => [r.id, r]))
 		return ids.map((id) => map.get(id)).filter((r): r is Run => !!r)
-	}, [ids, allRuns])
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [ids, queryClient])
 
 	if (watchedRuns.length === 0) return null
 

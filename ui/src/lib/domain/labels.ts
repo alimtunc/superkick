@@ -77,7 +77,7 @@ export function stateDistribution(runs: Run[]): DistItem[] {
 	for (const run of runs) counts.set(run.state, (counts.get(run.state) ?? 0) + 1)
 
 	return Array.from(counts.entries())
-		.sort((a, b) => b[1] - a[1])
+		.toSorted((a, b) => b[1] - a[1])
 		.map(([label, count]) => ({
 			label: label.replace(/_/g, ' '),
 			count,
