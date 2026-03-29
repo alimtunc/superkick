@@ -24,7 +24,7 @@ export function medianDuration(runs: Run[]): string {
 	const ds = runs
 		.filter((r) => r.finished_at)
 		.map((r) => new Date(r.finished_at!).getTime() - new Date(r.started_at).getTime())
-		.sort((a, b) => a - b)
+		.toSorted((a, b) => a - b)
 	if (ds.length === 0) return '--'
 	const mid = Math.floor(ds.length / 2)
 	const ms = ds.length % 2 === 0 ? (ds[mid - 1] + ds[mid]) / 2 : ds[mid]
