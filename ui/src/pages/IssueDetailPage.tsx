@@ -1,3 +1,4 @@
+import { DuplicateRunError } from '@/api'
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { Button } from '@/components/ui/button'
@@ -46,9 +47,12 @@ function IssueDetailHeader({ issue, onRefresh }: { issue: IssueDetailResponse; o
 	const { config } = useConfig()
 	const createRun = useCreateRun({ issueId: issue.id })
 
-	const hasActiveRun = issue.linked_runs.some(
-		(r) => !['completed', 'failed', 'cancelled'].includes(r.state)
-	)
+	const activeRun = issue.linked_runs.find((r) => !['completed', 'failed', 'cancelled'].includes(r.state))
+
+	const duplicateError = createRun.error instanceof DuplicateRunError ? createRun.error : null
+
+	// Use API-reported active run ID when the local list hasn't refreshed yet.
+	const activeRunId = activeRun?.id ?? duplicateError?.activeRunId
 
 	function handleStart() {
 		if (!config) return
@@ -60,7 +64,7 @@ function IssueDetailHeader({ issue, onRefresh }: { issue: IssueDetailResponse; o
 		})
 	}
 
-	const canStart = !!config?.repo_slug && !hasActiveRun && !createRun.isPending
+	const canStart = !!config?.repo_slug && !activeRun && !createRun.isPending
 
 	return (
 		<header className="sticky top-0 z-50 border-b border-edge bg-carbon/90 backdrop-blur-md">
@@ -86,7 +90,7 @@ function IssueDetailHeader({ issue, onRefresh }: { issue: IssueDetailResponse; o
 				</div>
 
 				<div className="flex items-center gap-1.5">
-					{createRun.isError ? (
+					{createRun.isError && !duplicateError ? (
 						<span className="font-data text-[10px] text-oxide">{createRun.error.message}</span>
 					) : null}
 
@@ -110,14 +114,24 @@ function IssueDetailHeader({ issue, onRefresh }: { issue: IssueDetailResponse; o
 
 					<span className="mx-1 h-5 w-px bg-edge" />
 
-					<Button
-						size="xs"
-						disabled={!canStart}
-						onClick={handleStart}
-						className="font-data text-[11px]"
-					>
-						{createRun.isPending ? 'STARTING...' : hasActiveRun ? 'RUN ACTIVE' : 'START'}
-					</Button>
+					{activeRunId ? (
+						<Link
+							to="/runs/$runId"
+							params={{ runId: activeRunId }}
+							className="font-data inline-flex h-6 items-center rounded-md border border-amber-500/40 bg-amber-500/10 px-2 text-[11px] text-amber-400 transition-colors hover:border-amber-500/60 hover:text-amber-300"
+						>
+							RUN ACTIVE
+						</Link>
+					) : (
+						<Button
+							size="xs"
+							disabled={!canStart}
+							onClick={handleStart}
+							className="font-data text-[11px]"
+						>
+							{createRun.isPending ? 'STARTING...' : 'START'}
+						</Button>
+					)}
 				</div>
 			</div>
 		</header>
