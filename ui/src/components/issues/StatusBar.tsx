@@ -1,32 +1,46 @@
-import type { StatusGroup } from '@/hooks/useIssues'
+import {
+	BUCKET_META,
+	BUCKET_ORDER,
+	type ClassifiedIssues,
+	type IssueBucket
+} from '@/lib/domain/classifyIssues'
 
-export function StatusBar({ groups, total }: { groups: StatusGroup[]; total: number }) {
+export function StatusBar({ classified, total }: { classified: ClassifiedIssues; total: number }) {
 	if (total === 0) return null
+
+	const segments: { bucket: IssueBucket; count: number; color: string; label: string }[] = BUCKET_ORDER.map(
+		(bucket) => ({
+			bucket,
+			count: classified[bucket].length,
+			color: BUCKET_META[bucket].color,
+			label: BUCKET_META[bucket].label
+		})
+	).filter((s) => s.count > 0)
 
 	return (
 		<div>
 			<div className="mb-2 flex h-2 overflow-hidden rounded-sm">
-				{groups.map((g) => (
+				{segments.map((s) => (
 					<div
-						key={g.name}
+						key={s.bucket}
 						className="h-full"
 						style={{
-							width: `${(g.count / total) * 100}%`,
-							backgroundColor: g.color,
+							width: `${(s.count / total) * 100}%`,
+							backgroundColor: s.color,
 							opacity: 0.7
 						}}
 					/>
 				))}
 			</div>
 			<div className="flex flex-wrap gap-x-4 gap-y-1">
-				{groups.map((g) => (
-					<span key={g.name} className="flex items-center gap-1.5">
+				{segments.map((s) => (
+					<span key={s.bucket} className="flex items-center gap-1.5">
 						<span
 							className="inline-block h-2 w-2 rounded-sm"
-							style={{ backgroundColor: g.color }}
+							style={{ backgroundColor: s.color }}
 						/>
 						<span className="font-data text-[10px] text-dim">
-							{g.name} {g.count}
+							{s.label} {s.count}
 						</span>
 					</span>
 				))}

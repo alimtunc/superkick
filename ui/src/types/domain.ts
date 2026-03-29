@@ -100,7 +100,12 @@ export type InterruptAction =
 
 // ── Linear issues (list contract) ─────────────────────────────────────
 
+/** Raw Linear workflow state type. Superkick operator buckets are derived from this. */
+export type LinearStateType = 'backlog' | 'unstarted' | 'started' | 'completed' | 'canceled'
+
 export interface IssueStatus {
+	/** Raw Linear workflow state type — used to derive operator buckets. */
+	state_type: LinearStateType
 	name: string
 	color: string
 }

@@ -34,6 +34,9 @@ pub struct LinearIssueListItem {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IssueStatus {
+    /// Linear workflow state type: `backlog`, `unstarted`, `started`, `completed`, `canceled`.
+    /// This is the raw Linear value — Superkick operator buckets are derived on the frontend.
+    pub state_type: String,
     pub name: String,
     pub color: String,
 }
@@ -169,7 +172,7 @@ pub(crate) struct GqlIssue {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub state: GqlIssueState,
-    pub priority: u32,
+    pub priority: u8,
     pub priority_label: String,
     pub labels: GqlLabelConnection,
     pub assignee: Option<GqlUser>,
@@ -177,6 +180,8 @@ pub(crate) struct GqlIssue {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GqlIssueState {
+    #[serde(rename = "type")]
+    pub state_type: String,
     pub name: String,
     pub color: String,
 }
@@ -223,7 +228,7 @@ pub(crate) struct GqlIssueDetail {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub state: GqlIssueState,
-    pub priority: u32,
+    pub priority: u8,
     pub priority_label: String,
     pub labels: GqlLabelConnection,
     pub assignee: Option<GqlUser>,
@@ -271,6 +276,16 @@ pub(crate) struct GqlCommentRef {
 
 // ── Conversion ─────────────────────────────────────────────────────────
 
+impl From<GqlIssueState> for IssueStatus {
+    fn from(s: GqlIssueState) -> Self {
+        Self {
+            state_type: s.state_type,
+            name: s.name,
+            color: s.color,
+        }
+    }
+}
+
 fn gql_comment_to_issue_comment(
     id: String,
     body: String,
@@ -299,12 +314,9 @@ impl From<GqlIssueDetail> for IssueDetailResponse {
             identifier: g.identifier,
             title: g.title,
             description: g.description.unwrap_or_default(),
-            status: IssueStatus {
-                name: g.state.name,
-                color: g.state.color,
-            },
+            status: IssueStatus::from(g.state),
             priority: IssuePriority {
-                value: g.priority as u8,
+                value: g.priority,
                 label: g.priority_label,
             },
             labels: g
@@ -373,12 +385,9 @@ impl From<GqlIssue> for LinearIssueListItem {
             id: g.id,
             identifier: g.identifier,
             title: g.title,
-            status: IssueStatus {
-                name: g.state.name,
-                color: g.state.color,
-            },
+            status: IssueStatus::from(g.state),
             priority: IssuePriority {
-                value: g.priority as u8, // Linear priority is 0–4
+                value: g.priority,
                 label: g.priority_label,
             },
             labels: g
@@ -414,6 +423,7 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
             state: GqlIssueState {
+                state_type: "started".into(),
                 name: "In Progress".into(),
                 color: "#f2c94c".into(),
             },
@@ -437,6 +447,7 @@ mod tests {
         let item = LinearIssueListItem::from(sample_gql_issue());
 
         assert_eq!(item.identifier, "SUP-42");
+        assert_eq!(item.status.state_type, "started");
         assert_eq!(item.status.name, "In Progress");
         assert_eq!(item.priority.value, 2);
         assert_eq!(item.priority.label, "High");
@@ -497,6 +508,7 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
             state: GqlIssueState {
+                state_type: "started".into(),
                 name: "In Progress".into(),
                 color: "#f2c94c".into(),
             },
@@ -544,6 +556,7 @@ mod tests {
 
         assert_eq!(detail.identifier, "SUP-42");
         assert_eq!(detail.description, "## Problem\nLogin fails on Safari.");
+        assert_eq!(detail.status.state_type, "started");
         assert_eq!(detail.status.name, "In Progress");
         assert_eq!(detail.priority.value, 2);
         assert_eq!(detail.labels.len(), 1);
@@ -636,7 +649,7 @@ mod tests {
                     "url": "https://linear.app/t/SUP-1",
                     "createdAt": "2026-01-01T00:00:00.000Z",
                     "updatedAt": "2026-01-02T00:00:00.000Z",
-                    "state": { "name": "Todo", "color": "#bbb" },
+                    "state": { "type": "unstarted", "name": "Todo", "color": "#bbb" },
                     "priority": 1,
                     "priorityLabel": "Urgent",
                     "labels": { "nodes": [] },
@@ -686,7 +699,7 @@ mod tests {
                         "url": "https://linear.app/t/SUP-1",
                         "createdAt": "2026-01-01T00:00:00.000Z",
                         "updatedAt": "2026-01-02T00:00:00.000Z",
-                        "state": { "name": "Todo", "color": "#bbb" },
+                        "state": { "type": "unstarted", "name": "Todo", "color": "#bbb" },
                         "priority": 1,
                         "priorityLabel": "Urgent",
                         "labels": { "nodes": [] },

@@ -1,31 +1,15 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 import { fetchIssues } from '@/api'
+import { type ClassifiedIssues, type IssueBucket, classifyIssues } from '@/lib/domain/classifyIssues'
 import { queryKeys } from '@/lib/queryKeys'
-import type { LinearIssueListItem } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 
-export interface StatusGroup {
-	name: string
-	color: string
-	count: number
-}
-
-function groupByStatus(issues: LinearIssueListItem[]): StatusGroup[] {
-	const map = new Map<string, StatusGroup>()
-	for (const issue of issues) {
-		const key = issue.status.name
-		const existing = map.get(key)
-		if (existing) {
-			existing.count++
-		} else {
-			map.set(key, { name: key, color: issue.status.color, count: 1 })
-		}
-	}
-	return Array.from(map.values()).toSorted((a, b) => b.count - a.count)
-}
+const EMPTY_ISSUES: never[] = []
 
 export function useIssues(limit = 50) {
+	const [activeBucket, setActiveBucket] = useState<IssueBucket>('ready')
+
 	const { data, isLoading, error, dataUpdatedAt, refetch } = useQuery({
 		queryKey: queryKeys.issues.list(limit),
 		queryFn: () => fetchIssues(limit),
@@ -33,17 +17,23 @@ export function useIssues(limit = 50) {
 		staleTime: 15_000
 	})
 
-	const issues = data?.issues ?? []
-	const statusGroups = useMemo(() => groupByStatus(data?.issues ?? []), [data])
+	const allIssues = data?.issues ?? EMPTY_ISSUES
+
+	const classified: ClassifiedIssues = useMemo(() => classifyIssues(allIssues), [allIssues])
+
+	const filteredIssues = classified[activeBucket]
 
 	return {
-		issues,
+		allIssues,
+		filteredIssues,
+		classified,
+		activeBucket,
+		setActiveBucket,
 		totalCount: data?.total_count ?? 0,
 		loading: isLoading,
 		error: error ? String(error) : null,
 		lastRefresh: dataUpdatedAt ? new Date(dataUpdatedAt) : null,
-		refresh: refetch,
-		statusGroups
+		refresh: refetch
 	}
 }
 

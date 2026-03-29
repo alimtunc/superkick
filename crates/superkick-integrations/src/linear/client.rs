@@ -15,7 +15,7 @@ const ISSUES_QUERY: &str = r#"
 query ListIssues($first: Int!, $after: String) {
   issues(
     filter: {
-      state: { type: { in: ["started", "unstarted"] } }
+      state: { type: { in: ["started", "unstarted", "completed"] } }
     }
     first: $first
     after: $after
@@ -28,7 +28,7 @@ query ListIssues($first: Int!, $after: String) {
       url
       createdAt
       updatedAt
-      state { name color }
+      state { type name color }
       priority
       priorityLabel
       labels { nodes { name color } }
@@ -49,7 +49,7 @@ query GetIssue($id: String!) {
     url
     createdAt
     updatedAt
-    state { name color }
+    state { type name color }
     priority
     priorityLabel
     labels { nodes { name color } }
