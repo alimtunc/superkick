@@ -1,4 +1,6 @@
-import { createRun, type CreateRunRequest } from '@/api'
+import { useCallback } from 'react'
+
+import { createRun, type CreateRunRequest, type ServerConfigResponse } from '@/api'
 import { queryKeys } from '@/lib/queryKeys'
 import type { Run } from '@/types'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -8,11 +10,19 @@ interface UseCreateRunOptions {
 	issueId?: string
 }
 
+export interface LaunchParams {
+	config: ServerConfigResponse
+	issueId: string
+	issueIdentifier: string
+	operatorInstructions?: string
+	onSuccess?: () => void
+}
+
 export function useCreateRun({ issueId }: UseCreateRunOptions = {}) {
 	const queryClient = useQueryClient()
 	const navigate = useNavigate()
 
-	return useMutation({
+	const mutation = useMutation({
 		mutationFn: (req: CreateRunRequest) => createRun(req),
 		onSuccess: (run: Run) => {
 			queryClient.invalidateQueries({ queryKey: queryKeys.runs.all })
@@ -22,4 +32,22 @@ export function useCreateRun({ issueId }: UseCreateRunOptions = {}) {
 			navigate({ to: '/runs/$runId', params: { runId: run.id } })
 		}
 	})
+
+	const launch = useCallback(
+		(params: LaunchParams) => {
+			mutation.mutate(
+				{
+					repo_slug: params.config.repo_slug,
+					issue_id: params.issueId,
+					issue_identifier: params.issueIdentifier,
+					base_branch: params.config.base_branch,
+					operator_instructions: params.operatorInstructions
+				},
+				{ onSuccess: params.onSuccess }
+			)
+		},
+		[mutation]
+	)
+
+	return { ...mutation, launch }
 }

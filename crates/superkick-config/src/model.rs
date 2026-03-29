@@ -15,6 +15,8 @@ pub struct SuperkickConfig {
     pub interrupts: InterruptsConfig,
     #[serde(default)]
     pub budget: BudgetConfig,
+    #[serde(default)]
+    pub launch_profile: LaunchProfileConfig,
 }
 
 // ── Issue source ────────────────────────────────────────────────────
@@ -191,4 +193,34 @@ pub enum TokenBudget {
     Low,
     Medium,
     High,
+}
+
+// ── Launch profile ─────────────────────────────────────────────────
+
+/// Default operator instructions injected into every run launched from the UI.
+/// Individual runs can override or supplement these at launch time.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LaunchProfileConfig {
+    #[serde(default = "bool_true")]
+    pub use_worktree: bool,
+    #[serde(default)]
+    pub live_mode: bool,
+    #[serde(default)]
+    pub skills: Vec<String>,
+    #[serde(default)]
+    pub default_instructions: String,
+    #[serde(default)]
+    pub handoff_instructions: String,
+}
+
+impl Default for LaunchProfileConfig {
+    fn default() -> Self {
+        Self {
+            use_worktree: true,
+            live_mode: false,
+            skills: Vec::new(),
+            default_instructions: String::new(),
+            handoff_instructions: String::new(),
+        }
+    }
 }

@@ -38,10 +38,16 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
     .execute(pool)
     .await?;
 
-    let migrations: &[(&str, &str)] = &[(
-        "001_initial_schema",
-        include_str!("../migrations/001_initial_schema.sql"),
-    )];
+    let migrations: &[(&str, &str)] = &[
+        (
+            "001_initial_schema",
+            include_str!("../migrations/001_initial_schema.sql"),
+        ),
+        (
+            "002_launch_profile",
+            include_str!("../migrations/002_launch_profile.sql"),
+        ),
+    ];
 
     for (name, sql) in migrations {
         let already_applied: bool =

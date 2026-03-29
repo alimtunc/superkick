@@ -24,9 +24,10 @@ pub enum RunState {
 }
 
 impl RunState {
-    /// Returns `true` if no further transitions are possible (except retry from `Failed`).
+    /// Returns `true` when the run has reached a final outcome.
+    /// `Failed` is terminal but allows a retry transition back to `Queued`.
     pub fn is_terminal(self) -> bool {
-        matches!(self, Self::Completed | Self::Cancelled)
+        matches!(self, Self::Completed | Self::Failed | Self::Cancelled)
     }
 
     /// Returns the set of states this state may transition to.
@@ -114,6 +115,7 @@ pub struct Run {
     pub base_branch: String,
     pub worktree_path: Option<String>,
     pub branch_name: Option<String>,
+    pub operator_instructions: Option<String>,
     pub started_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub finished_at: Option<DateTime<Utc>>,
@@ -165,6 +167,7 @@ impl Run {
         repo_slug: String,
         trigger_source: TriggerSource,
         base_branch: String,
+        operator_instructions: Option<String>,
     ) -> Self {
         let now = Utc::now();
         Self {
@@ -178,6 +181,7 @@ impl Run {
             base_branch,
             worktree_path: None,
             branch_name: None,
+            operator_instructions,
             started_at: now,
             updated_at: now,
             finished_at: None,
@@ -189,7 +193,7 @@ impl Run {
     pub fn transition_to(&mut self, target: RunState) -> Result<(), CoreError> {
         self.state = self.state.transition_to(target)?;
         self.updated_at = Utc::now();
-        if target.is_terminal() || target == RunState::Failed {
+        if target.is_terminal() {
             self.finished_at = Some(Utc::now());
         }
         Ok(())

@@ -58,6 +58,7 @@ async fn run_insert_and_get() -> Result<()> {
         "org/repo".into(),
         TriggerSource::Manual,
         "main".into(),
+        None,
     );
     let id = run.id;
 
@@ -83,6 +84,7 @@ async fn run_update() -> Result<()> {
         "org/repo".into(),
         TriggerSource::LinearWebhook,
         "main".into(),
+        None,
     );
     repo.insert(&run).await?;
 
@@ -107,6 +109,7 @@ async fn run_list_all() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        None,
     );
     let r2 = Run::new(
         "b".into(),
@@ -114,6 +117,7 @@ async fn run_list_all() -> Result<()> {
         "o/r".into(),
         TriggerSource::Retry,
         "main".into(),
+        None,
     );
     repo.insert(&r1).await?;
     repo.insert(&r2).await?;
@@ -135,6 +139,7 @@ async fn step_insert_and_list() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        None,
     );
     run_repo.insert(&run).await?;
 
@@ -164,6 +169,7 @@ async fn step_update() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        None,
     );
     run_repo.insert(&run).await?;
 
@@ -192,6 +198,7 @@ async fn event_insert_and_list() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        None,
     );
     run_repo.insert(&run).await?;
 
@@ -228,6 +235,7 @@ async fn agent_session_insert_and_list() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        None,
     );
     run_repo.insert(&run).await?;
 
@@ -271,6 +279,7 @@ async fn agent_session_update() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        None,
     );
     run_repo.insert(&run).await?;
     let step = RunStep::new(run.id, StepKey::Code, 1);
@@ -313,6 +322,7 @@ async fn interrupt_insert_resolve_and_list() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        None,
     );
     run_repo.insert(&run).await?;
 
@@ -350,6 +360,7 @@ async fn artifact_insert_and_list() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        None,
     );
     run_repo.insert(&run).await?;
 

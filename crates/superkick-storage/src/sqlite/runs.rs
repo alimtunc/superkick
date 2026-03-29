@@ -18,8 +18,8 @@ impl SqliteRunRepo {
 impl RunRepo for SqliteRunRepo {
     async fn insert(&self, run: &Run) -> Result<()> {
         sqlx::query(
-            "INSERT INTO runs (id, issue_id, issue_identifier, repo_slug, state, trigger_source, current_step_key, base_branch, worktree_path, branch_name, started_at, updated_at, finished_at, error_message)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+            "INSERT INTO runs (id, issue_id, issue_identifier, repo_slug, state, trigger_source, current_step_key, base_branch, worktree_path, branch_name, operator_instructions, started_at, updated_at, finished_at, error_message)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
         )
         .bind(run.id.0.to_string())
         .bind(&run.issue_id)
@@ -31,6 +31,7 @@ impl RunRepo for SqliteRunRepo {
         .bind(&run.base_branch)
         .bind(&run.worktree_path)
         .bind(&run.branch_name)
+        .bind(&run.operator_instructions)
         .bind(run.started_at.to_rfc3339())
         .bind(run.updated_at.to_rfc3339())
         .bind(run.finished_at.map(|t| t.to_rfc3339()))
@@ -106,6 +107,7 @@ struct RunRow {
     base_branch: String,
     worktree_path: Option<String>,
     branch_name: Option<String>,
+    operator_instructions: Option<String>,
     started_at: String,
     updated_at: String,
     finished_at: Option<String>,
@@ -129,6 +131,7 @@ impl RunRow {
             base_branch: self.base_branch,
             worktree_path: self.worktree_path,
             branch_name: self.branch_name,
+            operator_instructions: self.operator_instructions,
             started_at: chrono::DateTime::parse_from_rfc3339(&self.started_at)?.to_utc(),
             updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)?.to_utc(),
             finished_at: self

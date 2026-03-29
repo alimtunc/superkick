@@ -5,7 +5,8 @@ import type {
 	Interrupt,
 	InterruptAction,
 	IssueListResponse,
-	IssueDetailResponse
+	IssueDetailResponse,
+	LaunchProfile
 } from '@/types'
 
 const BASE = '/api'
@@ -15,6 +16,7 @@ const BASE = '/api'
 export interface ServerConfigResponse {
 	repo_slug: string
 	base_branch: string
+	launch_profile: LaunchProfile
 }
 
 export async function fetchConfig(): Promise<ServerConfigResponse> {
@@ -30,6 +32,7 @@ export interface CreateRunRequest {
 	issue_id: string
 	issue_identifier: string
 	base_branch?: string
+	operator_instructions?: string
 }
 
 export class DuplicateRunError extends Error {
