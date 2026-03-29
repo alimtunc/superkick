@@ -160,6 +160,7 @@ export interface IssueComment {
 	author: IssueAssignee | null
 	created_at: string
 	updated_at: string
+	parent_id: string | null
 }
 
 export interface LinkedRunSummary {
