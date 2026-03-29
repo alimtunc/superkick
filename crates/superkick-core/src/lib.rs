@@ -18,5 +18,5 @@ pub use event::{EventKind, EventLevel, RunEvent};
 pub use id::{AgentSessionId, ArtifactId, EventId, InterruptId, RunId, StepId};
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
 pub use review::{ReviewFinding, ReviewSwarmResult};
-pub use run::{Run, RunState, TriggerSource};
+pub use run::{LinkedRunSummary, Run, RunState, TriggerSource};
 pub use step::{RunStep, StepKey, StepStatus};
