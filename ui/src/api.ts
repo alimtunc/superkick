@@ -1,4 +1,12 @@
-import type { Run, RunStep, RunEvent, Interrupt, InterruptAction, IssueListResponse, IssueDetailResponse } from '@/types'
+import type {
+	Run,
+	RunStep,
+	RunEvent,
+	Interrupt,
+	InterruptAction,
+	IssueListResponse,
+	IssueDetailResponse
+} from '@/types'
 
 const BASE = '/api'
 
