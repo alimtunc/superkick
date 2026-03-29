@@ -15,6 +15,7 @@ use axum::routing::{get, post};
 use serde::Deserialize;
 
 use superkick_core::{InterruptAction, InterruptId, Run, RunId, TriggerSource};
+use superkick_integrations::linear::LinearClient;
 use superkick_runtime::{InterruptService, RepoCache, StepEngine, StepEngineDeps};
 use superkick_storage::repo::{InterruptRepo, RunEventRepo, RunRepo, RunStepRepo};
 use superkick_storage::{
@@ -43,6 +44,7 @@ struct AppState {
     interrupt_repo: Arc<SqliteInterruptRepo>,
     engine: Arc<Engine>,
     interrupt_service: Arc<IntService>,
+    linear_client: Option<Arc<LinearClient>>,
     run_tokens: Arc<Mutex<HashMap<RunId, CancellationToken>>>,
 }
 
@@ -90,6 +92,15 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         Arc::clone(&interrupt_repo),
     ));
 
+    let linear_client = std::env::var("LINEAR_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+        .map(|key| Arc::new(LinearClient::new(key)));
+
+    if linear_client.is_none() {
+        tracing::warn!("LINEAR_API_KEY not set — /issues endpoint will return 503");
+    }
+
     let state = AppState {
         run_repo,
         step_repo,
@@ -97,11 +108,13 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         interrupt_repo,
         engine,
         interrupt_service,
+        linear_client,
         run_tokens: Arc::new(Mutex::new(HashMap::new())),
     };
 
     let app = Router::new()
         .route("/health", get(health))
+        .route("/issues", get(list_issues))
         .route("/runs", post(create_run).get(list_runs))
         .route("/runs/{id}", get(get_run))
         .route("/runs/{id}/events", get(get_run_events))
@@ -130,6 +143,33 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
 
 async fn health() -> &'static str {
     "ok"
+}
+
+#[derive(Deserialize)]
+struct ListIssuesParams {
+    #[serde(default = "default_issue_limit")]
+    limit: u32,
+}
+
+fn default_issue_limit() -> u32 {
+    50
+}
+
+async fn list_issues(
+    State(state): State<AppState>,
+    axum::extract::Query(params): axum::extract::Query<ListIssuesParams>,
+) -> Result<impl IntoResponse, AppError> {
+    let client = state
+        .linear_client
+        .as_ref()
+        .ok_or_else(|| AppError::ServiceUnavailable("LINEAR_API_KEY not configured"))?;
+
+    let response = client
+        .list_issues(params.limit)
+        .await
+        .map_err(AppError::Internal)?;
+
+    Ok(Json(response))
 }
 
 #[derive(Deserialize)]
@@ -343,6 +383,7 @@ enum AppError {
     Internal(anyhow::Error),
     NotFound(&'static str),
     BadRequest(String),
+    ServiceUnavailable(&'static str),
 }
 
 impl From<anyhow::Error> for AppError {
@@ -369,6 +410,11 @@ impl IntoResponse for AppError {
                 .into_response(),
             AppError::BadRequest(msg) => (
                 StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": msg })),
+            )
+                .into_response(),
+            AppError::ServiceUnavailable(msg) => (
+                StatusCode::SERVICE_UNAVAILABLE,
                 Json(serde_json::json!({ "error": msg })),
             )
                 .into_response(),
