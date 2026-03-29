@@ -65,6 +65,16 @@ impl RunRepo for SqliteRunRepo {
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
+    async fn find_active_by_issue_id(&self, issue_id: &str) -> Result<Option<Run>> {
+        let row = sqlx::query_as::<_, RunRow>(
+            "SELECT * FROM runs WHERE issue_id = ?1 AND state NOT IN ('completed', 'failed', 'cancelled') LIMIT 1",
+        )
+        .bind(issue_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        row.map(|r| r.into_domain()).transpose()
+    }
+
     async fn update(&self, run: &Run) -> Result<()> {
         sqlx::query(
             "UPDATE runs SET state = ?1, trigger_source = ?2, current_step_key = ?3, worktree_path = ?4, branch_name = ?5, updated_at = ?6, finished_at = ?7, error_message = ?8 WHERE id = ?9",

@@ -32,6 +32,18 @@ export interface CreateRunRequest {
 	base_branch?: string
 }
 
+export class DuplicateRunError extends Error {
+	readonly activeRunId: string
+	readonly activeRunState: string
+
+	constructor(message: string, activeRunId: string, activeRunState: string) {
+		super(message)
+		this.name = 'DuplicateRunError'
+		this.activeRunId = activeRunId
+		this.activeRunState = activeRunState
+	}
+}
+
 export async function createRun(req: CreateRunRequest): Promise<Run> {
 	const res = await fetch(`${BASE}/runs`, {
 		method: 'POST',
@@ -40,6 +52,13 @@ export async function createRun(req: CreateRunRequest): Promise<Run> {
 	})
 	if (!res.ok) {
 		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
+		if (res.status === 409 && body.active_run_id) {
+			throw new DuplicateRunError(
+				body.error || 'A run is already active for this issue',
+				body.active_run_id,
+				body.active_run_state
+			)
+		}
 		throw new Error(body.error || `create run failed: ${res.status}`)
 	}
 	return res.json()

@@ -14,7 +14,9 @@ use axum::response::{IntoResponse, Json};
 use axum::routing::{get, post};
 use serde::{Deserialize, Serialize};
 
-use superkick_core::{InterruptAction, InterruptId, LinkedRunSummary, Run, RunId, TriggerSource};
+use superkick_core::{
+    CoreError, InterruptAction, InterruptId, LinkedRunSummary, Run, RunId, TriggerSource,
+};
 use superkick_integrations::linear::LinearClient;
 use superkick_runtime::{InterruptService, RepoCache, StepEngine, StepEngineDeps};
 use superkick_storage::repo::{InterruptRepo, RunEventRepo, RunRepo, RunStepRepo};
@@ -240,6 +242,9 @@ async fn create_run(
         ));
     }
 
+    let existing = state.run_repo.find_active_by_issue_id(&issue_id).await?;
+    Run::guard_no_active(existing.as_ref(), &issue_identifier)?;
+
     let run = Run::new(
         issue_id,
         issue_identifier,
@@ -461,12 +466,34 @@ enum AppError {
     Internal(anyhow::Error),
     NotFound(&'static str),
     BadRequest(String),
+    Conflict {
+        message: String,
+        active_run_id: String,
+        active_run_state: String,
+    },
     ServiceUnavailable(&'static str),
 }
 
 impl From<anyhow::Error> for AppError {
     fn from(err: anyhow::Error) -> Self {
         AppError::Internal(err)
+    }
+}
+
+impl From<CoreError> for AppError {
+    fn from(err: CoreError) -> Self {
+        match err {
+            CoreError::DuplicateActiveRun {
+                ref issue_identifier,
+                ref active_run_id,
+                ref state,
+            } => AppError::Conflict {
+                message: format!("issue {issue_identifier} already has an active run ({state})"),
+                active_run_id: active_run_id.0.to_string(),
+                active_run_state: state.to_string(),
+            },
+            other => AppError::Internal(other.into()),
+        }
     }
 }
 
@@ -489,6 +516,19 @@ impl IntoResponse for AppError {
             AppError::BadRequest(msg) => (
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({ "error": msg })),
+            )
+                .into_response(),
+            AppError::Conflict {
+                message,
+                active_run_id,
+                active_run_state,
+            } => (
+                StatusCode::CONFLICT,
+                Json(serde_json::json!({
+                    "error": message,
+                    "active_run_id": active_run_id,
+                    "active_run_state": active_run_state,
+                })),
             )
                 .into_response(),
             AppError::ServiceUnavailable(msg) => (

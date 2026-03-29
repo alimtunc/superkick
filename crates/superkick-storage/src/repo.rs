@@ -15,6 +15,11 @@ pub trait RunRepo: Send + Sync {
     fn list_all(&self) -> impl Future<Output = Result<Vec<Run>>> + Send;
     fn update(&self, run: &Run) -> impl Future<Output = Result<()>> + Send;
     fn list_by_issue_id(&self, issue_id: &str) -> impl Future<Output = Result<Vec<Run>>> + Send;
+    /// Returns the first run for this issue that is still active (not completed, failed, or cancelled).
+    fn find_active_by_issue_id(
+        &self,
+        issue_id: &str,
+    ) -> impl Future<Output = Result<Option<Run>>> + Send;
 }
 
 /// Repository for `RunStep` entities.

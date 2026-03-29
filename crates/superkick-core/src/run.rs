@@ -142,6 +142,22 @@ impl From<&Run> for LinkedRunSummary {
 }
 
 impl Run {
+    /// Returns `Err(CoreError::DuplicateActiveRun)` if `existing` is an active
+    /// (non-terminal) run for the same issue. Call before `Run::new`.
+    pub fn guard_no_active(
+        existing: Option<&Run>,
+        issue_identifier: &str,
+    ) -> Result<(), CoreError> {
+        if let Some(active) = existing {
+            return Err(CoreError::DuplicateActiveRun {
+                issue_identifier: issue_identifier.to_string(),
+                active_run_id: active.id,
+                state: active.state,
+            });
+        }
+        Ok(())
+    }
+
     /// Create a new run in the `Queued` state.
     pub fn new(
         issue_id: String,
