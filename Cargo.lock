@@ -2148,6 +2148,7 @@ dependencies = [
  "async-stream",
  "axum",
  "chrono",
+ "dotenvy",
  "serde",
  "serde_json",
  "superkick-config",
