@@ -65,6 +65,14 @@ query GetIssue($id: String!) {
         user { name avatarUrl }
         createdAt
         updatedAt
+        parent { id }
+        children { nodes {
+          id
+          body
+          user { name avatarUrl }
+          createdAt
+          updatedAt
+        } }
       }
     }
   }

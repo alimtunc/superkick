@@ -122,6 +122,7 @@ pub struct IssueComment {
     pub author: Option<IssueAssignee>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub parent_id: Option<String>,
 }
 
 // ── Internal deserialization types (Linear GraphQL response shape) ──────
@@ -257,9 +258,39 @@ pub(crate) struct GqlComment {
     pub user: Option<GqlUser>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(default)]
+    pub parent: Option<GqlCommentRef>,
+    #[serde(default)]
+    pub children: Option<GqlCommentConnection>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlCommentRef {
+    pub id: String,
 }
 
 // ── Conversion ─────────────────────────────────────────────────────────
+
+fn gql_comment_to_issue_comment(
+    id: String,
+    body: String,
+    user: Option<GqlUser>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    parent_id: Option<String>,
+) -> IssueComment {
+    IssueComment {
+        id,
+        body,
+        author: user.map(|u| IssueAssignee {
+            name: u.name,
+            avatar_url: u.avatar_url,
+        }),
+        created_at,
+        updated_at,
+        parent_id,
+    }
+}
 
 impl From<GqlIssueDetail> for IssueDetailResponse {
     fn from(g: GqlIssueDetail) -> Self {
@@ -303,15 +334,31 @@ impl From<GqlIssueDetail> for IssueDetailResponse {
                 .comments
                 .nodes
                 .into_iter()
-                .map(|c| IssueComment {
-                    id: c.id,
-                    body: c.body,
-                    author: c.user.map(|u| IssueAssignee {
-                        name: u.name,
-                        avatar_url: u.avatar_url,
-                    }),
-                    created_at: c.created_at,
-                    updated_at: c.updated_at,
+                .flat_map(|c| {
+                    let child_parent_id = c.id.clone();
+                    let parent = gql_comment_to_issue_comment(
+                        c.id,
+                        c.body,
+                        c.user,
+                        c.created_at,
+                        c.updated_at,
+                        c.parent.map(|p| p.id),
+                    );
+                    let children =
+                        c.children
+                            .into_iter()
+                            .flat_map(|cc| cc.nodes)
+                            .map(move |child| {
+                                gql_comment_to_issue_comment(
+                                    child.id,
+                                    child.body,
+                                    child.user,
+                                    child.created_at,
+                                    child.updated_at,
+                                    Some(child_parent_id.clone()),
+                                )
+                            });
+                    std::iter::once(parent).chain(children)
                 })
                 .collect(),
             // Populated by API layer, not by Linear conversion
@@ -484,6 +531,8 @@ mod tests {
                     }),
                     created_at: Utc::now(),
                     updated_at: Utc::now(),
+                    parent: None,
+                    children: None,
                 }],
             },
         }
@@ -505,6 +554,7 @@ mod tests {
         assert_eq!(detail.due_date.as_deref(), Some("2026-04-01"));
         assert_eq!(detail.comments.len(), 1);
         assert_eq!(detail.comments[0].body, "Reproducible on Safari 17+");
+        assert!(detail.comments[0].parent_id.is_none());
         assert!(detail.linked_runs.is_empty());
     }
 
@@ -595,7 +645,25 @@ mod tests {
                     "cycle": null,
                     "estimate": null,
                     "dueDate": null,
-                    "comments": { "nodes": [] }
+                    "comments": { "nodes": [
+                        {
+                            "id": "c1",
+                            "body": "A comment",
+                            "user": null,
+                            "createdAt": "2026-01-01T00:00:00.000Z",
+                            "updatedAt": "2026-01-01T00:00:00.000Z",
+                            "parent": null,
+                            "children": { "nodes": [
+                                {
+                                    "id": "c2",
+                                    "body": "A reply",
+                                    "user": null,
+                                    "createdAt": "2026-01-01T01:00:00.000Z",
+                                    "updatedAt": "2026-01-01T01:00:00.000Z"
+                                }
+                            ] }
+                        }
+                    ] }
                 }
             }
         }"##;

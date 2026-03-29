@@ -1,4 +1,11 @@
-export { fmtDuration, avgDuration, medianDuration, elapsedMs, fmtElapsed } from './formatters'
+export {
+	fmtDuration,
+	avgDuration,
+	medianDuration,
+	elapsedMs,
+	fmtElapsed,
+	fmtRelativeTime
+} from './formatters'
 export {
 	stepLabel,
 	stateIcon,

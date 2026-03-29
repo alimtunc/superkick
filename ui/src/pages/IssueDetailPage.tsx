@@ -1,5 +1,6 @@
 import { DuplicateRunError } from '@/api'
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
+import { IssueComments } from '@/components/issue-detail/IssueComments'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { Button } from '@/components/ui/button'
 import { useConfig } from '@/hooks/useConfig'
@@ -27,7 +28,7 @@ function IssueDetail({ issueId }: { issueId: string }) {
 				<IssueMetaGrid issue={issue} />
 				{issue.linked_runs.length > 0 ? <LinkedRuns runs={issue.linked_runs} /> : null}
 				{issue.description ? (
-					<section>
+					<section className="mb-6">
 						<SectionTitle title="DESCRIPTION" />
 						<div className="panel p-4">
 							<pre className="font-data text-[12px] leading-relaxed whitespace-pre-wrap text-silver">
@@ -36,6 +37,7 @@ function IssueDetail({ issueId }: { issueId: string }) {
 						</div>
 					</section>
 				) : null}
+				<IssueComments comments={issue.comments} />
 			</div>
 		</div>
 	)
