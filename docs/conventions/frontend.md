@@ -19,7 +19,7 @@ Applies during implementation and review.
 - No unused imports
 - No dead/commented code
 - No `any` types — use precise types
-- Components > 150 lines → split
+- One component per file — split by default, colocate only when genuinely coupled
 
 ## DRY / SOC
 
