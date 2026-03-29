@@ -22,7 +22,8 @@ Rust workspace backend + React 19 dashboard UI.
 After creating a git worktree for feature work, always run:
 
 1. `cp examples/superkick.yaml superkick.yaml`
-2. `cd ui && pnpm install`
+2. Copy `.env` from the main worktree root
+3. `cd ui && pnpm install`
 
 This is a mandatory prerequisite before any other work in a worktree.
 
