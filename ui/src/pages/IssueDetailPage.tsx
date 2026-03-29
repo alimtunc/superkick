@@ -1,5 +1,6 @@
 import { DuplicateRunError } from '@/api'
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
+import { ChildIssues } from '@/components/issue-detail/ChildIssues'
 import { IssueComments } from '@/components/issue-detail/IssueComments'
 import { LaunchDialog } from '@/components/launch/LaunchDialog'
 import { RunStateBadge } from '@/components/RunStateBadge'
@@ -28,6 +29,7 @@ function IssueDetail({ issueId }: { issueId: string }) {
 			<IssueDetailHeader issue={issue} onRefresh={refresh} />
 			<div className="mx-auto max-w-5xl px-5 py-6">
 				<IssueMetaGrid issue={issue} />
+				{issue.children.length > 0 ? <ChildIssues issues={issue.children} /> : null}
 				{issue.linked_runs.length > 0 ? <LinkedRuns runs={issue.linked_runs} /> : null}
 				{issue.description ? (
 					<section className="mb-6">
@@ -86,6 +88,18 @@ function IssueDetailHeader({ issue, onRefresh }: { issue: IssueDetailResponse; o
 						&larr; ISSUES
 					</Link>
 					<span className="text-edge">|</span>
+					{issue.parent ? (
+						<>
+							<Link
+								to="/issues/$issueId"
+								params={{ issueId: issue.parent.id }}
+								className="font-data text-[11px] text-dim transition-colors hover:text-silver"
+							>
+								{issue.parent.identifier}
+							</Link>
+							<span className="font-data text-[10px] text-dim">&rsaquo;</span>
+						</>
+					) : null}
 					<span className="font-data text-[11px] font-medium text-fog">{issue.identifier}</span>
 					<span
 						className="inline-block rounded px-2 py-0.5 text-[10px] font-medium"
@@ -168,6 +182,10 @@ function IssueMetaGrid({ issue }: { issue: IssueDetailResponse }) {
 		{ label: 'Title', value: issue.title },
 		{ label: 'Priority', value: issue.priority.label },
 		{ label: 'Assignee', value: issue.assignee?.name ?? '--' },
+		{
+			label: 'Parent',
+			value: issue.parent ? `${issue.parent.identifier} — ${issue.parent.title}` : '--'
+		},
 		{ label: 'Project', value: issue.project?.name ?? '--' },
 		{
 			label: 'Cycle',
@@ -191,12 +209,13 @@ function IssueMetaGrid({ issue }: { issue: IssueDetailResponse }) {
 					{issue.labels.map((l) => (
 						<span
 							key={l.name}
-							className="inline-block rounded px-2 py-0.5 text-[10px] font-medium"
-							style={{
-								color: l.color,
-								backgroundColor: `${l.color}15`
-							}}
+							className="font-data inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px]"
+							style={{ color: l.color, borderColor: `${l.color}40` }}
 						>
+							<span
+								className="inline-block h-1.5 w-1.5 rounded-full"
+								style={{ backgroundColor: l.color }}
+							/>
 							{l.name}
 						</span>
 					))}

@@ -5,6 +5,7 @@ mod types;
 
 pub use client::LinearClient;
 pub use types::{
-    IssueAssignee, IssueComment, IssueCycle, IssueDetailResponse, IssueLabel, IssueListResponse,
-    IssuePriority, IssueProject, IssueStatus, LinearIssueListItem,
+    IssueAssignee, IssueChildRef, IssueComment, IssueCycle, IssueDetailResponse, IssueLabel,
+    IssueListResponse, IssueParentRef, IssuePriority, IssueProject, IssueStatus,
+    LinearIssueListItem,
 };

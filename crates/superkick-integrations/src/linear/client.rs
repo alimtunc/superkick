@@ -15,7 +15,7 @@ const ISSUES_QUERY: &str = r#"
 query ListIssues($first: Int!, $after: String) {
   issues(
     filter: {
-      state: { type: { in: ["started", "unstarted", "completed"] } }
+      state: { type: { in: ["started", "unstarted", "completed", "backlog"] } }
     }
     first: $first
     after: $after
@@ -33,6 +33,17 @@ query ListIssues($first: Int!, $after: String) {
       priorityLabel
       labels { nodes { name color } }
       assignee { name avatarUrl }
+      project { name }
+      parent { id identifier title }
+      children {
+        nodes {
+          id identifier title updatedAt
+          state { type name color }
+          priority priorityLabel
+          labels { nodes { name color } }
+          assignee { name avatarUrl }
+        }
+      }
     }
     pageInfo { hasNextPage endCursor }
   }
@@ -58,6 +69,16 @@ query GetIssue($id: String!) {
     cycle { name number }
     estimate
     dueDate
+    parent { id identifier title }
+    children {
+      nodes {
+        id identifier title updatedAt
+        state { type name color }
+        priority priorityLabel
+        labels { nodes { name color } }
+        assignee { name avatarUrl }
+      }
+    }
     comments(first: 50, orderBy: createdAt) {
       nodes {
         id
@@ -96,56 +117,72 @@ impl LinearClient {
 
     /// Fetch the issue list for the authenticated user's workspace.
     ///
-    /// Returns up to `limit` issues (default 50), sorted by `updatedAt` desc.
-    /// Statuses included: `started` (In Progress) and `unstarted` (Todo/Backlog).
+    /// Paginates through Linear's GraphQL API using cursor-based pagination,
+    /// fetching up to `limit` issues total. Sorted by `updatedAt` desc.
+    /// Statuses included: `started`, `unstarted`, `completed`, `backlog`.
     pub async fn list_issues(&self, limit: u32) -> anyhow::Result<IssueListResponse> {
-        let body = serde_json::json!({
-            "query": ISSUES_QUERY,
-            "variables": {
-                "first": limit,
-                "after": serde_json::Value::Null,
+        let page_size = limit.min(50);
+        let mut all_issues: Vec<LinearIssueListItem> = Vec::new();
+        let mut cursor: Option<String> = None;
+
+        loop {
+            let remaining = limit.saturating_sub(all_issues.len() as u32);
+            if remaining == 0 {
+                break;
             }
-        });
+            let fetch_count = remaining.min(page_size);
 
-        let resp = self
-            .http
-            .post(LINEAR_API_URL)
-            .header("Authorization", &self.api_key)
-            .json(&body)
-            .send()
-            .await
-            .context("failed to reach Linear API")?;
+            let body = serde_json::json!({
+                "query": ISSUES_QUERY,
+                "variables": {
+                    "first": fetch_count,
+                    "after": cursor,
+                }
+            });
 
-        let status = resp.status();
-        if !status.is_success() {
-            let text = resp
-                .text()
+            let resp = self
+                .http
+                .post(LINEAR_API_URL)
+                .header("Authorization", &self.api_key)
+                .json(&body)
+                .send()
                 .await
-                .context("failed to read Linear API error body")?;
-            bail!("Linear API returned {status}: {text}");
+                .context("failed to reach Linear API")?;
+
+            let status = resp.status();
+            if !status.is_success() {
+                let text = resp
+                    .text()
+                    .await
+                    .context("failed to read Linear API error body")?;
+                bail!("Linear API returned {status}: {text}");
+            }
+
+            let gql: GqlResponse = resp
+                .json()
+                .await
+                .context("failed to parse Linear GraphQL response")?;
+
+            if let Some(errors) = gql.errors {
+                let msgs: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
+                bail!("Linear GraphQL errors: {}", msgs.join("; "));
+            }
+
+            let data = gql.data.context("Linear response contained no data")?;
+            let issues = data.issues;
+            let has_next = issues.page_info.has_next_page;
+            cursor = issues.page_info.end_cursor;
+
+            all_issues.extend(issues.nodes.into_iter().map(LinearIssueListItem::from));
+
+            if !has_next {
+                break;
+            }
         }
 
-        let gql: GqlResponse = resp
-            .json()
-            .await
-            .context("failed to parse Linear GraphQL response")?;
-
-        if let Some(errors) = gql.errors {
-            let msgs: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
-            bail!("Linear GraphQL errors: {}", msgs.join("; "));
-        }
-
-        let data = gql.data.context("Linear response contained no data")?;
-        let total_count = data.issues.nodes.len() as u32;
-        let issues: Vec<LinearIssueListItem> = data
-            .issues
-            .nodes
-            .into_iter()
-            .map(LinearIssueListItem::from)
-            .collect();
-
+        let total_count = all_issues.len() as u32;
         Ok(IssueListResponse {
-            issues,
+            issues: all_issues,
             total_count,
         })
     }

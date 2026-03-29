@@ -69,7 +69,7 @@ export async function createRun(req: CreateRunRequest): Promise<Run> {
 
 // ── Issues ────────────────────────────────────────────────────────────
 
-export async function fetchIssues(limit = 50): Promise<IssueListResponse> {
+export async function fetchIssues(limit = 200): Promise<IssueListResponse> {
 	const res = await fetch(`${BASE}/issues?limit=${limit}`)
 	if (!res.ok) throw new Error(`GET /issues failed: ${res.status}`)
 	return res.json()

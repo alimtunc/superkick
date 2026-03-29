@@ -1,34 +1,102 @@
+import { HoverCard } from '@/components/issues/HoverCard'
+import { IssuePreview } from '@/components/issues/IssuePreview'
+import { PriorityIcon } from '@/components/issues/PriorityIcon'
+import { StatusIcon } from '@/components/issues/StatusIcon'
 import type { LinearIssueListItem } from '@/types'
 import { Link } from '@tanstack/react-router'
 
-export function IssueRow({ issue }: { issue: LinearIssueListItem }) {
+function formatDate(iso: string): string {
+	const d = new Date(iso)
+	return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function initials(name: string): string {
+	return name
+		.split(' ')
+		.map((w) => w[0])
+		.join('')
+		.toUpperCase()
+		.slice(0, 2)
+}
+
+export function IssueRow({ issue, indent = false }: { issue: LinearIssueListItem; indent?: boolean }) {
+	const childrenDone = issue.children.filter(
+		(c) => c.status.state_type === 'completed' || c.status.state_type === 'canceled'
+	).length
+	const hasProgress = issue.children.length > 0
+
 	return (
-		<Link
-			to="/issues/$issueId"
-			params={{ issueId: issue.id }}
-			className="panel panel-hover flex items-center gap-4 px-4 py-3"
-		>
-			<span className="font-data w-16 shrink-0 text-[11px] font-medium text-fog">
-				{issue.identifier}
-			</span>
-
-			<span
-				className="inline-block w-20 shrink-0 rounded px-2 py-0.5 text-center text-[10px] font-medium"
-				style={{
-					color: issue.status.color,
-					backgroundColor: `${issue.status.color}15`
-				}}
+		<HoverCard content={<IssuePreview issue={issue} />}>
+			<Link
+				to="/issues/$issueId"
+				params={{ issueId: issue.id }}
+				className={`flex items-center gap-2.5 rounded-md px-3 py-2 transition-colors hover:bg-white/4 ${indent ? 'ml-7' : ''}`}
 			>
-				{issue.status.name}
-			</span>
+				{/* Priority icon */}
+				<span className="flex w-4 shrink-0 items-center justify-center">
+					<PriorityIcon value={issue.priority.value} />
+				</span>
 
-			<span className="font-data min-w-0 flex-1 truncate text-[12px] text-silver">{issue.title}</span>
+				{/* Identifier */}
+				<span className="font-data w-14 shrink-0 text-[11px] text-dim">{issue.identifier}</span>
 
-			<span className="font-data shrink-0 text-[10px] text-dim">{issue.priority.label}</span>
+				{/* Status icon */}
+				<span className="flex w-4 shrink-0 items-center justify-center">
+					<StatusIcon stateType={issue.status.state_type} color={issue.status.color} />
+				</span>
 
-			{issue.assignee ? (
-				<span className="font-data shrink-0 text-[10px] text-dim">{issue.assignee.name}</span>
-			) : null}
-		</Link>
+				{/* Title + sub-issue progress + parent breadcrumb */}
+				<div className="flex min-w-0 flex-1 items-center gap-2">
+					<span className="font-data truncate text-[13px] text-silver">{issue.title}</span>
+
+					{hasProgress ? (
+						<span className="font-data shrink-0 text-[11px] text-dim">
+							{childrenDone}/{issue.children.length}
+						</span>
+					) : null}
+
+					{!indent && issue.parent ? (
+						<span className="font-data max-w-48 shrink-0 truncate text-[11px] text-dim/50">
+							&rsaquo; {issue.parent.identifier}
+							{issue.project ? ` · ${issue.project.name}` : ''}
+						</span>
+					) : null}
+				</div>
+
+				{/* Labels */}
+				{issue.labels.length > 0 ? (
+					<div className="flex shrink-0 items-center gap-1.5">
+						{issue.labels.slice(0, 3).map((label) => (
+							<span
+								key={label.name}
+								className="font-data inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px]"
+								style={{ color: label.color, borderColor: `${label.color}40` }}
+							>
+								<span
+									className="inline-block h-1.5 w-1.5 rounded-full"
+									style={{ backgroundColor: label.color }}
+								/>
+								{label.name}
+							</span>
+						))}
+					</div>
+				) : null}
+
+				{/* Assignee avatar */}
+				{issue.assignee ? (
+					<span
+						className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-600/80 text-[8px] font-bold text-white"
+						title={issue.assignee.name}
+					>
+						{initials(issue.assignee.name)}
+					</span>
+				) : null}
+
+				{/* Date */}
+				<span className="font-data w-12 shrink-0 text-right text-[11px] text-dim/50">
+					{formatDate(issue.updated_at)}
+				</span>
+			</Link>
+		</HoverCard>
 	)
 }

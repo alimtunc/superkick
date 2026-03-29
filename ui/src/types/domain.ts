@@ -126,6 +126,23 @@ export interface IssueAssignee {
 	avatar_url: string | null
 }
 
+export interface IssueParentRef {
+	id: string
+	identifier: string
+	title: string
+}
+
+export interface IssueChildRef {
+	id: string
+	identifier: string
+	title: string
+	status: IssueStatus
+	priority: IssuePriority
+	labels: IssueLabel[]
+	assignee: IssueAssignee | null
+	updated_at: string
+}
+
 export interface LinearIssueListItem {
 	id: string
 	identifier: string
@@ -134,6 +151,9 @@ export interface LinearIssueListItem {
 	priority: IssuePriority
 	labels: IssueLabel[]
 	assignee: IssueAssignee | null
+	project: IssueProject | null
+	parent: IssueParentRef | null
+	children: IssueChildRef[]
 	url: string
 	created_at: string
 	updated_at: string
@@ -198,6 +218,8 @@ export interface IssueDetailResponse {
 	cycle: IssueCycle | null
 	estimate: number | null
 	due_date: string | null
+	parent: IssueParentRef | null
+	children: IssueChildRef[]
 
 	// Optional: review-relevant context (SUP-21 ready)
 	comments: IssueComment[]
