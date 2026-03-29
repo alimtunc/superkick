@@ -1,6 +1,12 @@
-import type { Run, RunStep, RunEvent, Interrupt, InterruptAction } from './types'
+import type { Run, RunStep, RunEvent, Interrupt, InterruptAction, IssueListResponse } from '@/types'
 
 const BASE = '/api'
+
+export async function fetchIssues(limit = 50): Promise<IssueListResponse> {
+	const res = await fetch(`${BASE}/issues?limit=${limit}`)
+	if (!res.ok) throw new Error(`GET /issues failed: ${res.status}`)
+	return res.json()
+}
 
 export async function fetchRuns(): Promise<Run[]> {
 	const res = await fetch(`${BASE}/runs`)

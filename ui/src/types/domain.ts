@@ -98,6 +98,46 @@ export type InterruptAction =
 	| { action: 'continue_with_note'; note: string }
 	| { action: 'abort_run' }
 
+// ── Linear issues (list contract) ─────────────────────────────────────
+
+export interface IssueStatus {
+	name: string
+	color: string
+}
+
+export interface IssuePriority {
+	value: number
+	label: string
+}
+
+export interface IssueLabel {
+	name: string
+	color: string
+}
+
+export interface IssueAssignee {
+	name: string
+	avatar_url: string | null
+}
+
+export interface LinearIssueListItem {
+	id: string
+	identifier: string
+	title: string
+	status: IssueStatus
+	priority: IssuePriority
+	labels: IssueLabel[]
+	assignee: IssueAssignee | null
+	url: string
+	created_at: string
+	updated_at: string
+}
+
+export interface IssueListResponse {
+	issues: LinearIssueListItem[]
+	total_count: number
+}
+
 // ── Review ─────────────────────────────────────────────────────────────
 
 export interface ReviewFinding {
