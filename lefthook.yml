@@ -12,13 +12,13 @@ pre-commit:
     # ── Frontend ────────────────────────────────────────────────────────
     oxlint:
       root: ui/
-      glob: "src/**/*.{ts,tsx}"
+      glob: "ui/src/**/*.{ts,tsx}"
       run: pnpm lint {staged_files}
     oxfmt:
       root: ui/
-      glob: "src/**/*.{ts,tsx}"
+      glob: "ui/src/**/*.{ts,tsx}"
       run: pnpm fmt:check {staged_files}
     typecheck:
       root: ui/
-      glob: "src/**/*.{ts,tsx}"
+      glob: "ui/src/**/*.{ts,tsx}"
       run: pnpm tsc --noEmit

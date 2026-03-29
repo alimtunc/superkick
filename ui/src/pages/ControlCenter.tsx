@@ -9,29 +9,21 @@ import { MetricCard, KpiCell } from '../components/dashboard/MetricCards'
 import { DistPanel, DurationRow } from '../components/dashboard/ReliabilityPanel'
 import { SectionTitle } from '../components/dashboard/SectionTitle'
 import { SessionWatchRail } from '../components/dashboard/SessionWatchRail'
-import { TopBar } from '../components/dashboard/TopBar'
 
 export function ControlCenter() {
 	const d = useDashboardRuns()
 	return (
-		<div className="min-h-screen bg-void">
-			<TopBar
-				lastRefresh={d.lastRefresh}
-				needsAttention={d.needsAttention}
-				loading={d.loading}
-				onRefresh={d.refresh}
-			/>
-
+		<>
 			<SessionWatchRail refTime={d.refTime} mode="overview" />
 			<FocusedRunPanel refTime={d.refTime} />
 
-			<main className="mx-auto max-w-360 space-y-12 px-6 py-10">
+			<div className="mx-auto flex max-w-360 flex-col gap-16 px-6 py-12">
 				{d.error ? (
 					<div className="panel glow-red font-data p-3 text-[12px] text-oxide">{d.error}</div>
 				) : null}
 
 				{/* ── Executive Summary + KPI ── */}
-				<div className="space-y-4">
+				<div className="flex flex-col gap-6">
 					<div className="fade-up grid grid-cols-2 gap-4 md:grid-cols-4">
 						<MetricCard
 							label="Completed"
@@ -85,7 +77,7 @@ export function ControlCenter() {
 				</div>
 
 				{/* ── Attention Zone ── */}
-				{(d.needsAttention.length > 0 || d.aging.length > 0) && (
+				{d.needsAttention.length > 0 || d.aging.length > 0 ? (
 					<section className="fade-up delay-2">
 						<SectionTitle
 							title="ATTENTION"
@@ -117,10 +109,10 @@ export function ControlCenter() {
 							))}
 						</div>
 					</section>
-				)}
+				) : null}
 
 				{/* ── Active Runs Board ── */}
-				{d.active.length > 0 && (
+				{d.active.length > 0 ? (
 					<section className="fade-up delay-3">
 						<SectionTitle title="ACTIVE RUNS" count={d.active.length} />
 						<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -147,7 +139,7 @@ export function ControlCenter() {
 							/>
 						</div>
 					</section>
-				)}
+				) : null}
 
 				<CompletedTable completed={d.completed} />
 
@@ -191,7 +183,7 @@ export function ControlCenter() {
 				</section>
 
 				<div className="h-10" />
-			</main>
-		</div>
+			</div>
+		</>
 	)
 }
