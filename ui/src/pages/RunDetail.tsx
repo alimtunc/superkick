@@ -36,6 +36,7 @@ function RunDetail({ runId, refTime }: { runId: string; refTime: number }) {
 		<>
 			<RunDetailHeader
 				run={d.run}
+				prUrl={d.prUrl}
 				isTerminal={d.isTerminal}
 				streaming={streaming}
 				onToggleStream={() => setStreaming((v) => !v)}
@@ -53,7 +54,7 @@ function RunDetail({ runId, refTime }: { runId: string; refTime: number }) {
 			<SessionWatchRail refTime={refTime} mode="detail" />
 
 			<div className="mx-auto max-w-4xl px-5 py-6">
-				<RunDetailsGrid run={d.run} />
+				<RunDetailsGrid run={d.run} prUrl={d.prUrl} />
 
 				<section className="mb-6">
 					<SectionTitle title="STEPS" />

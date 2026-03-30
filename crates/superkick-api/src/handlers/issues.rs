@@ -7,6 +7,7 @@ use superkick_storage::repo::RunRepo;
 
 use crate::AppState;
 use crate::error::AppError;
+use crate::handlers::runs::extract_pr_url;
 
 #[derive(Deserialize)]
 pub struct ListIssuesParams {
@@ -50,7 +51,12 @@ pub async fn get_issue(
         .run_repo
         .list_by_issue_identifier(&detail.identifier)
         .await?;
-    detail.linked_runs = runs.iter().map(LinkedRunSummary::from).collect();
+    let mut summaries = Vec::with_capacity(runs.len());
+    for run in &runs {
+        let pr_url = extract_pr_url(&state, run.id).await;
+        summaries.push(LinkedRunSummary::from(run).with_pr_url(pr_url));
+    }
+    detail.linked_runs = summaries;
 
     Ok(Json(detail))
 }

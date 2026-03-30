@@ -5,6 +5,7 @@ import { Link } from '@tanstack/react-router'
 
 interface RunDetailHeaderProps {
 	run: Run
+	prUrl: string | null
 	isTerminal: boolean
 	streaming: boolean
 	onToggleStream: () => void
@@ -33,6 +34,7 @@ function pinButtonTitle(watched: boolean, maxReached: boolean): string {
 
 export function RunDetailHeader({
 	run,
+	prUrl,
 	isTerminal,
 	streaming,
 	onToggleStream,
@@ -103,6 +105,17 @@ export function RunDetailHeader({
 					>
 						REFRESH
 					</Button>
+
+					{prUrl ? (
+						<a
+							href={prUrl}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="font-data inline-flex h-6 items-center rounded-md border border-neon-green/30 bg-neon-green/10 px-2 text-[11px] text-neon-green transition-colors hover:border-neon-green/50 hover:text-neon-green/80"
+						>
+							GITHUB
+						</a>
+					) : null}
 
 					{!isTerminal ? (
 						<>

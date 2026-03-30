@@ -1,6 +1,11 @@
 import type { Run } from '@/types'
 
-export function RunDetailsGrid({ run }: { run: Run }) {
+interface RunDetailsGridProps {
+	run: Run
+	prUrl: string | null
+}
+
+export function RunDetailsGrid({ run, prUrl }: RunDetailsGridProps) {
 	const fields = [
 		{ label: 'ID', value: run.id },
 		{ label: 'Repo', value: run.repo_slug },
@@ -23,6 +28,21 @@ export function RunDetailsGrid({ run }: { run: Run }) {
 					</div>
 				))}
 			</dl>
+			{prUrl ? (
+				<dl className="mt-3 flex items-center gap-2 rounded border border-neon-green/20 bg-neon-green/5 px-3 py-2">
+					<dt className="font-data text-[10px] tracking-wider text-dim uppercase">Pull Request</dt>
+					<dd>
+						<a
+							href={prUrl}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="font-data text-[11px] text-neon-green transition-colors hover:text-neon-green/80"
+						>
+							{prUrl}
+						</a>
+					</dd>
+				</dl>
+			) : null}
 			{run.error_message ? (
 				<p className="font-data mt-3 rounded border border-oxide/20 bg-oxide-dim p-2 text-[12px] text-oxide">
 					{run.error_message}

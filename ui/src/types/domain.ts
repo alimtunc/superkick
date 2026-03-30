@@ -194,6 +194,7 @@ export interface LinkedRunSummary {
 	state: RunState
 	started_at: string
 	finished_at: string | null
+	pr_url: string | null
 }
 
 export interface IssueDetailResponse {
