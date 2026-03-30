@@ -88,9 +88,13 @@ export async function fetchRuns(): Promise<Run[]> {
 	return res.json()
 }
 
-export async function fetchRun(
-	id: string
-): Promise<{ run: Run; steps: RunStep[]; sessions: AgentSession[]; interrupts: Interrupt[]; pr_url: string | null }> {
+export async function fetchRun(id: string): Promise<{
+	run: Run
+	steps: RunStep[]
+	sessions: AgentSession[]
+	interrupts: Interrupt[]
+	pr_url: string | null
+}> {
 	const res = await fetch(`${BASE}/runs/${id}`)
 	if (!res.ok) throw new Error(`GET /runs/${id} failed: ${res.status}`)
 	return res.json()
