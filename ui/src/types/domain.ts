@@ -78,6 +78,25 @@ export interface RunEvent {
 	payload_json: string | null
 }
 
+// ── Agent sessions ────────────────────────────────────────────────────
+
+export type AgentProvider = 'claude' | 'codex'
+
+export type AgentStatus = 'starting' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+export interface AgentSession {
+	id: string
+	run_id: string
+	run_step_id: string
+	provider: AgentProvider
+	command: string
+	pid: number | null
+	status: AgentStatus
+	started_at: string
+	finished_at: string | null
+	exit_code: number | null
+}
+
 // ── Interrupts ─────────────────────────────────────────────────────────
 
 export type InterruptStatus = 'pending' | 'resolved' | 'dismissed'

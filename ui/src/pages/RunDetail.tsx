@@ -7,6 +7,7 @@ import { InterruptPanel } from '@/components/run-detail/InterruptPanel'
 import { ReviewResults } from '@/components/run-detail/ReviewResults'
 import { RunDetailHeader } from '@/components/run-detail/RunDetailHeader'
 import { RunDetailsGrid } from '@/components/run-detail/RunDetailsGrid'
+import { SessionList } from '@/components/run-detail/SessionList'
 import { StepTimeline } from '@/components/run-detail/StepTimeline'
 import { useRunDetail } from '@/hooks/useRunDetail'
 import { queryKeys } from '@/lib/queryKeys'
@@ -24,7 +25,7 @@ export function RunDetailPage() {
 
 function RunDetail({ runId, refTime }: { runId: string; refTime: number }) {
 	const d = useRunDetail(runId)
-	const [streaming, setStreaming] = useState(false)
+	const [streaming, setStreaming] = useState(() => !d.isTerminal)
 	const { isWatched, toggleWatch, maxReached } = useWatchedSessionsStore()
 	const watched = isWatched(runId)
 
@@ -60,6 +61,13 @@ function RunDetail({ runId, refTime }: { runId: string; refTime: number }) {
 					<SectionTitle title="STEPS" />
 					<StepTimeline steps={d.steps} />
 				</section>
+
+				{d.sessions.length > 0 ? (
+					<section className="mb-6">
+						<SectionTitle title="AGENT SESSIONS" />
+						<SessionList sessions={d.sessions} />
+					</section>
+				) : null}
 
 				<ReviewResults steps={d.steps} />
 
