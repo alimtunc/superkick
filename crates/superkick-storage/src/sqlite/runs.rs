@@ -66,11 +66,21 @@ impl RunRepo for SqliteRunRepo {
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
-    async fn find_active_by_issue_id(&self, issue_id: &str) -> Result<Option<Run>> {
-        let row = sqlx::query_as::<_, RunRow>(
-            "SELECT * FROM runs WHERE issue_id = ?1 AND state NOT IN ('completed', 'failed', 'cancelled') LIMIT 1",
+    async fn list_by_issue_identifier(&self, issue_identifier: &str) -> Result<Vec<Run>> {
+        let rows = sqlx::query_as::<_, RunRow>(
+            "SELECT * FROM runs WHERE issue_identifier = ?1 ORDER BY started_at DESC",
         )
-        .bind(issue_id)
+        .bind(issue_identifier)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter().map(|r| r.into_domain()).collect()
+    }
+
+    async fn find_active_by_issue_identifier(&self, issue_identifier: &str) -> Result<Option<Run>> {
+        let row = sqlx::query_as::<_, RunRow>(
+            "SELECT * FROM runs WHERE issue_identifier = ?1 AND state NOT IN ('completed', 'failed', 'cancelled') LIMIT 1",
+        )
+        .bind(issue_identifier)
         .fetch_optional(&self.pool)
         .await?;
         row.map(|r| r.into_domain()).transpose()

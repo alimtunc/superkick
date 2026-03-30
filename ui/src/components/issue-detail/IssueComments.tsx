@@ -1,9 +1,8 @@
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
-import { AuthorAvatar } from '@/components/issue-detail/AuthorAvatar'
-import { fmtRelativeTime } from '@/lib/domain'
+import { CommentThread } from '@/components/issue-detail/CommentThread'
 import type { IssueComment } from '@/types'
 
-interface CommentNode {
+export interface CommentNode {
 	comment: IssueComment
 	children: CommentNode[]
 }
@@ -51,41 +50,5 @@ export function IssueComments({ comments }: { comments: IssueComment[] }) {
 				))}
 			</div>
 		</section>
-	)
-}
-
-function CommentThread({ node, isRoot }: { node: CommentNode; isRoot?: boolean }) {
-	return (
-		<div className={isRoot ? 'panel' : ''}>
-			<CommentRow comment={node.comment} />
-			{node.children.length > 0 ? (
-				<div className="ml-10 border-l border-edge">
-					{node.children.map((child) => (
-						<CommentThread key={child.comment.id} node={child} />
-					))}
-				</div>
-			) : null}
-		</div>
-	)
-}
-
-function CommentRow({ comment }: { comment: IssueComment }) {
-	const name = comment.author?.name ?? 'Unknown'
-
-	return (
-		<div className="flex gap-3 px-4 py-3">
-			<AuthorAvatar name={name} avatarUrl={comment.author?.avatar_url ?? null} />
-			<div className="min-w-0 flex-1">
-				<div className="flex items-baseline gap-2">
-					<span className="font-data text-[11px] font-medium text-silver">{name}</span>
-					<span className="font-data text-[10px] text-dim">
-						{fmtRelativeTime(comment.created_at)}
-					</span>
-				</div>
-				<pre className="font-data mt-1 text-[12px] leading-relaxed whitespace-pre-wrap text-silver/80">
-					{comment.body}
-				</pre>
-			</div>
-		</div>
 	)
 }

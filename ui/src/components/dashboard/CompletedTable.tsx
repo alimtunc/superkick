@@ -1,12 +1,12 @@
+import { fmtDuration } from '@/lib/domain'
 import type { Run } from '@/types'
 import { Link } from '@tanstack/react-router'
+
+import { SectionTitle } from './SectionTitle'
 
 interface CompletedTableProps {
 	completed: Run[]
 }
-import { fmtDuration } from '@/lib/domain'
-
-import { SectionTitle } from './SectionTitle'
 
 function fmtRunDuration(r: Run): string {
 	if (!r.finished_at) return '--'

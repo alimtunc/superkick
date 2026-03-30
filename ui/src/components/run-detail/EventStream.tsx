@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 
+import { useEventStream } from '@/hooks/useEventStream'
 import type { EventLevel } from '@/types'
 
 interface EventStreamProps {
@@ -7,7 +8,6 @@ interface EventStreamProps {
 	active: boolean
 	onStateChange?: () => void
 }
-import { useEventStream } from '@/hooks/useEventStream'
 
 const levelColor: Record<EventLevel, string> = {
 	debug: 'text-dim',

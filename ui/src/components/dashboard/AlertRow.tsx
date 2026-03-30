@@ -1,5 +1,7 @@
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { Button } from '@/components/ui/button'
+import { fmtElapsed, watchButtonClass } from '@/lib/domain'
+import { useWatchedSessionsStore } from '@/stores/watchedSessions'
 import type { Run } from '@/types'
 import { Link } from '@tanstack/react-router'
 
@@ -9,8 +11,6 @@ interface AlertRowProps {
 	reason: string
 	isLast: boolean
 }
-import { fmtElapsed, watchButtonClass } from '@/lib/domain'
-import { useWatchedSessionsStore } from '@/stores/watchedSessions'
 
 export function AlertRow({ run, refTime, reason, isLast }: AlertRowProps) {
 	const borderClass = isLast ? '' : 'border-b border-edge/50'

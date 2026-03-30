@@ -1,14 +1,15 @@
+import { AlertRow } from '@/components/dashboard/AlertRow'
+import { BoardCol } from '@/components/dashboard/BoardCol'
+import { CompletedTable } from '@/components/dashboard/CompletedTable'
+import { DistPanel } from '@/components/dashboard/DistPanel'
+import { DurationRow } from '@/components/dashboard/DurationRow'
+import { FocusedRunPanel } from '@/components/dashboard/FocusedRunPanel'
+import { KpiCell } from '@/components/dashboard/KpiCell'
+import { MetricCard } from '@/components/dashboard/MetricCard'
+import { SectionTitle } from '@/components/dashboard/SectionTitle'
+import { SessionWatchRail } from '@/components/dashboard/SessionWatchRail'
 import { useDashboardRuns } from '@/hooks/useDashboardRuns'
 import { avgDuration, medianDuration, stateDistribution } from '@/lib/domain'
-
-import { AlertRow } from '../components/dashboard/AlertRow'
-import { BoardCol } from '../components/dashboard/BoardCol'
-import { CompletedTable } from '../components/dashboard/CompletedTable'
-import { FocusedRunPanel } from '../components/dashboard/FocusedRunPanel'
-import { MetricCard, KpiCell } from '../components/dashboard/MetricCards'
-import { DistPanel, DurationRow } from '../components/dashboard/ReliabilityPanel'
-import { SectionTitle } from '../components/dashboard/SectionTitle'
-import { SessionWatchRail } from '../components/dashboard/SessionWatchRail'
 
 export function ControlCenter() {
 	const d = useDashboardRuns()

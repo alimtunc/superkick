@@ -192,9 +192,10 @@ impl Run {
     /// Transition the run to a new state.
     pub fn transition_to(&mut self, target: RunState) -> Result<(), CoreError> {
         self.state = self.state.transition_to(target)?;
-        self.updated_at = Utc::now();
+        let now = Utc::now();
+        self.updated_at = now;
         if target.is_terminal() {
-            self.finished_at = Some(Utc::now());
+            self.finished_at = Some(now);
         }
         Ok(())
     }
