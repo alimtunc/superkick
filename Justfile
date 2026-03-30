@@ -43,6 +43,10 @@ superkick *args:
 install:
     cargo install --path crates/superkick-cli
 
+# Fetch all dependencies (Rust + JS) in parallel
+deps:
+    cargo fetch & (cd ui && pnpm install) & wait
+
 # Clean build artifacts
 clean:
     cargo clean
