@@ -130,6 +130,9 @@ pub struct LinkedRunSummary {
     pub state: RunState,
     pub started_at: DateTime<Utc>,
     pub finished_at: Option<DateTime<Utc>>,
+    /// GitHub PR URL produced by the `CreatePr` step, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pr_url: Option<String>,
 }
 
 impl From<&Run> for LinkedRunSummary {
@@ -139,7 +142,17 @@ impl From<&Run> for LinkedRunSummary {
             state: run.state,
             started_at: run.started_at,
             finished_at: run.finished_at,
+            pr_url: None,
         }
+    }
+}
+
+impl LinkedRunSummary {
+    /// Attach a PR URL discovered from the artifacts table.
+    #[must_use]
+    pub fn with_pr_url(mut self, pr_url: Option<String>) -> Self {
+        self.pr_url = pr_url;
+        self
     }
 }
 
