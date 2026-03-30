@@ -41,7 +41,12 @@ export function useEventStream(runId: string, onStateChange?: () => void) {
 			runId,
 			(event) => {
 				dispatch({ type: 'event_received', event })
-				if (event.kind === 'state_change' || event.kind === 'interrupt_created') {
+				if (
+					event.kind === 'state_change' ||
+					event.kind === 'step_started' ||
+					event.kind === 'step_completed' ||
+					event.kind === 'interrupt_created'
+				) {
 					onStateChange?.()
 				}
 			},

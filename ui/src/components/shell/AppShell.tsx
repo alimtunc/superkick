@@ -1,4 +1,5 @@
 import { Outlet } from '@tanstack/react-router'
+import { Toaster } from 'sonner'
 
 import { ShellHeader } from './ShellHeader'
 import { Sidebar } from './Sidebar'
@@ -13,6 +14,18 @@ export function AppShell() {
 					<Outlet />
 				</main>
 			</div>
+			<Toaster
+				position="top-right"
+				duration={1500}
+				toastOptions={{
+					style: {
+						background: '#2a2a2e',
+						border: '1px solid #3a3a3e',
+						color: '#c8c8cc',
+						fontSize: '12px'
+					}
+				}}
+			/>
 		</div>
 	)
 }

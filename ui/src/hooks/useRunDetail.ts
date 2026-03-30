@@ -22,6 +22,7 @@ export function useRunDetail(runId: string) {
 	const error = queryError ? String(queryError) : null
 	const run = data?.run ?? null
 	const steps = data?.steps ?? []
+	const sessions = data?.sessions ?? []
 	const interrupts = data?.interrupts ?? []
 	const prUrl = data?.pr_url ?? null
 
@@ -57,6 +58,7 @@ export function useRunDetail(runId: string) {
 	return {
 		run,
 		steps,
+		sessions,
 		interrupts,
 		prUrl,
 		loading,

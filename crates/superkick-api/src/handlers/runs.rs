@@ -9,7 +9,9 @@ use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
 use superkick_core::{ArtifactKind, Run, RunId, TriggerSource};
-use superkick_storage::repo::{ArtifactRepo, InterruptRepo, RunEventRepo, RunRepo, RunStepRepo};
+use superkick_storage::repo::{
+    AgentSessionRepo, ArtifactRepo, InterruptRepo, RunEventRepo, RunRepo, RunStepRepo,
+};
 
 use crate::AppState;
 use crate::error::AppError;
@@ -129,12 +131,14 @@ pub async fn get_run(
         return Err(AppError::NotFound("run not found"));
     };
     let steps = state.step_repo.list_by_run(run_id).await?;
+    let sessions = state.session_repo.list_by_run(run_id).await?;
     let interrupts = state.interrupt_repo.list_by_run(run_id).await?;
     let pr_url = extract_pr_url(&state, run_id).await;
 
     Ok(Json(serde_json::json!({
         "run": run,
         "steps": steps,
+        "sessions": sessions,
         "interrupts": interrupts,
         "pr_url": pr_url,
     })))
