@@ -208,12 +208,37 @@ export interface IssueComment {
 	parent_id: string | null
 }
 
+// ── Pull request state ────────────────────────────────────────────────
+
+export type PrState = 'open' | 'draft' | 'merged' | 'closed'
+
+export interface LinkedPrSummary {
+	number: number
+	url: string
+	state: PrState
+	merged_at: string | null
+}
+
+export interface PullRequest {
+	id: string
+	run_id: string
+	number: number
+	repo_slug: string
+	url: string
+	state: PrState
+	title: string
+	head_branch: string
+	created_at: string
+	updated_at: string
+	merged_at: string | null
+}
+
 export interface LinkedRunSummary {
 	id: string
 	state: RunState
 	started_at: string
 	finished_at: string | null
-	pr_url: string | null
+	pr?: LinkedPrSummary
 }
 
 export interface IssueDetailResponse {

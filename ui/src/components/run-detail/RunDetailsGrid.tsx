@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
 
+import { PrStateBadge } from '@/components/PrStateBadge'
 import { CopyValue } from '@/components/run-detail/CopyValue'
 import { fmtRelativeTime } from '@/lib/domain'
-import type { Run } from '@/types'
+import type { PullRequest, Run } from '@/types'
 import { GitBranch, FolderGit2, BookMarked, Zap, Clock, ExternalLink } from 'lucide-react'
 
 // ── Chip — single element for both static and copyable ───────────────
@@ -36,10 +37,10 @@ function Chip({ icon, label, copyValue }: { icon: ReactNode; label: string; copy
 
 interface RunDetailsGridProps {
 	run: Run
-	prUrl: string | null
+	pr: PullRequest | null
 }
 
-export function RunDetailsGrid({ run, prUrl }: RunDetailsGridProps) {
+export function RunDetailsGrid({ run, pr }: RunDetailsGridProps) {
 	return (
 		<div className="mb-8 space-y-3">
 			<div className="flex flex-wrap items-center gap-2">
@@ -63,15 +64,16 @@ export function RunDetailsGrid({ run, prUrl }: RunDetailsGridProps) {
 					<Chip icon={<Clock size={14} />} label={`finished ${fmtRelativeTime(run.finished_at)}`} />
 				) : null}
 
-				{prUrl ? (
+				{pr ? (
 					<a
-						href={prUrl}
+						href={pr.url}
 						target="_blank"
 						rel="noopener noreferrer"
-						className={`${chipBase} text-neon-green transition-colors hover:bg-neon-green/10`}
+						className={`${chipBase} gap-2 text-neon-green transition-colors hover:bg-neon-green/10`}
 					>
 						<ExternalLink size={14} />
-						<span>PR</span>
+						<span>#{pr.number}</span>
+						<PrStateBadge state={pr.state} />
 					</a>
 				) : null}
 			</div>

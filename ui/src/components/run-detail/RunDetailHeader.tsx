@@ -1,11 +1,12 @@
+import { PrStateBadge } from '@/components/PrStateBadge'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { Button } from '@/components/ui/button'
-import type { Run } from '@/types'
+import type { PullRequest, Run } from '@/types'
 import { Link } from '@tanstack/react-router'
 
 interface RunDetailHeaderProps {
 	run: Run
-	prUrl: string | null
+	pr: PullRequest | null
 	isTerminal: boolean
 	streaming: boolean
 	onToggleStream: () => void
@@ -34,7 +35,7 @@ function pinButtonTitle(watched: boolean, maxReached: boolean): string {
 
 export function RunDetailHeader({
 	run,
-	prUrl,
+	pr,
 	isTerminal,
 	streaming,
 	onToggleStream,
@@ -106,14 +107,15 @@ export function RunDetailHeader({
 						REFRESH
 					</Button>
 
-					{prUrl ? (
+					{pr ? (
 						<a
-							href={prUrl}
+							href={pr.url}
 							target="_blank"
 							rel="noopener noreferrer"
-							className="font-data inline-flex h-6 items-center rounded-md border border-neon-green/30 bg-neon-green/10 px-2 text-[11px] text-neon-green transition-colors hover:border-neon-green/50 hover:text-neon-green/80"
+							className="font-data inline-flex h-6 items-center gap-1.5 rounded-md border border-neon-green/30 bg-neon-green/10 px-2 text-[11px] text-neon-green transition-colors hover:border-neon-green/50 hover:text-neon-green/80"
 						>
-							GITHUB
+							#{pr.number}
+							<PrStateBadge state={pr.state} />
 						</a>
 					) : null}
 

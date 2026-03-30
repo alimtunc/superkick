@@ -24,7 +24,7 @@ export function useRunDetail(runId: string) {
 	const steps = data?.steps ?? []
 	const sessions = data?.sessions ?? []
 	const interrupts = data?.interrupts ?? []
-	const prUrl = data?.pr_url ?? null
+	const pr = data?.pr ?? null
 
 	const syncRun = useCallback(() => {
 		queryClient.invalidateQueries({ queryKey: queryKeys.runs.detail(runId) })
@@ -60,7 +60,7 @@ export function useRunDetail(runId: string) {
 		steps,
 		sessions,
 		interrupts,
-		prUrl,
+		pr,
 		loading,
 		error,
 		isTerminal,
