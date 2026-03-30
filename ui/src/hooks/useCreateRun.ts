@@ -14,6 +14,7 @@ export interface LaunchParams {
 	config: ServerConfigResponse
 	issueId: string
 	issueIdentifier: string
+	useWorktree?: boolean
 	operatorInstructions?: string
 	onSuccess?: () => void
 }
@@ -41,6 +42,7 @@ export function useCreateRun({ issueId }: UseCreateRunOptions = {}) {
 					issue_id: params.issueId,
 					issue_identifier: params.issueIdentifier,
 					base_branch: params.config.base_branch,
+					use_worktree: params.useWorktree,
 					operator_instructions: params.operatorInstructions
 				},
 				{ onSuccess: params.onSuccess }

@@ -55,6 +55,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "004_active_run_dedup_issue_identifier",
             include_str!("../migrations/004_active_run_dedup_issue_identifier.sql"),
         ),
+        (
+            "005_run_use_worktree",
+            include_str!("../migrations/005_run_use_worktree.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

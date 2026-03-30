@@ -1,7 +1,11 @@
 import type { LaunchProfile } from '@/types'
 
 export function ProfileFlags({ profile }: { profile: LaunchProfile }) {
-	const flags = [profile.live_mode ? 'Live mode' : null, ...profile.skills].filter(Boolean)
+	const flags = [
+		profile.use_worktree ? 'Worktree' : null,
+		profile.live_mode ? 'Live mode' : null,
+		...profile.skills
+	].filter((f): f is string => f !== null)
 
 	if (flags.length === 0) return null
 

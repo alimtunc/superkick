@@ -26,6 +26,8 @@ pub struct CreateRunRequest {
     issue_identifier: String,
     #[serde(default = "default_base_branch")]
     base_branch: String,
+    /// Per-run worktree override. If absent, falls back to the launch profile default.
+    use_worktree: Option<bool>,
     operator_instructions: Option<String>,
 }
 
@@ -70,12 +72,17 @@ pub async fn create_run(
         .await?;
     Run::guard_no_active(existing.as_ref(), &issue_identifier)?;
 
+    let use_worktree = body
+        .use_worktree
+        .unwrap_or(state.launch_profile.use_worktree);
+
     let run = Run::new(
         issue_id,
         issue_identifier,
         repo_slug,
         TriggerSource::Manual,
         base_branch,
+        use_worktree,
         operator_instructions,
     );
 

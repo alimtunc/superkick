@@ -18,7 +18,8 @@ export function IssueDetailHeader({
 	const createRun = useCreateRun({ issueId: issue.id })
 	const launchProfile = config?.launch_profile
 	const dialog = useLaunchDialog({
-		defaultInstructions: launchProfile?.default_instructions ?? ''
+		defaultInstructions: launchProfile?.default_instructions ?? '',
+		defaultUseWorktree: launchProfile?.use_worktree ?? true
 	})
 
 	const activeRun = issue.linked_runs.find((r) => !['completed', 'failed', 'cancelled'].includes(r.state))
@@ -33,6 +34,7 @@ export function IssueDetailHeader({
 			config,
 			issueId: issue.id,
 			issueIdentifier: issue.identifier,
+			useWorktree: dialog.useWorktree,
 			operatorInstructions: dialog.instructions || undefined,
 			onSuccess: dialog.closeDialog
 		})
@@ -126,8 +128,10 @@ export function IssueDetailHeader({
 					open={dialog.open}
 					profile={launchProfile}
 					instructions={dialog.instructions}
+					useWorktree={dialog.useWorktree}
 					isPending={createRun.isPending}
 					onInstructionsChange={dialog.setInstructions}
+					onUseWorktreeChange={dialog.setUseWorktree}
 					onLaunch={handleLaunch}
 					onClose={dialog.closeDialog}
 				/>

@@ -34,6 +34,7 @@ export interface CreateRunRequest {
 	issue_id: string
 	issue_identifier: string
 	base_branch?: string
+	use_worktree?: boolean
 	operator_instructions?: string
 }
 
