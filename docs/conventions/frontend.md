@@ -27,6 +27,12 @@ Applies during implementation and review.
 - Business logic in components → must be in hooks
 - No direct fetch — use separate API functions
 
+## UI Components
+
+- Use shadcn components first (`pnpm dlx shadcn@latest add <component>`) — they live in `ui/src/components/ui/`
+- Only drop down to `@base-ui/react` primitives if no shadcn component exists for the use case
+- Never hand-roll interactive UI (switch, dialog, dropdown, etc.) when a shadcn or base-ui primitive is available
+
 ## Tailwind v4
 
 - No custom CSS classes if a Tailwind utility exists

@@ -114,6 +114,7 @@ pub struct Run {
     pub trigger_source: TriggerSource,
     pub current_step_key: Option<StepKey>,
     pub base_branch: String,
+    pub use_worktree: bool,
     pub worktree_path: Option<String>,
     pub branch_name: Option<String>,
     pub operator_instructions: Option<String>,
@@ -181,6 +182,7 @@ impl Run {
         repo_slug: String,
         trigger_source: TriggerSource,
         base_branch: String,
+        use_worktree: bool,
         operator_instructions: Option<String>,
     ) -> Self {
         let now = Utc::now();
@@ -193,6 +195,7 @@ impl Run {
             trigger_source,
             current_step_key: None,
             base_branch,
+            use_worktree,
             worktree_path: None,
             branch_name: None,
             operator_instructions,

@@ -18,8 +18,8 @@ impl SqliteRunRepo {
 impl RunRepo for SqliteRunRepo {
     async fn insert(&self, run: &Run) -> Result<()> {
         sqlx::query(
-            "INSERT INTO runs (id, issue_id, issue_identifier, repo_slug, state, trigger_source, current_step_key, base_branch, worktree_path, branch_name, operator_instructions, started_at, updated_at, finished_at, error_message)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            "INSERT INTO runs (id, issue_id, issue_identifier, repo_slug, state, trigger_source, current_step_key, base_branch, use_worktree, worktree_path, branch_name, operator_instructions, started_at, updated_at, finished_at, error_message)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
         )
         .bind(run.id.0.to_string())
         .bind(&run.issue_id)
@@ -29,6 +29,7 @@ impl RunRepo for SqliteRunRepo {
         .bind(serialize_enum(&run.trigger_source)?)
         .bind(run.current_step_key.map(|k| k.to_string()))
         .bind(&run.base_branch)
+        .bind(run.use_worktree)
         .bind(&run.worktree_path)
         .bind(&run.branch_name)
         .bind(&run.operator_instructions)
@@ -115,6 +116,7 @@ struct RunRow {
     trigger_source: String,
     current_step_key: Option<String>,
     base_branch: String,
+    use_worktree: bool,
     worktree_path: Option<String>,
     branch_name: Option<String>,
     operator_instructions: Option<String>,
@@ -139,6 +141,7 @@ impl RunRow {
                 .map(deserialize_enum::<StepKey>)
                 .transpose()?,
             base_branch: self.base_branch,
+            use_worktree: self.use_worktree,
             worktree_path: self.worktree_path,
             branch_name: self.branch_name,
             operator_instructions: self.operator_instructions,

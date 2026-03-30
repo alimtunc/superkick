@@ -21,7 +21,7 @@ where
     AR: ArtifactRepo + 'static,
     I: InterruptRepo + 'static,
 {
-    /// Prepare step: ensure bare clone exists, create worktree.
+    /// Prepare step: ensure bare clone exists, create worktree (or use repo root).
     pub(super) async fn execute_prepare(&self, run: &mut superkick_core::Run) -> Result<()> {
         let clone_url = crate::worktree::github_clone_url(&run.repo_slug);
         let bare_path = self
@@ -30,31 +30,43 @@ where
             .await
             .context("failed to ensure bare clone")?;
 
-        let repo_root = PathBuf::from(&self.config.runner.repo_root);
-        let wt_root = crate::worktree::default_worktree_root(&repo_root);
+        if run.use_worktree {
+            let repo_root = PathBuf::from(&self.config.runner.repo_root);
+            let wt_root = crate::worktree::default_worktree_root(&repo_root);
 
-        let wt_mgr = WorktreeManager::new(
-            bare_path,
-            wt_root,
-            self.config.runner.worktree_prefix.clone(),
-        )
-        .await
-        .context("failed to create worktree manager")?;
-
-        let WorktreeInfo { path, branch } = wt_mgr
-            .create(run.id, &run.issue_identifier, &run.base_branch)
+            let wt_mgr = WorktreeManager::new(
+                bare_path,
+                wt_root,
+                self.config.runner.worktree_prefix.clone(),
+            )
             .await
-            .context("failed to create worktree")?;
+            .context("failed to create worktree manager")?;
 
-        run.worktree_path = Some(path.to_string_lossy().into_owned());
-        run.branch_name = Some(branch);
-        self.run_repo.update(run).await?;
+            let WorktreeInfo { path, branch } = wt_mgr
+                .create(run.id, &run.issue_identifier, &run.base_branch)
+                .await
+                .context("failed to create worktree")?;
 
-        info!(
-            run_id = %run.id,
-            worktree = %path.display(),
-            "worktree created"
-        );
+            run.worktree_path = Some(path.to_string_lossy().into_owned());
+            run.branch_name = Some(branch);
+            self.run_repo.update(run).await?;
+
+            info!(
+                run_id = %run.id,
+                worktree = %path.display(),
+                "worktree created"
+            );
+        } else {
+            let repo_root = PathBuf::from(&self.config.runner.repo_root);
+            run.worktree_path = Some(repo_root.to_string_lossy().into_owned());
+            self.run_repo.update(run).await?;
+
+            info!(
+                run_id = %run.id,
+                path = %repo_root.display(),
+                "worktree disabled — using repo root"
+            );
+        }
 
         Ok(())
     }
@@ -111,7 +123,12 @@ where
     }
 
     /// Clean up the worktree directory after a run reaches a terminal state.
+    /// Skipped when the run did not use a dedicated worktree.
     pub(super) async fn cleanup_worktree(&self, run: &superkick_core::Run) {
+        if !run.use_worktree {
+            return;
+        }
+
         let Some(ref wt_path_str) = run.worktree_path else {
             return;
         };

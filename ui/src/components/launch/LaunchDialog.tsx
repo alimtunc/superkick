@@ -2,14 +2,17 @@ import { createPortal } from 'react-dom'
 
 import { ProfileFlags } from '@/components/launch/ProfileFlags'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import type { LaunchProfile } from '@/types'
 
 interface LaunchDialogProps {
 	open: boolean
 	profile: LaunchProfile
 	instructions: string
+	useWorktree: boolean
 	isPending: boolean
 	onInstructionsChange: (value: string) => void
+	onUseWorktreeChange: (value: boolean) => void
 	onLaunch: () => void
 	onClose: () => void
 }
@@ -22,8 +25,10 @@ export function LaunchDialog({
 	open,
 	profile,
 	instructions,
+	useWorktree,
 	isPending,
 	onInstructionsChange,
+	onUseWorktreeChange,
 	onLaunch,
 	onClose
 }: LaunchDialogProps) {
@@ -73,18 +78,34 @@ export function LaunchDialog({
 					/>
 				</label>
 
-				<div className="mt-5 flex items-center justify-end gap-2">
-					<Button variant="outline" size="sm" onClick={onClose} className="font-data text-[11px]">
-						CANCEL
-					</Button>
-					<Button
-						size="sm"
-						disabled={isPending}
-						onClick={onLaunch}
-						className="font-data text-[11px]"
-					>
-						{isPending ? 'LAUNCHING...' : 'LAUNCH'}
-					</Button>
+				<div className="mt-5 flex items-center justify-between">
+					<div className="flex items-center gap-2">
+						<Switch
+							checked={useWorktree}
+							onCheckedChange={onUseWorktreeChange}
+							aria-label="Use worktree"
+						/>
+						<span className="font-data text-[11px] text-dim">Use worktree</span>
+					</div>
+
+					<div className="flex items-center gap-2">
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={onClose}
+							className="font-data text-[11px]"
+						>
+							CANCEL
+						</Button>
+						<Button
+							size="sm"
+							disabled={isPending}
+							onClick={onLaunch}
+							className="font-data text-[11px]"
+						>
+							{isPending ? 'LAUNCHING...' : 'LAUNCH'}
+						</Button>
+					</div>
 				</div>
 			</div>
 		</div>,

@@ -58,6 +58,7 @@ async fn run_insert_and_get() -> Result<()> {
         "org/repo".into(),
         TriggerSource::Manual,
         "main".into(),
+        true,
         None,
     );
     let id = run.id;
@@ -84,6 +85,7 @@ async fn run_update() -> Result<()> {
         "org/repo".into(),
         TriggerSource::LinearWebhook,
         "main".into(),
+        true,
         None,
     );
     repo.insert(&run).await?;
@@ -109,6 +111,7 @@ async fn run_list_all() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        true,
         None,
     );
     let r2 = Run::new(
@@ -117,6 +120,7 @@ async fn run_list_all() -> Result<()> {
         "o/r".into(),
         TriggerSource::Retry,
         "main".into(),
+        true,
         None,
     );
     repo.insert(&r1).await?;
@@ -138,6 +142,7 @@ async fn run_lookup_by_issue_identifier_and_active_guard() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        true,
         None,
     );
     completed.state = RunState::Completed;
@@ -151,6 +156,7 @@ async fn run_lookup_by_issue_identifier_and_active_guard() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        true,
         None,
     );
     let active_id = active.id;
@@ -171,6 +177,7 @@ async fn run_lookup_by_issue_identifier_and_active_guard() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        true,
         None,
     );
     let err = repo
@@ -194,6 +201,7 @@ async fn step_insert_and_list() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        true,
         None,
     );
     run_repo.insert(&run).await?;
@@ -224,6 +232,7 @@ async fn step_update() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        true,
         None,
     );
     run_repo.insert(&run).await?;
@@ -253,6 +262,7 @@ async fn event_insert_and_list() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        true,
         None,
     );
     run_repo.insert(&run).await?;
@@ -290,6 +300,7 @@ async fn agent_session_insert_and_list() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        true,
         None,
     );
     run_repo.insert(&run).await?;
@@ -334,6 +345,7 @@ async fn agent_session_update() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        true,
         None,
     );
     run_repo.insert(&run).await?;
@@ -377,6 +389,7 @@ async fn interrupt_insert_resolve_and_list() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        true,
         None,
     );
     run_repo.insert(&run).await?;
@@ -415,6 +428,7 @@ async fn artifact_insert_and_list() -> Result<()> {
         "o/r".into(),
         TriggerSource::Manual,
         "main".into(),
+        true,
         None,
     );
     run_repo.insert(&run).await?;
