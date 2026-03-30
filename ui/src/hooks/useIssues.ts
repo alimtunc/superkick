@@ -134,6 +134,28 @@ export function useIssues(limit = 200) {
 		setActiveLabels(new Set())
 	}
 
+	function togglePriority(v: number) {
+		setActivePriorities((prev) => {
+			const next = new Set(prev)
+			if (next.has(v)) {
+				next.delete(v)
+			} else {
+				next.add(v)
+			}
+			return next
+		})
+	}
+
+	function clearPriorities() {
+		setActivePriorities(new Set())
+	}
+
+	function clearAllFilters() {
+		clearLabels()
+		setActiveProject(null)
+		clearPriorities()
+	}
+
 	return {
 		allIssues,
 		filteredIssues,
@@ -152,18 +174,9 @@ export function useIssues(limit = 200) {
 		activeProject,
 		setActiveProject,
 		activePriorities,
-		togglePriority: (v: number) => {
-			setActivePriorities((prev) => {
-				const next = new Set(prev)
-				if (next.has(v)) {
-					next.delete(v)
-				} else {
-					next.add(v)
-				}
-				return next
-			})
-		},
-		clearPriorities: () => setActivePriorities(new Set()),
+		togglePriority,
+		clearPriorities,
+		clearAllFilters,
 		totalCount: data?.total_count ?? 0,
 		loading: isLoading,
 		error: error ? String(error) : null,

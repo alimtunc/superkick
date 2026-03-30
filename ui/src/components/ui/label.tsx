@@ -1,9 +1,10 @@
-import * as React from 'react'
+import type { ComponentProps } from 'react'
 
 import { cn } from '@/lib/utils'
 
-function Label({ className, ...props }: React.ComponentProps<'label'>) {
+function Label({ className, ...props }: ComponentProps<'label'>) {
 	return (
+		// oxlint-disable-next-line jsx-a11y/label-has-associated-control -- primitive wrapper; callers provide htmlFor or nesting.
 		<label
 			data-slot="label"
 			className={cn(

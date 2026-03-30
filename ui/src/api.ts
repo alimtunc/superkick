@@ -136,10 +136,13 @@ export function subscribeToRunEvents(
 		onDone()
 	})
 
-	es.onerror = (err) => {
+	es.addEventListener('error', (err) => {
+		if (es.readyState !== EventSource.CLOSED) {
+			return
+		}
 		es.close()
 		onError(err)
-	}
+	})
 
 	return () => es.close()
 }

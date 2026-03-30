@@ -8,10 +8,8 @@ interface LaunchDialogProps {
 	open: boolean
 	profile: LaunchProfile
 	instructions: string
-	useWorktree: boolean
 	isPending: boolean
 	onInstructionsChange: (value: string) => void
-	onUseWorktreeChange: (value: boolean) => void
 	onLaunch: () => void
 	onClose: () => void
 }
@@ -24,10 +22,8 @@ export function LaunchDialog({
 	open,
 	profile,
 	instructions,
-	useWorktree,
 	isPending,
 	onInstructionsChange,
-	onUseWorktreeChange,
 	onLaunch,
 	onClose
 }: LaunchDialogProps) {
@@ -75,16 +71,6 @@ export function LaunchDialog({
 						className="font-data w-full resize-y rounded border border-edge bg-carbon px-3 py-2 text-[12px] leading-relaxed text-silver placeholder:text-dim/60 focus:border-edge-bright focus:outline-none"
 						placeholder={PLACEHOLDER}
 					/>
-				</label>
-
-				<label className="mt-3 flex cursor-pointer items-center gap-2">
-					<input
-						type="checkbox"
-						checked={useWorktree}
-						onChange={(e) => onUseWorktreeChange(e.target.checked)}
-						className="size-3.5 rounded accent-primary"
-					/>
-					<span className="font-data text-[11px] text-silver">Use worktree</span>
 				</label>
 
 				<div className="mt-5 flex items-center justify-end gap-2">

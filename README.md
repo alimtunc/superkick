@@ -10,12 +10,15 @@ Today, the project already includes:
 
 - a local `superkick` CLI with `doctor`, `init`, `serve`, `run`, `status`, and `cancel`
 - a local HTTP control plane and SQLite-backed run state
-- a React Control Center dashboard with KPIs, attention zones, active runs, and completed work
-- run state transitions, interrupts, review results, and realtime event streaming
+- a React dashboard with Control Center, Issues, Runs, and Issue Detail pages
+- Linear issue sync with status mapping, comments ingestion, and operator filter buckets
+- launch profiles with operator instructions and duplicate run guards
+- run state transitions, interrupts, review results, and realtime SSE event streaming
+- CI quality gates for both engine and dashboard
 
 The next product loop is now:
 
-`manual run -> multiple live runs -> multi-session supervision in one window`
+`issue sync -> launch from dashboard -> live run supervision -> reviewed PR`
 
 ## Target flow
 
@@ -71,11 +74,12 @@ The next product loop is now:
 
 | Layer | Tech |
 |-------|------|
-| Runtime | Rust, Tokio, Axum |
-| Storage | SQLite (WAL) |
-| Frontend | React, Vite, TypeScript |
+| Runtime | Rust (edition 2024), Tokio, Axum |
+| Storage | SQLite (WAL), sqlx |
+| Frontend | React 19, Vite, TypeScript, Tailwind v4, TanStack |
 | Realtime | SSE |
 | Agents | Claude, Codex (subprocess) |
+| Issue tracker | Linear |
 | Git | git CLI, worktrees |
 | GitHub | gh CLI |
 
@@ -214,27 +218,25 @@ queued -> preparing -> planning -> coding -> running_commands -> reviewing -> op
 
 ## Dashboard
 
-The dashboard is now a local web control center with:
+The dashboard is a local web control center with:
 
-- **Control Center home** -- summary metrics and operational visibility
-- **KPI ribbon** -- completed runs, active runs, success rate, run duration
-- **Attention zone** -- blocked runs, failed runs, pending human input
-- **Active runs board** -- live state grouped by stage
-- **Completed issues** -- recently finished work with timing and outcome
-- **Session watch rail foundation** -- an initial shell for multi-session supervision
+- **Control Center** — summary metrics, KPI ribbon (completed/active runs, success rate, duration), attention zone, active runs board
+- **Issues** — Linear issues synced with status mapping and operator filter buckets (triage, backlog, active, done)
+- **Issue Detail** — full issue view with comments, review context, and "Start Run" action with launch profiles
+- **Runs** — active and completed runs with live state
+- **Run Detail** — step-by-step progress, interrupt panel, and SSE event stream
 
 Next on the dashboard side:
 
-- persistent multi-session watching
-- fast focus switching between watched runs
+- persistent multi-session watching and fast focus switching
 - deeper reliability analytics and KPI aggregation
+- cancel/stop run from dashboard
 
 ## Roadmap
 
-### Shipped foundations
-- [x] Rust workspace and crate structure
+### Shipped
+- [x] Rust workspace and crate structure (7 crates)
 - [x] CLI surface (`doctor`, `init`, `serve`, `run`, `status`, `cancel`)
-- [x] React dashboard with Control Center, KPIs, run board
 - [x] SQLite storage (runs, steps, artifacts, events, interrupts)
 - [x] Project config model and validation (`superkick.yaml`)
 - [x] Worktree lifecycle (create, use, cleanup)
@@ -242,17 +244,24 @@ Next on the dashboard side:
 - [x] SSE realtime event stream
 - [x] Interrupt service (create, resolve, persist)
 - [x] Run state transitions (`waiting_human` / resume)
-- [x] Interrupt panel in dashboard
-- [x] Review data model and storage
 - [x] Run isolation via worktrees
+- [x] Runtime health checks and real cancellation
+- [x] `superkick run <issue>` for manual local-first launch
+- [x] Linear issue list query and sync contract
+- [x] Linear status mapping and operator filter buckets
+- [x] Issue detail with comments and review context ingestion
+- [x] Start run action from issue detail
+- [x] Duplicate active run guard for issue launches
+- [x] Launch profiles and operator instructions
+- [x] Launch queue with Linear-style issues surface
+- [x] Dashboard: Control Center, Issues, Runs, Issue Detail, app shell with sidebar
+- [x] CI quality gates for engine and dashboard
 
 ### Next up
-- [x] `superkick run <issue>` for manual local-first launch
-- [x] Real HTTP health checks and run cancellation
 - [ ] Persistent multi-session rail and quick focus switching
+- [ ] Cancel/stop run from dashboard
 - [ ] Full pause/resume flow end-to-end
 - [ ] Parallel review agents and project-defined review gate
-- [ ] Issue ingestion from Linear
 - [ ] End-to-end agent execution through plan, code, commands, and PR creation
 
 ### After that

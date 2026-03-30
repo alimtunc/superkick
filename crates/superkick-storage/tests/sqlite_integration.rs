@@ -128,6 +128,61 @@ async fn run_list_all() -> Result<()> {
 }
 
 #[tokio::test]
+async fn run_lookup_by_issue_identifier_and_active_guard() -> Result<()> {
+    let pool = setup().await?;
+    let repo = SqliteRunRepo::new(pool);
+
+    let mut completed = Run::new(
+        "linear-1".into(),
+        "SK-9".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        "main".into(),
+        None,
+    );
+    completed.state = RunState::Completed;
+    completed.updated_at = Utc::now();
+    completed.finished_at = Some(Utc::now());
+    repo.insert(&completed).await?;
+
+    let active = Run::new(
+        "linear-2".into(),
+        "SK-9".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        "main".into(),
+        None,
+    );
+    let active_id = active.id;
+    repo.insert(&active).await?;
+
+    let fetched = repo
+        .find_active_by_issue_identifier("SK-9")
+        .await?
+        .expect("active run should exist");
+    assert_eq!(fetched.id, active_id);
+
+    let all = repo.list_by_issue_identifier("SK-9").await?;
+    assert_eq!(all.len(), 2);
+
+    let duplicate = Run::new(
+        "linear-3".into(),
+        "SK-9".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        "main".into(),
+        None,
+    );
+    let err = repo
+        .insert(&duplicate)
+        .await
+        .expect_err("insert should fail");
+    assert!(format!("{err:#}").to_lowercase().contains("unique"));
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn step_insert_and_list() -> Result<()> {
     let pool = setup().await?;
     let run_repo = SqliteRunRepo::new(pool.clone());

@@ -10,7 +10,7 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
-use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
 use superkick_core::{
@@ -42,7 +42,7 @@ pub struct AgentResult {
 #[derive(Clone)]
 pub struct AgentHandle {
     session_id: AgentSessionId,
-    cancelled: Arc<Mutex<bool>>,
+    cancel_token: CancellationToken,
 }
 
 impl AgentHandle {
@@ -51,8 +51,8 @@ impl AgentHandle {
     }
 
     /// Request cancellation of the running agent.
-    pub async fn cancel(&self) {
-        *self.cancelled.lock().await = true;
+    pub fn cancel(&self) {
+        self.cancel_token.cancel();
     }
 }
 
@@ -99,10 +99,10 @@ where
 
         self.session_repo.insert(&session).await?;
 
-        let cancelled = Arc::new(Mutex::new(false));
+        let cancel_token = CancellationToken::new();
         let handle = AgentHandle {
             session_id,
-            cancelled: Arc::clone(&cancelled),
+            cancel_token: cancel_token.clone(),
         };
 
         let session_repo = Arc::clone(&self.session_repo);
@@ -113,7 +113,7 @@ where
             config.args,
             config.workdir,
             config.timeout,
-            cancelled,
+            cancel_token,
             session_repo,
             event_repo,
         ));
@@ -128,7 +128,7 @@ async fn run_supervised<S, E>(
     args: Vec<String>,
     workdir: PathBuf,
     timeout: Duration,
-    cancelled: Arc<Mutex<bool>>,
+    cancel_token: CancellationToken,
     session_repo: Arc<S>,
     event_repo: Arc<E>,
 ) -> Result<AgentResult>
@@ -235,7 +235,7 @@ where
             session_repo.update(&session).await?;
             return Ok(AgentResult { session });
         }
-        _ = poll_cancelled(&cancelled) => {
+        _ = cancel_token.cancelled() => {
             warn!(pid = ?pid, "agent cancelled, killing");
             kill_child(&mut child).await;
             session.status = AgentStatus::Cancelled;
@@ -304,16 +304,6 @@ async fn emit_event<E: RunEventRepo>(
     let event = RunEvent::new(run_id, Some(step_id), kind, level, message);
     if let Err(e) = repo.insert(&event).await {
         warn!("failed to emit run event: {e}");
-    }
-}
-
-/// Poll the cancellation flag every 100ms.
-async fn poll_cancelled(cancelled: &Mutex<bool>) {
-    loop {
-        if *cancelled.lock().await {
-            return;
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
     }
 }
 

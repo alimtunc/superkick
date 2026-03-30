@@ -27,13 +27,12 @@ export function IssuesPage() {
 		labelCounts,
 		activeLabels,
 		toggleLabel,
-		clearLabels,
 		allProjects,
 		activeProject,
 		setActiveProject,
 		activePriorities,
 		togglePriority,
-		clearPriorities,
+		clearAllFilters,
 		totalCount,
 		loading,
 		error,
@@ -43,12 +42,6 @@ export function IssuesPage() {
 	const bucketLabel = activeBucket === 'all' ? 'All' : BUCKET_META[activeBucket].label
 	const labelColors = useMemo(() => buildLabelColorMap(allIssues), [allIssues])
 	const hasActiveFilters = activeLabels.size > 0 || activeProject !== null || activePriorities.size > 0
-
-	function clearAllFilters() {
-		clearLabels()
-		setActiveProject(null)
-		clearPriorities()
-	}
 
 	return (
 		<div>

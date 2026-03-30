@@ -47,6 +47,14 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "002_launch_profile",
             include_str!("../migrations/002_launch_profile.sql"),
         ),
+        (
+            "003_active_run_dedup",
+            include_str!("../migrations/003_active_run_dedup.sql"),
+        ),
+        (
+            "004_active_run_dedup_issue_identifier",
+            include_str!("../migrations/004_active_run_dedup_issue_identifier.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {
@@ -57,18 +65,22 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
                 .await?;
 
         if !already_applied {
+            let mut tx = pool.begin().await?;
+
             // Execute each statement separately (sqlx doesn't support multi-statement by default).
             for statement in sql.split(';') {
                 let trimmed = statement.trim();
                 if !trimmed.is_empty() {
-                    sqlx::query(trimmed).execute(pool).await?;
+                    sqlx::query(trimmed).execute(&mut *tx).await?;
                 }
             }
 
             sqlx::query("INSERT INTO _migrations (name) VALUES (?1)")
                 .bind(name)
-                .execute(pool)
+                .execute(&mut *tx)
                 .await?;
+
+            tx.commit().await?;
 
             tracing::info!(migration = name, "applied migration");
         }

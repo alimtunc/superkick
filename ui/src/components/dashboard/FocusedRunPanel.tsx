@@ -1,4 +1,5 @@
 import { fetchRun } from '@/api'
+import { InterruptSummary } from '@/components/dashboard/InterruptSummary'
 import { StepTimeline } from '@/components/run-detail/StepTimeline'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { Button } from '@/components/ui/button'
@@ -6,25 +7,9 @@ import { TERMINAL_STATES } from '@/lib/constants'
 import { fmtElapsed } from '@/lib/domain'
 import { queryKeys } from '@/lib/queryKeys'
 import { useWatchedSessionsStore } from '@/stores/watchedSessions'
-import type { Interrupt, Run } from '@/types'
+import type { Run } from '@/types'
 import { useQuery, useQueryClient, skipToken } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-
-function InterruptSummary({ interrupts }: { interrupts: Interrupt[] }) {
-	const pending = interrupts.filter((i) => i.status === 'pending')
-	return (
-		<div className="rounded border border-gold/20 bg-gold-dim p-2">
-			<span className="font-data text-[10px] tracking-wider text-gold uppercase">
-				{pending.length} pending interrupt{pending.length !== 1 ? 's' : ''}
-			</span>
-			{pending.slice(0, 2).map((int) => (
-				<p key={int.id} className="font-data mt-1 truncate text-[11px] text-fog">
-					{int.question}
-				</p>
-			))}
-		</div>
-	)
-}
 
 export function FocusedRunPanel({ refTime }: { refTime: number }) {
 	const focusedId = useWatchedSessionsStore((s) => s.focusedId)
@@ -126,12 +111,14 @@ export function FocusedRunPanel({ refTime }: { refTime: number }) {
 									</dd>
 								</div>
 							</dl>
-							{data.run.error_message && (
+							{data.run.error_message ? (
 								<p className="font-data rounded border border-oxide/20 bg-oxide-dim p-2 text-[11px] text-oxide">
 									{data.run.error_message}
 								</p>
-							)}
-							{data.interrupts.length > 0 && <InterruptSummary interrupts={data.interrupts} />}
+							) : null}
+							{data.interrupts.length > 0 ? (
+								<InterruptSummary interrupts={data.interrupts} />
+							) : null}
 						</div>
 						<div>
 							<span className="font-data mb-2 block text-[9px] tracking-wider text-dim uppercase">

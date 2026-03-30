@@ -7,7 +7,10 @@
 mod model;
 mod validate;
 
+mod repo_slug;
+
 pub use model::*;
+pub use repo_slug::parse_repo_slug;
 pub use validate::validate;
 
 use std::path::Path;

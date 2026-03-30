@@ -18,32 +18,6 @@ pub struct RunArgs {
     pub follow: bool,
 }
 
-fn parse_repo_slug(url: &str) -> Option<String> {
-    let url = url.trim();
-
-    // SSH: git@github.com:owner/repo.git
-    if let Some(path) = url.strip_prefix("git@github.com:") {
-        let slug = path.strip_suffix(".git").unwrap_or(path);
-        if slug.contains('/') && !slug.starts_with('/') {
-            return Some(slug.to_string());
-        }
-    }
-
-    // HTTPS: https://github.com/owner/repo.git
-    if let Some(rest) = url
-        .strip_prefix("https://github.com/")
-        .or_else(|| url.strip_prefix("http://github.com/"))
-    {
-        let slug = rest.strip_suffix(".git").unwrap_or(rest);
-        let slug = slug.trim_end_matches('/');
-        if slug.contains('/') && slug.matches('/').count() == 1 {
-            return Some(slug.to_string());
-        }
-    }
-
-    None
-}
-
 fn get_repo_slug() -> anyhow::Result<String> {
     let output = Command::new("git")
         .args(["remote", "get-url", "origin"])
@@ -56,7 +30,7 @@ fn get_repo_slug() -> anyhow::Result<String> {
 
     let raw = String::from_utf8_lossy(&output.stdout);
     let url = raw.trim();
-    parse_repo_slug(url)
+    superkick_config::parse_repo_slug(url)
         .ok_or_else(|| anyhow::anyhow!("Could not parse repo slug from remote URL: {url}"))
 }
 
