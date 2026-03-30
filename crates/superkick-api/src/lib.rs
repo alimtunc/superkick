@@ -13,8 +13,8 @@ use superkick_core::RunId;
 use superkick_integrations::linear::LinearClient;
 use superkick_runtime::{InterruptService, RepoCache, StepEngine, StepEngineDeps};
 use superkick_storage::{
-    SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteInterruptRepo, SqliteRunEventRepo,
-    SqliteRunRepo, SqliteRunStepRepo,
+    SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteInterruptRepo, SqlitePullRequestRepo,
+    SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
 };
 
 mod error;
@@ -41,6 +41,7 @@ pub(crate) struct AppState {
     pub session_repo: Arc<SqliteAgentSessionRepo>,
     pub artifact_repo: Arc<SqliteArtifactRepo>,
     pub interrupt_repo: Arc<SqliteInterruptRepo>,
+    pub pr_repo: Arc<SqlitePullRequestRepo>,
     pub engine: Arc<Engine>,
     pub interrupt_service: Arc<IntService>,
     pub linear_client: Option<Arc<LinearClient>>,
@@ -78,6 +79,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let event_repo = Arc::new(SqliteRunEventRepo::new(pool.clone()));
     let session_repo = Arc::new(SqliteAgentSessionRepo::new(pool.clone()));
     let artifact_repo = Arc::new(SqliteArtifactRepo::new(pool.clone()));
+    let pr_repo = Arc::new(SqlitePullRequestRepo::new(pool.clone()));
     let interrupt_repo = Arc::new(SqliteInterruptRepo::new(pool));
 
     let cache_root = PathBuf::from(&cfg.cache_dir);
@@ -116,6 +118,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         session_repo,
         artifact_repo,
         interrupt_repo,
+        pr_repo,
         engine,
         interrupt_service,
         linear_client,

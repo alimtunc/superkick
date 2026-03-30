@@ -4,8 +4,8 @@ use std::future::Future;
 
 use anyhow::Result;
 use superkick_core::{
-    AgentSession, AgentSessionId, Artifact, ArtifactId, EventId, Interrupt, InterruptId, Run,
-    RunEvent, RunId, RunStep, StepId,
+    AgentSession, AgentSessionId, Artifact, ArtifactId, EventId, Interrupt, InterruptId,
+    PullRequest, Run, RunEvent, RunId, RunStep, StepId,
 };
 
 /// Repository for `Run` entities.
@@ -67,4 +67,12 @@ pub trait ArtifactRepo: Send + Sync {
     fn insert(&self, artifact: &Artifact) -> impl Future<Output = Result<()>> + Send;
     fn get(&self, id: ArtifactId) -> impl Future<Output = Result<Option<Artifact>>> + Send;
     fn list_by_run(&self, run_id: RunId) -> impl Future<Output = Result<Vec<Artifact>>> + Send;
+}
+
+/// Repository for `PullRequest` entities.
+pub trait PullRequestRepo: Send + Sync {
+    fn upsert(&self, pr: &PullRequest) -> impl Future<Output = Result<()>> + Send;
+    fn get_by_run(&self, run_id: RunId)
+    -> impl Future<Output = Result<Option<PullRequest>>> + Send;
+    fn update(&self, pr: &PullRequest) -> impl Future<Output = Result<()>> + Send;
 }

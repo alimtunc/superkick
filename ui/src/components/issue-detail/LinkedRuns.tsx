@@ -1,4 +1,5 @@
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
+import { PrStateBadge } from '@/components/PrStateBadge'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import type { LinkedRunSummary } from '@/types'
 import { useNavigate } from '@tanstack/react-router'
@@ -30,15 +31,16 @@ export function LinkedRuns({ runs }: { runs: LinkedRunSummary[] }) {
 							<span className="font-data text-[11px] text-dim">
 								{new Date(run.started_at).toLocaleString()}
 							</span>
-							{run.pr_url ? (
+							{run.pr ? (
 								<a
-									href={run.pr_url}
+									href={run.pr.url}
 									target="_blank"
 									rel="noopener noreferrer"
 									onClick={(e) => e.stopPropagation()}
-									className="font-data inline-flex h-5 items-center rounded border border-neon-green/30 bg-neon-green/10 px-1.5 text-[10px] text-neon-green transition-colors hover:border-neon-green/50"
+									className="font-data inline-flex h-5 items-center gap-1.5 rounded border border-neon-green/30 bg-neon-green/10 px-1.5 text-[10px] text-neon-green transition-colors hover:border-neon-green/50"
 								>
-									PR
+									#{run.pr.number}
+									<PrStateBadge state={run.pr.state} />
 								</a>
 							) : null}
 						</div>

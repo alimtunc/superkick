@@ -7,7 +7,8 @@ import type {
 	InterruptAction,
 	IssueListResponse,
 	IssueDetailResponse,
-	LaunchProfile
+	LaunchProfile,
+	PullRequest
 } from '@/types'
 
 const BASE = '/api'
@@ -93,7 +94,7 @@ export async function fetchRun(id: string): Promise<{
 	steps: RunStep[]
 	sessions: AgentSession[]
 	interrupts: Interrupt[]
-	pr_url: string | null
+	pr: PullRequest | null
 }> {
 	const res = await fetch(`${BASE}/runs/${id}`)
 	if (!res.ok) throw new Error(`GET /runs/${id} failed: ${res.status}`)

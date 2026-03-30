@@ -8,9 +8,12 @@ use axum::response::{IntoResponse, Json};
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
-use superkick_core::{ArtifactKind, Run, RunId, TriggerSource};
+use superkick_core::{
+    ArtifactKind, LinkedPrSummary, PullRequest, Run, RunId, TriggerSource, parse_pr_number,
+};
 use superkick_storage::repo::{
-    AgentSessionRepo, ArtifactRepo, InterruptRepo, RunEventRepo, RunRepo, RunStepRepo,
+    AgentSessionRepo, ArtifactRepo, InterruptRepo, PullRequestRepo, RunEventRepo, RunRepo,
+    RunStepRepo,
 };
 
 use crate::AppState;
@@ -133,14 +136,14 @@ pub async fn get_run(
     let steps = state.step_repo.list_by_run(run_id).await?;
     let sessions = state.session_repo.list_by_run(run_id).await?;
     let interrupts = state.interrupt_repo.list_by_run(run_id).await?;
-    let pr_url = extract_pr_url(&state, run_id).await;
+    let pr = resolve_pr(&state, run_id, &run.repo_slug).await;
 
     Ok(Json(serde_json::json!({
         "run": run,
         "steps": steps,
         "sessions": sessions,
         "interrupts": interrupts,
-        "pr_url": pr_url,
+        "pr": pr,
     })))
 }
 
@@ -224,18 +227,85 @@ pub async fn cancel_run(
     Ok(Json(run))
 }
 
-pub(crate) async fn extract_pr_url(state: &AppState, run_id: RunId) -> Option<String> {
-    let artifacts = match state.artifact_repo.list_by_run(run_id).await {
-        Ok(a) => a,
-        Err(e) => {
-            tracing::warn!(run_id = %run_id.0, error = %e, "failed to fetch artifacts for PR URL");
-            return None;
+/// Resolve the PullRequest for a run. Lazily creates a record from the PrUrl
+/// artifact if one doesn't exist yet. Syncs state from GitHub if stale.
+pub(crate) async fn resolve_pr(
+    state: &AppState,
+    run_id: RunId,
+    repo_slug: &str,
+) -> Option<PullRequest> {
+    // Check for existing PR record first.
+    if let Ok(Some(mut pr)) = state.pr_repo.get_by_run(run_id).await {
+        // Sync from GitHub if PR is in a non-terminal state and stale (>60s).
+        if !pr.state.is_terminal() {
+            let age = chrono::Utc::now() - pr.updated_at;
+            if age.num_seconds() > 60 {
+                sync_pr_state(state, &mut pr).await;
+            }
         }
-    };
+        return Some(pr);
+    }
+
+    // No PR record yet — try to create one from the PrUrl artifact.
+    let pr_url = extract_pr_url_from_artifacts(state, run_id).await?;
+    let number = parse_pr_number(&pr_url)?;
+
+    let pr = PullRequest::new(
+        run_id,
+        number,
+        repo_slug.to_string(),
+        pr_url,
+        String::new(),
+        String::new(),
+    );
+
+    if let Err(e) = state.pr_repo.upsert(&pr).await {
+        tracing::warn!(run_id = %run_id.0, error = %e, "failed to persist PullRequest record");
+    }
+
+    // Immediately sync to get title and current state.
+    let mut pr = pr;
+    sync_pr_state(state, &mut pr).await;
+    Some(pr)
+}
+
+/// Extract a PR URL from the artifacts table (legacy path).
+async fn extract_pr_url_from_artifacts(state: &AppState, run_id: RunId) -> Option<String> {
+    let artifacts = state.artifact_repo.list_by_run(run_id).await.ok()?;
     artifacts
         .into_iter()
         .find(|a| a.kind == ArtifactKind::PrUrl)
         .map(|a| a.path_or_url)
+}
+
+/// Fetch current state from GitHub and update the local record.
+async fn sync_pr_state(state: &AppState, pr: &mut PullRequest) {
+    match superkick_integrations::github::fetch_pr_state(&pr.repo_slug, pr.number).await {
+        Ok(gh) => {
+            pr.state = gh.state;
+            pr.title = gh.title;
+            pr.merged_at = gh.merged_at;
+            pr.updated_at = chrono::Utc::now();
+            if let Err(e) = state.pr_repo.update(pr).await {
+                tracing::warn!(pr_id = %pr.id, error = %e, "failed to update PR state");
+            }
+        }
+        Err(e) => {
+            tracing::debug!(pr_number = pr.number, error = %e, "GitHub PR sync failed (gh cli may not be available)");
+        }
+    }
+}
+
+/// Build a `LinkedPrSummary` for a run, used by the issues handler.
+pub(crate) async fn resolve_pr_summary(
+    state: &AppState,
+    run_id: RunId,
+    repo_slug: &str,
+) -> Option<LinkedPrSummary> {
+    resolve_pr(state, run_id, repo_slug)
+        .await
+        .as_ref()
+        .map(LinkedPrSummary::from)
 }
 
 fn is_unique_violation(err: &anyhow::Error) -> bool {

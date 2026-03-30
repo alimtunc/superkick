@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::CoreError;
 use crate::id::RunId;
+use crate::pull_request::LinkedPrSummary;
 use crate::step::StepKey;
 
 /// Every run moves through explicit states. Terminal states are `Completed`,
@@ -130,9 +131,9 @@ pub struct LinkedRunSummary {
     pub state: RunState,
     pub started_at: DateTime<Utc>,
     pub finished_at: Option<DateTime<Utc>>,
-    /// GitHub PR URL produced by the `CreatePr` step, if any.
+    /// Linked GitHub PR summary, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub pr_url: Option<String>,
+    pub pr: Option<LinkedPrSummary>,
 }
 
 impl From<&Run> for LinkedRunSummary {
@@ -142,16 +143,16 @@ impl From<&Run> for LinkedRunSummary {
             state: run.state,
             started_at: run.started_at,
             finished_at: run.finished_at,
-            pr_url: None,
+            pr: None,
         }
     }
 }
 
 impl LinkedRunSummary {
-    /// Attach a PR URL discovered from the artifacts table.
+    /// Attach a PR summary discovered from the pull_requests table.
     #[must_use]
-    pub fn with_pr_url(mut self, pr_url: Option<String>) -> Self {
-        self.pr_url = pr_url;
+    pub fn with_pr(mut self, pr: Option<LinkedPrSummary>) -> Self {
+        self.pr = pr;
         self
     }
 }

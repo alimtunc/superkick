@@ -6,8 +6,8 @@ pub mod sqlite;
 
 pub use db::connect;
 pub use sqlite::{
-    SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteInterruptRepo, SqliteRunEventRepo,
-    SqliteRunRepo, SqliteRunStepRepo,
+    SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteInterruptRepo, SqlitePullRequestRepo,
+    SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
 };
 
 /// Check if an anyhow error chain contains a SQLite unique constraint violation.
