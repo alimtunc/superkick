@@ -148,6 +148,10 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
             "/runs/{run_id}/interrupts/{interrupt_id}/answer",
             post(handlers::interrupts::answer_interrupt),
         )
+        .route(
+            "/runs/{run_id}/sessions/{session_id}/attach",
+            post(handlers::sessions::prepare_attach),
+        )
         .with_state(state);
 
     let local_addr = cfg.listener.local_addr()?;
