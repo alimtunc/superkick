@@ -16,6 +16,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use chrono::Utc;
+use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
@@ -416,7 +417,7 @@ where
                     let stderr_bytes = match child.stderr.take() {
                         Some(mut s) => {
                             let mut buf = Vec::new();
-                            let _ = tokio::io::AsyncReadExt::read_to_end(&mut s, &mut buf).await;
+                            let _ = s.read_to_end(&mut buf).await;
                             buf
                         }
                         None => Vec::new(),
@@ -646,9 +647,15 @@ fn require_worktree(path: Option<&std::path::Path>) -> Result<&std::path::Path> 
 
 async fn abort_setup_handle(handle: &mut Option<tokio::task::JoinHandle<Result<()>>>) {
     if let Some(h) = handle.take() {
-        h.abort();
-        // Wait for the task to finish so child processes are cleaned up.
-        let _ = h.await;
+        // The CancellationToken is already cancelled at this point — the spawned
+        // task will see it in its select! and kill the child process. We just need
+        // to wait for the task to finish cleanup. Do NOT call h.abort() as that
+        // would bypass the token-based select! arm that calls kill_child().
+        match h.await {
+            Ok(Err(e)) => warn!("setup task failed during cancellation: {e:#}"),
+            Err(e) if !e.is_cancelled() => warn!("setup task panicked: {e}"),
+            _ => {}
+        }
     }
 }
 
