@@ -2,7 +2,8 @@ use anyhow::{Context, Result, bail};
 
 use superkick_core::{RunStep, StepKey};
 use superkick_storage::repo::{
-    AgentSessionRepo, ArtifactRepo, InterruptRepo, RunEventRepo, RunRepo, RunStepRepo,
+    AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
+    RunStepRepo,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -16,7 +17,7 @@ where
     E: RunEventRepo + 'static,
     A: AgentSessionRepo + 'static,
     AR: ArtifactRepo + 'static,
-    I: InterruptRepo + 'static,
+    I: InterruptRepo + InterruptTxRepo + 'static,
 {
     /// Execute an agent step (Plan or Code) via the AgentSupervisor.
     pub(super) async fn execute_agent(

@@ -6,7 +6,8 @@ use tracing::{info, warn};
 use superkick_core::EventKind;
 use superkick_core::EventLevel;
 use superkick_storage::repo::{
-    AgentSessionRepo, ArtifactRepo, InterruptRepo, RunEventRepo, RunRepo, RunStepRepo,
+    AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
+    RunStepRepo,
 };
 
 use super::StepEngine;
@@ -19,7 +20,7 @@ where
     E: RunEventRepo + 'static,
     A: AgentSessionRepo + 'static,
     AR: ArtifactRepo + 'static,
-    I: InterruptRepo + 'static,
+    I: InterruptRepo + InterruptTxRepo + 'static,
 {
     /// Prepare step: ensure bare clone exists, create worktree (or use repo root).
     pub(super) async fn execute_prepare(&self, run: &mut superkick_core::Run) -> Result<()> {

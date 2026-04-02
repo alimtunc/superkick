@@ -27,7 +27,8 @@ use superkick_core::{
     StepStatus,
 };
 use superkick_storage::repo::{
-    AgentSessionRepo, ArtifactRepo, InterruptRepo, RunEventRepo, RunRepo, RunStepRepo,
+    AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
+    RunStepRepo,
 };
 
 use crate::agent_supervisor::AgentSupervisor;
@@ -68,7 +69,7 @@ where
     E: RunEventRepo + 'static,
     A: AgentSessionRepo + 'static,
     AR: ArtifactRepo + 'static,
-    I: InterruptRepo + 'static,
+    I: InterruptRepo + InterruptTxRepo + 'static,
 {
     pub fn new(deps: StepEngineDeps<R, ST, E, A, AR, I>) -> Self {
         let supervisor = AgentSupervisor::new(deps.session_repo, Arc::clone(&deps.event_repo));
