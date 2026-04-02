@@ -3,13 +3,13 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result, bail};
-use tracing::{info, warn};
+use tracing::info;
 
 use superkick_core::{
     EventKind, EventLevel, Interrupt, InterruptAction, InterruptId, InterruptStatus, RunEvent,
     RunId, RunState, StepId,
 };
-use superkick_storage::repo::{InterruptRepo, RunEventRepo, RunRepo};
+use superkick_storage::repo::{InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo};
 
 /// Handles the lifecycle of human interrupts.
 pub struct InterruptService<R, E, I> {
@@ -22,7 +22,7 @@ impl<R, E, I> InterruptService<R, E, I>
 where
     R: RunRepo + 'static,
     E: RunEventRepo + 'static,
-    I: InterruptRepo + 'static,
+    I: InterruptRepo + InterruptTxRepo + 'static,
 {
     pub fn new(run_repo: Arc<R>, event_repo: Arc<E>, interrupt_repo: Arc<I>) -> Self {
         Self {
@@ -40,29 +40,22 @@ where
         question: String,
     ) -> Result<Interrupt> {
         let mut run = self.run_repo.get(run_id).await?.context("run not found")?;
-        let previous_state = run.state;
 
         // Transition to WaitingHuman.
         run.transition_to(RunState::WaitingHuman)
             .context("cannot transition run to waiting_human")?;
-        self.run_repo.update(&run).await?;
 
         // Create the interrupt record.
         let interrupt = Interrupt::new(run_id, step_id, question);
-        if let Err(err) = self.interrupt_repo.insert(&interrupt).await {
-            if let Err(rollback_err) =
-                rollback_run_state(&mut run, previous_state, &*self.run_repo).await
-            {
-                warn!(
-                    run_id = %run_id,
-                    error = %rollback_err,
-                    "failed to roll back run state after interrupt creation error"
-                );
-            }
-            return Err(err).context("failed to persist interrupt after transitioning run");
-        }
 
-        // Emit events.
+        // Persist both atomically — if the interrupt insert fails, the run state
+        // update is rolled back automatically.
+        self.interrupt_repo
+            .create_interrupt_atomic(&run, &interrupt)
+            .await
+            .context("failed to atomically create interrupt")?;
+
+        // Emit events (fire-and-forget, non-critical).
         self.emit(
             run_id,
             step_id,
@@ -161,18 +154,4 @@ fn action_label(action: &InterruptAction) -> &'static str {
         InterruptAction::ContinueWithNote { .. } => "continue_with_note",
         InterruptAction::AbortRun => "abort_run",
     }
-}
-
-async fn rollback_run_state<R: RunRepo>(
-    run: &mut superkick_core::Run,
-    previous_state: RunState,
-    run_repo: &R,
-) -> Result<()> {
-    run.transition_to(previous_state)
-        .context("failed to roll back run state")?;
-    run_repo
-        .update(run)
-        .await
-        .context("failed to persist rolled back run state")?;
-    Ok(())
 }
