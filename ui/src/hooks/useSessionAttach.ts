@@ -22,7 +22,7 @@ export function useSessionAttach() {
 		attach: (runId: string, sessionId: string) => mutation.mutate({ runId, sessionId }),
 		payload,
 		isPending: mutation.isPending,
-		error: mutation.error ? String(mutation.error) : null,
+		error: mutation.error ? mutation.error.message : null,
 		reset
 	}
 }

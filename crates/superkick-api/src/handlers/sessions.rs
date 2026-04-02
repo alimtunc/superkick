@@ -1,7 +1,7 @@
 use axum::extract::{Path, State};
 use axum::response::{IntoResponse, Json};
 
-use superkick_core::{AgentSessionId, EventKind, EventLevel, RunEvent, RunId};
+use superkick_core::{AgentSessionId, RunId};
 use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, RunRepo};
 
 use crate::AppState;
@@ -23,22 +23,7 @@ pub async fn prepare_attach(
     };
 
     let payload = superkick_core::attach::prepare_attach(&run, &session)?;
-
-    // Event trace
-    let event = RunEvent::new(
-        run_id,
-        None,
-        EventKind::ExternalAttach,
-        EventLevel::Info,
-        format!(
-            "External attach prepared for session {session_id} ({kind})",
-            kind = serde_json::to_value(&payload.attach_kind)
-                .ok()
-                .and_then(|v| v.as_str().map(String::from))
-                .unwrap_or_else(|| "unknown".into()),
-        ),
-    );
-    state.event_repo.insert(&event).await?;
+    state.event_repo.insert(&payload.event).await?;
 
     Ok(Json(payload))
 }

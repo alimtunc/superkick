@@ -1,7 +1,10 @@
+use std::fmt;
+
 use serde::Serialize;
 
 use crate::agent::{AgentSession, AgentStatus};
 use crate::error::CoreError;
+use crate::event::{EventKind, EventLevel, RunEvent};
 use crate::run::Run;
 
 /// What kind of attach operation is being prepared.
@@ -10,6 +13,15 @@ use crate::run::Run;
 pub enum AttachKind {
     RecoveryShell,
     WorkspaceAttach,
+}
+
+impl fmt::Display for AttachKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::RecoveryShell => write!(f, "recovery_shell"),
+            Self::WorkspaceAttach => write!(f, "workspace_attach"),
+        }
+    }
 }
 
 /// Everything the caller needs to open an external shell in a run's worktree.
@@ -21,6 +33,8 @@ pub struct AttachPayload {
     pub command: String,
     pub worktree_path: String,
     pub limitations: Vec<String>,
+    #[serde(skip)]
+    pub event: RunEvent,
 }
 
 /// Validate preconditions and build the attach payload.
@@ -87,9 +101,8 @@ pub fn prepare_attach(run: &Run, session: &AgentSession) -> Result<AttachPayload
     let status_str = match session.status {
         AgentStatus::Starting => "starting",
         AgentStatus::Running => "running",
-        AgentStatus::Completed => "completed",
         AgentStatus::Failed => "failed",
-        AgentStatus::Cancelled => "cancelled",
+        _ => unreachable!("filtered by eligibility check above"),
     };
 
     let command = build_shell_command(
@@ -107,6 +120,17 @@ pub fn prepare_attach(run: &Run, session: &AgentSession) -> Result<AttachPayload
         "Changes made in this shell are not tracked by Superkick.".into(),
     ];
 
+    let event = RunEvent::new(
+        run.id,
+        None,
+        EventKind::ExternalAttach,
+        EventLevel::Info,
+        format!(
+            "External attach prepared for session {} ({attach_kind})",
+            session.id
+        ),
+    );
+
     Ok(AttachPayload {
         attach_kind,
         title,
@@ -114,6 +138,7 @@ pub fn prepare_attach(run: &Run, session: &AgentSession) -> Result<AttachPayload
         command,
         worktree_path: worktree_path.clone(),
         limitations,
+        event,
     })
 }
 
