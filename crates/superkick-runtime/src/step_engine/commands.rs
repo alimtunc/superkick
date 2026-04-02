@@ -8,7 +8,8 @@ use tracing::info;
 
 use superkick_core::{EventKind, EventLevel, RunStep};
 use superkick_storage::repo::{
-    AgentSessionRepo, ArtifactRepo, InterruptRepo, RunEventRepo, RunRepo, RunStepRepo,
+    AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
+    RunStepRepo,
 };
 
 use super::{StepEngine, emit_event, kill_child};
@@ -20,7 +21,7 @@ where
     E: RunEventRepo + 'static,
     A: AgentSessionRepo + 'static,
     AR: ArtifactRepo + 'static,
-    I: InterruptRepo + 'static,
+    I: InterruptRepo + InterruptTxRepo + 'static,
 {
     /// Execute the Commands step: run each command as a subprocess in the worktree.
     pub(super) async fn execute_commands(

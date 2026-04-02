@@ -466,3 +466,51 @@ async fn get_nonexistent_returns_none() -> Result<()> {
     assert!(result.is_none());
     Ok(())
 }
+
+#[tokio::test]
+async fn create_interrupt_atomic_rolls_back_on_duplicate() -> Result<()> {
+    use superkick_storage::repo::InterruptTxRepo;
+
+    let pool = setup().await?;
+    let run_repo = SqliteRunRepo::new(pool.clone());
+    let int_repo = SqliteInterruptRepo::new(pool);
+
+    // Create a run in Coding state (can transition to WaitingHuman).
+    let mut run = Run::new(
+        "i".into(),
+        "SK-1".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        "main".into(),
+        None,
+    );
+    run.transition_to(RunState::Preparing)?;
+    run.transition_to(RunState::Planning)?;
+    run.transition_to(RunState::Coding)?;
+    run_repo.insert(&run).await?;
+
+    // Insert a first interrupt to create a duplicate ID later.
+    let first = Interrupt::new(run.id, None, "first".into());
+    int_repo.insert(&first).await?;
+
+    // Transition run to WaitingHuman in memory (simulating what the service does).
+    run.transition_to(RunState::WaitingHuman)?;
+
+    // Build a second interrupt with the SAME ID to force a unique constraint violation.
+    let mut duplicate = Interrupt::new(run.id, None, "duplicate".into());
+    duplicate.id = first.id; // force collision
+
+    // The atomic call must fail.
+    let result = int_repo.create_interrupt_atomic(&run, &duplicate).await;
+    assert!(result.is_err(), "expected unique constraint violation");
+
+    // The run must still be in Coding — the UPDATE was rolled back.
+    let fetched = run_repo.get(run.id).await?.expect("run should exist");
+    assert_eq!(
+        fetched.state,
+        RunState::Coding,
+        "run state must not have changed after failed atomic insert"
+    );
+
+    Ok(())
+}

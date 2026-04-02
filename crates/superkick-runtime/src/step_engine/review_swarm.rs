@@ -5,7 +5,8 @@ use tracing::warn;
 
 use superkick_core::{EventKind, EventLevel, ReviewFinding, ReviewSwarmResult, RunEvent, RunStep};
 use superkick_storage::repo::{
-    AgentSessionRepo, ArtifactRepo, InterruptRepo, RunEventRepo, RunRepo, RunStepRepo,
+    AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
+    RunStepRepo,
 };
 
 use super::{DEFAULT_AGENT_TIMEOUT, StepEngine, agent_command};
@@ -18,7 +19,7 @@ where
     E: RunEventRepo + 'static,
     A: AgentSessionRepo + 'static,
     AR: ArtifactRepo + 'static,
-    I: InterruptRepo + 'static,
+    I: InterruptRepo + InterruptTxRepo + 'static,
 {
     /// Execute the ReviewSwarm step: launch N review agents in parallel, aggregate findings.
     pub(super) async fn execute_review_swarm(

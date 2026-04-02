@@ -8,7 +8,8 @@ use tracing::{info, warn};
 
 use superkick_core::{Artifact, ArtifactKind, EventKind, EventLevel, RunStep};
 use superkick_storage::repo::{
-    AgentSessionRepo, ArtifactRepo, InterruptRepo, RunEventRepo, RunRepo, RunStepRepo,
+    AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
+    RunStepRepo,
 };
 
 use super::{StepEngine, emit_event, kill_child};
@@ -20,7 +21,7 @@ where
     E: RunEventRepo + 'static,
     A: AgentSessionRepo + 'static,
     AR: ArtifactRepo + 'static,
-    I: InterruptRepo + 'static,
+    I: InterruptRepo + InterruptTxRepo + 'static,
 {
     /// Execute the CreatePr step: push branch and open a GitHub PR via `gh`.
     pub(super) async fn execute_create_pr(
