@@ -76,3 +76,12 @@ pub trait PullRequestRepo: Send + Sync {
     -> impl Future<Output = Result<Option<PullRequest>>> + Send;
     fn update(&self, pr: &PullRequest) -> impl Future<Output = Result<()>> + Send;
 }
+
+/// Atomic operations spanning multiple tables for interrupt workflows.
+pub trait InterruptTxRepo: Send + Sync {
+    fn create_interrupt_atomic(
+        &self,
+        run: &Run,
+        interrupt: &Interrupt,
+    ) -> impl Future<Output = Result<()>> + Send;
+}
