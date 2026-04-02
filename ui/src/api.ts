@@ -1,5 +1,6 @@
 import type {
 	AgentSession,
+	AttachPayload,
 	Run,
 	RunStep,
 	RunEvent,
@@ -123,6 +124,19 @@ export async function cancelRun(id: string): Promise<Run> {
 	if (!res.ok) {
 		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
 		throw new Error(body.error || `cancel run failed: ${res.status}`)
+	}
+	return res.json()
+}
+
+// ── Session attach ───────────────────────────────────────────────────
+
+export async function prepareSessionAttach(runId: string, sessionId: string): Promise<AttachPayload> {
+	const res = await fetch(`${BASE}/runs/${runId}/sessions/${sessionId}/attach`, {
+		method: 'POST'
+	})
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
+		throw new Error(body.error || `prepare attach failed: ${res.status}`)
 	}
 	return res.json()
 }
