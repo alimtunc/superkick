@@ -83,13 +83,15 @@ pub async fn create_run(
                 .run_repo
                 .find_active_by_issue_identifier(&run.issue_identifier)
                 .await?;
-            return Err(
-                Run::guard_no_active(existing.as_ref(), &run.issue_identifier)
-                    .map_err(AppError::from)
-                    .expect_err(
-                        "unique violation but no active run found — concurrent race resolved",
-                    ),
-            );
+            return match Run::guard_no_active(existing.as_ref(), &run.issue_identifier) {
+                // Still active → 409 Conflict
+                Err(core_err) => Err(AppError::from(core_err)),
+                // Race resolved: conflicting run finished between guard and insert.
+                Ok(()) => Err(AppError::Internal(anyhow::anyhow!(
+                    "unique constraint violated but no active run for issue {} — concurrent race resolved",
+                    run.issue_identifier
+                ))),
+            };
         }
         return Err(AppError::Internal(err));
     }
