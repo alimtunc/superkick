@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 
 import { prepareSessionAttach } from '@/api'
 import type { AttachPayload } from '@/types'
@@ -13,20 +13,13 @@ export function useSessionAttach() {
 		onSuccess: (data) => setPayload(data)
 	})
 
-	const attach = useCallback(
-		(runId: string, sessionId: string) => {
-			mutation.mutate({ runId, sessionId })
-		},
-		[mutation]
-	)
-
-	const reset = useCallback(() => {
+	const reset = () => {
 		setPayload(null)
 		mutation.reset()
-	}, [mutation])
+	}
 
 	return {
-		attach,
+		attach: (runId: string, sessionId: string) => mutation.mutate({ runId, sessionId }),
 		payload,
 		isPending: mutation.isPending,
 		error: mutation.error ? String(mutation.error) : null,

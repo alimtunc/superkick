@@ -2,6 +2,7 @@
 
 pub mod agent;
 pub mod artifact;
+pub mod attach;
 pub mod error;
 pub mod event;
 pub mod id;
@@ -14,6 +15,7 @@ pub mod step;
 // Re-export primary types for ergonomic imports.
 pub use agent::{AgentProvider, AgentSession, AgentStatus};
 pub use artifact::{Artifact, ArtifactKind};
+pub use attach::{AttachKind, AttachPayload};
 pub use error::CoreError;
 pub use event::{EventKind, EventLevel, RunEvent};
 pub use id::{AgentSessionId, ArtifactId, EventId, InterruptId, PullRequestId, RunId, StepId};
