@@ -477,11 +477,12 @@ async fn create_interrupt_atomic_rolls_back_on_duplicate() -> Result<()> {
 
     // Create a run in Coding state (can transition to WaitingHuman).
     let mut run = Run::new(
-        "i".into(),
-        "SK-1".into(),
-        "o/r".into(),
+        "issue-atomicity".into(),
+        "SK-99".into(),
+        "org/repo".into(),
         TriggerSource::Manual,
         "main".into(),
+        true,
         None,
     );
     run.transition_to(RunState::Preparing)?;
