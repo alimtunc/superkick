@@ -16,6 +16,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use chrono::Utc;
+use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
@@ -122,6 +123,7 @@ where
 
         for step_key in step_keys {
             if cancel_token.is_cancelled() {
+                abort_setup_handle(&mut setup_handle).await;
                 self.handle_cancellation(run).await?;
                 return Ok(());
             }
@@ -205,7 +207,7 @@ where
                             if step_key == StepKey::Prepare
                                 && !self.config.runner.setup_commands.is_empty()
                             {
-                                setup_handle = Some(self.spawn_setup_commands(run)?);
+                                setup_handle = Some(self.spawn_setup_commands(run, cancel_token)?);
                             }
 
                             succeeded = true;
@@ -218,6 +220,7 @@ where
                                 step.error_message = Some("cancelled".into());
                                 self.step_repo.update(&step).await?;
 
+                                abort_setup_handle(&mut setup_handle).await;
                                 self.handle_cancellation(run).await?;
                                 return Ok(());
                             }
@@ -373,6 +376,7 @@ where
     fn spawn_setup_commands(
         &self,
         run: &superkick_core::Run,
+        cancel_token: &CancellationToken,
     ) -> Result<tokio::task::JoinHandle<Result<()>>> {
         let cmds: Vec<String> = self.config.runner.setup_commands.clone();
         let wt = PathBuf::from(
@@ -381,25 +385,48 @@ where
                 .context("worktree path missing after prepare step")?,
         );
         let run_id = run.id;
+        let token = cancel_token.clone();
         Ok(tokio::spawn(async move {
             for cmd_str in &cmds {
+                if token.is_cancelled() {
+                    bail!("setup commands cancelled");
+                }
                 info!(
                     run_id = %run_id,
                     command = %cmd_str,
                     "running setup command (background)"
                 );
-                let output = Command::new("sh")
+                let mut child = Command::new("sh")
                     .args(["-c", cmd_str.as_str()])
                     .current_dir(&wt)
-                    .output()
-                    .await
-                    .with_context(|| format!("failed to run setup command: {cmd_str}"))?;
-                if !output.status.success() {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    .stderr(std::process::Stdio::piped())
+                    .spawn()
+                    .with_context(|| format!("failed to spawn setup command: {cmd_str}"))?;
+
+                let status = tokio::select! {
+                    result = child.wait() => {
+                        result.with_context(|| format!("failed to run setup command: {cmd_str}"))?
+                    }
+                    _ = token.cancelled() => {
+                        kill_child(&mut child).await;
+                        bail!("setup command '{cmd_str}' cancelled");
+                    }
+                };
+
+                if !status.success() {
+                    let stderr_bytes = match child.stderr.take() {
+                        Some(mut s) => {
+                            let mut buf = Vec::new();
+                            let _ = s.read_to_end(&mut buf).await;
+                            buf
+                        }
+                        None => Vec::new(),
+                    };
+                    let stderr = String::from_utf8_lossy(&stderr_bytes);
                     bail!(
                         "setup command '{}' failed (exit {}): {}",
                         cmd_str,
-                        output.status.code().unwrap_or(-1),
+                        status.code().unwrap_or(-1),
                         stderr.trim()
                     );
                 }
@@ -616,6 +643,20 @@ fn agent_command(provider: &AgentProvider) -> (&'static str, Vec<&'static str>) 
 
 fn require_worktree(path: Option<&std::path::Path>) -> Result<&std::path::Path> {
     path.context("worktree path not set — Prepare step must run first")
+}
+
+async fn abort_setup_handle(handle: &mut Option<tokio::task::JoinHandle<Result<()>>>) {
+    if let Some(h) = handle.take() {
+        // The CancellationToken is already cancelled at this point — the spawned
+        // task will see it in its select! and kill the child process. We just need
+        // to wait for the task to finish cleanup. Do NOT call h.abort() as that
+        // would bypass the token-based select! arm that calls kill_child().
+        match h.await {
+            Ok(Err(e)) => warn!("setup task failed during cancellation: {e:#}"),
+            Err(e) if !e.is_cancelled() => warn!("setup task panicked: {e}"),
+            _ => {}
+        }
+    }
 }
 
 pub(super) async fn kill_child(child: &mut tokio::process::Child) {
