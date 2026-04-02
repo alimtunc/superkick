@@ -69,9 +69,18 @@ Then in another terminal:
 - [ ] <edge case 2>
 ```
 
+4. **Add a French summary** at the end:
+
+```markdown
+### Résumé
+
+<2-3 phrases en français décrivant ce qui a été implémenté, le comportement attendu, et les points d'attention pour le test>
+```
+
 ## Key principles
 
 - Commands must be copy-pasteable — no placeholders except secrets
 - Always include the worktree path if working in one
 - Always mention required env vars
 - Keep it short — no explanations, just steps
+- The résumé section is always in French

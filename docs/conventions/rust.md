@@ -43,6 +43,7 @@ Applies during implementation and review.
 - No unused imports
 - No dead/commented code
 - snake_case naming (no camelCase)
+- Descriptive variable names — no single-letter names (use `issue` not `i`, `label` not `l`)
 - Prefer iterators (`.map`, `.filter`, `.collect`) over manual `for` loops when appropriate
 - `#[must_use]` for functions whose result should not be ignored
 - Derive standard traits when appropriate (`Debug`, `Clone`, `PartialEq`)
