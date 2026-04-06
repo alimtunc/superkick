@@ -30,6 +30,7 @@ export type EventKind =
 	| 'interrupt_resolved'
 	| 'review_completed'
 	| 'error'
+	| 'external_attach'
 
 export type EventLevel = 'debug' | 'info' | 'warn' | 'error'
 
@@ -95,6 +96,17 @@ export interface AgentSession {
 	started_at: string
 	finished_at: string | null
 	exit_code: number | null
+}
+
+// ── Session attach ───────────────────────────────────────────────────
+
+export interface AttachPayload {
+	attach_kind: 'recovery_shell' | 'workspace_attach'
+	title: string
+	summary: string
+	command: string
+	worktree_path: string
+	limitations: string[]
 }
 
 // ── Interrupts ─────────────────────────────────────────────────────────

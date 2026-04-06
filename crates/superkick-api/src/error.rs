@@ -25,6 +25,7 @@ impl From<anyhow::Error> for AppError {
 impl From<CoreError> for AppError {
     fn from(err: CoreError) -> Self {
         match err {
+            CoreError::InvalidInput(msg) => AppError::BadRequest(msg),
             CoreError::DuplicateActiveRun {
                 ref issue_identifier,
                 ref active_run_id,

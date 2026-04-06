@@ -65,7 +65,7 @@ function RunDetail({ runId, refTime }: { runId: string; refTime: number }) {
 				{d.sessions.length > 0 ? (
 					<section className="mb-6">
 						<SectionTitle title="AGENT SESSIONS" />
-						<SessionList sessions={d.sessions} />
+						<SessionList sessions={d.sessions} run={d.run} isTerminal={d.isTerminal} />
 					</section>
 				) : null}
 

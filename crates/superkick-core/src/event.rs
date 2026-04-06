@@ -17,6 +17,7 @@ pub enum EventKind {
     InterruptResolved,
     ReviewCompleted,
     Error,
+    ExternalAttach,
 }
 
 /// Severity level for run events.

@@ -17,6 +17,9 @@ pub enum CoreError {
         state: RunState,
     },
 
+    #[error("invalid input: {0}")]
+    InvalidInput(String),
+
     #[error("failed to serialize interrupt answer: {0}")]
     InterruptAnswerSerialization(#[from] serde_json::Error),
 }
