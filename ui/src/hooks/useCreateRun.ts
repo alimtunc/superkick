@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 
 import { createRun, type CreateRunRequest, type ServerConfigResponse } from '@/api'
 import { queryKeys } from '@/lib/queryKeys'
-import type { Run } from '@/types'
+import type { ExecutionMode, Run } from '@/types'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 
@@ -15,6 +15,7 @@ export interface LaunchParams {
 	issueId: string
 	issueIdentifier: string
 	useWorktree?: boolean
+	executionMode?: ExecutionMode
 	operatorInstructions?: string
 	onSuccess?: () => void
 }
@@ -43,6 +44,7 @@ export function useCreateRun({ issueId }: UseCreateRunOptions = {}) {
 					issue_identifier: params.issueIdentifier,
 					base_branch: params.config.base_branch,
 					use_worktree: params.useWorktree,
+					execution_mode: params.executionMode,
 					operator_instructions: params.operatorInstructions
 				},
 				{ onSuccess: params.onSuccess }

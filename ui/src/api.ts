@@ -1,6 +1,7 @@
 import type {
 	AgentSession,
 	AttachPayload,
+	ExecutionMode,
 	Run,
 	RunStep,
 	RunEvent,
@@ -36,6 +37,7 @@ export interface CreateRunRequest {
 	issue_identifier: string
 	base_branch?: string
 	use_worktree?: boolean
+	execution_mode?: ExecutionMode
 	operator_instructions?: string
 }
 

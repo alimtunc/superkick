@@ -1,4 +1,4 @@
-use superkick_core::{CoreError, Run, RunState, TriggerSource};
+use superkick_core::{CoreError, ExecutionMode, Run, RunState, TriggerSource};
 
 /// Helper: create a run in the given state.
 fn run_in(state: RunState) -> Run {
@@ -7,6 +7,7 @@ fn run_in(state: RunState) -> Run {
         "SK-1".into(),
         "owner/repo".into(),
         TriggerSource::Manual,
+        ExecutionMode::FullAuto,
         "main".into(),
         true,
         None,

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use sqlx::SqlitePool;
-use superkick_core::{Run, RunId, RunState, StepKey, TriggerSource};
+use superkick_core::{ExecutionMode, Run, RunId, RunState, StepKey, TriggerSource};
 
 use super::codec::{deserialize_enum, serialize_enum};
 use crate::repo::RunRepo;
@@ -18,8 +18,8 @@ impl SqliteRunRepo {
 impl RunRepo for SqliteRunRepo {
     async fn insert(&self, run: &Run) -> Result<()> {
         sqlx::query(
-            "INSERT INTO runs (id, issue_id, issue_identifier, repo_slug, state, trigger_source, current_step_key, base_branch, use_worktree, worktree_path, branch_name, operator_instructions, started_at, updated_at, finished_at, error_message)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+            "INSERT INTO runs (id, issue_id, issue_identifier, repo_slug, state, trigger_source, execution_mode, current_step_key, base_branch, use_worktree, worktree_path, branch_name, operator_instructions, started_at, updated_at, finished_at, error_message)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
         )
         .bind(run.id.0.to_string())
         .bind(&run.issue_id)
@@ -27,6 +27,7 @@ impl RunRepo for SqliteRunRepo {
         .bind(&run.repo_slug)
         .bind(serialize_enum(&run.state)?)
         .bind(serialize_enum(&run.trigger_source)?)
+        .bind(serialize_enum(&run.execution_mode)?)
         .bind(run.current_step_key.map(|k| k.to_string()))
         .bind(&run.base_branch)
         .bind(run.use_worktree)
@@ -89,13 +90,14 @@ impl RunRepo for SqliteRunRepo {
 
     async fn update(&self, run: &Run) -> Result<()> {
         sqlx::query(
-            "UPDATE runs SET state = ?1, trigger_source = ?2, current_step_key = ?3, worktree_path = ?4, branch_name = ?5, updated_at = ?6, finished_at = ?7, error_message = ?8 WHERE id = ?9",
+            "UPDATE runs SET state = ?1, trigger_source = ?2, current_step_key = ?3, worktree_path = ?4, branch_name = ?5, operator_instructions = ?6, updated_at = ?7, finished_at = ?8, error_message = ?9 WHERE id = ?10",
         )
         .bind(serialize_enum(&run.state)?)
         .bind(serialize_enum(&run.trigger_source)?)
         .bind(run.current_step_key.map(|k| k.to_string()))
         .bind(&run.worktree_path)
         .bind(&run.branch_name)
+        .bind(&run.operator_instructions)
         .bind(run.updated_at.to_rfc3339())
         .bind(run.finished_at.map(|t| t.to_rfc3339()))
         .bind(&run.error_message)
@@ -114,6 +116,7 @@ struct RunRow {
     repo_slug: String,
     state: String,
     trigger_source: String,
+    execution_mode: String,
     current_step_key: Option<String>,
     base_branch: String,
     use_worktree: bool,
@@ -135,6 +138,7 @@ impl RunRow {
             repo_slug: self.repo_slug,
             state: deserialize_enum::<RunState>(&self.state)?,
             trigger_source: deserialize_enum::<TriggerSource>(&self.trigger_source)?,
+            execution_mode: deserialize_enum::<ExecutionMode>(&self.execution_mode)?,
             current_step_key: self
                 .current_step_key
                 .as_deref()

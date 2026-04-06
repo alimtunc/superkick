@@ -1,18 +1,21 @@
 import { createPortal } from 'react-dom'
 
+import { ModeButton } from '@/components/launch/ModeButton'
 import { ProfileFlags } from '@/components/launch/ProfileFlags'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import type { LaunchProfile } from '@/types'
+import type { ExecutionMode, LaunchProfile } from '@/types'
 
 interface LaunchDialogProps {
 	open: boolean
 	profile: LaunchProfile
 	instructions: string
 	useWorktree: boolean
+	executionMode: ExecutionMode
 	isPending: boolean
 	onInstructionsChange: (value: string) => void
 	onUseWorktreeChange: (value: boolean) => void
+	onExecutionModeChange: (value: ExecutionMode) => void
 	onLaunch: () => void
 	onClose: () => void
 }
@@ -26,9 +29,11 @@ export function LaunchDialog({
 	profile,
 	instructions,
 	useWorktree,
+	executionMode,
 	isPending,
 	onInstructionsChange,
 	onUseWorktreeChange,
+	onExecutionModeChange,
 	onLaunch,
 	onClose
 }: LaunchDialogProps) {
@@ -64,6 +69,28 @@ export function LaunchDialog({
 				</div>
 
 				<ProfileFlags profile={profile} />
+
+				<div className="mt-4">
+					<span className="font-data mb-1.5 block text-[10px] tracking-wider text-dim uppercase">
+						EXECUTION MODE
+					</span>
+					<div className="flex gap-2">
+						<ModeButton
+							mode="full_auto"
+							label="FULL AUTO"
+							description="Autonomous — interrupts only on failure"
+							selected={executionMode === 'full_auto'}
+							onSelect={onExecutionModeChange}
+						/>
+						<ModeButton
+							mode="semi_auto"
+							label="SEMI AUTO"
+							description="Pauses after plan for operator review"
+							selected={executionMode === 'semi_auto'}
+							onSelect={onExecutionModeChange}
+						/>
+					</div>
+				</div>
 
 				<label className="mt-4 block">
 					<span className="font-data mb-1.5 block text-[10px] tracking-wider text-dim uppercase">
