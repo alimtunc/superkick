@@ -9,7 +9,8 @@ use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
-    ArtifactKind, LinkedPrSummary, PullRequest, Run, RunId, TriggerSource, parse_pr_number,
+    ArtifactKind, ExecutionMode, LinkedPrSummary, PullRequest, Run, RunId, TriggerSource,
+    parse_pr_number,
 };
 use superkick_storage::repo::{
     AgentSessionRepo, ArtifactRepo, InterruptRepo, PullRequestRepo, RunEventRepo, RunRepo,
@@ -28,6 +29,9 @@ pub struct CreateRunRequest {
     base_branch: String,
     /// Per-run worktree override. If absent, falls back to the launch profile default.
     use_worktree: Option<bool>,
+    /// Execution mode override. Defaults to `full_auto`.
+    #[serde(default)]
+    execution_mode: ExecutionMode,
     operator_instructions: Option<String>,
 }
 
@@ -81,6 +85,7 @@ pub async fn create_run(
         issue_identifier,
         repo_slug,
         TriggerSource::Manual,
+        body.execution_mode,
         base_branch,
         use_worktree,
         operator_instructions,

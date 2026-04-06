@@ -103,6 +103,27 @@ pub enum TriggerSource {
     Retry,
 }
 
+/// How much autonomy a run has during execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecutionMode {
+    /// Run proceeds autonomously. Interrupts only on failure (per policy).
+    #[default]
+    FullAuto,
+    /// Run pauses after planning for operator review before coding starts.
+    /// Designed for live supervision workflows.
+    SemiAuto,
+}
+
+impl std::fmt::Display for ExecutionMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::FullAuto => f.write_str("full_auto"),
+            Self::SemiAuto => f.write_str("semi_auto"),
+        }
+    }
+}
+
 /// A single run of the Superkick pipeline for one issue.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Run {
@@ -112,6 +133,7 @@ pub struct Run {
     pub repo_slug: String,
     pub state: RunState,
     pub trigger_source: TriggerSource,
+    pub execution_mode: ExecutionMode,
     pub current_step_key: Option<StepKey>,
     pub base_branch: String,
     pub use_worktree: bool,
@@ -176,11 +198,13 @@ impl Run {
     }
 
     /// Create a new run in the `Queued` state.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         issue_id: String,
         issue_identifier: String,
         repo_slug: String,
         trigger_source: TriggerSource,
+        execution_mode: ExecutionMode,
         base_branch: String,
         use_worktree: bool,
         operator_instructions: Option<String>,
@@ -193,6 +217,7 @@ impl Run {
             repo_slug,
             state: RunState::Queued,
             trigger_source,
+            execution_mode,
             current_step_key: None,
             base_branch,
             use_worktree,

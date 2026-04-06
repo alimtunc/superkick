@@ -23,8 +23,8 @@ use tracing::{info, warn};
 
 use superkick_config::{InterruptPolicy, SuperkickConfig, WorkflowStep};
 use superkick_core::{
-    AgentProvider, EventKind, EventLevel, InterruptAction, RunEvent, RunState, RunStep, StepKey,
-    StepStatus,
+    AgentProvider, EventKind, EventLevel, ExecutionMode, InterruptAction, RunEvent, RunState,
+    RunStep, StepKey, StepStatus,
 };
 use superkick_storage::repo::{
     AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
@@ -132,6 +132,15 @@ where
             if step_key == StepKey::Code {
                 if let Some(handle) = setup_handle.take() {
                     handle.await.context("setup task panicked")??;
+                }
+
+                // Semi-auto: pause before coding to let the operator review the plan.
+                if run.execution_mode == ExecutionMode::SemiAuto {
+                    if let Some(BlockedAction::Abort) =
+                        self.handle_semi_auto_checkpoint(run, cancel_token).await?
+                    {
+                        return Ok(());
+                    }
                 }
             }
 
@@ -521,6 +530,90 @@ where
         match key {
             StepKey::ReviewSwarm => self.config.interrupts.on_review_conflict,
             _ => self.config.interrupts.on_blocked,
+        }
+    }
+
+    /// In semi-auto mode, pause before coding to let the operator review the plan.
+    /// Returns `Some(BlockedAction::Abort)` if the operator aborts, `None` otherwise.
+    async fn handle_semi_auto_checkpoint(
+        &self,
+        run: &mut superkick_core::Run,
+        cancel_token: &CancellationToken,
+    ) -> Result<Option<BlockedAction>> {
+        info!(run_id = %run.id, "semi-auto: pausing for operator review before coding");
+
+        let question =
+            "Plan complete. Review before coding starts. Continue, inject instructions, or abort?"
+                .to_string();
+        let interrupt = self
+            .interrupt_service
+            .create_interrupt(run.id, None, question)
+            .await
+            .context("failed to create semi-auto checkpoint interrupt")?;
+
+        if let Some(refreshed) = self.run_repo.get(run.id).await? {
+            run.state = refreshed.state;
+            run.updated_at = refreshed.updated_at;
+        }
+
+        let action = self.wait_for_interrupt(interrupt.id, cancel_token).await?;
+
+        match action {
+            InterruptAction::AbortRun => {
+                info!(run_id = %run.id, "semi-auto: operator aborted at checkpoint");
+                run.transition_to(RunState::Cancelled)
+                    .context("failed to cancel after semi-auto abort")?;
+                run.current_step_key = None;
+                self.run_repo.update(run).await?;
+                self.emit(
+                    run,
+                    None,
+                    EventKind::StateChange,
+                    EventLevel::Info,
+                    "run state → cancelled (operator aborted at semi-auto checkpoint)".into(),
+                )
+                .await;
+                Ok(Some(BlockedAction::Abort))
+            }
+            InterruptAction::ContinueWithNote { note } => {
+                info!(run_id = %run.id, note = %note, "semi-auto: operator approved with note");
+                // Append note to operator_instructions so the coding agent sees it.
+                let existing = run.operator_instructions.take().unwrap_or_default();
+                let combined = if existing.is_empty() {
+                    note
+                } else {
+                    format!("{existing}\n\n--- Operator note (semi-auto checkpoint) ---\n{note}")
+                };
+                run.operator_instructions = Some(combined);
+                // Transition back from WaitingHuman to resume.
+                run.transition_to(RunState::Coding)
+                    .context("failed to resume after semi-auto continue")?;
+                self.run_repo.update(run).await?;
+                self.emit(
+                    run,
+                    None,
+                    EventKind::StateChange,
+                    EventLevel::Info,
+                    "run state → coding (operator approved at semi-auto checkpoint)".into(),
+                )
+                .await;
+                Ok(None)
+            }
+            InterruptAction::RetryStep => {
+                info!(run_id = %run.id, "semi-auto: operator approved (continue)");
+                run.transition_to(RunState::Coding)
+                    .context("failed to resume after semi-auto retry")?;
+                self.run_repo.update(run).await?;
+                self.emit(
+                    run,
+                    None,
+                    EventKind::StateChange,
+                    EventLevel::Info,
+                    "run state → coding (operator approved at semi-auto checkpoint)".into(),
+                )
+                .await;
+                Ok(None)
+            }
         }
     }
 

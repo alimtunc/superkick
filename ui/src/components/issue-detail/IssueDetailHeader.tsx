@@ -35,6 +35,7 @@ export function IssueDetailHeader({
 			issueId: issue.id,
 			issueIdentifier: issue.identifier,
 			useWorktree: dialog.useWorktree,
+			executionMode: dialog.executionMode,
 			operatorInstructions: dialog.instructions || undefined,
 			onSuccess: dialog.closeDialog
 		})
@@ -129,9 +130,11 @@ export function IssueDetailHeader({
 					profile={launchProfile}
 					instructions={dialog.instructions}
 					useWorktree={dialog.useWorktree}
+					executionMode={dialog.executionMode}
 					isPending={createRun.isPending}
 					onInstructionsChange={dialog.setInstructions}
 					onUseWorktreeChange={dialog.setUseWorktree}
+					onExecutionModeChange={dialog.setExecutionMode}
 					onLaunch={handleLaunch}
 					onClose={dialog.closeDialog}
 				/>

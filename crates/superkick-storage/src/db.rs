@@ -59,6 +59,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "005_run_use_worktree",
             include_str!("../migrations/005_run_use_worktree.sql"),
         ),
+        (
+            "006_execution_mode",
+            include_str!("../migrations/006_execution_mode.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

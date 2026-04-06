@@ -1,3 +1,4 @@
+import { ExecutionModeBadge } from '@/components/ExecutionModeBadge'
 import { PrStateBadge } from '@/components/PrStateBadge'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { Button } from '@/components/ui/button'
@@ -62,6 +63,7 @@ export function RunDetailHeader({
 					<span className="text-edge">|</span>
 					<span className="font-data text-[11px] font-medium text-fog">{run.issue_identifier}</span>
 					<RunStateBadge state={run.state} />
+					{run.execution_mode ? <ExecutionModeBadge mode={run.execution_mode} /> : null}
 				</div>
 
 				<div className="flex items-center gap-1.5">

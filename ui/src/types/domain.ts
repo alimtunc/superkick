@@ -34,6 +34,10 @@ export type EventKind =
 
 export type EventLevel = 'debug' | 'info' | 'warn' | 'error'
 
+// ── Execution modes ───────────────────────────────────────────────────
+
+export type ExecutionMode = 'full_auto' | 'semi_auto'
+
 // ── Core entities ──────────────────────────────────────────────────────
 
 export interface Run {
@@ -43,6 +47,7 @@ export interface Run {
 	repo_slug: string
 	state: RunState
 	trigger_source: string
+	execution_mode?: ExecutionMode
 	current_step_key: StepKey | null
 	base_branch: string | null
 	worktree_path: string | null

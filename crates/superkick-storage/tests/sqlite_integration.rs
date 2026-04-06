@@ -57,6 +57,7 @@ async fn run_insert_and_get() -> Result<()> {
         "SK-1".into(),
         "org/repo".into(),
         TriggerSource::Manual,
+        ExecutionMode::FullAuto,
         "main".into(),
         true,
         None,
@@ -84,6 +85,7 @@ async fn run_update() -> Result<()> {
         "SK-2".into(),
         "org/repo".into(),
         TriggerSource::LinearWebhook,
+        ExecutionMode::FullAuto,
         "main".into(),
         true,
         None,
@@ -110,6 +112,7 @@ async fn run_list_all() -> Result<()> {
         "SK-1".into(),
         "o/r".into(),
         TriggerSource::Manual,
+        ExecutionMode::FullAuto,
         "main".into(),
         true,
         None,
@@ -119,6 +122,7 @@ async fn run_list_all() -> Result<()> {
         "SK-2".into(),
         "o/r".into(),
         TriggerSource::Retry,
+        ExecutionMode::FullAuto,
         "main".into(),
         true,
         None,
@@ -141,6 +145,7 @@ async fn run_lookup_by_issue_identifier_and_active_guard() -> Result<()> {
         "SK-9".into(),
         "o/r".into(),
         TriggerSource::Manual,
+        ExecutionMode::FullAuto,
         "main".into(),
         true,
         None,
@@ -155,6 +160,7 @@ async fn run_lookup_by_issue_identifier_and_active_guard() -> Result<()> {
         "SK-9".into(),
         "o/r".into(),
         TriggerSource::Manual,
+        ExecutionMode::FullAuto,
         "main".into(),
         true,
         None,
@@ -176,6 +182,7 @@ async fn run_lookup_by_issue_identifier_and_active_guard() -> Result<()> {
         "SK-9".into(),
         "o/r".into(),
         TriggerSource::Manual,
+        ExecutionMode::FullAuto,
         "main".into(),
         true,
         None,
@@ -200,6 +207,7 @@ async fn step_insert_and_list() -> Result<()> {
         "SK-1".into(),
         "o/r".into(),
         TriggerSource::Manual,
+        ExecutionMode::FullAuto,
         "main".into(),
         true,
         None,
@@ -231,6 +239,7 @@ async fn step_update() -> Result<()> {
         "SK-1".into(),
         "o/r".into(),
         TriggerSource::Manual,
+        ExecutionMode::FullAuto,
         "main".into(),
         true,
         None,
@@ -261,6 +270,7 @@ async fn event_insert_and_list() -> Result<()> {
         "SK-1".into(),
         "o/r".into(),
         TriggerSource::Manual,
+        ExecutionMode::FullAuto,
         "main".into(),
         true,
         None,
@@ -299,6 +309,7 @@ async fn agent_session_insert_and_list() -> Result<()> {
         "SK-1".into(),
         "o/r".into(),
         TriggerSource::Manual,
+        ExecutionMode::FullAuto,
         "main".into(),
         true,
         None,
@@ -344,6 +355,7 @@ async fn agent_session_update() -> Result<()> {
         "SK-1".into(),
         "o/r".into(),
         TriggerSource::Manual,
+        ExecutionMode::FullAuto,
         "main".into(),
         true,
         None,
@@ -388,6 +400,7 @@ async fn interrupt_insert_resolve_and_list() -> Result<()> {
         "SK-1".into(),
         "o/r".into(),
         TriggerSource::Manual,
+        ExecutionMode::FullAuto,
         "main".into(),
         true,
         None,
@@ -427,6 +440,7 @@ async fn artifact_insert_and_list() -> Result<()> {
         "SK-1".into(),
         "o/r".into(),
         TriggerSource::Manual,
+        ExecutionMode::FullAuto,
         "main".into(),
         true,
         None,
@@ -481,6 +495,7 @@ async fn create_interrupt_atomic_rolls_back_on_duplicate() -> Result<()> {
         "SK-99".into(),
         "org/repo".into(),
         TriggerSource::Manual,
+        ExecutionMode::FullAuto,
         "main".into(),
         true,
         None,
@@ -513,5 +528,27 @@ async fn create_interrupt_atomic_rolls_back_on_duplicate() -> Result<()> {
         "run state must not have changed after failed atomic insert"
     );
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn semi_auto_execution_mode_round_trips() -> Result<()> {
+    let pool = setup().await?;
+    let repo = SqliteRunRepo::new(pool);
+
+    let run = Run::new(
+        "issue-semi".into(),
+        "SK-10".into(),
+        "org/repo".into(),
+        TriggerSource::Manual,
+        ExecutionMode::SemiAuto,
+        "main".into(),
+        true,
+        None,
+    );
+    let id = run.id;
+    repo.insert(&run).await?;
+    let fetched = repo.get(id).await?.expect("run should exist");
+    assert_eq!(fetched.execution_mode, ExecutionMode::SemiAuto);
     Ok(())
 }

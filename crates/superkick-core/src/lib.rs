@@ -22,5 +22,5 @@ pub use id::{AgentSessionId, ArtifactId, EventId, InterruptId, PullRequestId, Ru
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
 pub use pull_request::{LinkedPrSummary, PrState, PullRequest, parse_pr_number};
 pub use review::{ReviewFinding, ReviewSwarmResult};
-pub use run::{LinkedRunSummary, Run, RunState, TriggerSource};
+pub use run::{ExecutionMode, LinkedRunSummary, Run, RunState, TriggerSource};
 pub use step::{RunStep, StepKey, StepStatus};
