@@ -22,8 +22,8 @@ pub async fn prepare_attach(
         return Err(AppError::NotFound("session not found"));
     };
 
-    let payload = superkick_core::attach::prepare_attach(&run, &session)?;
-    state.event_repo.insert(&payload.event).await?;
+    let (payload, event) = superkick_core::attach::prepare_attach(&run, &session)?;
+    state.event_repo.insert(&event).await?;
 
     Ok(Json(payload))
 }

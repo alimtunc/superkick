@@ -33,12 +33,13 @@ pub struct AttachPayload {
     pub command: String,
     pub worktree_path: String,
     pub limitations: Vec<String>,
-    #[serde(skip)]
-    pub event: RunEvent,
 }
 
-/// Validate preconditions and build the attach payload.
-pub fn prepare_attach(run: &Run, session: &AgentSession) -> Result<AttachPayload, CoreError> {
+/// Validate preconditions and build the attach payload + trace event.
+pub fn prepare_attach(
+    run: &Run,
+    session: &AgentSession,
+) -> Result<(AttachPayload, RunEvent), CoreError> {
     // Session belongs to this run
     if session.run_id != run.id {
         return Err(CoreError::InvalidInput(
@@ -102,7 +103,11 @@ pub fn prepare_attach(run: &Run, session: &AgentSession) -> Result<AttachPayload
         AgentStatus::Starting => "starting",
         AgentStatus::Running => "running",
         AgentStatus::Failed => "failed",
-        _ => unreachable!("filtered by eligibility check above"),
+        status => {
+            return Err(CoreError::InvalidInput(format!(
+                "session status '{status:?}' is not eligible for attach"
+            )));
+        }
     };
 
     let command = build_shell_command(
@@ -131,15 +136,16 @@ pub fn prepare_attach(run: &Run, session: &AgentSession) -> Result<AttachPayload
         ),
     );
 
-    Ok(AttachPayload {
+    let payload = AttachPayload {
         attach_kind,
         title,
         summary,
         command,
         worktree_path: worktree_path.clone(),
         limitations,
-        event,
-    })
+    };
+
+    Ok((payload, event))
 }
 
 /// Escape a value for inclusion in a single-quoted shell string.
