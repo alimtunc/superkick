@@ -36,6 +36,7 @@ export function IssuesPage() {
 		totalCount,
 		loading,
 		error,
+		lastRefresh,
 		refresh
 	} = useIssues()
 
@@ -45,7 +46,12 @@ export function IssuesPage() {
 
 	return (
 		<div>
-			<IssuesHeader totalCount={totalCount} loading={loading} onRefresh={refresh} />
+			<IssuesHeader
+				totalCount={totalCount}
+				loading={loading}
+				lastRefresh={lastRefresh}
+				onRefresh={refresh}
+			/>
 
 			<div className="mx-auto flex max-w-5xl flex-col gap-5 px-5 py-8">
 				{error ? <p className="font-data text-[11px] text-oxide">{error}</p> : null}
