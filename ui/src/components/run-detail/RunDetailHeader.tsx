@@ -9,8 +9,6 @@ interface RunDetailHeaderProps {
 	run: Run
 	pr: PullRequest | null
 	isTerminal: boolean
-	streaming: boolean
-	onToggleStream: () => void
 	onRefresh: () => void
 	watched: boolean
 	maxReached: boolean
@@ -38,8 +36,6 @@ export function RunDetailHeader({
 	run,
 	pr,
 	isTerminal,
-	streaming,
-	onToggleStream,
 	onRefresh,
 	watched,
 	maxReached,
@@ -77,28 +73,6 @@ export function RunDetailHeader({
 					>
 						{watched ? '\u25C9 PINNED' : '\u25CB PIN'}
 					</Button>
-
-					{!isTerminal ? (
-						<Button
-							variant="outline"
-							size="xs"
-							onClick={onToggleStream}
-							className={`font-data text-[11px] ${
-								streaming
-									? 'border-neon-green/30 bg-mineral-dim text-neon-green hover:bg-mineral/20'
-									: ''
-							}`}
-						>
-							{streaming ? (
-								<span className="flex items-center gap-1.5">
-									<span className="live-pulse inline-block h-1.5 w-1.5 rounded-full bg-neon-green" />
-									LIVE
-								</span>
-							) : (
-								'LIVE'
-							)}
-						</Button>
-					) : null}
 
 					<Button
 						variant="outline"

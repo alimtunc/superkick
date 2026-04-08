@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 import { AttachPanel } from '@/components/run-detail/AttachPanel'
 import { CopyValue } from '@/components/run-detail/CopyValue'
 import { useSessionAttach } from '@/hooks/useSessionAttach'
@@ -20,11 +22,6 @@ const statusColor: Record<AgentStatus, string> = {
 	cancelled: 'text-dim'
 }
 
-const providerLabel: Record<string, string> = {
-	claude: 'Claude',
-	codex: 'Codex'
-}
-
 const ATTACHABLE_STATUSES = new Set<AgentStatus>(['starting', 'running', 'failed'])
 
 function sessionDuration(session: AgentSession): string {
@@ -42,23 +39,18 @@ export function SessionRow({
 	run: Run
 	isTerminal: boolean
 }) {
+	const [expanded, setExpanded] = useState(false)
 	const { attach, payload, isPending, error, reset } = useSessionAttach()
 	const canAttach = !isTerminal && ATTACHABLE_STATUSES.has(session.status)
 
-	const helperText =
-		session.status === 'failed'
-			? "Prepare a recovery shell in this run's workspace"
-			: "Open a shell in this run's workspace"
-
 	return (
-		<div className="rounded border border-edge/50 bg-graphite/50 px-3 py-2.5">
-			<div className="flex items-center gap-3">
-				<span className={`text-base ${statusColor[session.status]}`}>
-					{statusIcon[session.status]}
-				</span>
-				<span className="font-data text-[12px] font-medium text-fog">
-					{providerLabel[session.provider] ?? session.provider}
-				</span>
+		<div className="px-3 py-1.5">
+			<button
+				type="button"
+				onClick={() => setExpanded((prev) => !prev)}
+				className="-mx-1 flex w-full items-center gap-3 rounded px-1 text-left transition-colors hover:bg-edge/20"
+			>
+				<span className={`text-sm ${statusColor[session.status]}`}>{statusIcon[session.status]}</span>
 				<span className="font-data text-[11px] text-dim">{session.status}</span>
 				{session.exit_code !== null ? (
 					<span
@@ -67,29 +59,44 @@ export function SessionRow({
 						exit {session.exit_code}
 					</span>
 				) : null}
-				<span className="font-data ml-auto text-[11px] text-dim">{sessionDuration(session)}</span>
-			</div>
 
-			<div className="mt-1.5">
-				<CopyValue value={session.command} className="font-data text-[10px] text-silver/60" />
-			</div>
+				<span className="ml-auto flex items-center gap-2">
+					<span className="font-data text-[10px] text-dim">
+						cmd {expanded ? '\u25B4' : '\u25BE'}
+					</span>
+					<span className="font-data text-[11px] text-dim">{sessionDuration(session)}</span>
+				</span>
+			</button>
+
+			{expanded ? (
+				<div className="mt-1.5 ml-5 overflow-hidden rounded bg-carbon p-2">
+					<CopyValue
+						value={session.command}
+						className="font-data text-[10px] break-all text-silver/60"
+					/>
+				</div>
+			) : null}
 
 			{canAttach && !payload ? (
-				<div className="mt-2 border-t border-edge/30 pt-2">
+				<div className="mt-1 ml-5">
 					<button
 						type="button"
 						disabled={isPending}
 						onClick={() => attach(run.id, session.id)}
 						className="font-data text-[10px] text-cyan/70 transition-colors hover:text-cyan disabled:opacity-50"
 					>
-						{isPending ? 'Preparing...' : 'Attach externally'}
+						{isPending ? 'preparing...' : 'attach'}
 					</button>
-					<span className="font-data ml-2 text-[9px] text-dim">{helperText}</span>
-					{error ? <p className="font-data mt-1 text-[10px] text-oxide">{error}</p> : null}
 				</div>
 			) : null}
 
-			{payload ? <AttachPanel payload={payload} onReset={reset} /> : null}
+			{canAttach && payload ? (
+				<div className="mt-1.5 ml-5">
+					<AttachPanel payload={payload} onReset={reset} />
+				</div>
+			) : null}
+
+			{error ? <p className="font-data mt-1 ml-5 text-[10px] text-oxide">{error}</p> : null}
 		</div>
 	)
 }

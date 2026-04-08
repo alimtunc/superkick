@@ -18,6 +18,7 @@ pub enum EventKind {
     ReviewCompleted,
     Error,
     ExternalAttach,
+    OperatorInput,
 }
 
 /// Severity level for run events.

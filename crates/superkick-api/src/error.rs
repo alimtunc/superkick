@@ -26,6 +26,9 @@ impl From<CoreError> for AppError {
     fn from(err: CoreError) -> Self {
         match err {
             CoreError::InvalidInput(msg) => AppError::BadRequest(msg),
+            CoreError::TerminalState(state) => {
+                AppError::BadRequest(format!("run is in terminal state: {state}"))
+            }
             CoreError::DuplicateActiveRun {
                 ref issue_identifier,
                 ref active_run_id,
