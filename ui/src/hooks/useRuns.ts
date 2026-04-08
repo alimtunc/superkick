@@ -11,7 +11,8 @@ export type RunFilter = 'all' | 'active' | 'completed' | 'failed' | 'cancelled'
 export function useRuns() {
 	const {
 		data: runs = [],
-		isLoading: loading,
+		isLoading,
+		isFetching,
 		error: queryError,
 		dataUpdatedAt,
 		refetch
@@ -22,6 +23,7 @@ export function useRuns() {
 		staleTime: 10_000
 	})
 
+	const loading = isLoading || isFetching
 	const error = queryError ? String(queryError) : null
 	const refTime = useMemo(() => dataUpdatedAt || Date.now(), [dataUpdatedAt])
 	const classified = useMemo(() => classifyRuns(runs), [runs])

@@ -18,6 +18,7 @@ export function RunsPage() {
 				total={total}
 				activeCount={classified.active.length}
 				loading={loading}
+				lastRefresh={refTime}
 				onRefresh={refresh}
 			/>
 

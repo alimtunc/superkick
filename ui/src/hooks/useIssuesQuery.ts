@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 const EMPTY_ISSUES: never[] = []
 
 export function useIssuesQuery(limit = 200) {
-	const { data, isLoading, error, dataUpdatedAt, refetch } = useQuery({
+	const { data, isLoading, isFetching, error, dataUpdatedAt, refetch } = useQuery({
 		queryKey: queryKeys.issues.list(limit),
 		queryFn: () => fetchIssues(limit),
 		refetchInterval: 30_000,
@@ -18,7 +18,7 @@ export function useIssuesQuery(limit = 200) {
 	return {
 		allIssues,
 		totalCount: data?.total_count ?? 0,
-		loading: isLoading,
+		loading: isLoading || isFetching,
 		error: error ? String(error) : null,
 		lastRefresh: dataUpdatedAt ? new Date(dataUpdatedAt) : null,
 		refresh: refetch
