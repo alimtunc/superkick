@@ -25,7 +25,7 @@ export function useRuns() {
 
 	const loading = isLoading || isFetching
 	const error = queryError ? String(queryError) : null
-	const refTime = useMemo(() => dataUpdatedAt || Date.now(), [dataUpdatedAt])
+	const refTime = dataUpdatedAt || Date.now()
 	const classified = useMemo(() => classifyRuns(runs), [runs])
 
 	const sorted = useMemo(

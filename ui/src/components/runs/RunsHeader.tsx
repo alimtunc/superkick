@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
-import { useLastRefreshed } from '@/components/ui/last-refreshed'
 import { Tooltip } from '@/components/ui/tooltip'
+import { useLastRefreshed } from '@/hooks/useLastRefreshed'
 import { RefreshCw } from 'lucide-react'
 
 export function RunsHeader({

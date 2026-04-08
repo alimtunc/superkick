@@ -1,39 +1,8 @@
-import type { ReactNode } from 'react'
-
 import { PrStateBadge } from '@/components/PrStateBadge'
-import { CopyValue } from '@/components/run-detail/CopyValue'
+import { Chip, chipBase } from '@/components/run-detail/Chip'
 import { fmtRelativeTime } from '@/lib/domain'
 import type { PullRequest, Run } from '@/types'
 import { GitBranch, FolderGit2, BookMarked, Zap, Clock, ExternalLink } from 'lucide-react'
-
-// ── Chip — single element for both static and copyable ───────────────
-
-const chipBase =
-	'font-data inline-flex items-center gap-1.5 rounded-md bg-white/5 px-2 py-1 text-[11px] leading-none text-silver'
-
-function Chip({ icon, label, copyValue }: { icon: ReactNode; label: string; copyValue?: string }) {
-	const content = (
-		<>
-			<span className="text-dim">{icon}</span>
-			<span>{label}</span>
-		</>
-	)
-
-	if (copyValue) {
-		return (
-			<CopyValue
-				value={copyValue}
-				display={content}
-				hideIcon
-				className={`${chipBase} cursor-pointer transition-colors hover:bg-white/8`}
-			/>
-		)
-	}
-
-	return <span className={chipBase}>{content}</span>
-}
-
-// ── Component ─────────────────────────────────────────────────────────
 
 interface RunDetailsGridProps {
 	run: Run
@@ -43,7 +12,7 @@ interface RunDetailsGridProps {
 export function RunDetailsGrid({ run, pr }: RunDetailsGridProps) {
 	return (
 		<div className="mb-8 space-y-3">
-			<div className="flex flex-wrap items-center gap-2">
+			<div className="flex flex-wrap items-center gap-2 overflow-hidden">
 				{run.branch_name ? (
 					<Chip
 						icon={<GitBranch size={14} />}
@@ -77,15 +46,6 @@ export function RunDetailsGrid({ run, pr }: RunDetailsGridProps) {
 					</a>
 				) : null}
 			</div>
-
-			{run.operator_instructions ? (
-				<p
-					className="font-data text-[12px] leading-relaxed text-dim"
-					title={run.operator_instructions}
-				>
-					{run.operator_instructions}
-				</p>
-			) : null}
 
 			{run.error_message ? (
 				<p className="font-data rounded border border-oxide/20 bg-oxide/5 px-3 py-2 text-[12px] text-oxide">
