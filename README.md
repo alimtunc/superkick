@@ -1,5 +1,7 @@
 # Superkick
 
+[![License: BSL 1.1](https://img.shields.io/badge/License-BSL%201.1-blue.svg)](LICENSE)
+
 From Linear issue to reviewed PR, on your own machine.
 
 Superkick is a local-first agent orchestrator focused on the path from Linear issue to reviewed PR. The current codebase already provides the local control plane, CLI, dashboard, and run lifecycle foundations for that loop, and is now iterating toward the full end-to-end path.
@@ -290,4 +292,4 @@ This is by design. The product proves itself on one path first: `Linear issue ->
 
 ## License
 
-MIT
+[BSL 1.1](LICENSE) — source available, non-commercial use only.
