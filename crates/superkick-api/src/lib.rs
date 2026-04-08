@@ -149,6 +149,10 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
             post(handlers::interrupts::answer_interrupt),
         )
         .route(
+            "/runs/{id}/console",
+            post(handlers::console::send_console_input),
+        )
+        .route(
             "/runs/{run_id}/sessions/{session_id}/attach",
             post(handlers::sessions::prepare_attach),
         )

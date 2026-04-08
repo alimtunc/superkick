@@ -1,3 +1,4 @@
+pub mod console;
 pub mod health;
 pub mod interrupts;
 pub mod issues;

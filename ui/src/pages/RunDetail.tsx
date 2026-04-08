@@ -1,14 +1,13 @@
-import { useState } from 'react'
-
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
 import { SessionWatchRail } from '@/components/dashboard/SessionWatchRail'
-import { EventStream } from '@/components/run-detail/EventStream'
 import { InterruptPanel } from '@/components/run-detail/InterruptPanel'
+import { OperatorConsole } from '@/components/run-detail/OperatorConsole'
 import { ReviewResults } from '@/components/run-detail/ReviewResults'
 import { RunDetailHeader } from '@/components/run-detail/RunDetailHeader'
 import { RunDetailsGrid } from '@/components/run-detail/RunDetailsGrid'
 import { SessionList } from '@/components/run-detail/SessionList'
 import { StepTimeline } from '@/components/run-detail/StepTimeline'
+import { useEventStream } from '@/hooks/useEventStream'
 import { useRunDetail } from '@/hooks/useRunDetail'
 import { queryKeys } from '@/lib/queryKeys'
 import { useWatchedSessionsStore } from '@/stores/watchedSessions'
@@ -24,64 +23,80 @@ export function RunDetailPage() {
 }
 
 function RunDetail({ runId, refTime }: { runId: string; refTime: number }) {
-	const d = useRunDetail(runId)
-	const [streaming, setStreaming] = useState(() => !d.isTerminal)
+	const detail = useRunDetail(runId)
+	const stream = useEventStream(runId, detail.syncRun)
 	const { isWatched, toggleWatch, maxReached } = useWatchedSessionsStore()
 	const watched = isWatched(runId)
 
-	if (d.loading) return <p className="font-data p-6 text-dim">Loading...</p>
-	if (d.error) return <p className="font-data p-6 text-oxide">{d.error}</p>
-	if (!d.run) return <p className="font-data p-6 text-dim">Run not found.</p>
+	if (detail.loading) return <p className="font-data p-6 text-dim">Loading...</p>
+	if (detail.error) return <p className="font-data p-6 text-oxide">{detail.error}</p>
+	if (!detail.run) return <p className="font-data p-6 text-dim">Run not found.</p>
 
 	return (
 		<>
 			<RunDetailHeader
-				run={d.run}
-				pr={d.pr}
-				isTerminal={d.isTerminal}
-				streaming={streaming}
-				onToggleStream={() => setStreaming((v) => !v)}
-				onRefresh={d.refresh}
+				run={detail.run}
+				pr={detail.pr}
+				isTerminal={detail.isTerminal}
+				onRefresh={detail.refresh}
 				watched={watched}
 				maxReached={maxReached}
 				onToggleWatch={() => toggleWatch(runId)}
-				cancelConfirm={d.cancelConfirm}
-				onCancelRequest={() => d.setCancelConfirm(true)}
-				onCancelConfirm={d.handleCancel}
-				onCancelDismiss={() => d.setCancelConfirm(false)}
-				cancelling={d.cancelling}
+				cancelConfirm={detail.cancelConfirm}
+				onCancelRequest={() => detail.setCancelConfirm(true)}
+				onCancelConfirm={detail.handleCancel}
+				onCancelDismiss={() => detail.setCancelConfirm(false)}
+				cancelling={detail.cancelling}
 			/>
 
 			<SessionWatchRail refTime={refTime} mode="detail" />
 
 			<div className="mx-auto max-w-4xl px-5 py-6">
-				<RunDetailsGrid run={d.run} pr={d.pr} />
+				<RunDetailsGrid run={detail.run} pr={detail.pr} />
 
 				<section className="mb-6">
 					<SectionTitle title="STEPS" />
-					<StepTimeline steps={d.steps} />
+					<StepTimeline steps={detail.steps} />
 				</section>
 
-				{d.sessions.length > 0 ? (
+				{detail.sessions.length > 0 ? (
 					<section className="mb-6">
 						<SectionTitle title="AGENT SESSIONS" />
-						<SessionList sessions={d.sessions} run={d.run} isTerminal={d.isTerminal} />
+						<SessionList
+							sessions={detail.sessions}
+							run={detail.run}
+							isTerminal={detail.isTerminal}
+						/>
 					</section>
 				) : null}
 
-				<ReviewResults steps={d.steps} />
+				<section className="mb-6">
+					<SectionTitle
+						title="CONSOLE"
+						accent={detail.run.execution_mode === 'semi_auto' ? 'gold' : 'mineral'}
+					/>
+					<OperatorConsole
+						runId={detail.run.id}
+						executionMode={detail.run.execution_mode}
+						isTerminal={detail.isTerminal}
+						events={stream.events}
+						connected={stream.connected}
+						done={stream.done}
+					/>
+				</section>
 
-				{d.showInterrupts ? (
+				<ReviewResults steps={detail.steps} />
+
+				{detail.showInterrupts ? (
 					<section className="mb-6">
 						<SectionTitle title="INTERRUPTS" accent="gold" />
-						<InterruptPanel runId={d.run.id} interrupts={d.interrupts} onAnswered={d.syncRun} />
+						<InterruptPanel
+							runId={detail.run.id}
+							interrupts={detail.interrupts}
+							onAnswered={detail.syncRun}
+						/>
 					</section>
 				) : null}
-
-				<section>
-					<SectionTitle title="EVENTS" />
-					<EventStream runId={d.run.id} active={streaming} onStateChange={d.syncRun} />
-				</section>
 			</div>
 		</>
 	)

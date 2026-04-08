@@ -37,7 +37,7 @@ where
         let (program, base_args) = agent_command(&agent_cfg.provider);
 
         let mut args = vec![program.to_string()];
-        args.extend(base_args.iter().map(|s| s.to_string()));
+        args.extend(base_args.iter().map(|arg| arg.to_string()));
 
         let base_prompt = match step.step_key {
             StepKey::Plan => format!(
@@ -66,11 +66,18 @@ where
             ),
         };
 
+        // Re-read operator_instructions from DB so console input sent during
+        // a previous step is included in the prompt.
+        let live_instructions = match self.run_repo.get(run.id).await? {
+            Some(fresh) => fresh.operator_instructions,
+            None => run.operator_instructions.clone(),
+        };
+
         let default_instructions = &self.config.launch_profile.default_instructions;
         let prompt = build_full_prompt(
             &base_prompt,
             Some(default_instructions.as_str()).filter(|s| !s.is_empty()),
-            run.operator_instructions.as_deref(),
+            live_instructions.as_deref(),
             self.handoff_for_step(step.step_key),
         );
         args.push(prompt);

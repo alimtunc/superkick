@@ -31,6 +31,7 @@ export type EventKind =
 	| 'review_completed'
 	| 'error'
 	| 'external_attach'
+	| 'operator_input'
 
 export type EventLevel = 'debug' | 'info' | 'warn' | 'error'
 

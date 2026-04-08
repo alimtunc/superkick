@@ -3,6 +3,7 @@
 pub mod agent;
 pub mod artifact;
 pub mod attach;
+pub mod console;
 pub mod error;
 pub mod event;
 pub mod id;

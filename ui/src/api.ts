@@ -130,6 +130,20 @@ export async function cancelRun(id: string): Promise<Run> {
 	return res.json()
 }
 
+// ── Operator console ────────────────────────────────────────────────
+
+export async function sendConsoleInput(runId: string, message: string): Promise<void> {
+	const res = await fetch(`${BASE}/runs/${runId}/console`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ message })
+	})
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
+		throw new Error(body.error || `send console input failed: ${res.status}`)
+	}
+}
+
 // ── Session attach ───────────────────────────────────────────────────
 
 export async function prepareSessionAttach(runId: string, sessionId: string): Promise<AttachPayload> {
