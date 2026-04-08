@@ -15,8 +15,10 @@ export function CopyValue({
 	className?: string
 }) {
 	const handleCopy = () => {
-		navigator.clipboard.writeText(value)
-		toast('Copied to clipboard')
+		navigator.clipboard.writeText(value).then(
+			() => toast('Copied to clipboard'),
+			() => toast.error('Failed to copy')
+		)
 	}
 
 	return (
@@ -26,7 +28,7 @@ export function CopyValue({
 			title={value}
 			className={`inline-flex items-center transition-colors hover:text-fog ${!hideIcon ? 'gap-1' : ''} ${className}`}
 		>
-			<span className="truncate">{display ?? value}</span>
+			<span className="inline-flex min-w-0 items-center gap-1.5">{display ?? value}</span>
 			{!hideIcon ? <Copy size={10} className="shrink-0 text-dim" /> : null}
 		</button>
 	)
