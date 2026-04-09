@@ -226,13 +226,14 @@ The dashboard is a local web control center with:
 - **Issues** — Linear issues synced with status mapping and operator filter buckets (triage, backlog, active, done)
 - **Issue Detail** — full issue view with comments, review context, and "Start Run" action with launch profiles
 - **Runs** — active and completed runs with live state
-- **Run Detail** — step-by-step progress, interrupt panel, and SSE event stream
+- **Run Detail** — step-by-step progress, interrupt panel, operator console, and SSE event stream
+- **Operator console** — external terminal attach, run execution modes (full-auto / semi-auto), worktree and session management
+- **PR tracking** — GitHub PR linkage on run and issue surfaces with on-demand sync
 
 Next on the dashboard side:
 
-- persistent multi-session watching and fast focus switching
-- deeper reliability analytics and KPI aggregation
 - cancel/stop run from dashboard
+- deeper reliability analytics and KPI aggregation
 
 ## Roadmap
 
@@ -258,9 +259,17 @@ Next on the dashboard side:
 - [x] Launch queue with Linear-style issues surface
 - [x] Dashboard: Control Center, Issues, Runs, Issue Detail, app shell with sidebar
 - [x] CI quality gates for engine and dashboard
+- [x] GitHub PR linkage on run and issue surfaces
+- [x] PR state tracking with on-demand GitHub sync
+- [x] Run operator surface (worktree, sessions, recovery)
+- [x] Per-run worktree override in launch dialog
+- [x] External terminal attach for agent sessions
+- [x] Run execution modes (full-auto and semi-auto supervision)
+- [x] Operator console for active runs
+- [x] Atomic interrupt creation with SQLite transaction
+- [x] Last-refreshed tooltip on Issues and Runs
 
 ### Next up
-- [ ] Persistent multi-session rail and quick focus switching
 - [ ] Cancel/stop run from dashboard
 - [ ] Full pause/resume flow end-to-end
 - [ ] Parallel review agents and project-defined review gate
