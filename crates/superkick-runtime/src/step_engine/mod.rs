@@ -28,41 +28,44 @@ use superkick_core::{
 };
 use superkick_storage::repo::{
     AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
-    RunStepRepo,
+    RunStepRepo, TranscriptRepo,
 };
 
 use crate::agent_supervisor::AgentSupervisor;
 use crate::interrupt_service::InterruptService;
+use crate::pty_session::PtySessionRegistry;
 use crate::repo_cache::RepoCache;
 
 /// Default agent timeout (10 minutes).
 const DEFAULT_AGENT_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// Drives a single run through its typed step sequence.
-pub struct StepEngine<R, ST, E, A, AR, I> {
+pub struct StepEngine<R, ST, E, A, AR, I, T = ()> {
     run_repo: Arc<R>,
     step_repo: Arc<ST>,
     event_repo: Arc<E>,
     interrupt_repo: Arc<I>,
     artifact_repo: Arc<AR>,
-    supervisor: AgentSupervisor<A, E>,
+    supervisor: AgentSupervisor<A, E, T>,
     interrupt_service: InterruptService<R, E, I>,
     repo_cache: RepoCache,
     config: SuperkickConfig,
 }
 
-pub struct StepEngineDeps<R, ST, E, A, AR, I> {
+pub struct StepEngineDeps<R, ST, E, A, AR, I, T = ()> {
     pub run_repo: Arc<R>,
     pub step_repo: Arc<ST>,
     pub event_repo: Arc<E>,
     pub session_repo: Arc<A>,
     pub artifact_repo: Arc<AR>,
     pub interrupt_repo: Arc<I>,
+    pub transcript_repo: Arc<T>,
+    pub registry: Arc<PtySessionRegistry>,
     pub repo_cache: RepoCache,
     pub config: SuperkickConfig,
 }
 
-impl<R, ST, E, A, AR, I> StepEngine<R, ST, E, A, AR, I>
+impl<R, ST, E, A, AR, I, T> StepEngine<R, ST, E, A, AR, I, T>
 where
     R: RunRepo + 'static,
     ST: RunStepRepo + 'static,
@@ -70,9 +73,15 @@ where
     A: AgentSessionRepo + 'static,
     AR: ArtifactRepo + 'static,
     I: InterruptRepo + InterruptTxRepo + 'static,
+    T: TranscriptRepo + 'static,
 {
-    pub fn new(deps: StepEngineDeps<R, ST, E, A, AR, I>) -> Self {
-        let supervisor = AgentSupervisor::new(deps.session_repo, Arc::clone(&deps.event_repo));
+    pub fn new(deps: StepEngineDeps<R, ST, E, A, AR, I, T>) -> Self {
+        let supervisor = AgentSupervisor::new(
+            deps.session_repo,
+            Arc::clone(&deps.event_repo),
+            deps.transcript_repo,
+            deps.registry,
+        );
         let interrupt_service = InterruptService::new(
             Arc::clone(&deps.run_repo),
             Arc::clone(&deps.event_repo),

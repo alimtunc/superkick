@@ -3,14 +3,14 @@ use anyhow::{Context, Result, bail};
 use superkick_core::{RunStep, StepKey};
 use superkick_storage::repo::{
     AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
-    RunStepRepo,
+    RunStepRepo, TranscriptRepo,
 };
 use tokio_util::sync::CancellationToken;
 
 use super::{DEFAULT_AGENT_TIMEOUT, StepEngine, agent_command, build_full_prompt};
 use crate::agent_supervisor::AgentLaunchConfig;
 
-impl<R, ST, E, A, AR, I> StepEngine<R, ST, E, A, AR, I>
+impl<R, ST, E, A, AR, I, T> StepEngine<R, ST, E, A, AR, I, T>
 where
     R: RunRepo + 'static,
     ST: RunStepRepo + 'static,
@@ -18,6 +18,7 @@ where
     A: AgentSessionRepo + 'static,
     AR: ArtifactRepo + 'static,
     I: InterruptRepo + InterruptTxRepo + 'static,
+    T: TranscriptRepo + 'static,
 {
     /// Execute an agent step (Plan or Code) via the AgentSupervisor.
     pub(super) async fn execute_agent(

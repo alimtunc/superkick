@@ -21,4 +21,6 @@ serde_json.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 tokio-util.workspace = true
+futures-util = "0.3"
+bytes = "1"
 dotenvy = "0.15"

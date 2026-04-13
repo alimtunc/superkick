@@ -130,18 +130,21 @@ export async function cancelRun(id: string): Promise<Run> {
 	return res.json()
 }
 
-// ── Operator console ────────────────────────────────────────────────
+// ── Terminal ─────────────────────────────────────────────────────────
 
-export async function sendConsoleInput(runId: string, message: string): Promise<void> {
-	const res = await fetch(`${BASE}/runs/${runId}/console`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ message })
-	})
+/** Build the WebSocket URL for attaching to a live PTY terminal. */
+export function terminalWsUrl(runId: string): string {
+	const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+	return `${protocol}//${window.location.host}${BASE}/runs/${runId}/terminal`
+}
+
+/** Fetch durable terminal transcript (binary) for a completed or cleaned-up run. */
+export async function fetchTerminalHistory(runId: string): Promise<ArrayBuffer> {
+	const res = await fetch(`${BASE}/runs/${runId}/terminal-history`)
 	if (!res.ok) {
-		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
-		throw new Error(body.error || `send console input failed: ${res.status}`)
+		throw new Error(`GET /runs/${runId}/terminal-history failed: ${res.status}`)
 	}
+	return res.arrayBuffer()
 }
 
 // ── Session attach ───────────────────────────────────────────────────
