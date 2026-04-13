@@ -34,3 +34,4 @@ define_id!(AgentSessionId);
 define_id!(InterruptId);
 define_id!(ArtifactId);
 define_id!(PullRequestId);
+define_id!(TranscriptChunkId);

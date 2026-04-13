@@ -10,31 +10,52 @@ use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
-use superkick_core::{AgentSession, AgentStatus, EventKind, EventLevel};
-use superkick_storage::repo::{AgentSessionRepo, RunEventRepo};
+use superkick_core::{AgentSession, AgentStatus, EventKind, EventLevel, RunId};
+use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
 
 use super::AgentResult;
 use super::output::{emit_event, spawn_output_reader};
 use super::process::kill_by_pid;
+use crate::pty_session::{PtySession, PtySessionRegistry};
+
+/// Dependencies for the supervised lifecycle, bundled to keep the arg count manageable.
+pub(crate) struct SupervisedDeps<S, E, T> {
+    pub session_repo: Arc<S>,
+    pub event_repo: Arc<E>,
+    pub transcript_repo: Arc<T>,
+    pub registry: Arc<PtySessionRegistry>,
+}
 
 /// Spawn the agent via PTY and supervise it to completion.
-pub(crate) async fn run_supervised<S, E>(
+pub(crate) async fn run_supervised<S, E, T>(
     mut session: AgentSession,
     args: Vec<String>,
     workdir: PathBuf,
     timeout: Duration,
     cancel_token: CancellationToken,
-    session_repo: Arc<S>,
-    event_repo: Arc<E>,
+    deps: SupervisedDeps<S, E, T>,
 ) -> Result<AgentResult>
 where
     S: AgentSessionRepo + 'static,
     E: RunEventRepo + 'static,
+    T: TranscriptRepo + 'static,
 {
+    let SupervisedDeps {
+        session_repo,
+        event_repo,
+        transcript_repo,
+        registry,
+    } = deps;
     let run_id = session.run_id;
     let step_id = session.run_step_id;
 
-    let (mut child, master_reader) = spawn_pty_child(&args, &workdir, &session.command)?;
+    let spawned = spawn_pty_child(&args, &workdir, &session.command, run_id)?;
+    let mut child = spawned.child;
+    let pty_session = spawned.session;
+    let broadcast_tx = spawned.broadcast_tx;
+
+    // Register the live session so API handlers can attach.
+    registry.register(run_id, Arc::clone(&pty_session));
 
     let pid = child.process_id();
     session.pid = pid;
@@ -53,7 +74,13 @@ where
     )
     .await;
 
-    let output_task = spawn_output_reader(master_reader, run_id, step_id, Arc::clone(&event_repo));
+    let output_task = spawn_output_reader(
+        spawned.master_reader,
+        run_id,
+        Arc::clone(&pty_session),
+        broadcast_tx,
+        transcript_repo,
+    );
 
     // child.wait() is blocking (portable-pty API), so wrap in spawn_blocking.
     let wait_handle = tokio::task::spawn_blocking(move || child.wait());
@@ -76,6 +103,7 @@ where
             ).await;
             let _ = output_task.await;
             session_repo.update(&session).await?;
+            schedule_cleanup(registry, run_id);
             return Ok(AgentResult { session });
         }
         _ = cancel_token.cancelled() => {
@@ -90,6 +118,7 @@ where
             ).await;
             let _ = output_task.await;
             session_repo.update(&session).await?;
+            schedule_cleanup(registry, run_id);
             return Ok(AgentResult { session });
         }
     };
@@ -98,21 +127,25 @@ where
     let _ = output_task.await;
 
     finalize_session(&mut session, &exit_status, &event_repo, &session_repo).await?;
+    schedule_cleanup(registry, run_id);
     Ok(AgentResult { session })
 }
 
+/// Result of spawning a PTY child process.
+struct SpawnedPty {
+    child: Box<dyn portable_pty::Child + Send + Sync>,
+    master_reader: Box<dyn std::io::Read + Send>,
+    session: Arc<PtySession>,
+    broadcast_tx: tokio::sync::broadcast::Sender<Vec<u8>>,
+}
+
 /// Open a PTY pair and spawn the child process on the slave side.
-///
-/// Returns the child handle and a reader for the master side.
-/// The master reader is cloned before spawning to avoid a race with fast-exiting processes.
 fn spawn_pty_child(
     args: &[String],
-    workdir: &PathBuf,
+    workdir: &std::path::Path,
     command_display: &str,
-) -> Result<(
-    Box<dyn portable_pty::Child + Send + Sync>,
-    Box<dyn std::io::Read + Send>,
-)> {
+    run_id: RunId,
+) -> Result<SpawnedPty> {
     let program = args.first().context("args must not be empty")?;
 
     let pty_system = NativePtySystem::default();
@@ -131,6 +164,15 @@ fn spawn_pty_child(
         .try_clone_reader()
         .context("failed to clone PTY master reader")?;
 
+    // Get a writer handle for input into the PTY.
+    let master_writer = pty_pair
+        .master
+        .take_writer()
+        .context("failed to take PTY master writer")?;
+
+    // Create the PtySession with broadcast channel.
+    let (pty_session, broadcast_tx) = PtySession::new(run_id, master_writer, pty_pair.master);
+
     let mut cmd = CommandBuilder::new(program);
     cmd.args(&args[1..]);
     cmd.cwd(workdir);
@@ -144,7 +186,21 @@ fn spawn_pty_child(
     // EOF on the master when the child exits.
     drop(pty_pair.slave);
 
-    Ok((child, master_reader))
+    Ok(SpawnedPty {
+        child,
+        master_reader,
+        session: pty_session,
+        broadcast_tx,
+    })
+}
+
+/// Schedule deferred cleanup of the PTY session from the registry (30s delay).
+fn schedule_cleanup(registry: Arc<PtySessionRegistry>, run_id: RunId) {
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(30)).await;
+        registry.remove(run_id);
+        debug!("PTY session cleaned up for run {run_id}");
+    });
 }
 
 /// Update session status based on exit result and persist.

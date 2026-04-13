@@ -31,6 +31,7 @@ export default defineConfig({
       '/api': {
         target: `http://localhost:${readApiPort()}`,
         rewrite: (p) => p.replace(/^\/api/, ''),
+        ws: true,
       },
     },
   },

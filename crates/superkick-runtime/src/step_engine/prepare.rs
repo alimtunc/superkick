@@ -7,13 +7,13 @@ use superkick_core::EventKind;
 use superkick_core::EventLevel;
 use superkick_storage::repo::{
     AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
-    RunStepRepo,
+    RunStepRepo, TranscriptRepo,
 };
 
 use super::StepEngine;
 use crate::worktree::{WorktreeInfo, WorktreeManager};
 
-impl<R, ST, E, A, AR, I> StepEngine<R, ST, E, A, AR, I>
+impl<R, ST, E, A, AR, I, T> StepEngine<R, ST, E, A, AR, I, T>
 where
     R: RunRepo + 'static,
     ST: RunStepRepo + 'static,
@@ -21,6 +21,7 @@ where
     A: AgentSessionRepo + 'static,
     AR: ArtifactRepo + 'static,
     I: InterruptRepo + InterruptTxRepo + 'static,
+    T: TranscriptRepo + 'static,
 {
     /// Prepare step: ensure bare clone exists, create worktree (or use repo root).
     pub(super) async fn execute_prepare(&self, run: &mut superkick_core::Run) -> Result<()> {

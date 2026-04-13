@@ -11,10 +11,12 @@ use axum::routing::{get, post};
 use superkick_config::LaunchProfileConfig;
 use superkick_core::RunId;
 use superkick_integrations::linear::LinearClient;
-use superkick_runtime::{InterruptService, RepoCache, StepEngine, StepEngineDeps};
+use superkick_runtime::{
+    InterruptService, PtySessionRegistry, RepoCache, StepEngine, StepEngineDeps,
+};
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteInterruptRepo, SqlitePullRequestRepo,
-    SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
+    SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo, SqliteTranscriptRepo,
 };
 
 mod error;
@@ -29,6 +31,7 @@ type Engine = StepEngine<
     SqliteAgentSessionRepo,
     SqliteArtifactRepo,
     SqliteInterruptRepo,
+    SqliteTranscriptRepo,
 >;
 
 type IntService = InterruptService<SqliteRunRepo, SqliteRunEventRepo, SqliteInterruptRepo>;
@@ -42,8 +45,10 @@ pub(crate) struct AppState {
     pub artifact_repo: Arc<SqliteArtifactRepo>,
     pub interrupt_repo: Arc<SqliteInterruptRepo>,
     pub pr_repo: Arc<SqlitePullRequestRepo>,
+    pub transcript_repo: Arc<SqliteTranscriptRepo>,
     pub engine: Arc<Engine>,
     pub interrupt_service: Arc<IntService>,
+    pub pty_registry: Arc<PtySessionRegistry>,
     pub linear_client: Option<Arc<LinearClient>>,
     pub run_tokens: Arc<Mutex<HashMap<RunId, CancellationToken>>>,
     pub repo_slug: String,
@@ -80,7 +85,10 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let session_repo = Arc::new(SqliteAgentSessionRepo::new(pool.clone()));
     let artifact_repo = Arc::new(SqliteArtifactRepo::new(pool.clone()));
     let pr_repo = Arc::new(SqlitePullRequestRepo::new(pool.clone()));
-    let interrupt_repo = Arc::new(SqliteInterruptRepo::new(pool));
+    let interrupt_repo = Arc::new(SqliteInterruptRepo::new(pool.clone()));
+
+    let transcript_repo = Arc::new(SqliteTranscriptRepo::new(pool));
+    let pty_registry = Arc::new(PtySessionRegistry::new());
 
     let cache_root = PathBuf::from(&cfg.cache_dir);
     let repo_cache = RepoCache::new(cache_root).await?;
@@ -92,6 +100,8 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         session_repo: Arc::clone(&session_repo),
         artifact_repo: Arc::clone(&artifact_repo),
         interrupt_repo: Arc::clone(&interrupt_repo),
+        transcript_repo: Arc::clone(&transcript_repo),
+        registry: Arc::clone(&pty_registry),
         repo_cache,
         config,
     }));
@@ -119,8 +129,10 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         artifact_repo,
         interrupt_repo,
         pr_repo,
+        transcript_repo,
         engine,
         interrupt_service,
+        pty_registry,
         linear_client,
         run_tokens: Arc::new(Mutex::new(HashMap::new())),
         repo_slug,
@@ -148,9 +160,14 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
             "/runs/{run_id}/interrupts/{interrupt_id}/answer",
             post(handlers::interrupts::answer_interrupt),
         )
+        // Console endpoint removed (SUP-75): operator input now goes directly via PTY terminal.
         .route(
-            "/runs/{id}/console",
-            post(handlers::console::send_console_input),
+            "/runs/{id}/terminal",
+            get(handlers::terminal::attach_terminal),
+        )
+        .route(
+            "/runs/{id}/terminal-history",
+            get(handlers::terminal::get_terminal_history),
         )
         .route(
             "/runs/{run_id}/sessions/{session_id}/attach",

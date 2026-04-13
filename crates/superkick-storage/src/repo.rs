@@ -5,7 +5,7 @@ use std::future::Future;
 use anyhow::Result;
 use superkick_core::{
     AgentSession, AgentSessionId, Artifact, ArtifactId, EventId, Interrupt, InterruptId,
-    PullRequest, Run, RunEvent, RunId, RunStep, StepId,
+    PullRequest, Run, RunEvent, RunId, RunStep, StepId, TranscriptChunk,
 };
 
 /// Repository for `Run` entities.
@@ -75,6 +75,15 @@ pub trait PullRequestRepo: Send + Sync {
     fn get_by_run(&self, run_id: RunId)
     -> impl Future<Output = Result<Option<PullRequest>>> + Send;
     fn update(&self, pr: &PullRequest) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// Repository for durable terminal transcript chunks.
+pub trait TranscriptRepo: Send + Sync {
+    fn insert(&self, chunk: &TranscriptChunk) -> impl Future<Output = Result<()>> + Send;
+    fn list_by_run(
+        &self,
+        run_id: RunId,
+    ) -> impl Future<Output = Result<Vec<TranscriptChunk>>> + Send;
 }
 
 /// Atomic operations spanning multiple tables for interrupt workflows.

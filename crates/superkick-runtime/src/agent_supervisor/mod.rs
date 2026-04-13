@@ -8,7 +8,7 @@
 //! is emitted as `EventLevel::Info`. Lifecycle events retain their original levels.
 
 mod lifecycle;
-mod output;
+pub(crate) mod output;
 mod process;
 
 use std::path::PathBuf;
@@ -20,7 +20,9 @@ use chrono::Utc;
 use tokio_util::sync::CancellationToken;
 
 use superkick_core::{AgentProvider, AgentSession, AgentSessionId, AgentStatus, RunId, StepId};
-use superkick_storage::repo::{AgentSessionRepo, RunEventRepo};
+use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
+
+use crate::pty_session::PtySessionRegistry;
 
 /// Configuration for launching an agent session.
 pub struct AgentLaunchConfig {
@@ -60,20 +62,30 @@ impl AgentHandle {
 }
 
 /// Process supervisor for local CLI agents.
-pub struct AgentSupervisor<S, E> {
+pub struct AgentSupervisor<S, E, T> {
     session_repo: Arc<S>,
     event_repo: Arc<E>,
+    transcript_repo: Arc<T>,
+    registry: Arc<PtySessionRegistry>,
 }
 
-impl<S, E> AgentSupervisor<S, E>
+impl<S, E, T> AgentSupervisor<S, E, T>
 where
     S: AgentSessionRepo + 'static,
     E: RunEventRepo + 'static,
+    T: TranscriptRepo + 'static,
 {
-    pub fn new(session_repo: Arc<S>, event_repo: Arc<E>) -> Self {
+    pub fn new(
+        session_repo: Arc<S>,
+        event_repo: Arc<E>,
+        transcript_repo: Arc<T>,
+        registry: Arc<PtySessionRegistry>,
+    ) -> Self {
         Self {
             session_repo,
             event_repo,
+            transcript_repo,
+            registry,
         }
     }
 
@@ -110,6 +122,15 @@ where
 
         let session_repo = Arc::clone(&self.session_repo);
         let event_repo = Arc::clone(&self.event_repo);
+        let transcript_repo = Arc::clone(&self.transcript_repo);
+        let registry = Arc::clone(&self.registry);
+
+        let deps = lifecycle::SupervisedDeps {
+            session_repo,
+            event_repo,
+            transcript_repo,
+            registry,
+        };
 
         let join = tokio::spawn(lifecycle::run_supervised(
             session,
@@ -117,8 +138,7 @@ where
             config.workdir,
             config.timeout,
             cancel_token,
-            session_repo,
-            event_repo,
+            deps,
         ));
 
         Ok((handle, join))

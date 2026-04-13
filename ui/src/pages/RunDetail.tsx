@@ -1,7 +1,8 @@
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
 import { SessionWatchRail } from '@/components/dashboard/SessionWatchRail'
+import { EventsPanel } from '@/components/run-detail/EventsPanel'
 import { InterruptPanel } from '@/components/run-detail/InterruptPanel'
-import { OperatorConsole } from '@/components/run-detail/OperatorConsole'
+import { PtyTerminal } from '@/components/run-detail/PtyTerminal'
 import { ReviewResults } from '@/components/run-detail/ReviewResults'
 import { RunDetailHeader } from '@/components/run-detail/RunDetailHeader'
 import { RunDetailsGrid } from '@/components/run-detail/RunDetailsGrid'
@@ -71,18 +72,12 @@ function RunDetail({ runId, refTime }: { runId: string; refTime: number }) {
 				) : null}
 
 				<section className="mb-6">
-					<SectionTitle
-						title="CONSOLE"
-						accent={detail.run.execution_mode === 'semi_auto' ? 'gold' : 'mineral'}
-					/>
-					<OperatorConsole
-						runId={detail.run.id}
-						executionMode={detail.run.execution_mode}
-						isTerminal={detail.isTerminal}
-						events={stream.events}
-						connected={stream.connected}
-						done={stream.done}
-					/>
+					<SectionTitle title="TERMINAL" />
+					<PtyTerminal runId={detail.run.id} isTerminal={detail.isTerminal} />
+				</section>
+
+				<section className="mb-6">
+					<EventsPanel events={stream.events} />
 				</section>
 
 				<ReviewResults steps={detail.steps} />
