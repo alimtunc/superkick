@@ -10,8 +10,19 @@ import { SectionTitle } from '@/components/dashboard/SectionTitle'
 import { SessionWatchRail } from '@/components/dashboard/SessionWatchRail'
 import { useDashboardRuns } from '@/hooks/useDashboardRuns'
 import { avgDuration, medianDuration, stateDistribution } from '@/lib/domain'
+import { runsQuery } from '@/lib/queries'
+import { createRoute } from '@tanstack/react-router'
 
-export function ControlCenter() {
+import { Route as shellRoute } from './route'
+
+export const Route = createRoute({
+	getParentRoute: () => shellRoute,
+	path: '/',
+	loader: ({ context }) => context.queryClient.ensureQueryData(runsQuery()),
+	component: OverviewPage
+})
+
+function OverviewPage() {
 	const d = useDashboardRuns()
 	return (
 		<>

@@ -1,13 +1,10 @@
-import { fetchIssueDetail } from '@/api'
-import { queryKeys } from '@/lib/queryKeys'
+import { issueDetailQuery } from '@/lib/queries'
 import { useQuery } from '@tanstack/react-query'
 
 export function useIssueDetail(id: string | undefined) {
 	const { data, isLoading, error, dataUpdatedAt, refetch } = useQuery({
-		queryKey: queryKeys.issues.detail(id ?? ''),
-		queryFn: () => fetchIssueDetail(id!),
-		enabled: !!id,
-		staleTime: 15_000
+		...issueDetailQuery(id ?? ''),
+		enabled: !!id
 	})
 
 	return {
