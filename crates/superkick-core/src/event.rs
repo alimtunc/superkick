@@ -19,6 +19,9 @@ pub enum EventKind {
     Error,
     ExternalAttach,
     OperatorInput,
+    AttentionRequested,
+    AttentionReplied,
+    AttentionCancelled,
 }
 
 /// Severity level for run events.

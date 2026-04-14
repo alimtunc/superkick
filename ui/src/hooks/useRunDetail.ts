@@ -24,6 +24,7 @@ export function useRunDetail(runId: string) {
 	const steps = data?.steps ?? []
 	const sessions = data?.sessions ?? []
 	const interrupts = data?.interrupts ?? []
+	const attentionRequests = data?.attention_requests ?? []
 	const pr = data?.pr ?? null
 
 	const syncRun = useCallback(() => {
@@ -60,6 +61,7 @@ export function useRunDetail(runId: string) {
 		steps,
 		sessions,
 		interrupts,
+		attentionRequests,
 		pr,
 		loading,
 		error,

@@ -35,3 +35,4 @@ define_id!(InterruptId);
 define_id!(ArtifactId);
 define_id!(PullRequestId);
 define_id!(TranscriptChunkId);
+define_id!(AttentionRequestId);

@@ -1,6 +1,9 @@
 import type {
 	AgentSession,
 	AttachPayload,
+	AttentionKind,
+	AttentionReply,
+	AttentionRequest,
 	ExecutionMode,
 	Run,
 	RunStep,
@@ -98,10 +101,65 @@ export async function fetchRun(id: string): Promise<{
 	steps: RunStep[]
 	sessions: AgentSession[]
 	interrupts: Interrupt[]
+	attention_requests: AttentionRequest[]
 	pr: PullRequest | null
 }> {
 	const res = await fetch(`${BASE}/runs/${id}`)
 	if (!res.ok) throw new Error(`GET /runs/${id} failed: ${res.status}`)
+	return res.json()
+}
+
+// ── Attention requests (structured operator arbitration) ─────────────
+
+export interface CreateAttentionRequest {
+	kind: AttentionKind
+	title: string
+	body: string
+	options?: string[]
+}
+
+export async function createAttentionRequest(
+	runId: string,
+	req: CreateAttentionRequest
+): Promise<AttentionRequest> {
+	const res = await fetch(`${BASE}/runs/${runId}/attention-requests`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(req)
+	})
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
+		throw new Error(body.error || `create attention request failed: ${res.status}`)
+	}
+	return res.json()
+}
+
+export async function replyAttentionRequest(
+	runId: string,
+	requestId: string,
+	reply: AttentionReply,
+	repliedBy?: string
+): Promise<AttentionRequest> {
+	const res = await fetch(`${BASE}/runs/${runId}/attention-requests/${requestId}/reply`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ ...reply, replied_by: repliedBy })
+	})
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
+		throw new Error(body.error || `reply attention request failed: ${res.status}`)
+	}
+	return res.json()
+}
+
+export async function cancelAttentionRequest(runId: string, requestId: string): Promise<AttentionRequest> {
+	const res = await fetch(`${BASE}/runs/${runId}/attention-requests/${requestId}/cancel`, {
+		method: 'POST'
+	})
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
+		throw new Error(body.error || `cancel attention request failed: ${res.status}`)
+	}
 	return res.json()
 }
 

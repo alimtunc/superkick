@@ -1,8 +1,10 @@
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
 import { SessionWatchRail } from '@/components/dashboard/SessionWatchRail'
+import { AttentionRequestPanel } from '@/components/run-detail/AttentionRequestPanel'
 import { EventsPanel } from '@/components/run-detail/EventsPanel'
 import { InterruptPanel } from '@/components/run-detail/InterruptPanel'
 import { PtyTerminal } from '@/components/run-detail/PtyTerminal'
+import { RaiseAttentionRequestForm } from '@/components/run-detail/RaiseAttentionRequestForm'
 import { ReviewResults } from '@/components/run-detail/ReviewResults'
 import { RunDetailHeader } from '@/components/run-detail/RunDetailHeader'
 import { RunDetailsGrid } from '@/components/run-detail/RunDetailsGrid'
@@ -71,8 +73,28 @@ function RunDetail({ runId, refTime }: { runId: string; refTime: number }) {
 					</section>
 				) : null}
 
+				{detail.isTerminal && detail.attentionRequests.length === 0 ? null : (
+					<section className="mb-6">
+						<SectionTitle title="ATTENTION REQUESTS" accent="gold" />
+						<AttentionRequestPanel
+							runId={detail.run.id}
+							requests={detail.attentionRequests}
+							onUpdated={detail.syncRun}
+						/>
+						{detail.isTerminal ? null : (
+							<div className="mt-3">
+								<RaiseAttentionRequestForm runId={detail.run.id} onCreated={detail.syncRun} />
+							</div>
+						)}
+					</section>
+				)}
+
 				<section className="mb-6">
 					<SectionTitle title="TERMINAL" />
+					<p className="font-data mb-2 text-[11px] text-dim">
+						Live PTY — direct interaction with the run's agent. Use attention requests above for
+						structured product-level decisions.
+					</p>
 					<PtyTerminal runId={detail.run.id} isTerminal={detail.isTerminal} />
 				</section>
 

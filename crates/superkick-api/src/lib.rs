@@ -12,11 +12,12 @@ use superkick_config::LaunchProfileConfig;
 use superkick_core::RunId;
 use superkick_integrations::linear::LinearClient;
 use superkick_runtime::{
-    InterruptService, PtySessionRegistry, RepoCache, StepEngine, StepEngineDeps,
+    AttentionService, InterruptService, PtySessionRegistry, RepoCache, StepEngine, StepEngineDeps,
 };
 use superkick_storage::{
-    SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteInterruptRepo, SqlitePullRequestRepo,
-    SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo, SqliteTranscriptRepo,
+    SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteInterruptRepo,
+    SqlitePullRequestRepo, SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
+    SqliteTranscriptRepo,
 };
 
 mod error;
@@ -36,6 +37,8 @@ type Engine = StepEngine<
 
 type IntService = InterruptService<SqliteRunRepo, SqliteRunEventRepo, SqliteInterruptRepo>;
 
+type AttnService = AttentionService<SqliteAttentionRequestRepo, SqliteRunEventRepo, SqliteRunRepo>;
+
 #[derive(Clone)]
 pub(crate) struct AppState {
     pub run_repo: Arc<SqliteRunRepo>,
@@ -44,10 +47,12 @@ pub(crate) struct AppState {
     pub session_repo: Arc<SqliteAgentSessionRepo>,
     pub artifact_repo: Arc<SqliteArtifactRepo>,
     pub interrupt_repo: Arc<SqliteInterruptRepo>,
+    pub attention_repo: Arc<SqliteAttentionRequestRepo>,
     pub pr_repo: Arc<SqlitePullRequestRepo>,
     pub transcript_repo: Arc<SqliteTranscriptRepo>,
     pub engine: Arc<Engine>,
     pub interrupt_service: Arc<IntService>,
+    pub attention_service: Arc<AttnService>,
     pub pty_registry: Arc<PtySessionRegistry>,
     pub linear_client: Option<Arc<LinearClient>>,
     pub run_tokens: Arc<Mutex<HashMap<RunId, CancellationToken>>>,
@@ -86,6 +91,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let artifact_repo = Arc::new(SqliteArtifactRepo::new(pool.clone()));
     let pr_repo = Arc::new(SqlitePullRequestRepo::new(pool.clone()));
     let interrupt_repo = Arc::new(SqliteInterruptRepo::new(pool.clone()));
+    let attention_repo = Arc::new(SqliteAttentionRequestRepo::new(pool.clone()));
 
     let transcript_repo = Arc::new(SqliteTranscriptRepo::new(pool));
     let pty_registry = Arc::new(PtySessionRegistry::new());
@@ -112,6 +118,12 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         Arc::clone(&interrupt_repo),
     ));
 
+    let attention_service = Arc::new(AttentionService::new(
+        Arc::clone(&attention_repo),
+        Arc::clone(&event_repo),
+        Arc::clone(&run_repo),
+    ));
+
     let linear_client = std::env::var("LINEAR_API_KEY")
         .ok()
         .filter(|k| !k.is_empty())
@@ -128,10 +140,12 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         session_repo,
         artifact_repo,
         interrupt_repo,
+        attention_repo,
         pr_repo,
         transcript_repo,
         engine,
         interrupt_service,
+        attention_service,
         pty_registry,
         linear_client,
         run_tokens: Arc::new(Mutex::new(HashMap::new())),
@@ -159,6 +173,19 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         .route(
             "/runs/{run_id}/interrupts/{interrupt_id}/answer",
             post(handlers::interrupts::answer_interrupt),
+        )
+        .route(
+            "/runs/{id}/attention-requests",
+            get(handlers::attention::list_attention_requests)
+                .post(handlers::attention::create_attention_request),
+        )
+        .route(
+            "/runs/{run_id}/attention-requests/{request_id}/reply",
+            post(handlers::attention::reply_attention_request),
+        )
+        .route(
+            "/runs/{run_id}/attention-requests/{request_id}/cancel",
+            post(handlers::attention::cancel_attention_request),
         )
         // Console endpoint removed (SUP-75): operator input now goes directly via PTY terminal.
         .route(
