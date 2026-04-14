@@ -32,6 +32,9 @@ export type EventKind =
 	| 'error'
 	| 'external_attach'
 	| 'operator_input'
+	| 'attention_requested'
+	| 'attention_replied'
+	| 'attention_cancelled'
 
 export type EventLevel = 'debug' | 'info' | 'warn' | 'error'
 
@@ -135,6 +138,30 @@ export type InterruptAction =
 	| { action: 'retry_step' }
 	| { action: 'continue_with_note'; note: string }
 	| { action: 'abort_run' }
+
+// ── Attention requests (structured operator arbitration) ──────────────
+
+export type AttentionKind = 'clarification' | 'decision' | 'approval'
+export type AttentionStatus = 'pending' | 'replied' | 'cancelled'
+
+export type AttentionReply =
+	| { kind: 'text'; text: string }
+	| { kind: 'choice'; choice: string }
+	| { kind: 'approval'; approved: boolean; reason?: string }
+
+export interface AttentionRequest {
+	id: string
+	run_id: string
+	kind: AttentionKind
+	title: string
+	body: string
+	options?: string[] | null
+	status: AttentionStatus
+	reply?: AttentionReply | null
+	replied_by?: string | null
+	created_at: string
+	replied_at?: string | null
+}
 
 // ── Linear issues (list contract) ─────────────────────────────────────
 

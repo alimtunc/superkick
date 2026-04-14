@@ -60,8 +60,20 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             include_str!("../migrations/005_run_use_worktree.sql"),
         ),
         (
+            "005_pull_requests",
+            include_str!("../migrations/005_pull_requests.sql"),
+        ),
+        (
             "006_execution_mode",
             include_str!("../migrations/006_execution_mode.sql"),
+        ),
+        (
+            "007_terminal_transcripts",
+            include_str!("../migrations/007_terminal_transcripts.sql"),
+        ),
+        (
+            "008_attention_requests",
+            include_str!("../migrations/008_attention_requests.sql"),
         ),
     ];
 

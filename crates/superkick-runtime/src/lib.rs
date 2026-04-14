@@ -1,6 +1,7 @@
 //! Runtime services — worktree lifecycle, agent supervision, subprocess control.
 
 pub mod agent_supervisor;
+pub mod attention_service;
 pub mod git;
 pub mod interrupt_service;
 pub mod pty_session;
@@ -9,6 +10,7 @@ pub mod step_engine;
 pub mod worktree;
 
 pub use agent_supervisor::{AgentHandle, AgentLaunchConfig, AgentResult, AgentSupervisor};
+pub use attention_service::AttentionService;
 pub use interrupt_service::InterruptService;
 pub use pty_session::{PtySession, PtySessionRegistry, WriterHolder};
 pub use repo_cache::RepoCache;

@@ -2,6 +2,7 @@
 
 mod agent_sessions;
 mod artifacts;
+mod attention_requests;
 mod codec;
 mod events;
 mod interrupts;
@@ -12,6 +13,7 @@ mod transcripts;
 
 pub use agent_sessions::SqliteAgentSessionRepo;
 pub use artifacts::SqliteArtifactRepo;
+pub use attention_requests::SqliteAttentionRequestRepo;
 pub use events::SqliteRunEventRepo;
 pub use interrupts::SqliteInterruptRepo;
 pub use pull_requests::SqlitePullRequestRepo;

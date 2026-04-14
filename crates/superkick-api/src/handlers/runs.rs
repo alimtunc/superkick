@@ -13,8 +13,8 @@ use superkick_core::{
     parse_pr_number,
 };
 use superkick_storage::repo::{
-    AgentSessionRepo, ArtifactRepo, InterruptRepo, PullRequestRepo, RunEventRepo, RunRepo,
-    RunStepRepo,
+    AgentSessionRepo, ArtifactRepo, AttentionRequestRepo, InterruptRepo, PullRequestRepo,
+    RunEventRepo, RunRepo, RunStepRepo,
 };
 
 use crate::AppState;
@@ -150,6 +150,7 @@ pub async fn get_run(
     let steps = state.step_repo.list_by_run(run_id).await?;
     let sessions = state.session_repo.list_by_run(run_id).await?;
     let interrupts = state.interrupt_repo.list_by_run(run_id).await?;
+    let attention_requests = state.attention_repo.list_by_run(run_id).await?;
     let pr = resolve_pr(&state, run_id, &run.repo_slug).await;
 
     Ok(Json(serde_json::json!({
@@ -157,6 +158,7 @@ pub async fn get_run(
         "steps": steps,
         "sessions": sessions,
         "interrupts": interrupts,
+        "attention_requests": attention_requests,
         "pr": pr,
     })))
 }

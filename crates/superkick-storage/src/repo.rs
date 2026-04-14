@@ -4,8 +4,9 @@ use std::future::Future;
 
 use anyhow::Result;
 use superkick_core::{
-    AgentSession, AgentSessionId, Artifact, ArtifactId, EventId, Interrupt, InterruptId,
-    PullRequest, Run, RunEvent, RunId, RunStep, StepId, TranscriptChunk,
+    AgentSession, AgentSessionId, Artifact, ArtifactId, AttentionRequest, AttentionRequestId,
+    EventId, Interrupt, InterruptId, PullRequest, Run, RunEvent, RunId, RunStep, StepId,
+    TranscriptChunk,
 };
 
 /// Repository for `Run` entities.
@@ -84,6 +85,21 @@ pub trait TranscriptRepo: Send + Sync {
         &self,
         run_id: RunId,
     ) -> impl Future<Output = Result<Vec<TranscriptChunk>>> + Send;
+}
+
+/// Repository for `AttentionRequest` entities — operator-facing arbitration
+/// asks raised by active runs, above the PTY substrate.
+pub trait AttentionRequestRepo: Send + Sync {
+    fn insert(&self, request: &AttentionRequest) -> impl Future<Output = Result<()>> + Send;
+    fn get(
+        &self,
+        id: AttentionRequestId,
+    ) -> impl Future<Output = Result<Option<AttentionRequest>>> + Send;
+    fn list_by_run(
+        &self,
+        run_id: RunId,
+    ) -> impl Future<Output = Result<Vec<AttentionRequest>>> + Send;
+    fn update(&self, request: &AttentionRequest) -> impl Future<Output = Result<()>> + Send;
 }
 
 /// Atomic operations spanning multiple tables for interrupt workflows.
