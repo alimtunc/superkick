@@ -10,6 +10,7 @@ pub mod id;
 pub mod interrupt;
 pub mod pull_request;
 pub mod review;
+pub mod role_router;
 pub mod run;
 pub mod step;
 pub mod transcript;
@@ -28,6 +29,10 @@ pub use id::{
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
 pub use pull_request::{LinkedPrSummary, PrState, PullRequest, parse_pr_number};
 pub use review::{ReviewFinding, ReviewSwarmResult};
+pub use role_router::{
+    AgentCatalog, AgentDefinition as CoreAgentDefinition, ResolvedAgent, RoleRouter, RouterError,
+    RunPolicy,
+};
 pub use run::{ExecutionMode, LinkedRunSummary, Run, RunState, TriggerSource};
 pub use step::{RunStep, StepKey, StepStatus};
 pub use transcript::TranscriptChunk;

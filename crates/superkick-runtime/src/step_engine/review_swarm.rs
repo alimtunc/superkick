@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result, bail};
+use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
 use superkick_core::{EventKind, EventLevel, ReviewFinding, ReviewSwarmResult, RunEvent, RunStep};
@@ -9,8 +10,8 @@ use superkick_storage::repo::{
     RunStepRepo, TranscriptRepo,
 };
 
-use super::{DEFAULT_AGENT_TIMEOUT, StepEngine, agent_command};
-use crate::agent_supervisor::AgentLaunchConfig;
+use super::{DEFAULT_AGENT_TIMEOUT, StepEngine};
+use crate::agent_supervisor::{AgentHandle, AgentLaunchConfig};
 
 impl<R, ST, E, A, AR, I, T> StepEngine<R, ST, E, A, AR, I, T>
 where
@@ -30,6 +31,7 @@ where
         agent_names: &[String],
         findings_threshold: u32,
         worktree: &std::path::Path,
+        cancel_token: &CancellationToken,
     ) -> Result<()> {
         let max_parallel = self.config.budget.max_parallel_agents as usize;
 
@@ -49,21 +51,20 @@ where
         let semaphore = Arc::new(tokio::sync::Semaphore::new(max_parallel));
         let mut handles: Vec<(
             String,
+            AgentHandle,
             tokio::task::JoinHandle<Result<crate::agent_supervisor::AgentResult>>,
         )> = Vec::new();
 
         for agent_name in agent_names {
-            let agent_cfg = self
-                .config
-                .agents
-                .get(agent_name)
-                .with_context(|| format!("review agent '{agent_name}' not found in config"))?;
+            let resolved = self
+                .router()
+                .resolve(agent_name)
+                .with_context(|| format!("failed to resolve review agent '{agent_name}'"))?;
 
-            let (program, base_args) = agent_command(&agent_cfg.provider);
-            let mut args = vec![program.to_string()];
-            args.extend(base_args.iter().map(|s| s.to_string()));
+            let mut args = vec![resolved.program.clone()];
+            args.extend(resolved.args.iter().cloned());
 
-            let review_prompt = format!(
+            let base_prompt = format!(
                 "You are a code reviewer for issue {} (id: {}). \
                  Review the changes on this branch. Look for bugs, logic errors, \
                  security issues, and code quality problems. \
@@ -73,15 +74,21 @@ where
                  Do NOT mark the issue as done, closed, or resolved. Only review code.",
                 run.issue_identifier, run.issue_id,
             );
+            let review_prompt =
+                if let Some(sys) = resolved.system_prompt.as_deref().filter(|s| !s.is_empty()) {
+                    format!("--- Role system prompt ---\n{sys}\n\n{base_prompt}")
+                } else {
+                    base_prompt
+                };
             args.push(review_prompt);
 
             let launch_cfg = AgentLaunchConfig {
                 run_id: run.id,
                 step_id: step.id,
-                provider: agent_cfg.provider,
+                provider: resolved.provider,
                 args,
                 workdir: worktree.to_path_buf(),
-                timeout: DEFAULT_AGENT_TIMEOUT,
+                timeout: resolved.timeout.unwrap_or(DEFAULT_AGENT_TIMEOUT),
             };
 
             let permit = semaphore
@@ -90,7 +97,7 @@ where
                 .await
                 .context("review swarm semaphore closed")?;
 
-            let (_handle, join) = self
+            let (agent_handle, join) = self
                 .supervisor
                 .launch(launch_cfg)
                 .await
@@ -102,10 +109,16 @@ where
                 join.await.context("review agent task panicked")?
             });
 
-            handles.push((name, gated));
+            handles.push((name, agent_handle, gated));
         }
 
-        let findings = self.collect_review_results(run, step, handles).await;
+        let findings = self
+            .collect_review_results(run, step, handles, cancel_token)
+            .await;
+
+        if cancel_token.is_cancelled() {
+            bail!("review swarm cancelled");
+        }
 
         let total_agents = findings.len();
         let passed_count = findings.iter().filter(|f| f.passed).count();
@@ -163,16 +176,31 @@ where
         step: &RunStep,
         handles: Vec<(
             String,
+            AgentHandle,
             tokio::task::JoinHandle<Result<crate::agent_supervisor::AgentResult>>,
         )>,
+        cancel_token: &CancellationToken,
     ) -> Vec<ReviewFinding> {
         let mut findings = Vec::with_capacity(handles.len());
+        let agent_handles: Vec<AgentHandle> = handles.iter().map(|(_, h, _)| h.clone()).collect();
 
-        for (agent_name, handle) in handles {
-            let result = handle.await;
+        // Watch cancellation and propagate to all in-flight agents.
+        let watcher_token = cancel_token.clone();
+        let watcher = tokio::spawn(async move {
+            watcher_token.cancelled().await;
+            for h in &agent_handles {
+                h.cancel();
+            }
+        });
 
-            match result {
-                Ok(Ok(agent_result)) => {
+        for (agent_name, _agent_handle, handle) in handles {
+            let flattened: Result<crate::agent_supervisor::AgentResult> = match handle.await {
+                Ok(r) => r,
+                Err(e) => Err(anyhow::anyhow!("review agent task panicked: {e}")),
+            };
+
+            match flattened {
+                Ok(agent_result) => {
                     let passed = agent_result.session.exit_code == Some(0);
                     findings.push(ReviewFinding {
                         agent_name: agent_name.clone(),
@@ -199,44 +227,27 @@ where
                     )
                     .await;
                 }
-                Ok(Err(e)) => {
-                    let err_msg = format!("{e:#}");
-                    findings.push(ReviewFinding {
-                        agent_name: agent_name.clone(),
-                        session_id: superkick_core::AgentSessionId::new(),
-                        passed: false,
-                        exit_code: None,
-                    });
-
-                    self.emit(
-                        run,
-                        Some(step.id),
-                        EventKind::AgentOutput,
-                        EventLevel::Error,
-                        format!("review agent '{agent_name}' failed: {err_msg}"),
-                    )
-                    .await;
-                }
                 Err(e) => {
-                    let err_msg = format!("{e:#}");
                     findings.push(ReviewFinding {
                         agent_name: agent_name.clone(),
                         session_id: superkick_core::AgentSessionId::new(),
                         passed: false,
                         exit_code: None,
                     });
-
                     self.emit(
                         run,
                         Some(step.id),
                         EventKind::AgentOutput,
                         EventLevel::Error,
-                        format!("review agent '{agent_name}' failed: {err_msg}"),
+                        format!("review agent '{agent_name}' failed: {e:#}"),
                     )
                     .await;
                 }
             }
         }
+
+        watcher.abort();
+        let _ = watcher.await;
 
         findings
     }
