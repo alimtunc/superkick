@@ -272,6 +272,123 @@ fn reject_review_swarm_with_undefined_agent() {
 }
 
 #[test]
+fn parse_full_agent_definition() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          planner:
+            provider: claude
+            role: planner
+            model: claude-opus-4-6
+            system_prompt: |
+              You are the planner. Think before acting.
+            tools: [read, grep]
+            budget:
+              timeout_secs: 900
+              max_turns: 8
+        workflow:
+          steps:
+            - type: plan
+              agent: planner
+    "};
+    let config = load_str(yaml).unwrap();
+    let planner = &config.agents["planner"];
+    assert_eq!(planner.provider, AgentProvider::Claude);
+    assert_eq!(planner.role.as_deref(), Some("planner"));
+    assert_eq!(planner.model.as_deref(), Some("claude-opus-4-6"));
+    assert!(
+        planner
+            .system_prompt
+            .as_deref()
+            .unwrap()
+            .contains("planner")
+    );
+    assert_eq!(planner.tools.as_ref().unwrap().len(), 2);
+    assert_eq!(planner.budget.timeout_secs, Some(900));
+    assert_eq!(planner.budget.max_turns, Some(8));
+}
+
+#[test]
+fn launch_profile_allowed_agents_narrows_policy() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          planner: { provider: claude }
+          coder: { provider: claude }
+        workflow:
+          steps:
+            - type: plan
+              agent: planner
+            - type: code
+              agent: coder
+        launch_profile:
+          allowed_agents: [planner, coder]
+    "};
+    let config = load_str(yaml).unwrap();
+    let policy = config.base_run_policy();
+    assert!(policy.is_allowed("planner"));
+    assert!(policy.is_allowed("coder"));
+    assert!(!policy.is_allowed("reviewer"));
+}
+
+#[test]
+fn reject_workflow_agent_outside_allowed_set() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          planner: { provider: claude }
+          coder: { provider: claude }
+        workflow:
+          steps:
+            - type: plan
+              agent: planner
+            - type: code
+              agent: coder
+        launch_profile:
+          allowed_agents: [planner]
+    "};
+    let err = load_str(yaml).unwrap_err();
+    assert!(
+        err.to_string().contains("allowed_agents"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn reject_allowed_agents_referencing_unknown_role() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          planner: { provider: claude }
+        workflow:
+          steps:
+            - type: plan
+              agent: planner
+        launch_profile:
+          allowed_agents: [planner, ghost]
+    "};
+    let err = load_str(yaml).unwrap_err();
+    assert!(err.to_string().contains("ghost"), "unexpected error: {err}");
+}
+
+#[test]
+fn agent_catalog_exposes_all_roles() {
+    let config = load_str(FULL_YAML).unwrap();
+    let catalog = config.agent_catalog();
+    assert_eq!(catalog.len(), 2);
+    assert!(catalog.get("implementation").is_some());
+    assert!(catalog.get("review").is_some());
+}
+
+#[test]
 fn load_example_file() {
     let path =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/superkick.yaml");

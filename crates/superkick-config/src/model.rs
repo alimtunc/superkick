@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use superkick_core::AgentProvider;
+use superkick_core::{AgentCatalog, AgentProvider, CoreAgentDefinition as CoreAgent, RunPolicy};
 
 // ── Root ────────────────────────────────────────────────────────────
 
@@ -9,7 +9,7 @@ pub struct SuperkickConfig {
     pub version: u32,
     pub issue_source: IssueSourceConfig,
     pub runner: RunnerConfig,
-    pub agents: std::collections::HashMap<String, AgentConfig>,
+    pub agents: std::collections::HashMap<String, AgentDefinition>,
     pub workflow: WorkflowConfig,
     #[serde(default)]
     pub interrupts: InterruptsConfig,
@@ -74,9 +74,79 @@ pub enum RunnerMode {
 
 // ── Agents ──────────────────────────────────────────────────────────
 
+/// Project-level reusable agent role (the "catalog" entry).
+///
+/// Each entry in `agents:` declares a role the project is willing to spawn,
+/// together with the provider/model/prompt/budget that defines its behaviour.
+/// The orchestrator resolves a role through the `role -> ResolvedAgent`
+/// router at launch time; it never invents roles on the fly.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgentConfig {
+pub struct AgentDefinition {
     pub provider: AgentProvider,
+    /// Optional human-readable role label (e.g. `planner`, `reviewer`).
+    /// Defaults to the catalog key when absent.
+    #[serde(default)]
+    pub role: Option<String>,
+    /// Provider model id (e.g. `claude-opus-4-6`). Passed through to the
+    /// provider CLI when the router builds the command.
+    #[serde(default)]
+    pub model: Option<String>,
+    /// Additional system prompt injected before the base step prompt.
+    #[serde(default)]
+    pub system_prompt: Option<String>,
+    /// Informational tool allowlist. Not enforced yet — kept so it can be
+    /// forwarded to providers that accept a tool restriction flag.
+    #[serde(default)]
+    pub tools: Option<Vec<String>>,
+    /// Per-role budget overrides.
+    #[serde(default)]
+    pub budget: AgentBudget,
+}
+
+/// Budget overrides applied per role. Missing fields inherit project defaults.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AgentBudget {
+    /// Hard timeout in seconds for a single session. When absent the
+    /// runtime's `DEFAULT_AGENT_TIMEOUT` is used.
+    #[serde(default)]
+    pub timeout_secs: Option<u64>,
+    /// Maximum number of agent turns (provider-dependent; informational).
+    #[serde(default)]
+    pub max_turns: Option<u32>,
+}
+
+/// Backwards-compatible alias — older call sites refer to `AgentConfig`.
+pub type AgentConfig = AgentDefinition;
+
+impl SuperkickConfig {
+    /// Build the immutable `AgentCatalog` consumed by the core `RoleRouter`.
+    ///
+    /// The catalog is the *project-level* source of truth: only roles in this
+    /// catalog can ever be spawned, regardless of what the launch profile or
+    /// a per-run override requests.
+    pub fn agent_catalog(&self) -> AgentCatalog {
+        AgentCatalog::from_definitions(self.agents.iter().map(|(name, def)| CoreAgent {
+            name: name.clone(),
+            provider: def.provider,
+            role: def.role.clone(),
+            model: def.model.clone(),
+            system_prompt: def.system_prompt.clone(),
+            tools: def.tools.clone(),
+            timeout_secs: def.budget.timeout_secs,
+            max_turns: def.budget.max_turns,
+        }))
+    }
+
+    /// Build the `RunPolicy` implied by the project's launch profile.
+    ///
+    /// A per-run override can narrow this further at launch time via
+    /// `RunPolicy::with_override`.
+    pub fn base_run_policy(&self) -> RunPolicy {
+        match &self.launch_profile.allowed_agents {
+            Some(list) => RunPolicy::allow_only(list.iter().cloned()),
+            None => RunPolicy::allow_all(),
+        }
+    }
 }
 
 // ── Workflow ─────────────────────────────────────────────────────────
@@ -211,6 +281,11 @@ pub struct LaunchProfileConfig {
     pub default_instructions: String,
     #[serde(default)]
     pub handoff_instructions: String,
+    /// Subset of the project agent catalog this launch profile authorises a
+    /// run to spawn. `None` means "every role in the catalog is allowed".
+    /// The orchestrator refuses to spawn any role outside this set.
+    #[serde(default)]
+    pub allowed_agents: Option<Vec<String>>,
 }
 
 impl Default for LaunchProfileConfig {
@@ -221,6 +296,7 @@ impl Default for LaunchProfileConfig {
             skills: Vec::new(),
             default_instructions: String::new(),
             handoff_instructions: String::new(),
+            allowed_agents: None,
         }
     }
 }

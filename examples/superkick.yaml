@@ -13,10 +13,17 @@ runner:
 agents:
   planner:
     provider: claude
+    role: planner
+    system_prompt: |
+      You are the planner. Produce a detailed plan before any code changes.
+    budget:
+      timeout_secs: 900
   coder:
     provider: claude
+    role: coder
   reviewer:
     provider: claude
+    role: reviewer
 
 workflow:
   steps:
@@ -42,3 +49,6 @@ launch_profile:
   skills: []
   default_instructions: ""
   handoff_instructions: ""
+  # Subset of the agent catalog this project is allowed to spawn.
+  # Omit or set to null to allow every role in the catalog.
+  allowed_agents: [planner, coder, reviewer]

@@ -23,8 +23,8 @@ use tracing::{info, warn};
 
 use superkick_config::{InterruptPolicy, SuperkickConfig, WorkflowStep};
 use superkick_core::{
-    AgentProvider, EventKind, EventLevel, ExecutionMode, InterruptAction, RunEvent, RunState,
-    RunStep, StepKey, StepStatus,
+    AgentCatalog, EventKind, EventLevel, ExecutionMode, InterruptAction, RoleRouter, RunEvent,
+    RunPolicy, RunState, RunStep, StepKey, StepStatus,
 };
 use superkick_storage::repo::{
     AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
@@ -50,6 +50,8 @@ pub struct StepEngine<R, ST, E, A, AR, I, T = ()> {
     interrupt_service: InterruptService<R, E, I>,
     repo_cache: RepoCache,
     config: SuperkickConfig,
+    catalog: AgentCatalog,
+    policy: RunPolicy,
 }
 
 pub struct StepEngineDeps<R, ST, E, A, AR, I, T = ()> {
@@ -87,6 +89,8 @@ where
             Arc::clone(&deps.event_repo),
             Arc::clone(&deps.interrupt_repo),
         );
+        let catalog = deps.config.agent_catalog();
+        let policy = deps.config.base_run_policy();
         Self {
             run_repo: deps.run_repo,
             step_repo: deps.step_repo,
@@ -97,7 +101,15 @@ where
             interrupt_service,
             repo_cache: deps.repo_cache,
             config: deps.config,
+            catalog,
+            policy,
         }
+    }
+
+    /// Construct a run-scoped router. Every agent spawn must flow through
+    /// this — the router enforces the project catalog + run policy.
+    pub(crate) fn router(&self) -> RoleRouter<'_> {
+        RoleRouter::new(&self.catalog, &self.policy)
     }
 
     /// Execute the full run lifecycle: Queued → steps → Completed/Failed.
@@ -368,7 +380,7 @@ where
             StepKey::ReviewSwarm => {
                 let wt = require_worktree(worktree_path)?;
                 let (agents, threshold) = self.find_review_swarm_config()?;
-                self.execute_review_swarm(run, step, &agents, threshold, wt)
+                self.execute_review_swarm(run, step, &agents, threshold, wt, cancel_token)
                     .await
             }
             StepKey::AwaitHuman => Ok(()),
@@ -422,25 +434,30 @@ where
                     .spawn()
                     .with_context(|| format!("failed to spawn setup command: {cmd_str}"))?;
 
+                // Drain stderr concurrently — must happen before wait() completes,
+                // otherwise the pipe can close and the buffer is lost.
+                let stderr_pipe = child.stderr.take();
+                let stderr_task = tokio::spawn(async move {
+                    let mut buf = Vec::new();
+                    if let Some(mut s) = stderr_pipe {
+                        let _ = s.read_to_end(&mut buf).await;
+                    }
+                    buf
+                });
+
                 let status = tokio::select! {
                     result = child.wait() => {
                         result.with_context(|| format!("failed to run setup command: {cmd_str}"))?
                     }
                     _ = token.cancelled() => {
                         kill_child(&mut child).await;
+                        let _ = stderr_task.await;
                         bail!("setup command '{cmd_str}' cancelled");
                     }
                 };
 
                 if !status.success() {
-                    let stderr_bytes = match child.stderr.take() {
-                        Some(mut s) => {
-                            let mut buf = Vec::new();
-                            let _ = s.read_to_end(&mut buf).await;
-                            buf
-                        }
-                        None => Vec::new(),
-                    };
+                    let stderr_bytes = stderr_task.await.unwrap_or_default();
                     let stderr = String::from_utf8_lossy(&stderr_bytes);
                     bail!(
                         "setup command '{}' failed (exit {}): {}",
@@ -737,17 +754,6 @@ pub fn step_key_to_run_state(key: StepKey) -> RunState {
     }
 }
 
-fn agent_command(provider: &AgentProvider) -> (&'static str, Vec<&'static str>) {
-    match provider {
-        // Claude launches in interactive mode (no `--print`) so the PTY substrate
-        // streams a live session. The initial prompt is passed as the positional
-        // argument; Claude auto-submits it as the first user message and keeps the
-        // session open for operator intervention in both `full-auto` and `semi-auto`.
-        AgentProvider::Claude => ("claude", vec!["--dangerously-skip-permissions"]),
-        AgentProvider::Codex => ("codex", vec![]),
-    }
-}
-
 fn require_worktree(path: Option<&std::path::Path>) -> Result<&std::path::Path> {
     path.context("worktree path not set — Prepare step must run first")
 }
@@ -777,8 +783,14 @@ fn build_full_prompt(
     default_instructions: Option<&str>,
     per_run_instructions: Option<&str>,
     handoff_instructions: Option<&str>,
+    role_system_prompt: Option<&str>,
 ) -> String {
-    let mut parts = vec![base.to_string()];
+    let mut parts = Vec::new();
+
+    if let Some(sys) = role_system_prompt.filter(|s| !s.is_empty()) {
+        parts.push(format!("--- Role system prompt ---\n{sys}\n\n"));
+    }
+    parts.push(base.to_string());
 
     if let Some(defaults) = default_instructions {
         parts.push(format!(
@@ -796,19 +808,15 @@ fn build_full_prompt(
 }
 
 async fn check_tool_exists(tool: &str) -> Result<()> {
-    let output = Command::new(tool)
+    // We only care that the binary exists and is executable. Some CLIs exit
+    // non-zero on `--version`, so we treat a successful spawn as sufficient.
+    Command::new(tool)
         .arg("--version")
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
         .await
         .with_context(|| format!("`{tool}` not found on PATH"))?;
-    if !output.success() {
-        bail!(
-            "`{tool} --version` exited with {}",
-            output.code().unwrap_or(-1)
-        );
-    }
     Ok(())
 }
 

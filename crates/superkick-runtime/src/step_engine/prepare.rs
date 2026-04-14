@@ -82,31 +82,30 @@ where
             .await
             .context("git is not installed or not on PATH — install it: https://git-scm.com")?;
 
-        let mut needed_agents: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        let router = self.router();
+        let mut needed_agents: std::collections::HashSet<String> = std::collections::HashSet::new();
         for ws in &self.config.workflow.steps {
             match ws {
                 WorkflowStep::Plan { agent } | WorkflowStep::Code { agent } => {
-                    if let Some(cfg) = self.config.agents.get(agent) {
-                        let (program, _) = super::agent_command(&cfg.provider);
-                        needed_agents.insert(program);
+                    if let Ok(resolved) = router.resolve(agent) {
+                        needed_agents.insert(resolved.program);
                     }
                 }
                 WorkflowStep::ReviewSwarm { agents, .. } => {
                     for agent in agents {
-                        if let Some(cfg) = self.config.agents.get(agent) {
-                            let (program, _) = super::agent_command(&cfg.provider);
-                            needed_agents.insert(program);
+                        if let Ok(resolved) = router.resolve(agent) {
+                            needed_agents.insert(resolved.program);
                         }
                     }
                 }
                 WorkflowStep::Pr { create, .. } if *create => {
-                    needed_agents.insert("gh");
+                    needed_agents.insert("gh".to_string());
                 }
                 _ => {}
             }
         }
 
-        for tool in needed_agents {
+        for tool in &needed_agents {
             super::check_tool_exists(tool).await.with_context(|| {
                 format!("`{tool}` is not installed or not on PATH — the workflow requires it")
             })?;

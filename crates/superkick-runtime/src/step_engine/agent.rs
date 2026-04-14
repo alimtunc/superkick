@@ -7,7 +7,7 @@ use superkick_storage::repo::{
 };
 use tokio_util::sync::CancellationToken;
 
-use super::{DEFAULT_AGENT_TIMEOUT, StepEngine, agent_command, build_full_prompt};
+use super::{DEFAULT_AGENT_TIMEOUT, StepEngine, build_full_prompt};
 use crate::agent_supervisor::AgentLaunchConfig;
 
 impl<R, ST, E, A, AR, I, T> StepEngine<R, ST, E, A, AR, I, T>
@@ -29,16 +29,13 @@ where
         worktree: &std::path::Path,
         cancel_token: &CancellationToken,
     ) -> Result<()> {
-        let agent_cfg = self
-            .config
-            .agents
-            .get(agent_name)
-            .with_context(|| format!("agent '{agent_name}' not found in config"))?;
+        let resolved = self
+            .router()
+            .resolve(agent_name)
+            .with_context(|| format!("failed to resolve agent '{agent_name}'"))?;
 
-        let (program, base_args) = agent_command(&agent_cfg.provider);
-
-        let mut args = vec![program.to_string()];
-        args.extend(base_args.iter().map(|arg| arg.to_string()));
+        let mut args = vec![resolved.program.clone()];
+        args.extend(resolved.args.iter().cloned());
 
         let base_prompt = match step.step_key {
             StepKey::Plan => format!(
@@ -80,16 +77,17 @@ where
             Some(default_instructions.as_str()).filter(|s| !s.is_empty()),
             live_instructions.as_deref(),
             self.handoff_for_step(step.step_key),
+            resolved.system_prompt.as_deref(),
         );
         args.push(prompt);
 
         let launch_cfg = AgentLaunchConfig {
             run_id: run.id,
             step_id: step.id,
-            provider: agent_cfg.provider,
+            provider: resolved.provider,
             args,
             workdir: worktree.to_path_buf(),
-            timeout: DEFAULT_AGENT_TIMEOUT,
+            timeout: resolved.timeout.unwrap_or(DEFAULT_AGENT_TIMEOUT),
         };
 
         let (handle, join) = self
