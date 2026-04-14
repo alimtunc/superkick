@@ -5,8 +5,19 @@ import { RunRow } from '@/components/runs/RunRow'
 import { RunsHeader } from '@/components/runs/RunsHeader'
 import { RunsSummary } from '@/components/runs/RunsSummary'
 import { filterRuns, useRuns, type RunFilter } from '@/hooks/useRuns'
+import { runsQuery } from '@/lib/queries'
+import { createRoute } from '@tanstack/react-router'
 
-export function RunsPage() {
+import { Route as shellRoute } from './route'
+
+export const Route = createRoute({
+	getParentRoute: () => shellRoute,
+	path: '/runs',
+	loader: ({ context }) => context.queryClient.ensureQueryData(runsQuery()),
+	component: RunsPage
+})
+
+function RunsPage() {
 	const { runs, loading, error, refTime, refresh, classified, total } = useRuns()
 	const [filter, setFilter] = useState<RunFilter>('all')
 

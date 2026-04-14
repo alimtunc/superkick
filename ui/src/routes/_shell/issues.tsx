@@ -12,8 +12,19 @@ import { SearchBar } from '@/components/issues/SearchBar'
 import { StatusBar } from '@/components/issues/StatusBar'
 import { useIssues } from '@/hooks/useIssues'
 import { BUCKET_META } from '@/lib/domain/classifyIssues'
+import { issuesQuery } from '@/lib/queries'
+import { createRoute } from '@tanstack/react-router'
 
-export function IssuesPage() {
+import { Route as shellRoute } from './route'
+
+export const Route = createRoute({
+	getParentRoute: () => shellRoute,
+	path: '/issues',
+	loader: ({ context }) => context.queryClient.ensureQueryData(issuesQuery()),
+	component: IssuesPage
+})
+
+function IssuesPage() {
 	const {
 		allIssues,
 		filteredIssues,
@@ -68,7 +79,6 @@ export function IssuesPage() {
 					<>
 						<StatusBar classified={classified} total={totalCount} />
 
-						{/* Bucket filters + filter dropdown icon right */}
 						<div className="flex items-center">
 							<IssueFilters
 								activeBucket={activeBucket}
@@ -93,7 +103,6 @@ export function IssuesPage() {
 							</div>
 						</div>
 
-						{/* Active filters bar */}
 						<ActiveFiltersBar
 							activeLabels={activeLabels}
 							labelColors={labelColors}

@@ -12,20 +12,9 @@ import { SessionList } from '@/components/run-detail/SessionList'
 import { StepTimeline } from '@/components/run-detail/StepTimeline'
 import { useEventStream } from '@/hooks/useEventStream'
 import { useRunDetail } from '@/hooks/useRunDetail'
-import { queryKeys } from '@/lib/queryKeys'
 import { useWatchedSessionsStore } from '@/stores/watchedSessions'
-import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from '@tanstack/react-router'
 
-export function RunDetailPage() {
-	const { runId } = useParams({ from: '/runs/$runId' })
-	const queryClient = useQueryClient()
-	const refTime = queryClient.getQueryState(queryKeys.runs.all)?.dataUpdatedAt || Date.now()
-
-	return <RunDetail key={runId} runId={runId} refTime={refTime} />
-}
-
-function RunDetail({ runId, refTime }: { runId: string; refTime: number }) {
+export function RunDetailView({ runId, refTime }: { runId: string; refTime: number }) {
 	const detail = useRunDetail(runId)
 	const stream = useEventStream(runId, detail.syncRun)
 	const { isWatched, toggleWatch, maxReached } = useWatchedSessionsStore()

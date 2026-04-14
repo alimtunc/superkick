@@ -1,23 +1,16 @@
 import { useMemo, useState, useEffect, useCallback } from 'react'
 
-import { cancelRun, fetchRun } from '@/api'
+import { cancelRun } from '@/api'
 import { TERMINAL_STATES } from '@/lib/constants'
 import { shouldShowInterrupts } from '@/lib/domain'
+import { runDetailQuery } from '@/lib/queries'
 import { queryKeys } from '@/lib/queryKeys'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 
 export function useRunDetail(runId: string) {
 	const queryClient = useQueryClient()
 
-	const {
-		data,
-		isLoading: loading,
-		error: queryError,
-		refetch
-	} = useQuery({
-		queryKey: queryKeys.runs.detail(runId),
-		queryFn: () => fetchRun(runId)
-	})
+	const { data, isLoading: loading, error: queryError, refetch } = useQuery(runDetailQuery(runId))
 
 	const error = queryError ? String(queryError) : null
 	const run = data?.run ?? null

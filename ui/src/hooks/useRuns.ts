@@ -1,8 +1,7 @@
 import { useMemo } from 'react'
 
-import { fetchRuns } from '@/api'
 import { classifyRuns, type ClassifiedRuns } from '@/lib/domain'
-import { queryKeys } from '@/lib/queryKeys'
+import { runsQuery } from '@/lib/queries'
 import type { Run } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 
@@ -17,10 +16,8 @@ export function useRuns() {
 		dataUpdatedAt,
 		refetch
 	} = useQuery({
-		queryKey: queryKeys.runs.all,
-		queryFn: fetchRuns,
-		refetchInterval: 15_000,
-		staleTime: 10_000
+		...runsQuery(),
+		refetchInterval: 15_000
 	})
 
 	const loading = isLoading || isFetching

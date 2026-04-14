@@ -1,4 +1,14 @@
-export function SessionsPage() {
+import { createRoute } from '@tanstack/react-router'
+
+import { Route as shellRoute } from './route'
+
+export const Route = createRoute({
+	getParentRoute: () => shellRoute,
+	path: '/sessions',
+	component: SessionsPage
+})
+
+function SessionsPage() {
 	return (
 		<div className="flex flex-1 items-center justify-center p-10">
 			<div className="text-center">
