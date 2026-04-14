@@ -739,7 +739,11 @@ pub fn step_key_to_run_state(key: StepKey) -> RunState {
 
 fn agent_command(provider: &AgentProvider) -> (&'static str, Vec<&'static str>) {
     match provider {
-        AgentProvider::Claude => ("claude", vec!["--print", "--dangerously-skip-permissions"]),
+        // Claude launches in interactive mode (no `--print`) so the PTY substrate
+        // streams a live session. The initial prompt is passed as the positional
+        // argument; Claude auto-submits it as the first user message and keeps the
+        // session open for operator intervention in both `full-auto` and `semi-auto`.
+        AgentProvider::Claude => ("claude", vec!["--dangerously-skip-permissions"]),
         AgentProvider::Codex => ("codex", vec![]),
     }
 }

@@ -2,8 +2,10 @@
 //!
 //! Owns the full lifecycle: spawn → stream output → wait/timeout/cancel → record result.
 //!
-//! The agent is spawned inside a PTY so that TTY-aware CLIs (e.g. `claude --print`)
-//! see a real terminal and stream output incrementally instead of buffering.
+//! The agent is spawned inside a PTY so that TTY-aware CLIs see a real terminal
+//! and stream output incrementally. Claude runs in interactive mode (no `--print`)
+//! with the initial prompt supplied as the positional `prompt` argument, so the
+//! browser-attached terminal mirrors a live Claude Code session.
 //! Because a PTY merges stdout and stderr into a single terminal stream, all output
 //! is emitted as `EventLevel::Info`. Lifecycle events retain their original levels.
 
@@ -29,7 +31,7 @@ pub struct AgentLaunchConfig {
     pub run_id: RunId,
     pub step_id: StepId,
     pub provider: AgentProvider,
-    /// Full command-line arguments (e.g. `["claude", "--print", "fix the bug"]`).
+    /// Full command-line arguments (e.g. `["claude", "--dangerously-skip-permissions", "fix the bug"]`).
     pub args: Vec<String>,
     /// Working directory (worktree path).
     pub workdir: PathBuf,
