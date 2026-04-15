@@ -6,6 +6,7 @@ pub mod attach;
 pub mod attention;
 pub mod error;
 pub mod event;
+pub mod handoff;
 pub mod id;
 pub mod interrupt;
 pub mod linear_context;
@@ -17,15 +18,18 @@ pub mod step;
 pub mod transcript;
 
 // Re-export primary types for ergonomic imports.
-pub use agent::{AgentProvider, AgentSession, AgentStatus};
+pub use agent::{AgentProvider, AgentSession, AgentStatus, LaunchReason};
 pub use artifact::{Artifact, ArtifactKind};
 pub use attach::{AttachKind, AttachPayload};
 pub use attention::{AttentionKind, AttentionReply, AttentionRequest, AttentionStatus};
 pub use error::CoreError;
 pub use event::{EventKind, EventLevel, RunEvent};
+pub use handoff::{
+    Handoff, HandoffFailure, HandoffKind, HandoffPayload, HandoffResult, HandoffStatus,
+};
 pub use id::{
-    AgentSessionId, ArtifactId, AttentionRequestId, EventId, InterruptId, PullRequestId, RunId,
-    StepId, TranscriptChunkId,
+    AgentSessionId, ArtifactId, AttentionRequestId, EventId, HandoffId, InterruptId, PullRequestId,
+    RunId, StepId, TranscriptChunkId,
 };
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
 pub use linear_context::{

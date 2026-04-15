@@ -13,7 +13,6 @@ async fn setup() -> Result<sqlx::SqlitePool> {
 async fn schema_created_from_scratch() -> Result<()> {
     let pool = setup().await?;
 
-    // Verify all 6 tables exist.
     let tables: Vec<String> =
         sqlx::query_scalar("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
             .fetch_all(&pool)
@@ -25,6 +24,7 @@ async fn schema_created_from_scratch() -> Result<()> {
     assert!(tables.contains(&"agent_sessions".to_string()));
     assert!(tables.contains(&"interrupts".to_string()));
     assert!(tables.contains(&"artifacts".to_string()));
+    assert!(tables.contains(&"handoffs".to_string()));
     Ok(())
 }
 
@@ -331,6 +331,11 @@ async fn agent_session_insert_and_list() -> Result<()> {
         finished_at: None,
         exit_code: None,
         linear_context_mode: None,
+        role: None,
+        purpose: None,
+        parent_session_id: None,
+        launch_reason: None,
+        handoff_id: None,
     };
     let sid = session.id;
     session_repo.insert(&session).await?;
@@ -377,6 +382,11 @@ async fn agent_session_linear_context_mode_round_trips() -> Result<()> {
         finished_at: None,
         exit_code: None,
         linear_context_mode: Some(LinearContextMode::SnapshotPlusMcp),
+        role: None,
+        purpose: None,
+        parent_session_id: None,
+        launch_reason: None,
+        handoff_id: None,
     };
     session_repo.insert(&session).await?;
 
@@ -421,6 +431,11 @@ async fn agent_session_update() -> Result<()> {
         finished_at: None,
         exit_code: None,
         linear_context_mode: None,
+        role: None,
+        purpose: None,
+        parent_session_id: None,
+        launch_reason: None,
+        handoff_id: None,
     };
     session_repo.insert(&session).await?;
 
@@ -596,5 +611,162 @@ async fn semi_auto_execution_mode_round_trips() -> Result<()> {
     repo.insert(&run).await?;
     let fetched = repo.get(id).await?.expect("run should exist");
     assert_eq!(fetched.execution_mode, ExecutionMode::SemiAuto);
+    Ok(())
+}
+
+#[tokio::test]
+async fn handoff_lifecycle_round_trip() -> Result<()> {
+    let pool = setup().await?;
+    let run_repo = SqliteRunRepo::new(pool.clone());
+    let step_repo = SqliteRunStepRepo::new(pool.clone());
+    let session_repo = SqliteAgentSessionRepo::new(pool.clone());
+    let handoff_repo = SqliteHandoffRepo::new(pool);
+
+    let run = Run::new(
+        "i".into(),
+        "SUP-46".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        ExecutionMode::FullAuto,
+        "main".into(),
+        true,
+        None,
+    );
+    run_repo.insert(&run).await?;
+    let step = RunStep::new(run.id, StepKey::Plan, 1);
+    step_repo.insert(&step).await?;
+
+    let mut handoff = Handoff::new(
+        run.id,
+        step.id,
+        None,
+        "planner".into(),
+        HandoffPayload::Plan {
+            scope_summary: "plan SUP-46".into(),
+            constraints: vec!["no PTY chatter".into()],
+            reference_artifacts: vec![],
+        },
+        None,
+    )?;
+    handoff_repo.insert(&handoff).await?;
+
+    let fetched = handoff_repo.get(handoff.id).await?.expect("handoff exists");
+    assert_eq!(fetched.status, HandoffStatus::Pending);
+    assert_eq!(fetched.kind, HandoffKind::Plan);
+    assert_eq!(fetched.to_role, "planner");
+
+    // Create a real session row first — the handoff's to_session_id has an FK.
+    let sess = AgentSession {
+        id: AgentSessionId::new(),
+        run_id: run.id,
+        run_step_id: step.id,
+        provider: AgentProvider::Claude,
+        command: "claude".into(),
+        pid: None,
+        status: AgentStatus::Running,
+        started_at: Utc::now(),
+        finished_at: None,
+        exit_code: None,
+        linear_context_mode: None,
+        role: Some("planner".into()),
+        purpose: Some("plan".into()),
+        parent_session_id: None,
+        launch_reason: Some(LaunchReason::Handoff),
+        handoff_id: Some(handoff.id),
+    };
+    session_repo.insert(&sess).await?;
+    let sess_id = sess.id;
+    handoff.mark_delivered(sess_id)?;
+    handoff.mark_accepted()?;
+    handoff.complete(HandoffResult {
+        summary: "plan done".into(),
+        artifact_ids: vec![],
+        git_ref: Some("deadbeef".into()),
+        structured: None,
+        primary_artifact_kind: None,
+    })?;
+    handoff_repo.update(&handoff).await?;
+
+    let fetched = handoff_repo.get(handoff.id).await?.unwrap();
+    assert_eq!(fetched.status, HandoffStatus::Completed);
+    assert_eq!(fetched.to_session_id, Some(sess_id));
+    assert_eq!(
+        fetched.result.as_ref().unwrap().git_ref.as_deref(),
+        Some("deadbeef")
+    );
+
+    let listed = handoff_repo.list_by_run(run.id).await?;
+    assert_eq!(listed.len(), 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn agent_session_lineage_round_trips() -> Result<()> {
+    let pool = setup().await?;
+    let run_repo = SqliteRunRepo::new(pool.clone());
+    let step_repo = SqliteRunStepRepo::new(pool.clone());
+    let session_repo = SqliteAgentSessionRepo::new(pool);
+
+    let run = Run::new(
+        "i".into(),
+        "SUP-46".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        ExecutionMode::FullAuto,
+        "main".into(),
+        true,
+        None,
+    );
+    run_repo.insert(&run).await?;
+    let step = RunStep::new(run.id, StepKey::Code, 1);
+    step_repo.insert(&step).await?;
+
+    // Insert a parent session first (FK on parent_session_id).
+    let parent = AgentSession {
+        id: AgentSessionId::new(),
+        run_id: run.id,
+        run_step_id: step.id,
+        provider: AgentProvider::Claude,
+        command: "claude".into(),
+        pid: None,
+        status: AgentStatus::Completed,
+        started_at: Utc::now(),
+        finished_at: Some(Utc::now()),
+        exit_code: Some(0),
+        linear_context_mode: None,
+        role: Some("planner".into()),
+        purpose: Some("plan".into()),
+        parent_session_id: None,
+        launch_reason: Some(LaunchReason::InitialStep),
+        handoff_id: None,
+    };
+    session_repo.insert(&parent).await?;
+    let parent_id = parent.id;
+    let handoff_id = HandoffId::new();
+    let session = AgentSession {
+        id: AgentSessionId::new(),
+        run_id: run.id,
+        run_step_id: step.id,
+        provider: AgentProvider::Claude,
+        command: "claude --code".into(),
+        pid: Some(9),
+        status: AgentStatus::Running,
+        started_at: Utc::now(),
+        finished_at: None,
+        exit_code: None,
+        linear_context_mode: Some(LinearContextMode::Snapshot),
+        role: Some("coder".into()),
+        purpose: Some("implement SUP-46".into()),
+        parent_session_id: Some(parent_id),
+        launch_reason: Some(LaunchReason::Handoff),
+        handoff_id: Some(handoff_id),
+    };
+    session_repo.insert(&session).await?;
+
+    let fetched = session_repo.get(session.id).await?.unwrap();
+    assert_eq!(fetched.role.as_deref(), Some("coder"));
+    assert_eq!(fetched.parent_session_id, Some(parent_id));
+    assert_eq!(fetched.launch_reason, Some(LaunchReason::Handoff));
+    assert_eq!(fetched.handoff_id, Some(handoff_id));
     Ok(())
 }

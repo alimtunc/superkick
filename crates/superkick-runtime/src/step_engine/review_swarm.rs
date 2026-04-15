@@ -4,14 +4,16 @@ use anyhow::{Context, Result, bail};
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
-use superkick_core::{EventKind, EventLevel, ReviewFinding, ReviewSwarmResult, RunEvent, RunStep};
+use superkick_core::{
+    EventKind, EventLevel, LaunchReason, ReviewFinding, ReviewSwarmResult, RunEvent, RunStep,
+};
 use superkick_storage::repo::{
     AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
     RunStepRepo, TranscriptRepo,
 };
 
 use super::{DEFAULT_AGENT_TIMEOUT, StepEngine, build_full_prompt};
-use crate::agent_supervisor::{AgentHandle, AgentLaunchConfig};
+use crate::agent_supervisor::{AgentHandle, AgentLaunchConfig, SessionLaunchInfo};
 
 impl<R, ST, E, A, AR, I, T> StepEngine<R, ST, E, A, AR, I, T>
 where
@@ -104,6 +106,16 @@ where
                 workdir: worktree.to_path_buf(),
                 timeout: resolved.timeout.unwrap_or(DEFAULT_AGENT_TIMEOUT),
                 linear_context_mode: ctx_plan.effective_mode,
+                session_launch: SessionLaunchInfo {
+                    role: resolved.role.clone(),
+                    purpose: format!(
+                        "review agent '{}' for issue {}",
+                        agent_name, run.issue_identifier
+                    ),
+                    parent_session_id: None,
+                    launch_reason: LaunchReason::ReviewFanout,
+                    handoff_id: None,
+                },
             };
 
             let permit = semaphore
@@ -199,7 +211,6 @@ where
         let mut findings = Vec::with_capacity(handles.len());
         let agent_handles: Vec<AgentHandle> = handles.iter().map(|(_, h, _)| h.clone()).collect();
 
-        // Watch cancellation and propagate to all in-flight agents.
         let watcher_token = cancel_token.clone();
         let watcher = tokio::spawn(async move {
             watcher_token.cancelled().await;

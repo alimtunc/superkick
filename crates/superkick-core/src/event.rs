@@ -22,6 +22,10 @@ pub enum EventKind {
     AttentionRequested,
     AttentionReplied,
     AttentionCancelled,
+    HandoffCreated,
+    HandoffDelivered,
+    HandoffCompleted,
+    HandoffFailed,
 }
 
 /// Severity level for run events.

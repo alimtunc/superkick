@@ -1,6 +1,8 @@
 use anyhow::{Context, Result, bail};
 
-use superkick_core::{EventKind, EventLevel, LinearContextMode, ResolvedAgent, RunStep, StepKey};
+use superkick_core::{
+    EventKind, EventLevel, LaunchReason, LinearContextMode, ResolvedAgent, RunStep, StepKey,
+};
 use superkick_storage::repo::{
     AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
     RunStepRepo, TranscriptRepo,
@@ -8,7 +10,7 @@ use superkick_storage::repo::{
 use tokio_util::sync::CancellationToken;
 
 use super::{DEFAULT_AGENT_TIMEOUT, StepEngine, build_full_prompt};
-use crate::agent_supervisor::AgentLaunchConfig;
+use crate::agent_supervisor::{AgentLaunchConfig, SessionLaunchInfo};
 use crate::linear_context::{MCP_READONLY_DIRECTIVE, fetch_issue_context, write_role_mcp_config};
 
 impl<R, ST, E, A, AR, I, T> StepEngine<R, ST, E, A, AR, I, T>
@@ -38,10 +40,6 @@ where
         let mut args = vec![resolved.program.clone()];
         args.extend(resolved.args.iter().cloned());
 
-        // SUP-86: resolve the Linear context delivery mode, fetch a snapshot
-        // if requested, and wire a role-scoped MCP config when the role opts
-        // in. `effective_mode` is what actually ran (after degradation when
-        // no client is available) — that is what we record on the session.
         let ctx_plan = self
             .prepare_linear_context(run, &resolved, worktree, step.id)
             .await?;
@@ -105,6 +103,13 @@ where
             workdir: worktree.to_path_buf(),
             timeout: resolved.timeout.unwrap_or(DEFAULT_AGENT_TIMEOUT),
             linear_context_mode: ctx_plan.effective_mode,
+            session_launch: SessionLaunchInfo {
+                role: resolved.role.clone(),
+                purpose: format!("{} agent for issue {}", step.step_key, run.issue_identifier),
+                parent_session_id: None,
+                launch_reason: LaunchReason::InitialStep,
+                handoff_id: None,
+            },
         };
 
         let (handle, join) = self
