@@ -14,10 +14,11 @@ export function AttentionRequestPanel({ runId, requests, onUpdated }: AttentionR
 
 	return (
 		<div className="space-y-3">
-			<p className="font-data text-[11px] text-dim">
-				Structured asks for human arbitration — distinct from terminal input. Replies are persisted on
-				the run.
-			</p>
+			{pending.length > 0 ? (
+				<p className="font-data text-[11px] text-dim">
+					The run is paused until you reply. Answers are persisted on the run.
+				</p>
+			) : null}
 
 			{pending.map((request) => (
 				<PendingAttentionRequest

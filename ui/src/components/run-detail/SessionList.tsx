@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 
 import { ProviderGroup, type ProviderGroupData } from '@/components/run-detail/ProviderGroup'
-import type { AgentSession, Run } from '@/types'
+import type { AgentProvider, AgentSession, Run } from '@/types'
 
 function groupByProvider(sessions: AgentSession[]): ProviderGroupData[] {
-	const map = new Map<string, AgentSession[]>()
+	const map = new Map<AgentProvider, AgentSession[]>()
 	for (const session of sessions) {
 		const existing = map.get(session.provider)
 		if (existing) {

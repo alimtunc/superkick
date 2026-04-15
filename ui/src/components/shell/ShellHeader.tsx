@@ -1,7 +1,8 @@
 import { Button } from '@/components/ui/button'
+import { Tooltip } from '@/components/ui/tooltip'
 import { useDashboardRuns } from '@/hooks/useDashboardRuns'
 import { useCommandBarStore } from '@/stores/commandBar'
-import { Command } from 'lucide-react'
+import { Command, RefreshCw } from 'lucide-react'
 
 import { AttentionBell } from './AttentionBell'
 
@@ -42,15 +43,18 @@ export function ShellHeader() {
 					</kbd>
 				</button>
 				<AttentionBell />
-				<Button
-					variant="outline"
-					size="xs"
-					onClick={() => dashboard.refresh()}
-					disabled={dashboard.loading}
-					className="font-data text-[11px] text-silver hover:text-fog"
-				>
-					{dashboard.loading ? '...' : 'REFRESH'}
-				</Button>
+				<Tooltip label="Refresh dashboard">
+					<Button
+						variant="outline"
+						size="icon-xs"
+						onClick={() => dashboard.refresh()}
+						disabled={dashboard.loading}
+						className="text-silver hover:text-fog"
+						aria-label="Refresh dashboard"
+					>
+						<RefreshCw size={13} className={dashboard.loading ? 'animate-spin' : undefined} />
+					</Button>
+				</Tooltip>
 			</div>
 		</header>
 	)

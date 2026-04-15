@@ -7,6 +7,7 @@ export {
 	fmtRelativeTime
 } from './formatters'
 export {
+	providerLabel,
 	stepLabel,
 	stateIcon,
 	stateBgColor,
@@ -20,3 +21,12 @@ export { extractFormError, parseAnswer } from './parsers'
 export { watchButtonClass, watchButtonTitle } from './watch'
 export { classifyRuns } from './classify'
 export type { ClassifiedRuns } from './classify'
+export {
+	runNarrative,
+	summarizeAttention,
+	attentionHint,
+	toneTextClass,
+	toneAccentClass,
+	toneDotClass
+} from './narrative'
+export type { RunNarrative, NarrativeTone, AttentionSummary } from './narrative'
