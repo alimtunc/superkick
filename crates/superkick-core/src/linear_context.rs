@@ -284,7 +284,7 @@ mod tests {
         let rendered = ctx.render_for_prompt();
         assert!(rendered.contains("[description truncated by Superkick]"));
         assert!(rendered.contains("[comment truncated by Superkick]"));
-        assert!(rendered.contains("Recent comments (1 of 12 total)"));
+        assert!(rendered.contains("Recent comments (1 of 12 fetched)"));
         assert!(rendered.contains("Labels: bug"));
         assert!(rendered.contains("Assignee: alice"));
     }
