@@ -5,8 +5,8 @@ use std::future::Future;
 use anyhow::Result;
 use superkick_core::{
     AgentSession, AgentSessionId, Artifact, ArtifactId, AttentionRequest, AttentionRequestId,
-    EventId, Interrupt, InterruptId, PullRequest, Run, RunEvent, RunId, RunStep, StepId,
-    TranscriptChunk,
+    EventId, Handoff, HandoffId, Interrupt, InterruptId, PullRequest, Run, RunEvent, RunId,
+    RunStep, StepId, TranscriptChunk,
 };
 
 /// Repository for `Run` entities.
@@ -100,6 +100,16 @@ pub trait AttentionRequestRepo: Send + Sync {
         run_id: RunId,
     ) -> impl Future<Output = Result<Vec<AttentionRequest>>> + Send;
     fn update(&self, request: &AttentionRequest) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// Repository for `Handoff` entities — structured child-session coordination
+/// artifacts (SUP-46). Handoffs are how work moves between sessions without
+/// PTY-to-PTY chatter.
+pub trait HandoffRepo: Send + Sync {
+    fn insert(&self, handoff: &Handoff) -> impl Future<Output = Result<()>> + Send;
+    fn get(&self, id: HandoffId) -> impl Future<Output = Result<Option<Handoff>>> + Send;
+    fn list_by_run(&self, run_id: RunId) -> impl Future<Output = Result<Vec<Handoff>>> + Send;
+    fn update(&self, handoff: &Handoff) -> impl Future<Output = Result<()>> + Send;
 }
 
 /// Atomic operations spanning multiple tables for interrupt workflows.

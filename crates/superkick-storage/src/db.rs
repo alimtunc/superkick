@@ -79,6 +79,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "009_agent_session_linear_context",
             include_str!("../migrations/009_agent_session_linear_context.sql"),
         ),
+        (
+            "010_child_handoffs_and_session_lineage",
+            include_str!("../migrations/010_child_handoffs_and_session_lineage.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

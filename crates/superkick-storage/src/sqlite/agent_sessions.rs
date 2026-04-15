@@ -1,7 +1,8 @@
 use anyhow::Result;
 use sqlx::SqlitePool;
 use superkick_core::{
-    AgentProvider, AgentSession, AgentSessionId, AgentStatus, LinearContextMode, RunId, StepId,
+    AgentProvider, AgentSession, AgentSessionId, AgentStatus, HandoffId, LaunchReason,
+    LinearContextMode, RunId, StepId,
 };
 
 use super::codec::{deserialize_enum, serialize_enum};
@@ -20,8 +21,11 @@ impl SqliteAgentSessionRepo {
 impl AgentSessionRepo for SqliteAgentSessionRepo {
     async fn insert(&self, session: &AgentSession) -> Result<()> {
         sqlx::query(
-            "INSERT INTO agent_sessions (id, run_id, run_step_id, provider, command, pid, status, started_at, finished_at, exit_code, linear_context_mode)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            "INSERT INTO agent_sessions (\
+                 id, run_id, run_step_id, provider, command, pid, status, started_at, \
+                 finished_at, exit_code, linear_context_mode, role, purpose, \
+                 parent_session_id, launch_reason, handoff_id\
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
         )
         .bind(session.id.0.to_string())
         .bind(session.run_id.0.to_string())
@@ -34,6 +38,11 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
         .bind(session.finished_at.map(|t| t.to_rfc3339()))
         .bind(session.exit_code)
         .bind(session.linear_context_mode.map(|m| m.as_str().to_string()))
+        .bind(session.role.as_ref())
+        .bind(session.purpose.as_ref())
+        .bind(session.parent_session_id.map(|id| id.0.to_string()))
+        .bind(session.launch_reason.as_ref().map(ToString::to_string))
+        .bind(session.handoff_id.map(|id| id.0.to_string()))
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -85,6 +94,11 @@ struct SessionRow {
     finished_at: Option<String>,
     exit_code: Option<i32>,
     linear_context_mode: Option<String>,
+    role: Option<String>,
+    purpose: Option<String>,
+    parent_session_id: Option<String>,
+    launch_reason: Option<String>,
+    handoff_id: Option<String>,
 }
 
 impl SessionRow {
@@ -110,6 +124,25 @@ impl SessionRow {
                 .map(|s| s.parse::<LinearContextMode>())
                 .transpose()
                 .map_err(anyhow::Error::msg)?,
+            role: self.role,
+            purpose: self.purpose,
+            parent_session_id: self
+                .parent_session_id
+                .as_deref()
+                .map(uuid::Uuid::parse_str)
+                .transpose()?
+                .map(AgentSessionId),
+            launch_reason: self
+                .launch_reason
+                .as_deref()
+                .map(deserialize_enum::<LaunchReason>)
+                .transpose()?,
+            handoff_id: self
+                .handoff_id
+                .as_deref()
+                .map(uuid::Uuid::parse_str)
+                .transpose()?
+                .map(HandoffId),
         })
     }
 }

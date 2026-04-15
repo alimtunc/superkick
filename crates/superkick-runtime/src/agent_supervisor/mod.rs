@@ -22,11 +22,29 @@ use chrono::Utc;
 use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
-    AgentProvider, AgentSession, AgentSessionId, AgentStatus, LinearContextMode, RunId, StepId,
+    AgentProvider, AgentSession, AgentSessionId, AgentStatus, HandoffId, LaunchReason,
+    LinearContextMode, RunId, StepId,
 };
 use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
 
 use crate::pty_session::PtySessionRegistry;
+
+/// Lineage + intent metadata attached to every spawn (SUP-46). Every agent
+/// session gets one — the orchestrator populates it so sessions are explicit
+/// units of work, not opaque subprocesses.
+#[derive(Debug, Clone)]
+pub struct SessionLaunchInfo {
+    /// Catalog role this session fills (`planner`, `reviewer`, ...).
+    pub role: String,
+    /// Short human/auditor-facing summary of what this session is for.
+    pub purpose: String,
+    /// Parent session that requested this child. `None` = orchestrator.
+    pub parent_session_id: Option<AgentSessionId>,
+    /// Why this session was launched.
+    pub launch_reason: LaunchReason,
+    /// Handoff this spawn fulfils, if any.
+    pub handoff_id: Option<HandoffId>,
+}
 
 /// Configuration for launching an agent session.
 pub struct AgentLaunchConfig {
@@ -42,6 +60,8 @@ pub struct AgentLaunchConfig {
     /// How Linear context was delivered to this spawn. Recorded on the
     /// `AgentSession` so the run log makes the decision inspectable.
     pub linear_context_mode: LinearContextMode,
+    /// Lineage + intent metadata (SUP-46).
+    pub session_launch: SessionLaunchInfo,
 }
 
 /// Result of a completed agent session.
@@ -118,6 +138,11 @@ where
             finished_at: None,
             exit_code: None,
             linear_context_mode: Some(config.linear_context_mode),
+            role: Some(config.session_launch.role.clone()),
+            purpose: Some(config.session_launch.purpose.clone()),
+            parent_session_id: config.session_launch.parent_session_id,
+            launch_reason: Some(config.session_launch.launch_reason),
+            handoff_id: config.session_launch.handoff_id,
         };
 
         self.session_repo.insert(&session).await?;
