@@ -15,6 +15,7 @@ pub mod pull_request;
 pub mod review;
 pub mod role_router;
 pub mod run;
+pub mod session_lifecycle;
 pub mod step;
 pub mod transcript;
 
@@ -30,7 +31,7 @@ pub use handoff::{
 };
 pub use id::{
     AgentSessionId, ArtifactId, AttentionRequestId, EventId, HandoffId, InterruptId,
-    OwnershipEventId, PullRequestId, RunId, StepId, TranscriptChunkId,
+    OwnershipEventId, PullRequestId, RunId, SessionLifecycleEventId, StepId, TranscriptChunkId,
 };
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
 pub use linear_context::{
@@ -49,5 +50,6 @@ pub use role_router::{
     RunPolicy,
 };
 pub use run::{ExecutionMode, LinkedRunSummary, Run, RunState, TriggerSource};
+pub use session_lifecycle::{SessionLifecycleEvent, SessionLifecyclePhase};
 pub use step::{RunStep, StepKey, StepStatus};
 pub use transcript::TranscriptChunk;

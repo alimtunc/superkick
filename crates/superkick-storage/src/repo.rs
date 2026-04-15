@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use superkick_core::{
     AgentSession, AgentSessionId, Artifact, ArtifactId, AttentionRequest, AttentionRequestId,
     EventId, Handoff, HandoffId, Interrupt, InterruptId, OwnershipEvent, PullRequest, Run,
-    RunEvent, RunId, RunStep, StepId, TranscriptChunk,
+    RunEvent, RunId, RunStep, SessionLifecycleEvent, StepId, TranscriptChunk,
 };
 
 /// Repository for `Run` entities.
@@ -155,6 +155,24 @@ pub struct OwnershipSnapshot {
     pub run_id: RunId,
     pub owner: superkick_core::OrchestrationOwner,
     pub since: Option<DateTime<Utc>>,
+}
+
+/// Repository for `SessionLifecycleEvent` entities (SUP-79).
+///
+/// Append-only audit stream — every observable lifecycle transition that the
+/// orchestrator runtime publishes is persisted here so spawn-and-observe
+/// decisions and later post-mortems can replay the exact sequence of state
+/// changes independent of the run event stream.
+pub trait SessionLifecycleRepo: Send + Sync {
+    fn insert(&self, event: &SessionLifecycleEvent) -> impl Future<Output = Result<()>> + Send;
+    fn list_by_session(
+        &self,
+        session_id: AgentSessionId,
+    ) -> impl Future<Output = Result<Vec<SessionLifecycleEvent>>> + Send;
+    fn list_by_run(
+        &self,
+        run_id: RunId,
+    ) -> impl Future<Output = Result<Vec<SessionLifecycleEvent>>> + Send;
 }
 
 /// Atomic operations spanning multiple tables for interrupt workflows.
