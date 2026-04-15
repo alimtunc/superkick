@@ -28,6 +28,18 @@ Applies during implementation and review.
 - Business logic in components → must be in hooks
 - No direct fetch — use separate API functions
 
+## Types location
+
+All shared type declarations (domain entities, API contracts, classification/grouping view models) live in `ui/src/types/**`, split by sub-domain (`runs.ts`, `issues.ts`, `attention.ts`, …). Import through the barrel: `import type { Run } from '@/types'`.
+
+Exported type declarations are BANNED outside `src/types/**` with these narrow exceptions:
+
+- Component `*Props` interfaces (colocated with their component)
+- Hook return-type aliases defined via `ReturnType<typeof useXxx>` (must stay with the hook)
+- `src/routes/**` — routing types (`RouterContext`, `AppRouter`)
+- `src/stores/**` — Zustand store/state/actions types
+
+
 ## UI Components
 
 - Use shadcn components first (`pnpm dlx shadcn@latest add <component>`) — they live in `ui/src/components/ui/`

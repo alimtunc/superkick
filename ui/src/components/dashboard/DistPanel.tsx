@@ -1,4 +1,4 @@
-import type { DistItem } from '@/lib/domain'
+import type { DistItem } from '@/types'
 
 interface DistPanelProps {
 	title: string

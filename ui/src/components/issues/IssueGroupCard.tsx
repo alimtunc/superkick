@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 import { IssueRow } from '@/components/issues/IssueRow'
-import type { IssueGroup } from '@/lib/domain/groupIssues'
+import type { IssueGroup } from '@/types'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
 export function IssueGroupCard({ group }: { group: IssueGroup }) {

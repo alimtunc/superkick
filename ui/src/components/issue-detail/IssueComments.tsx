@@ -1,11 +1,6 @@
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
 import { CommentThread } from '@/components/issue-detail/CommentThread'
-import type { IssueComment } from '@/types'
-
-export interface CommentNode {
-	comment: IssueComment
-	children: CommentNode[]
-}
+import type { CommentNode, IssueComment } from '@/types'
 
 function buildCommentTree(comments: IssueComment[]): CommentNode[] {
 	const sorted = comments.toSorted(

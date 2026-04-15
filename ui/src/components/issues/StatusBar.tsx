@@ -1,9 +1,5 @@
-import {
-	BUCKET_META,
-	BUCKET_ORDER,
-	type ClassifiedIssues,
-	type IssueBucket
-} from '@/lib/domain/classifyIssues'
+import { BUCKET_META, BUCKET_ORDER } from '@/lib/domain/classifyIssues'
+import type { ClassifiedIssues, IssueBucket } from '@/types'
 
 export function StatusBar({ classified, total }: { classified: ClassifiedIssues; total: number }) {
 	if (total === 0) return null

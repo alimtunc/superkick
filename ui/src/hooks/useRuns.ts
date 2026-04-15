@@ -1,11 +1,9 @@
 import { useMemo } from 'react'
 
-import { classifyRuns, type ClassifiedRuns } from '@/lib/domain'
+import { classifyRuns } from '@/lib/domain'
 import { runsQuery } from '@/lib/queries'
-import type { Run } from '@/types'
+import type { ClassifiedRuns, Run, RunFilter } from '@/types'
 import { useQuery } from '@tanstack/react-query'
-
-export type RunFilter = 'all' | 'active' | 'completed' | 'failed' | 'cancelled'
 
 export function useRuns() {
 	const {

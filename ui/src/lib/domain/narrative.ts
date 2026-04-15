@@ -1,13 +1,11 @@
-import type { AttentionRequest, Interrupt, RunState } from '@/types'
-
-export type NarrativeTone = 'active' | 'attention' | 'success' | 'failure' | 'idle'
-
-export interface RunNarrative {
-	phase: string
-	headline: string
-	nextHint: string
-	tone: NarrativeTone
-}
+import type {
+	AttentionRequest,
+	AttentionSummary,
+	Interrupt,
+	NarrativeTone,
+	RunNarrative,
+	RunState
+} from '@/types'
 
 const NARRATIVE: Record<RunState, RunNarrative> = {
 	queued: {
@@ -80,12 +78,6 @@ const NARRATIVE: Record<RunState, RunNarrative> = {
 
 export function runNarrative(state: RunState): RunNarrative {
 	return NARRATIVE[state]
-}
-
-export interface AttentionSummary {
-	pendingAttention: number
-	pendingInterrupts: number
-	total: number
 }
 
 export function attentionHint(total: number): string | null {

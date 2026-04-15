@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import type { BucketFilter } from '@/components/issues/IssueFilters'
+import type { BucketFilter } from '@/types'
 
 export function useIssueFilters() {
 	const [activeBucket, setActiveBucket] = useState<BucketFilter>('all')

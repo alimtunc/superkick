@@ -1,5 +1,5 @@
 import { CommentRow } from '@/components/issue-detail/CommentRow'
-import type { CommentNode } from '@/components/issue-detail/IssueComments'
+import type { CommentNode } from '@/types'
 
 export function CommentThread({ node, isRoot }: { node: CommentNode; isRoot?: boolean }) {
 	return (

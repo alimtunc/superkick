@@ -1,14 +1,4 @@
-import type { LinearIssueListItem } from '@/types'
-
-export interface IssueGroup {
-	parent: LinearIssueListItem
-	children: LinearIssueListItem[]
-}
-
-export interface GroupedIssues {
-	groups: IssueGroup[]
-	standalone: LinearIssueListItem[]
-}
+import type { GroupedIssues, IssueGroup, LinearIssueListItem } from '@/types'
 
 export function groupIssuesByParent(issues: LinearIssueListItem[]): GroupedIssues {
 	const issueById = new Map<string, LinearIssueListItem>()

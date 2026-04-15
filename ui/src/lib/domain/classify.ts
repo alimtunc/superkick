@@ -1,4 +1,4 @@
-import type { Run, RunState } from '@/types'
+import type { ClassifiedRuns, Run, RunState } from '@/types'
 
 import { TERMINAL_STATES } from '../constants'
 
@@ -20,20 +20,6 @@ const IN_PROGRESS_STATES = new Set<RunState>([
 	'reviewing',
 	'opening_pr'
 ])
-
-export interface ClassifiedRuns {
-	active: Run[]
-	completed: Run[]
-	failed: Run[]
-	cancelled: Run[]
-	terminal: Run[]
-	waitingHuman: Run[]
-	needsAttention: Run[]
-	reviewing: Run[]
-	openingPr: Run[]
-	inProgress: Run[]
-	queued: Run[]
-}
 
 export function classifyRuns(runs: Run[]): ClassifiedRuns {
 	const result: ClassifiedRuns = {

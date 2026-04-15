@@ -1,11 +1,5 @@
-import {
-	BUCKET_META,
-	BUCKET_ORDER,
-	type ClassifiedIssues,
-	type IssueBucket
-} from '@/lib/domain/classifyIssues'
-
-export type BucketFilter = IssueBucket | 'all'
+import { BUCKET_META, BUCKET_ORDER } from '@/lib/domain/classifyIssues'
+import type { BucketFilter, ClassifiedIssues } from '@/types'
 
 export function IssueFilters({
 	activeBucket,
