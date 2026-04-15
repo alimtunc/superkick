@@ -7,7 +7,6 @@ import { FocusedRunPanel } from '@/components/dashboard/FocusedRunPanel'
 import { KpiCell } from '@/components/dashboard/KpiCell'
 import { MetricCard } from '@/components/dashboard/MetricCard'
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
-import { SessionWatchRail } from '@/components/dashboard/SessionWatchRail'
 import { useDashboardRuns } from '@/hooks/useDashboardRuns'
 import { avgDuration, medianDuration, stateDistribution } from '@/lib/domain'
 import { runsQuery } from '@/lib/queries'
@@ -26,7 +25,6 @@ function OverviewPage() {
 	const d = useDashboardRuns()
 	return (
 		<>
-			<SessionWatchRail refTime={d.refTime} mode="overview" />
 			<FocusedRunPanel refTime={d.refTime} />
 
 			<div className="mx-auto flex max-w-360 flex-col gap-16 px-6 py-12">
