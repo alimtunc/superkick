@@ -23,6 +23,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::agent::AgentProvider;
+use crate::linear_context::LinearContextMode;
 
 /// One project-level agent role as consumed by the router.
 ///
@@ -38,6 +39,11 @@ pub struct AgentDefinition {
     pub tools: Option<Vec<String>>,
     pub timeout_secs: Option<u64>,
     pub max_turns: Option<u32>,
+    /// How much Linear context this role receives at spawn time. Defaults to
+    /// `LinearContextMode::Snapshot` — the role gets a compact prompt snapshot
+    /// but no live MCP access.
+    #[serde(default)]
+    pub linear_context: LinearContextMode,
 }
 
 impl AgentDefinition {
@@ -148,6 +154,9 @@ pub struct ResolvedAgent {
     pub args: Vec<String>,
     pub timeout: Option<Duration>,
     pub max_turns: Option<u32>,
+    /// Linear context mode carried through from the catalog so the runtime
+    /// can decide whether to fetch a snapshot and/or wire an MCP config.
+    pub linear_context: LinearContextMode,
 }
 
 /// Errors the router can emit when a role cannot be launched.
@@ -201,6 +210,7 @@ impl<'a> RoleRouter<'a> {
             args: args.into_iter().map(String::from).collect(),
             timeout: def.timeout_secs.map(Duration::from_secs),
             max_turns: def.max_turns,
+            linear_context: def.linear_context,
         })
     }
 }
@@ -228,6 +238,7 @@ mod tests {
             tools: None,
             timeout_secs: None,
             max_turns: None,
+            linear_context: LinearContextMode::default(),
         }
     }
 

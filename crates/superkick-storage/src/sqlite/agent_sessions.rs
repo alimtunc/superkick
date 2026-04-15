@@ -1,6 +1,8 @@
 use anyhow::Result;
 use sqlx::SqlitePool;
-use superkick_core::{AgentProvider, AgentSession, AgentSessionId, AgentStatus, RunId, StepId};
+use superkick_core::{
+    AgentProvider, AgentSession, AgentSessionId, AgentStatus, LinearContextMode, RunId, StepId,
+};
 
 use super::codec::{deserialize_enum, serialize_enum};
 use crate::repo::AgentSessionRepo;
@@ -18,8 +20,8 @@ impl SqliteAgentSessionRepo {
 impl AgentSessionRepo for SqliteAgentSessionRepo {
     async fn insert(&self, session: &AgentSession) -> Result<()> {
         sqlx::query(
-            "INSERT INTO agent_sessions (id, run_id, run_step_id, provider, command, pid, status, started_at, finished_at, exit_code)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            "INSERT INTO agent_sessions (id, run_id, run_step_id, provider, command, pid, status, started_at, finished_at, exit_code, linear_context_mode)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         )
         .bind(session.id.0.to_string())
         .bind(session.run_id.0.to_string())
@@ -31,6 +33,7 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
         .bind(session.started_at.to_rfc3339())
         .bind(session.finished_at.map(|t| t.to_rfc3339()))
         .bind(session.exit_code)
+        .bind(session.linear_context_mode.map(|m| m.as_str().to_string()))
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -81,6 +84,7 @@ struct SessionRow {
     started_at: String,
     finished_at: Option<String>,
     exit_code: Option<i32>,
+    linear_context_mode: Option<String>,
 }
 
 impl SessionRow {
@@ -100,6 +104,12 @@ impl SessionRow {
                 .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
                 .transpose()?,
             exit_code: self.exit_code,
+            linear_context_mode: self
+                .linear_context_mode
+                .as_deref()
+                .map(|s| s.parse::<LinearContextMode>())
+                .transpose()
+                .map_err(anyhow::Error::msg)?,
         })
     }
 }

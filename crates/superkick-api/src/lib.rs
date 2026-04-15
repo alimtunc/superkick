@@ -99,6 +99,18 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let cache_root = PathBuf::from(&cfg.cache_dir);
     let repo_cache = RepoCache::new(cache_root).await?;
 
+    let linear_client = std::env::var("LINEAR_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+        .map(|key| Arc::new(LinearClient::new(key)));
+
+    if linear_client.is_none() {
+        tracing::warn!(
+            "LINEAR_API_KEY not set — /issues endpoint will return 503 and child agent \
+             roles configured for linear_context will downgrade to `none`"
+        );
+    }
+
     let engine = Arc::new(StepEngine::new(StepEngineDeps {
         run_repo: Arc::clone(&run_repo),
         step_repo: Arc::clone(&step_repo),
@@ -110,6 +122,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         registry: Arc::clone(&pty_registry),
         repo_cache,
         config,
+        linear_client: linear_client.clone(),
     }));
 
     let interrupt_service = Arc::new(InterruptService::new(
@@ -123,15 +136,6 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         Arc::clone(&event_repo),
         Arc::clone(&run_repo),
     ));
-
-    let linear_client = std::env::var("LINEAR_API_KEY")
-        .ok()
-        .filter(|k| !k.is_empty())
-        .map(|key| Arc::new(LinearClient::new(key)));
-
-    if linear_client.is_none() {
-        tracing::warn!("LINEAR_API_KEY not set — /issues endpoint will return 503");
-    }
 
     let state = AppState {
         run_repo,

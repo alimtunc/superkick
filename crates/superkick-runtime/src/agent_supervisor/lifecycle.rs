@@ -64,6 +64,15 @@ where
 
     debug!(provider = %session.provider, pid = ?pid, "agent running (PTY)");
 
+    // Log the exact argv (minus the final positional prompt, which is huge)
+    // so `unknown option` CLI errors are debuggable from the run log.
+    let argv_preview: Vec<&str> = args
+        .iter()
+        .take(args.len().saturating_sub(1))
+        .map(String::as_str)
+        .collect();
+    tracing::info!(run_id = %run_id, argv = ?argv_preview, "agent argv (prompt elided)");
+
     emit_event(
         &*event_repo,
         run_id,

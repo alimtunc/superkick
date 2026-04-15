@@ -21,7 +21,9 @@ use anyhow::Result;
 use chrono::Utc;
 use tokio_util::sync::CancellationToken;
 
-use superkick_core::{AgentProvider, AgentSession, AgentSessionId, AgentStatus, RunId, StepId};
+use superkick_core::{
+    AgentProvider, AgentSession, AgentSessionId, AgentStatus, LinearContextMode, RunId, StepId,
+};
 use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
 
 use crate::pty_session::PtySessionRegistry;
@@ -37,6 +39,9 @@ pub struct AgentLaunchConfig {
     pub workdir: PathBuf,
     /// Maximum duration before the process is killed.
     pub timeout: Duration,
+    /// How Linear context was delivered to this spawn. Recorded on the
+    /// `AgentSession` so the run log makes the decision inspectable.
+    pub linear_context_mode: LinearContextMode,
 }
 
 /// Result of a completed agent session.
@@ -112,6 +117,7 @@ where
             started_at: Utc::now(),
             finished_at: None,
             exit_code: None,
+            linear_context_mode: Some(config.linear_context_mode),
         };
 
         self.session_repo.insert(&session).await?;

@@ -75,6 +75,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "008_attention_requests",
             include_str!("../migrations/008_attention_requests.sql"),
         ),
+        (
+            "009_agent_session_linear_context",
+            include_str!("../migrations/009_agent_session_linear_context.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

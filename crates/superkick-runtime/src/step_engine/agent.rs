@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, bail};
 
-use superkick_core::{RunStep, StepKey};
+use superkick_core::{EventKind, EventLevel, LinearContextMode, ResolvedAgent, RunStep, StepKey};
 use superkick_storage::repo::{
     AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
     RunStepRepo, TranscriptRepo,
@@ -9,6 +9,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::{DEFAULT_AGENT_TIMEOUT, StepEngine, build_full_prompt};
 use crate::agent_supervisor::AgentLaunchConfig;
+use crate::linear_context::{MCP_READONLY_DIRECTIVE, fetch_issue_context, write_role_mcp_config};
 
 impl<R, ST, E, A, AR, I, T> StepEngine<R, ST, E, A, AR, I, T>
 where
@@ -36,6 +37,14 @@ where
 
         let mut args = vec![resolved.program.clone()];
         args.extend(resolved.args.iter().cloned());
+
+        // SUP-86: resolve the Linear context delivery mode, fetch a snapshot
+        // if requested, and wire a role-scoped MCP config when the role opts
+        // in. `effective_mode` is what actually ran (after degradation when
+        // no client is available) — that is what we record on the session.
+        let ctx_plan = self
+            .prepare_linear_context(run, &resolved, worktree, step.id)
+            .await?;
 
         let base_prompt = match step.step_key {
             StepKey::Plan => format!(
@@ -78,7 +87,14 @@ where
             live_instructions.as_deref(),
             self.handoff_for_step(step.step_key),
             resolved.system_prompt.as_deref(),
+            ctx_plan.snapshot_block.as_deref(),
         );
+        // MCP flags MUST precede the positional prompt. The `--` separator
+        // ends option parsing, so prompts that start with `---` (e.g. the
+        // `--- Role system prompt ---` header) are not mistaken for CLI
+        // options by Claude's argv parser.
+        args.extend(ctx_plan.extra_cli_args.iter().cloned());
+        args.push("--".to_string());
         args.push(prompt);
 
         let launch_cfg = AgentLaunchConfig {
@@ -88,6 +104,7 @@ where
             args,
             workdir: worktree.to_path_buf(),
             timeout: resolved.timeout.unwrap_or(DEFAULT_AGENT_TIMEOUT),
+            linear_context_mode: ctx_plan.effective_mode,
         };
 
         let (handle, join) = self
@@ -116,5 +133,133 @@ where
         }
 
         Ok(())
+    }
+
+    /// Resolve the role's Linear context delivery plan for this spawn.
+    ///
+    /// Behaviour per mode:
+    /// - `None`          → nothing extra
+    /// - `Snapshot`      → fetch snapshot; inject prompt block
+    /// - `SnapshotPlusMcp` → fetch snapshot; write role-scoped `.mcp.json` under
+    ///   the worktree; append `--mcp-config <path> --strict-mcp-config` to argv
+    ///
+    /// When the engine has no `LinearClient` (e.g. `LINEAR_API_KEY` unset), any
+    /// mode that needs one downgrades to `None` with an emitted warning so the
+    /// run still proceeds instead of failing at spawn time.
+    pub(super) async fn prepare_linear_context(
+        &self,
+        run: &superkick_core::Run,
+        resolved: &ResolvedAgent,
+        worktree: &std::path::Path,
+        step_id: superkick_core::StepId,
+    ) -> Result<LinearContextPlan> {
+        let requested = resolved.linear_context;
+        if matches!(requested, LinearContextMode::None) {
+            return Ok(LinearContextPlan::empty(LinearContextMode::None));
+        }
+
+        let Some(client) = self.linear_client() else {
+            tracing::warn!(
+                run_id = %run.id,
+                role = %resolved.role,
+                requested = %requested,
+                "Linear client not configured — downgrading role context to `none`"
+            );
+            self.emit(
+                run,
+                Some(step_id),
+                EventKind::AgentOutput,
+                EventLevel::Warn,
+                format!(
+                    "role '{}' requested linear_context={requested} but no LINEAR_API_KEY is configured — downgraded to none",
+                    resolved.role
+                ),
+            )
+            .await;
+            return Ok(LinearContextPlan::empty(LinearContextMode::None));
+        };
+
+        let context = fetch_issue_context(client, &run.issue_id)
+            .await
+            .with_context(|| {
+                format!(
+                    "failed to build Linear context for role '{}' on issue {}",
+                    resolved.role, run.issue_identifier
+                )
+            })?;
+
+        let mut snapshot_block = context.render_for_prompt();
+
+        let mut extra_cli_args: Vec<String> = Vec::new();
+        let effective_mode = if requested.includes_mcp() {
+            match write_role_mcp_config(worktree, &resolved.role, &run.id.0.to_string()).await {
+                Ok(artifact) => {
+                    extra_cli_args = artifact.cli_args;
+                    snapshot_block.push_str("\n\n");
+                    snapshot_block.push_str(MCP_READONLY_DIRECTIVE);
+                    LinearContextMode::SnapshotPlusMcp
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        run_id = %run.id,
+                        role = %resolved.role,
+                        error = %e,
+                        "failed to write role-scoped MCP config — downgrading to snapshot"
+                    );
+                    self.emit(
+                        run,
+                        Some(step_id),
+                        EventKind::AgentOutput,
+                        EventLevel::Warn,
+                        format!(
+                            "role '{}' MCP config write failed ({e}) — downgraded to snapshot",
+                            resolved.role
+                        ),
+                    )
+                    .await;
+                    LinearContextMode::Snapshot
+                }
+            }
+        } else {
+            LinearContextMode::Snapshot
+        };
+
+        self.emit(
+            run,
+            Some(step_id),
+            EventKind::AgentOutput,
+            EventLevel::Info,
+            format!(
+                "role '{}' Linear context: {effective_mode} (issue {})",
+                resolved.role, run.issue_identifier
+            ),
+        )
+        .await;
+
+        Ok(LinearContextPlan {
+            effective_mode,
+            snapshot_block: Some(snapshot_block),
+            extra_cli_args,
+        })
+    }
+}
+
+/// Resolved delivery plan for a single child agent spawn.
+pub(super) struct LinearContextPlan {
+    /// What actually ran (after any degradation). Recorded on the session.
+    pub effective_mode: LinearContextMode,
+    /// Markdown block to inject into the prompt, when one was built.
+    pub snapshot_block: Option<String>,
+    /// Provider CLI args to append after the prompt.
+    pub extra_cli_args: Vec<String>,
+}
+
+impl LinearContextPlan {
+    fn empty(mode: LinearContextMode) -> Self {
+        Self {
+            effective_mode: mode,
+            snapshot_block: None,
+            extra_cli_args: Vec::new(),
+        }
     }
 }
