@@ -330,6 +330,7 @@ async fn agent_session_insert_and_list() -> Result<()> {
         started_at: Utc::now(),
         finished_at: None,
         exit_code: None,
+        linear_context_mode: None,
     };
     let sid = session.id;
     session_repo.insert(&session).await?;
@@ -340,6 +341,50 @@ async fn agent_session_insert_and_list() -> Result<()> {
 
     let sessions = session_repo.list_by_run(run.id).await?;
     assert_eq!(sessions.len(), 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn agent_session_linear_context_mode_round_trips() -> Result<()> {
+    let pool = setup().await?;
+    let run_repo = SqliteRunRepo::new(pool.clone());
+    let step_repo = SqliteRunStepRepo::new(pool.clone());
+    let session_repo = SqliteAgentSessionRepo::new(pool);
+
+    let run = Run::new(
+        "i".into(),
+        "SK-1".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        ExecutionMode::FullAuto,
+        "main".into(),
+        true,
+        None,
+    );
+    run_repo.insert(&run).await?;
+    let step = RunStep::new(run.id, StepKey::Code, 1);
+    step_repo.insert(&step).await?;
+
+    let session = AgentSession {
+        id: AgentSessionId::new(),
+        run_id: run.id,
+        run_step_id: step.id,
+        provider: AgentProvider::Claude,
+        command: "claude --code".into(),
+        pid: Some(42),
+        status: AgentStatus::Running,
+        started_at: Utc::now(),
+        finished_at: None,
+        exit_code: None,
+        linear_context_mode: Some(LinearContextMode::SnapshotPlusMcp),
+    };
+    session_repo.insert(&session).await?;
+
+    let fetched = session_repo.get(session.id).await?.expect("session exists");
+    assert_eq!(
+        fetched.linear_context_mode,
+        Some(LinearContextMode::SnapshotPlusMcp)
+    );
     Ok(())
 }
 
@@ -375,6 +420,7 @@ async fn agent_session_update() -> Result<()> {
         started_at: Utc::now(),
         finished_at: None,
         exit_code: None,
+        linear_context_mode: None,
     };
     session_repo.insert(&session).await?;
 

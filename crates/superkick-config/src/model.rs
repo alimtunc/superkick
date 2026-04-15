@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
-use superkick_core::{AgentCatalog, AgentProvider, CoreAgentDefinition as CoreAgent, RunPolicy};
+use superkick_core::{
+    AgentCatalog, AgentProvider, CoreAgentDefinition as CoreAgent, LinearContextMode, RunPolicy,
+};
 
 // ── Root ────────────────────────────────────────────────────────────
 
@@ -101,6 +103,13 @@ pub struct AgentDefinition {
     /// Per-role budget overrides.
     #[serde(default)]
     pub budget: AgentBudget,
+    /// How Linear issue context is delivered to this role at spawn time.
+    /// Defaults to `snapshot` — a compact, read-only prompt injection with no
+    /// live MCP access. Set to `snapshot_plus_mcp` to additionally wire a
+    /// strict, role-scoped MCP config; set to `none` to skip Linear context
+    /// entirely.
+    #[serde(default)]
+    pub linear_context: LinearContextMode,
 }
 
 /// Budget overrides applied per role. Missing fields inherit project defaults.
@@ -134,6 +143,7 @@ impl SuperkickConfig {
             tools: def.tools.clone(),
             timeout_secs: def.budget.timeout_secs,
             max_turns: def.budget.max_turns,
+            linear_context: def.linear_context,
         }))
     }
 

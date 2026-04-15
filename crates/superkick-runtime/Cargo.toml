@@ -6,10 +6,12 @@ version.workspace = true
 [dependencies]
 superkick-core = { path = "../superkick-core" }
 superkick-config = { path = "../superkick-config" }
+superkick-integrations = { path = "../superkick-integrations" }
 superkick-storage = { path = "../superkick-storage" }
 tokio.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
+serde.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 serde_json.workspace = true

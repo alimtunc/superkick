@@ -10,7 +10,7 @@ use superkick_storage::repo::{
     RunStepRepo, TranscriptRepo,
 };
 
-use super::{DEFAULT_AGENT_TIMEOUT, StepEngine};
+use super::{DEFAULT_AGENT_TIMEOUT, StepEngine, build_full_prompt};
 use crate::agent_supervisor::{AgentHandle, AgentLaunchConfig};
 
 impl<R, ST, E, A, AR, I, T> StepEngine<R, ST, E, A, AR, I, T>
@@ -64,6 +64,10 @@ where
             let mut args = vec![resolved.program.clone()];
             args.extend(resolved.args.iter().cloned());
 
+            let ctx_plan = self
+                .prepare_linear_context(run, &resolved, worktree, step.id)
+                .await?;
+
             let base_prompt = format!(
                 "You are a code reviewer for issue {} (id: {}). \
                  Review the changes on this branch. Look for bugs, logic errors, \
@@ -74,12 +78,22 @@ where
                  Do NOT mark the issue as done, closed, or resolved. Only review code.",
                 run.issue_identifier, run.issue_id,
             );
-            let review_prompt =
-                if let Some(sys) = resolved.system_prompt.as_deref().filter(|s| !s.is_empty()) {
-                    format!("--- Role system prompt ---\n{sys}\n\n{base_prompt}")
-                } else {
-                    base_prompt
-                };
+            // Route through the shared prompt builder so reviewers see the same
+            // section ordering/headers as Plan/Code agents. Reviewers don't get
+            // operator instructions or handoff blocks by design.
+            let review_prompt = build_full_prompt(
+                &base_prompt,
+                None,
+                None,
+                None,
+                resolved.system_prompt.as_deref(),
+                ctx_plan.snapshot_block.as_deref(),
+            );
+            // MCP flags must precede the positional prompt. `--` ends option
+            // parsing so prompts starting with `---` aren't mistaken for
+            // CLI options.
+            args.extend(ctx_plan.extra_cli_args.iter().cloned());
+            args.push("--".to_string());
             args.push(review_prompt);
 
             let launch_cfg = AgentLaunchConfig {
@@ -89,6 +103,7 @@ where
                 args,
                 workdir: worktree.to_path_buf(),
                 timeout: resolved.timeout.unwrap_or(DEFAULT_AGENT_TIMEOUT),
+                linear_context_mode: ctx_plan.effective_mode,
             };
 
             let permit = semaphore

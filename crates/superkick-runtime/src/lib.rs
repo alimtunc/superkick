@@ -4,6 +4,7 @@ pub mod agent_supervisor;
 pub mod attention_service;
 pub mod git;
 pub mod interrupt_service;
+pub mod linear_context;
 pub mod pty_session;
 pub mod repo_cache;
 pub mod step_engine;

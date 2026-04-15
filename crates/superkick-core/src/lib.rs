@@ -8,6 +8,7 @@ pub mod error;
 pub mod event;
 pub mod id;
 pub mod interrupt;
+pub mod linear_context;
 pub mod pull_request;
 pub mod review;
 pub mod role_router;
@@ -27,6 +28,10 @@ pub use id::{
     StepId, TranscriptChunkId,
 };
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
+pub use linear_context::{
+    ISSUE_COMMENT_CHAR_LIMIT, ISSUE_COMMENT_MAX_COUNT, ISSUE_DESCRIPTION_CHAR_LIMIT, IssueContext,
+    IssueContextComment, IssueContextParent, LinearContextMode,
+};
 pub use pull_request::{LinkedPrSummary, PrState, PullRequest, parse_pr_number};
 pub use review::{ReviewFinding, ReviewSwarmResult};
 pub use role_router::{

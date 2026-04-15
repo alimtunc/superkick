@@ -18,12 +18,18 @@ agents:
       You are the planner. Produce a detailed plan before any code changes.
     budget:
       timeout_secs: 900
+    # Planner benefits from live Linear lookups for sibling/child issues.
+    linear_context: snapshot_plus_mcp
   coder:
     provider: claude
     role: coder
+    # Coder gets a compact snapshot, no live MCP — keeps the worktree hermetic.
+    linear_context: snapshot
   reviewer:
     provider: claude
     role: reviewer
+    # Reviewer judges the diff, not the issue — no Linear context needed.
+    linear_context: none
 
 workflow:
   steps:

@@ -21,6 +21,7 @@ use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
+use crate::linear_context::OptionalLinearClient;
 use superkick_config::{InterruptPolicy, SuperkickConfig, WorkflowStep};
 use superkick_core::{
     AgentCatalog, EventKind, EventLevel, ExecutionMode, InterruptAction, RoleRouter, RunEvent,
@@ -52,6 +53,7 @@ pub struct StepEngine<R, ST, E, A, AR, I, T = ()> {
     config: SuperkickConfig,
     catalog: AgentCatalog,
     policy: RunPolicy,
+    linear_client: OptionalLinearClient,
 }
 
 pub struct StepEngineDeps<R, ST, E, A, AR, I, T = ()> {
@@ -65,6 +67,11 @@ pub struct StepEngineDeps<R, ST, E, A, AR, I, T = ()> {
     pub registry: Arc<PtySessionRegistry>,
     pub repo_cache: RepoCache,
     pub config: SuperkickConfig,
+    /// Shared Linear client, when `LINEAR_API_KEY` is configured. Used to
+    /// build per-run `IssueContext` snapshots for child agent roles (SUP-86).
+    /// `None` disables snapshot + MCP delivery — roles configured for it
+    /// downgrade to `none` with a warning.
+    pub linear_client: OptionalLinearClient,
 }
 
 impl<R, ST, E, A, AR, I, T> StepEngine<R, ST, E, A, AR, I, T>
@@ -103,7 +110,16 @@ where
             config: deps.config,
             catalog,
             policy,
+            linear_client: deps.linear_client,
         }
+    }
+
+    /// Shared Linear client used for snapshot delivery. `None` when
+    /// `LINEAR_API_KEY` is not configured.
+    pub(crate) fn linear_client(
+        &self,
+    ) -> Option<&Arc<superkick_integrations::linear::LinearClient>> {
+        self.linear_client.as_ref()
     }
 
     /// Construct a run-scoped router. Every agent spawn must flow through
@@ -778,12 +794,13 @@ pub(super) async fn kill_child(child: &mut tokio::process::Child) {
     }
 }
 
-fn build_full_prompt(
+pub(super) fn build_full_prompt(
     base: &str,
     default_instructions: Option<&str>,
     per_run_instructions: Option<&str>,
     handoff_instructions: Option<&str>,
     role_system_prompt: Option<&str>,
+    linear_context_block: Option<&str>,
 ) -> String {
     let mut parts = Vec::new();
 
@@ -792,6 +809,9 @@ fn build_full_prompt(
     }
     parts.push(base.to_string());
 
+    if let Some(ctx) = linear_context_block.filter(|s| !s.is_empty()) {
+        parts.push(format!("\n\n{ctx}"));
+    }
     if let Some(defaults) = default_instructions {
         parts.push(format!(
             "\n\n--- Default operator instructions ---\n{defaults}"
