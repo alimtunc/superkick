@@ -6,6 +6,7 @@ pub mod git;
 pub mod handoff_service;
 pub mod interrupt_service;
 pub mod linear_context;
+pub mod ownership_service;
 pub mod pty_session;
 pub mod repo_cache;
 pub mod step_engine;
@@ -17,6 +18,7 @@ pub use agent_supervisor::{
 pub use attention_service::AttentionService;
 pub use handoff_service::HandoffService;
 pub use interrupt_service::InterruptService;
+pub use ownership_service::{OwnershipService, ServiceError as OwnershipServiceError};
 pub use pty_session::{PtySession, PtySessionRegistry, WriterHolder};
 pub use repo_cache::RepoCache;
 pub use step_engine::{StepEngine, StepEngineDeps};

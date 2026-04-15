@@ -166,6 +166,16 @@ impl PtySession {
             .is_some_and(|current| &current.holder == holder)
     }
 
+    /// Return the current writer holder, if any. Used by the ownership service
+    /// to attach writer-lease info to `SessionOwnership` snapshots.
+    pub fn current_writer(&self) -> Option<WriterHolder> {
+        self.writer_lease
+            .lock()
+            .expect("writer lease lock")
+            .as_ref()
+            .map(|l| l.holder.clone())
+    }
+
     /// Check if any writer lease is currently held.
     pub fn has_writer(&self) -> bool {
         self.writer_lease

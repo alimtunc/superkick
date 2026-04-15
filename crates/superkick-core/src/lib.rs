@@ -10,6 +10,7 @@ pub mod handoff;
 pub mod id;
 pub mod interrupt;
 pub mod linear_context;
+pub mod ownership;
 pub mod pull_request;
 pub mod review;
 pub mod role_router;
@@ -28,13 +29,18 @@ pub use handoff::{
     Handoff, HandoffFailure, HandoffKind, HandoffPayload, HandoffResult, HandoffStatus,
 };
 pub use id::{
-    AgentSessionId, ArtifactId, AttentionRequestId, EventId, HandoffId, InterruptId, PullRequestId,
-    RunId, StepId, TranscriptChunkId,
+    AgentSessionId, ArtifactId, AttentionRequestId, EventId, HandoffId, InterruptId,
+    OwnershipEventId, PullRequestId, RunId, StepId, TranscriptChunkId,
 };
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
 pub use linear_context::{
     ISSUE_COMMENT_CHAR_LIMIT, ISSUE_COMMENT_MAX_COUNT, ISSUE_DESCRIPTION_CHAR_LIMIT, IssueContext,
     IssueContextComment, IssueContextParent, LinearContextMode,
+};
+pub use ownership::{
+    OperatorId, OrchestrationOwner, OwnershipError, OwnershipEvent, OwnershipTransitionReason,
+    SessionOwnership, SuspendReason, WriterLeaseInfo, transition_release, transition_resume,
+    transition_suspend, transition_takeover,
 };
 pub use pull_request::{LinkedPrSummary, PrState, PullRequest, parse_pr_number};
 pub use review::{ReviewFinding, ReviewSwarmResult};

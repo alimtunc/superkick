@@ -83,6 +83,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "010_child_handoffs_and_session_lineage",
             include_str!("../migrations/010_child_handoffs_and_session_lineage.sql"),
         ),
+        (
+            "011_session_ownership",
+            include_str!("../migrations/011_session_ownership.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

@@ -9,6 +9,7 @@ mod handoffs;
 mod interrupts;
 mod pull_requests;
 mod runs;
+mod session_ownership;
 mod steps;
 mod transcripts;
 
@@ -20,5 +21,6 @@ pub use handoffs::SqliteHandoffRepo;
 pub use interrupts::SqliteInterruptRepo;
 pub use pull_requests::SqlitePullRequestRepo;
 pub use runs::SqliteRunRepo;
+pub use session_ownership::SqliteSessionOwnershipRepo;
 pub use steps::SqliteRunStepRepo;
 pub use transcripts::SqliteTranscriptRepo;

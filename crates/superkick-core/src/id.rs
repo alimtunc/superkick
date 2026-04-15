@@ -37,3 +37,4 @@ define_id!(PullRequestId);
 define_id!(TranscriptChunkId);
 define_id!(AttentionRequestId);
 define_id!(HandoffId);
+define_id!(OwnershipEventId);

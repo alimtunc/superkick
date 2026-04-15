@@ -3,10 +3,11 @@
 use std::future::Future;
 
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use superkick_core::{
     AgentSession, AgentSessionId, Artifact, ArtifactId, AttentionRequest, AttentionRequestId,
-    EventId, Handoff, HandoffId, Interrupt, InterruptId, PullRequest, Run, RunEvent, RunId,
-    RunStep, StepId, TranscriptChunk,
+    EventId, Handoff, HandoffId, Interrupt, InterruptId, OwnershipEvent, PullRequest, Run,
+    RunEvent, RunId, RunStep, StepId, TranscriptChunk,
 };
 
 /// Repository for `Run` entities.
@@ -110,6 +111,50 @@ pub trait HandoffRepo: Send + Sync {
     fn get(&self, id: HandoffId) -> impl Future<Output = Result<Option<Handoff>>> + Send;
     fn list_by_run(&self, run_id: RunId) -> impl Future<Output = Result<Vec<Handoff>>> + Send;
     fn update(&self, handoff: &Handoff) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// Repository for session ownership transitions (SUP-48).
+///
+/// `apply` writes the audit row and updates the denormalised snapshot on
+/// `agent_sessions` in one transaction so readers can never observe an event
+/// without its resulting state.
+pub trait SessionOwnershipRepo: Send + Sync {
+    fn apply(
+        &self,
+        event: &OwnershipEvent,
+        snapshot_since: DateTime<Utc>,
+    ) -> impl Future<Output = Result<()>> + Send;
+    fn list_by_session(
+        &self,
+        session_id: AgentSessionId,
+    ) -> impl Future<Output = Result<Vec<OwnershipEvent>>> + Send;
+    fn list_by_run(
+        &self,
+        run_id: RunId,
+    ) -> impl Future<Output = Result<Vec<OwnershipEvent>>> + Send;
+    /// Read the current denormalised snapshot (current orchestration owner +
+    /// `since` timestamp) for one session.
+    fn current(
+        &self,
+        session_id: AgentSessionId,
+    ) -> impl Future<Output = Result<Option<OwnershipSnapshot>>> + Send;
+    /// Batch variant of `current` for every session in a run — avoids the
+    /// N+1 query that would otherwise happen when rendering a run detail page.
+    fn list_current_by_run(
+        &self,
+        run_id: RunId,
+    ) -> impl Future<Output = Result<Vec<OwnershipSnapshot>>> + Send;
+}
+
+/// Denormalised ownership snapshot read straight off `agent_sessions`. The
+/// `since` timestamp is the moment the current owner took effect — `None` for
+/// legacy rows that predate the ownership migration.
+#[derive(Debug, Clone)]
+pub struct OwnershipSnapshot {
+    pub session_id: AgentSessionId,
+    pub run_id: RunId,
+    pub owner: superkick_core::OrchestrationOwner,
+    pub since: Option<DateTime<Utc>>,
 }
 
 /// Atomic operations spanning multiple tables for interrupt workflows.

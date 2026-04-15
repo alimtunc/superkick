@@ -26,6 +26,10 @@ pub enum EventKind {
     HandoffDelivered,
     HandoffCompleted,
     HandoffFailed,
+    OwnershipTakenOver,
+    OwnershipReleased,
+    OwnershipSuspended,
+    OwnershipResumed,
 }
 
 /// Severity level for run events.

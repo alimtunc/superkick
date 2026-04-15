@@ -10,6 +10,7 @@ superkick-integrations = { path = "../superkick-integrations" }
 superkick-storage = { path = "../superkick-storage" }
 tokio.workspace = true
 anyhow.workspace = true
+thiserror.workspace = true
 chrono.workspace = true
 serde.workspace = true
 tracing.workspace = true
