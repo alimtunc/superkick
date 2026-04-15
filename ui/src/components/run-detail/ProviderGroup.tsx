@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 import { SessionRow } from '@/components/run-detail/SessionRow'
 import { providerLabel } from '@/lib/domain'
-import type { AgentProvider, AgentSession, AgentStatus, Run } from '@/types'
+import type { AgentSession, AgentStatus, ProviderGroupData, Run } from '@/types'
 
 const statusColor: Record<AgentStatus, string> = {
 	starting: 'text-dim',
@@ -18,11 +18,6 @@ function groupStatus(sessions: AgentSession[]): AgentStatus {
 		if (sessions.some((session) => session.status === status)) return status
 	}
 	return 'completed'
-}
-
-export interface ProviderGroupData {
-	provider: AgentProvider
-	sessions: AgentSession[]
 }
 
 export function ProviderGroup({

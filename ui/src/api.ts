@@ -1,30 +1,24 @@
 import type {
 	AgentSession,
 	AttachPayload,
-	AttentionKind,
 	AttentionReply,
 	AttentionRequest,
-	ExecutionMode,
-	Run,
-	RunStep,
-	RunEvent,
+	CreateAttentionRequest,
+	CreateRunRequest,
 	Interrupt,
 	InterruptAction,
-	IssueListResponse,
 	IssueDetailResponse,
-	LaunchProfile,
-	PullRequest
+	IssueListResponse,
+	PullRequest,
+	Run,
+	RunEvent,
+	RunStep,
+	ServerConfigResponse
 } from '@/types'
 
 const BASE = '/api'
 
 // ── Config ────────────────────────────────────────────────────────────
-
-export interface ServerConfigResponse {
-	repo_slug: string
-	base_branch: string
-	launch_profile: LaunchProfile
-}
 
 export async function fetchConfig(): Promise<ServerConfigResponse> {
 	const res = await fetch(`${BASE}/config`)
@@ -33,16 +27,6 @@ export async function fetchConfig(): Promise<ServerConfigResponse> {
 }
 
 // ── Run creation ──────────────────────────────────────────────────────
-
-export interface CreateRunRequest {
-	repo_slug: string
-	issue_id: string
-	issue_identifier: string
-	base_branch?: string
-	use_worktree?: boolean
-	execution_mode?: ExecutionMode
-	operator_instructions?: string
-}
 
 export class DuplicateRunError extends Error {
 	readonly activeRunId: string
@@ -110,13 +94,6 @@ export async function fetchRun(id: string): Promise<{
 }
 
 // ── Attention requests (structured operator arbitration) ─────────────
-
-export interface CreateAttentionRequest {
-	kind: AttentionKind
-	title: string
-	body: string
-	options?: string[]
-}
 
 export async function createAttentionRequest(
 	runId: string,

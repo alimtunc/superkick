@@ -1,4 +1,4 @@
-import type { RunFilter } from '@/hooks/useRuns'
+import type { RunFilter } from '@/types'
 
 const FILTERS: { key: RunFilter; label: string }[] = [
 	{ key: 'all', label: 'ALL' },

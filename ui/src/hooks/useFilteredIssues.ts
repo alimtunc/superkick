@@ -1,10 +1,9 @@
 import { useMemo } from 'react'
 
-import type { BucketFilter } from '@/components/issues/IssueFilters'
-import { type ClassifiedIssues, classifyIssues } from '@/lib/domain/classifyIssues'
+import { classifyIssues } from '@/lib/domain/classifyIssues'
 import { filterIssuesWithNesting } from '@/lib/domain/filterIssues'
-import { type GroupedIssues, groupIssuesByParent } from '@/lib/domain/groupIssues'
-import type { LinearIssueListItem } from '@/types'
+import { groupIssuesByParent } from '@/lib/domain/groupIssues'
+import type { BucketFilter, ClassifiedIssues, GroupedIssues, LinearIssueListItem } from '@/types'
 
 interface IssueFilters {
 	activeBucket: BucketFilter

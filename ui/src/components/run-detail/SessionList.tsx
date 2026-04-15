@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 
-import { ProviderGroup, type ProviderGroupData } from '@/components/run-detail/ProviderGroup'
-import type { AgentProvider, AgentSession, Run } from '@/types'
+import { ProviderGroup } from '@/components/run-detail/ProviderGroup'
+import type { AgentProvider, AgentSession, ProviderGroupData, Run } from '@/types'
 
 function groupByProvider(sessions: AgentSession[]): ProviderGroupData[] {
 	const map = new Map<AgentProvider, AgentSession[]>()

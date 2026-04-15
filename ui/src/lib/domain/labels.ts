@@ -1,4 +1,4 @@
-import type { AgentProvider, Run, RunState } from '@/types'
+import type { AgentProvider, DistItem, Run, RunState } from '@/types'
 
 export const providerLabel: Record<AgentProvider, string> = {
 	claude: 'Claude',
@@ -69,12 +69,6 @@ export const stateBadgeStyle: Record<RunState, string> = {
 	completed: 'text-mineral bg-mineral-dim',
 	failed: 'text-oxide bg-oxide-dim',
 	cancelled: 'text-dim bg-dim/10'
-}
-
-export interface DistItem {
-	label: string
-	count: number
-	color: string
 }
 
 export function stateDistribution(runs: Run[]): DistItem[] {
