@@ -1,4 +1,9 @@
-import type { Run, RunState } from '@/types'
+import type { AgentProvider, Run, RunState } from '@/types'
+
+export const providerLabel: Record<AgentProvider, string> = {
+	claude: 'Claude',
+	codex: 'Codex'
+}
 
 export const stepLabel: Record<string, string> = {
 	prepare: 'Prepare',

@@ -1,11 +1,13 @@
 import { DuplicateRunError } from '@/api'
 import { LaunchDialog } from '@/components/launch/LaunchDialog'
 import { Button } from '@/components/ui/button'
+import { Tooltip } from '@/components/ui/tooltip'
 import { useConfig } from '@/hooks/useConfig'
 import { useCreateRun } from '@/hooks/useCreateRun'
 import { useLaunchDialog } from '@/hooks/useLaunchDialog'
 import type { IssueDetailResponse } from '@/types'
 import { Link } from '@tanstack/react-router'
+import { ArrowLeft, ExternalLink, Play, RefreshCw } from 'lucide-react'
 
 export function IssueDetailHeader({
 	issue,
@@ -47,12 +49,15 @@ export function IssueDetailHeader({
 		<header className="sticky top-0 z-50 border-b border-edge bg-carbon/90 backdrop-blur-md">
 			<div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-5">
 				<div className="flex items-center gap-3">
-					<Link
-						to="/issues"
-						className="font-data text-[11px] text-dim transition-colors hover:text-silver"
-					>
-						&larr; ISSUES
-					</Link>
+					<Tooltip label="Back to issues">
+						<Link
+							to="/issues"
+							className="inline-flex items-center text-dim transition-colors hover:text-silver"
+							aria-label="Back to issues"
+						>
+							<ArrowLeft size={14} />
+						</Link>
+					</Tooltip>
 					<span className="text-edge">|</span>
 					{issue.parent ? (
 						<>
@@ -83,23 +88,29 @@ export function IssueDetailHeader({
 						<span className="font-data text-[10px] text-oxide">{createRun.error.message}</span>
 					) : null}
 
-					<Button
-						variant="outline"
-						size="xs"
-						onClick={onRefresh}
-						className="font-data text-[11px] text-dim hover:text-silver"
-					>
-						REFRESH
-					</Button>
+					<Tooltip label="Refresh issue data">
+						<Button
+							variant="outline"
+							size="icon-xs"
+							onClick={onRefresh}
+							className="text-dim hover:text-silver"
+							aria-label="Refresh issue data"
+						>
+							<RefreshCw size={13} />
+						</Button>
+					</Tooltip>
 
-					<a
-						href={issue.url}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="font-data inline-flex h-6 items-center rounded-md border border-edge px-2 text-[11px] text-dim transition-colors hover:border-edge-bright hover:text-silver"
-					>
-						LINEAR
-					</a>
+					<Tooltip label="Open in Linear">
+						<a
+							href={issue.url}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-edge text-dim transition-colors hover:border-edge-bright hover:text-silver"
+							aria-label="Open in Linear"
+						>
+							<ExternalLink size={13} />
+						</a>
+					</Tooltip>
 
 					<span className="mx-1 h-5 w-px bg-edge" />
 
@@ -107,19 +118,22 @@ export function IssueDetailHeader({
 						<Link
 							to="/runs/$runId"
 							params={{ runId: activeRunId }}
-							className="font-data inline-flex h-6 items-center rounded-md border border-amber-500/40 bg-amber-500/10 px-2 text-[11px] text-amber-400 transition-colors hover:border-amber-500/60 hover:text-amber-300"
+							className="font-data inline-flex h-6 items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 text-[11px] text-amber-400 transition-colors hover:border-amber-500/60 hover:text-amber-300"
 						>
-							RUN ACTIVE
+							<span className="live-pulse inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
+							Active run
 						</Link>
 					) : (
-						<Button
-							size="xs"
-							disabled={!canStart}
-							onClick={dialog.openDialog}
-							className="font-data text-[11px]"
-						>
-							START
-						</Button>
+						<Tooltip label="Start a new run">
+							<Button
+								size="icon-xs"
+								disabled={!canStart}
+								onClick={dialog.openDialog}
+								aria-label="Start a new run"
+							>
+								<Play size={12} className="fill-white text-white" />
+							</Button>
+						</Tooltip>
 					)}
 				</div>
 			</div>

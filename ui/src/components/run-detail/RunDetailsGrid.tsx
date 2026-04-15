@@ -11,7 +11,7 @@ interface RunDetailsGridProps {
 
 export function RunDetailsGrid({ run, pr }: RunDetailsGridProps) {
 	return (
-		<div className="mb-8 space-y-3">
+		<div className="space-y-3">
 			<div className="flex flex-wrap items-center gap-2 overflow-hidden">
 				{run.branch_name ? (
 					<Chip
@@ -46,12 +46,6 @@ export function RunDetailsGrid({ run, pr }: RunDetailsGridProps) {
 					</a>
 				) : null}
 			</div>
-
-			{run.error_message ? (
-				<p className="font-data rounded border border-oxide/20 bg-oxide/5 px-3 py-2 text-[12px] text-oxide">
-					{run.error_message}
-				</p>
-			) : null}
 		</div>
 	)
 }

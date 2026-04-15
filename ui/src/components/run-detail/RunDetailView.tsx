@@ -5,7 +5,7 @@ import { InterruptPanel } from '@/components/run-detail/InterruptPanel'
 import { RaiseAttentionRequestForm } from '@/components/run-detail/RaiseAttentionRequestForm'
 import { ReviewResults } from '@/components/run-detail/ReviewResults'
 import { RunDetailHeader } from '@/components/run-detail/RunDetailHeader'
-import { RunDetailsGrid } from '@/components/run-detail/RunDetailsGrid'
+import { RunHero } from '@/components/run-detail/RunHero'
 import { SessionList } from '@/components/run-detail/SessionList'
 import { StepTimeline } from '@/components/run-detail/StepTimeline'
 import { TerminalTakeover } from '@/components/run-detail/TerminalTakeover'
@@ -13,7 +13,13 @@ import { useEventStream } from '@/hooks/useEventStream'
 import { useRunDetail } from '@/hooks/useRunDetail'
 import { useWatchedSessionsStore } from '@/stores/watchedSessions'
 
-export function RunDetailView({ runId }: { runId: string; refTime?: number }) {
+function attentionSectionTitle(hasPending: boolean, total: number): string {
+	if (hasPending) return 'Needs your decision'
+	if (total > 0) return 'Attention history'
+	return 'Raise an attention request'
+}
+
+export function RunDetailView({ runId, refTime = Date.now() }: { runId: string; refTime?: number }) {
 	const detail = useRunDetail(runId)
 	const stream = useEventStream(runId, detail.syncRun)
 	const { isWatched, toggleWatch, maxReached } = useWatchedSessionsStore()
@@ -22,6 +28,11 @@ export function RunDetailView({ runId }: { runId: string; refTime?: number }) {
 	if (detail.loading) return <p className="font-data p-6 text-dim">Loading...</p>
 	if (detail.error) return <p className="font-data p-6 text-oxide">{detail.error}</p>
 	if (!detail.run) return <p className="font-data p-6 text-dim">Run not found.</p>
+
+	const hasPendingAttention = detail.attentionRequests.some((r) => r.status === 'pending')
+	const showAttentionBlock = detail.attentionRequests.length > 0 || !detail.isTerminal
+	const attentionAccent = hasPendingAttention ? 'gold' : undefined
+	const attentionTitle = attentionSectionTitle(hasPendingAttention, detail.attentionRequests.length)
 
 	return (
 		<>
@@ -41,16 +52,52 @@ export function RunDetailView({ runId }: { runId: string; refTime?: number }) {
 			/>
 
 			<div className="mx-auto max-w-4xl px-5 py-6">
-				<RunDetailsGrid run={detail.run} pr={detail.pr} />
+				<RunHero
+					run={detail.run}
+					pr={detail.pr}
+					sessions={detail.sessions}
+					attentionRequests={detail.attentionRequests}
+					interrupts={detail.interrupts}
+					refTime={refTime}
+				/>
 
-				<section className="mb-6">
-					<SectionTitle title="STEPS" />
+				{detail.showInterrupts ? (
+					<section className="mb-8">
+						<SectionTitle title="Interrupts" accent="gold" />
+						<InterruptPanel
+							runId={detail.run.id}
+							interrupts={detail.interrupts}
+							onAnswered={detail.syncRun}
+						/>
+					</section>
+				) : null}
+
+				{showAttentionBlock ? (
+					<section className="mb-8">
+						<SectionTitle title={attentionTitle} accent={attentionAccent} />
+						{detail.attentionRequests.length > 0 ? (
+							<AttentionRequestPanel
+								runId={detail.run.id}
+								requests={detail.attentionRequests}
+								onUpdated={detail.syncRun}
+							/>
+						) : null}
+						{!detail.isTerminal ? (
+							<div className="mt-3">
+								<RaiseAttentionRequestForm runId={detail.run.id} onCreated={detail.syncRun} />
+							</div>
+						) : null}
+					</section>
+				) : null}
+
+				<section className="mb-8">
+					<SectionTitle title="Run progress" />
 					<StepTimeline steps={detail.steps} />
 				</section>
 
 				{detail.sessions.length > 0 ? (
-					<section className="mb-6">
-						<SectionTitle title="AGENT SESSIONS" />
+					<section className="mb-8">
+						<SectionTitle title="Active work" />
 						<SessionList
 							sessions={detail.sessions}
 							run={detail.run}
@@ -59,40 +106,13 @@ export function RunDetailView({ runId }: { runId: string; refTime?: number }) {
 					</section>
 				) : null}
 
-				{detail.isTerminal && detail.attentionRequests.length === 0 ? null : (
-					<section className="mb-6">
-						<SectionTitle title="ATTENTION REQUESTS" accent="gold" />
-						<AttentionRequestPanel
-							runId={detail.run.id}
-							requests={detail.attentionRequests}
-							onUpdated={detail.syncRun}
-						/>
-						{detail.isTerminal ? null : (
-							<div className="mt-3">
-								<RaiseAttentionRequestForm runId={detail.run.id} onCreated={detail.syncRun} />
-							</div>
-						)}
-					</section>
-				)}
-
-				<TerminalTakeover runId={detail.run.id} isTerminal={detail.isTerminal} />
-
-				<section className="mb-6">
-					<EventsPanel events={stream.events} />
-				</section>
-
 				<ReviewResults steps={detail.steps} />
 
-				{detail.showInterrupts ? (
-					<section className="mb-6">
-						<SectionTitle title="INTERRUPTS" accent="gold" />
-						<InterruptPanel
-							runId={detail.run.id}
-							interrupts={detail.interrupts}
-							onAnswered={detail.syncRun}
-						/>
-					</section>
-				) : null}
+				<section className="mb-6 space-y-3">
+					<SectionTitle title="Supporting detail" />
+					<EventsPanel events={stream.events} />
+					<TerminalTakeover runId={detail.run.id} isTerminal={detail.isTerminal} />
+				</section>
 			</div>
 		</>
 	)

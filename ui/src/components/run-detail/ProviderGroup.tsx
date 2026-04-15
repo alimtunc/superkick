@@ -1,12 +1,8 @@
 import { useState } from 'react'
 
 import { SessionRow } from '@/components/run-detail/SessionRow'
-import type { AgentSession, AgentStatus, Run } from '@/types'
-
-const providerLabel: Record<string, string> = {
-	claude: 'Claude',
-	codex: 'Codex'
-}
+import { providerLabel } from '@/lib/domain'
+import type { AgentProvider, AgentSession, AgentStatus, Run } from '@/types'
 
 const statusColor: Record<AgentStatus, string> = {
 	starting: 'text-dim',
@@ -25,7 +21,7 @@ function groupStatus(sessions: AgentSession[]): AgentStatus {
 }
 
 export interface ProviderGroupData {
-	provider: string
+	provider: AgentProvider
 	sessions: AgentSession[]
 }
 
@@ -58,7 +54,7 @@ export function ProviderGroup({
 				<span className="font-data text-[11px] text-dim">{expanded ? '\u25BE' : '\u25B8'}</span>
 				<span className="font-data text-[12px] font-medium text-fog">{label}</span>
 				<span className={`font-data text-[10px] ${statusColor[status]}`}>
-					{group.sessions.length} {group.sessions.length === 1 ? 'session' : 'sessions'}
+					{group.sessions.length} {group.sessions.length === 1 ? 'task' : 'tasks'}
 				</span>
 			</button>
 

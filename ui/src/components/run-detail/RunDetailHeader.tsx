@@ -2,8 +2,11 @@ import { ExecutionModeBadge } from '@/components/ExecutionModeBadge'
 import { PrStateBadge } from '@/components/PrStateBadge'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { Tooltip } from '@/components/ui/tooltip'
 import type { PullRequest, Run } from '@/types'
 import { Link } from '@tanstack/react-router'
+import { ArrowLeft, Pin, RefreshCw, Square } from 'lucide-react'
 
 interface RunDetailHeaderProps {
 	run: Run
@@ -50,12 +53,15 @@ export function RunDetailHeader({
 		<header className="sticky top-0 z-50 border-b border-edge bg-carbon/90 backdrop-blur-md">
 			<div className="mx-auto flex h-12 max-w-4xl items-center justify-between px-5">
 				<div className="flex items-center gap-3">
-					<Link
-						to="/"
-						className="font-data text-[11px] text-dim transition-colors hover:text-silver"
-					>
-						&larr; CONTROL CENTER
-					</Link>
+					<Tooltip label="Back to control center">
+						<Link
+							to="/"
+							className="inline-flex items-center text-dim transition-colors hover:text-silver"
+							aria-label="Back to control center"
+						>
+							<ArrowLeft size={14} />
+						</Link>
+					</Tooltip>
 					<span className="text-edge">|</span>
 					<span className="font-data text-[11px] font-medium text-fog">{run.issue_identifier}</span>
 					<RunStateBadge state={run.state} />
@@ -63,25 +69,31 @@ export function RunDetailHeader({
 				</div>
 
 				<div className="flex items-center gap-1.5">
-					<Button
-						variant="outline"
-						size="xs"
-						onClick={onToggleWatch}
-						disabled={!watched && maxReached}
-						className={`font-data text-[11px] ${pinButtonClass(watched, maxReached)}`}
-						title={pinButtonTitle(watched, maxReached)}
-					>
-						{watched ? '\u25C9 PINNED' : '\u25CB PIN'}
-					</Button>
+					<Tooltip label={pinButtonTitle(watched, maxReached)}>
+						<Button
+							variant="outline"
+							size="icon-xs"
+							onClick={onToggleWatch}
+							disabled={!watched && maxReached}
+							className={pinButtonClass(watched, maxReached)}
+							aria-label={pinButtonTitle(watched, maxReached)}
+							aria-pressed={watched}
+						>
+							<Pin size={13} className={watched ? 'fill-current' : undefined} />
+						</Button>
+					</Tooltip>
 
-					<Button
-						variant="outline"
-						size="xs"
-						onClick={onRefresh}
-						className="font-data text-[11px] text-dim hover:text-silver"
-					>
-						REFRESH
-					</Button>
+					<Tooltip label="Refresh run data">
+						<Button
+							variant="outline"
+							size="icon-xs"
+							onClick={onRefresh}
+							className="text-dim hover:text-silver"
+							aria-label="Refresh run data"
+						>
+							<RefreshCw size={13} />
+						</Button>
+					</Tooltip>
 
 					{pr ? (
 						<a
@@ -98,41 +110,41 @@ export function RunDetailHeader({
 					{!isTerminal ? (
 						<>
 							<span className="mx-1 h-5 w-px bg-edge" />
-							{cancelConfirm ? (
-								<div className="flex items-center gap-1">
-									<span className="font-data text-[10px] text-oxide">Cancel this run?</span>
-									<Button
-										variant="destructive"
-										size="xs"
-										onClick={onCancelConfirm}
-										disabled={cancelling}
-										className="font-data text-[11px]"
-									>
-										{cancelling ? '...' : 'CONFIRM'}
-									</Button>
-									<Button
-										variant="ghost"
-										size="icon-xs"
-										onClick={onCancelDismiss}
-										className="font-data text-[11px] text-dim hover:text-silver"
-									>
-										&times;
-									</Button>
-								</div>
-							) : (
+							<Tooltip label="Cancel run">
 								<Button
 									variant="outline"
-									size="xs"
+									size="icon-xs"
 									onClick={onCancelRequest}
-									className="font-data text-[11px] text-dim hover:border-oxide/30 hover:text-oxide"
+									className="text-dim hover:border-oxide/30 hover:text-oxide"
+									aria-label="Cancel run"
 								>
-									CANCEL RUN
+									<Square size={12} className="fill-current" />
 								</Button>
-							)}
+							</Tooltip>
 						</>
 					) : null}
 				</div>
 			</div>
+
+			<ConfirmDialog
+				open={cancelConfirm}
+				onOpenChange={(open) => {
+					if (!open) onCancelDismiss()
+				}}
+				title="Cancel this run?"
+				description={
+					<>
+						<span className="font-data text-fog">{run.issue_identifier}</span> will be stopped.
+						In-flight agent work is discarded, but the worktree and any committed changes are
+						preserved.
+					</>
+				}
+				confirmLabel="Cancel run"
+				cancelLabel="Keep running"
+				destructive
+				busy={cancelling}
+				onConfirm={onCancelConfirm}
+			/>
 		</header>
 	)
 }
