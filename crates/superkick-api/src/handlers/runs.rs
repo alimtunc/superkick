@@ -153,12 +153,21 @@ pub async fn get_run(
     let attention_requests = state.attention_repo.list_by_run(run_id).await?;
     let pr = resolve_pr(&state, run_id, &run.repo_slug).await;
 
+    let ownership = match state.ownership_service.snapshots_for_run(run_id).await {
+        Ok(snaps) => snaps,
+        Err(err) => {
+            tracing::warn!(%run_id, error = %err, "failed to read run ownership snapshots");
+            Vec::new()
+        }
+    };
+
     Ok(Json(serde_json::json!({
         "run": run,
         "steps": steps,
         "sessions": sessions,
         "interrupts": interrupts,
         "attention_requests": attention_requests,
+        "ownership": ownership,
         "pr": pr,
     })))
 }

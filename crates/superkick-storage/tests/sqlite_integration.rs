@@ -25,6 +25,7 @@ async fn schema_created_from_scratch() -> Result<()> {
     assert!(tables.contains(&"interrupts".to_string()));
     assert!(tables.contains(&"artifacts".to_string()));
     assert!(tables.contains(&"handoffs".to_string()));
+    assert!(tables.contains(&"session_ownership_events".to_string()));
     Ok(())
 }
 
@@ -768,5 +769,124 @@ async fn agent_session_lineage_round_trips() -> Result<()> {
     assert_eq!(fetched.parent_session_id, Some(parent_id));
     assert_eq!(fetched.launch_reason, Some(LaunchReason::Handoff));
     assert_eq!(fetched.handoff_id, Some(handoff_id));
+    Ok(())
+}
+
+// ── SUP-48: session ownership ─────────────────────────────────────────────
+
+async fn seed_session_for_ownership(pool: sqlx::SqlitePool) -> Result<AgentSessionId> {
+    let run_repo = SqliteRunRepo::new(pool.clone());
+    let step_repo = SqliteRunStepRepo::new(pool.clone());
+    let session_repo = SqliteAgentSessionRepo::new(pool);
+    let run = Run::new(
+        "i".into(),
+        "SUP-48".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        ExecutionMode::FullAuto,
+        "main".into(),
+        true,
+        None,
+    );
+    run_repo.insert(&run).await?;
+    let step = RunStep::new(run.id, StepKey::Code, 1);
+    step_repo.insert(&step).await?;
+    let session = AgentSession {
+        id: AgentSessionId::new(),
+        run_id: run.id,
+        run_step_id: step.id,
+        provider: AgentProvider::Claude,
+        command: "claude".into(),
+        pid: None,
+        status: AgentStatus::Running,
+        started_at: Utc::now(),
+        finished_at: None,
+        exit_code: None,
+        linear_context_mode: None,
+        role: Some("coder".into()),
+        purpose: Some("x".into()),
+        parent_session_id: None,
+        launch_reason: Some(LaunchReason::InitialStep),
+        handoff_id: None,
+    };
+    session_repo.insert(&session).await?;
+    Ok(session.id)
+}
+
+#[tokio::test]
+async fn ownership_defaults_to_orchestrator() -> Result<()> {
+    let pool = setup().await?;
+    let session_id = seed_session_for_ownership(pool.clone()).await?;
+    let repo = SqliteSessionOwnershipRepo::new(pool);
+
+    let snap = repo.current(session_id).await?.expect("snapshot");
+    assert!(matches!(snap.owner, OrchestrationOwner::Orchestrator));
+    assert!(snap.since.is_none());
+    Ok(())
+}
+
+#[tokio::test]
+async fn ownership_takeover_persists_snapshot_and_audit_row() -> Result<()> {
+    let pool = setup().await?;
+    let session_id = seed_session_for_ownership(pool.clone()).await?;
+    let repo = SqliteSessionOwnershipRepo::new(pool.clone());
+
+    let before = repo.current(session_id).await?.expect("snapshot");
+    let event = OwnershipEvent::new(
+        before.run_id,
+        session_id,
+        Some(OrchestrationOwner::Orchestrator),
+        OrchestrationOwner::Operator {
+            operator_id: OperatorId("alice@example.com".into()),
+            note: Some("debugging".into()),
+        },
+        OwnershipTransitionReason::OperatorTakeover,
+        Some(OperatorId("alice@example.com".into())),
+    );
+    repo.apply(&event, Utc::now()).await?;
+
+    let after = repo.current(session_id).await?.expect("snapshot");
+    match after.owner {
+        OrchestrationOwner::Operator { operator_id, note } => {
+            assert_eq!(operator_id.0, "alice@example.com");
+            assert_eq!(note.as_deref(), Some("debugging"));
+        }
+        other => panic!("expected operator, got {:?}", other),
+    }
+    assert!(after.since.is_some());
+
+    let audit = repo.list_by_session(session_id).await?;
+    assert_eq!(audit.len(), 1);
+    assert_eq!(audit[0].reason, OwnershipTransitionReason::OperatorTakeover);
+    Ok(())
+}
+
+#[tokio::test]
+async fn ownership_suspend_reason_round_trips() -> Result<()> {
+    let pool = setup().await?;
+    let session_id = seed_session_for_ownership(pool.clone()).await?;
+    let repo = SqliteSessionOwnershipRepo::new(pool.clone());
+
+    let snap = repo.current(session_id).await?.expect("snapshot");
+    let attention_id = AttentionRequestId::new();
+    let event = OwnershipEvent::new(
+        snap.run_id,
+        session_id,
+        Some(OrchestrationOwner::Orchestrator),
+        OrchestrationOwner::Suspended {
+            reason: SuspendReason::AttentionRequested { attention_id },
+        },
+        OwnershipTransitionReason::AttentionRaised,
+        None,
+    );
+    repo.apply(&event, Utc::now()).await?;
+
+    let loaded = repo.current(session_id).await?.expect("snapshot");
+    match loaded.owner {
+        OrchestrationOwner::Suspended {
+            reason: SuspendReason::AttentionRequested { attention_id: id },
+        } => assert_eq!(id, attention_id),
+        other => panic!("expected suspended, got {:?}", other),
+    }
     Ok(())
 }

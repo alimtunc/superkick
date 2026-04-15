@@ -12,12 +12,13 @@ use superkick_config::LaunchProfileConfig;
 use superkick_core::RunId;
 use superkick_integrations::linear::LinearClient;
 use superkick_runtime::{
-    AttentionService, InterruptService, PtySessionRegistry, RepoCache, StepEngine, StepEngineDeps,
+    AttentionService, InterruptService, OwnershipService, PtySessionRegistry, RepoCache,
+    StepEngine, StepEngineDeps,
 };
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteInterruptRepo,
     SqlitePullRequestRepo, SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
-    SqliteTranscriptRepo,
+    SqliteSessionOwnershipRepo, SqliteTranscriptRepo,
 };
 
 mod error;
@@ -39,6 +40,8 @@ type IntService = InterruptService<SqliteRunRepo, SqliteRunEventRepo, SqliteInte
 
 type AttnService = AttentionService<SqliteAttentionRequestRepo, SqliteRunEventRepo, SqliteRunRepo>;
 
+type OwnService = OwnershipService<SqliteSessionOwnershipRepo, SqliteRunEventRepo>;
+
 #[derive(Clone)]
 pub(crate) struct AppState {
     pub run_repo: Arc<SqliteRunRepo>,
@@ -53,6 +56,7 @@ pub(crate) struct AppState {
     pub engine: Arc<Engine>,
     pub interrupt_service: Arc<IntService>,
     pub attention_service: Arc<AttnService>,
+    pub ownership_service: Arc<OwnService>,
     pub pty_registry: Arc<PtySessionRegistry>,
     pub linear_client: Option<Arc<LinearClient>>,
     pub run_tokens: Arc<Mutex<HashMap<RunId, CancellationToken>>>,
@@ -92,6 +96,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let pr_repo = Arc::new(SqlitePullRequestRepo::new(pool.clone()));
     let interrupt_repo = Arc::new(SqliteInterruptRepo::new(pool.clone()));
     let attention_repo = Arc::new(SqliteAttentionRequestRepo::new(pool.clone()));
+    let ownership_repo = Arc::new(SqliteSessionOwnershipRepo::new(pool.clone()));
 
     let transcript_repo = Arc::new(SqliteTranscriptRepo::new(pool));
     let pty_registry = Arc::new(PtySessionRegistry::new());
@@ -137,6 +142,12 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         Arc::clone(&run_repo),
     ));
 
+    let ownership_service = Arc::new(OwnershipService::new(
+        Arc::clone(&ownership_repo),
+        Arc::clone(&event_repo),
+        Arc::clone(&pty_registry),
+    ));
+
     let state = AppState {
         run_repo,
         step_repo,
@@ -150,6 +161,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         engine,
         interrupt_service,
         attention_service,
+        ownership_service,
         pty_registry,
         linear_client,
         run_tokens: Arc::new(Mutex::new(HashMap::new())),
@@ -203,6 +215,18 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         .route(
             "/runs/{run_id}/sessions/{session_id}/attach",
             post(handlers::sessions::prepare_attach),
+        )
+        .route(
+            "/runs/{run_id}/sessions/{session_id}/ownership",
+            get(handlers::ownership::get_ownership),
+        )
+        .route(
+            "/runs/{run_id}/sessions/{session_id}/ownership/takeover",
+            post(handlers::ownership::takeover),
+        )
+        .route(
+            "/runs/{run_id}/sessions/{session_id}/ownership/release",
+            post(handlers::ownership::release),
         )
         .with_state(state);
 
