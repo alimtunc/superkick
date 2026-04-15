@@ -26,6 +26,7 @@ async fn schema_created_from_scratch() -> Result<()> {
     assert!(tables.contains(&"artifacts".to_string()));
     assert!(tables.contains(&"handoffs".to_string()));
     assert!(tables.contains(&"session_ownership_events".to_string()));
+    assert!(tables.contains(&"session_lifecycle_events".to_string()));
     Ok(())
 }
 
@@ -888,5 +889,133 @@ async fn ownership_suspend_reason_round_trips() -> Result<()> {
         } => assert_eq!(id, attention_id),
         other => panic!("expected suspended, got {:?}", other),
     }
+    Ok(())
+}
+
+// --- SUP-79: session lifecycle events -------------------------------------
+
+async fn seed_session(pool: &sqlx::SqlitePool) -> Result<AgentSession> {
+    let run_repo = SqliteRunRepo::new(pool.clone());
+    let step_repo = SqliteRunStepRepo::new(pool.clone());
+    let session_repo = SqliteAgentSessionRepo::new(pool.clone());
+
+    let run = Run::new(
+        "i".into(),
+        "SK-79".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        ExecutionMode::FullAuto,
+        "main".into(),
+        true,
+        None,
+    );
+    run_repo.insert(&run).await?;
+    let step = RunStep::new(run.id, StepKey::Code, 1);
+    step_repo.insert(&step).await?;
+    let sess = AgentSession {
+        id: AgentSessionId::new(),
+        run_id: run.id,
+        run_step_id: step.id,
+        provider: AgentProvider::Claude,
+        command: "claude".into(),
+        pid: None,
+        status: AgentStatus::Starting,
+        started_at: Utc::now(),
+        finished_at: None,
+        exit_code: None,
+        linear_context_mode: None,
+        role: Some("planner".into()),
+        purpose: Some("plan".into()),
+        parent_session_id: None,
+        launch_reason: Some(LaunchReason::InitialStep),
+        handoff_id: None,
+    };
+    session_repo.insert(&sess).await?;
+    Ok(sess)
+}
+
+#[tokio::test]
+async fn session_lifecycle_events_round_trip() -> Result<()> {
+    let pool = setup().await?;
+    let sess = seed_session(&pool).await?;
+    let repo = SqliteSessionLifecycleRepo::new(pool.clone());
+
+    let spawned = SessionLifecycleEvent::new(
+        sess.id,
+        sess.run_id,
+        sess.run_step_id,
+        sess.role.clone(),
+        None,
+        sess.launch_reason,
+        None,
+        SessionLifecyclePhase::Spawning,
+    );
+    let running = SessionLifecycleEvent::new(
+        sess.id,
+        sess.run_id,
+        sess.run_step_id,
+        sess.role.clone(),
+        None,
+        sess.launch_reason,
+        None,
+        SessionLifecyclePhase::Running,
+    );
+    let failed = SessionLifecycleEvent::new(
+        sess.id,
+        sess.run_id,
+        sess.run_step_id,
+        sess.role.clone(),
+        None,
+        sess.launch_reason,
+        None,
+        SessionLifecyclePhase::Failed {
+            exit_code: Some(7),
+            reason: "exit 7".into(),
+        },
+    );
+    repo.insert(&spawned).await?;
+    repo.insert(&running).await?;
+    repo.insert(&failed).await?;
+
+    let by_session: Vec<SessionLifecycleEvent> =
+        SessionLifecycleRepo::list_by_session(&repo, sess.id).await?;
+    assert_eq!(by_session.len(), 3);
+    match &by_session[2].phase {
+        SessionLifecyclePhase::Failed { exit_code, reason } => {
+            assert_eq!(exit_code.as_ref(), Some(&7i32));
+            assert_eq!(reason, "exit 7");
+        }
+        other => panic!("unexpected terminal phase: {other:?}"),
+    }
+
+    let by_run: Vec<SessionLifecycleEvent> =
+        SessionLifecycleRepo::list_by_run(&repo, sess.run_id).await?;
+    assert_eq!(by_run.len(), 3);
+    Ok(())
+}
+
+#[tokio::test]
+async fn session_lifecycle_phase_tag_is_indexable() -> Result<()> {
+    let pool = setup().await?;
+    let sess = seed_session(&pool).await?;
+    let repo = SqliteSessionLifecycleRepo::new(pool.clone());
+    repo.insert(&SessionLifecycleEvent::new(
+        sess.id,
+        sess.run_id,
+        sess.run_step_id,
+        sess.role.clone(),
+        None,
+        sess.launch_reason,
+        None,
+        SessionLifecyclePhase::Completed { exit_code: 0 },
+    ))
+    .await?;
+
+    let tag: String =
+        sqlx::query_scalar("SELECT phase_tag FROM session_lifecycle_events WHERE session_id = ?1")
+            .bind(sess.id.0.to_string())
+            .fetch_one(&pool)
+            .await?;
+    assert_eq!(tag, "completed");
     Ok(())
 }

@@ -10,13 +10,16 @@ use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
-use superkick_core::{AgentSession, AgentStatus, EventKind, EventLevel, RunId};
+use superkick_core::{
+    AgentSession, AgentStatus, EventKind, EventLevel, RunId, SessionLifecyclePhase,
+};
 use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
 
-use super::AgentResult;
 use super::output::{emit_event, spawn_output_reader};
 use super::process::kill_by_pid;
+use super::{AgentResult, publish_lifecycle};
 use crate::pty_session::{PtySession, PtySessionRegistry};
+use crate::session_bus::SessionBus;
 
 /// Dependencies for the supervised lifecycle, bundled to keep the arg count manageable.
 pub(crate) struct SupervisedDeps<S, E, T> {
@@ -24,6 +27,9 @@ pub(crate) struct SupervisedDeps<S, E, T> {
     pub event_repo: Arc<E>,
     pub transcript_repo: Arc<T>,
     pub registry: Arc<PtySessionRegistry>,
+    /// Optional bus — when attached, every state transition publishes a
+    /// `SessionLifecycleEvent` (SUP-79 spawn-and-observe).
+    pub lifecycle_bus: Option<Arc<SessionBus>>,
 }
 
 /// Spawn the agent via PTY and supervise it to completion.
@@ -45,6 +51,7 @@ where
         event_repo,
         transcript_repo,
         registry,
+        lifecycle_bus,
     } = deps;
     let run_id = session.run_id;
     let step_id = session.run_step_id;
@@ -61,6 +68,11 @@ where
     session.pid = pid;
     session.status = AgentStatus::Running;
     session_repo.update(&session).await?;
+    publish_lifecycle(
+        lifecycle_bus.as_deref(),
+        &session,
+        SessionLifecyclePhase::Running,
+    );
 
     debug!(provider = %session.provider, pid = ?pid, "agent running (PTY)");
 
@@ -112,6 +124,11 @@ where
             ).await;
             let _ = output_task.await;
             session_repo.update(&session).await?;
+            publish_lifecycle(
+                lifecycle_bus.as_deref(),
+                &session,
+                SessionLifecyclePhase::TimedOut,
+            );
             schedule_cleanup(registry, run_id);
             return Ok(AgentResult { session });
         }
@@ -127,6 +144,11 @@ where
             ).await;
             let _ = output_task.await;
             session_repo.update(&session).await?;
+            publish_lifecycle(
+                lifecycle_bus.as_deref(),
+                &session,
+                SessionLifecyclePhase::Cancelled,
+            );
             schedule_cleanup(registry, run_id);
             return Ok(AgentResult { session });
         }
@@ -136,6 +158,17 @@ where
     let _ = output_task.await;
 
     finalize_session(&mut session, &exit_status, &event_repo, &session_repo).await?;
+    let terminal_phase = if exit_status.success() {
+        SessionLifecyclePhase::Completed {
+            exit_code: exit_status.exit_code() as i32,
+        }
+    } else {
+        SessionLifecyclePhase::Failed {
+            exit_code: Some(exit_status.exit_code() as i32),
+            reason: format!("exit code {}", exit_status.exit_code() as i32),
+        }
+    };
+    publish_lifecycle(lifecycle_bus.as_deref(), &session, terminal_phase);
     schedule_cleanup(registry, run_id);
     Ok(AgentResult { session })
 }

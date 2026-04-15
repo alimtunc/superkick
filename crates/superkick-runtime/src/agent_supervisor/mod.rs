@@ -23,11 +23,12 @@ use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
     AgentProvider, AgentSession, AgentSessionId, AgentStatus, HandoffId, LaunchReason,
-    LinearContextMode, RunId, StepId,
+    LinearContextMode, RunId, SessionLifecycleEvent, SessionLifecyclePhase, StepId,
 };
 use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
 
 use crate::pty_session::PtySessionRegistry;
+use crate::session_bus::SessionBus;
 
 /// Lineage + intent metadata attached to every spawn (SUP-46). Every agent
 /// session gets one — the orchestrator populates it so sessions are explicit
@@ -86,6 +87,16 @@ impl AgentHandle {
     pub fn cancel(&self) {
         self.cancel_token.cancel();
     }
+
+    /// Construct a handle for unit tests that exercise registry/observation
+    /// logic without spawning a real process.
+    #[cfg(test)]
+    pub fn for_tests(session_id: AgentSessionId, cancel_token: CancellationToken) -> Self {
+        Self {
+            session_id,
+            cancel_token,
+        }
+    }
 }
 
 /// Process supervisor for local CLI agents.
@@ -94,6 +105,10 @@ pub struct AgentSupervisor<S, E, T> {
     event_repo: Arc<E>,
     transcript_repo: Arc<T>,
     registry: Arc<PtySessionRegistry>,
+    /// Optional lifecycle bus (SUP-79). When wired, every session state
+    /// transition publishes a `SessionLifecycleEvent` so the orchestrator and
+    /// other subscribers can react without blocking on the join handle.
+    lifecycle_bus: Option<Arc<SessionBus>>,
 }
 
 impl<S, E, T> AgentSupervisor<S, E, T>
@@ -113,7 +128,22 @@ where
             event_repo,
             transcript_repo,
             registry,
+            lifecycle_bus: None,
         }
+    }
+
+    /// Attach a `SessionBus` so every session this supervisor launches
+    /// publishes lifecycle events as it transitions through
+    /// Spawning → Running → terminal.
+    pub fn with_lifecycle_bus(mut self, bus: Arc<SessionBus>) -> Self {
+        self.lifecycle_bus = Some(bus);
+        self
+    }
+
+    /// Public accessor for the attached bus, if any — lets orchestrator-tier
+    /// wiring subscribe without having to pass the `Arc` around separately.
+    pub fn lifecycle_bus(&self) -> Option<Arc<SessionBus>> {
+        self.lifecycle_bus.clone()
     }
 
     /// Launch an agent process and supervise it to completion.
@@ -147,6 +177,15 @@ where
 
         self.session_repo.insert(&session).await?;
 
+        // Announce the session exists but hasn't yet been spawned. Observers
+        // that care about "a new child is about to come online" pick this up
+        // before the PTY is up.
+        publish_lifecycle(
+            self.lifecycle_bus.as_deref(),
+            &session,
+            SessionLifecyclePhase::Spawning,
+        );
+
         let cancel_token = CancellationToken::new();
         let handle = AgentHandle {
             session_id,
@@ -163,6 +202,7 @@ where
             event_repo,
             transcript_repo,
             registry,
+            lifecycle_bus: self.lifecycle_bus.clone(),
         };
 
         let join = tokio::spawn(lifecycle::run_supervised(
@@ -176,4 +216,28 @@ where
 
         Ok((handle, join))
     }
+}
+
+/// Publish a lifecycle event derived from the session's current lineage state,
+/// if a bus is attached. Lineage fields on the event are populated from the
+/// session so subscribers can filter without a DB round-trip.
+pub(crate) fn publish_lifecycle(
+    bus: Option<&SessionBus>,
+    session: &AgentSession,
+    phase: SessionLifecyclePhase,
+) {
+    let Some(bus) = bus else {
+        return;
+    };
+    let event = SessionLifecycleEvent::new(
+        session.id,
+        session.run_id,
+        session.run_step_id,
+        session.role.clone(),
+        session.parent_session_id,
+        session.launch_reason,
+        session.handoff_id,
+        phase,
+    );
+    bus.publish(event);
 }

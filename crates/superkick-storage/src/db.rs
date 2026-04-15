@@ -87,6 +87,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "011_session_ownership",
             include_str!("../migrations/011_session_ownership.sql"),
         ),
+        (
+            "012_session_lifecycle_events",
+            include_str!("../migrations/012_session_lifecycle_events.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {
