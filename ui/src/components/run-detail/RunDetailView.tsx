@@ -1,20 +1,19 @@
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
-import { SessionWatchRail } from '@/components/dashboard/SessionWatchRail'
 import { AttentionRequestPanel } from '@/components/run-detail/AttentionRequestPanel'
 import { EventsPanel } from '@/components/run-detail/EventsPanel'
 import { InterruptPanel } from '@/components/run-detail/InterruptPanel'
-import { PtyTerminal } from '@/components/run-detail/PtyTerminal'
 import { RaiseAttentionRequestForm } from '@/components/run-detail/RaiseAttentionRequestForm'
 import { ReviewResults } from '@/components/run-detail/ReviewResults'
 import { RunDetailHeader } from '@/components/run-detail/RunDetailHeader'
 import { RunDetailsGrid } from '@/components/run-detail/RunDetailsGrid'
 import { SessionList } from '@/components/run-detail/SessionList'
 import { StepTimeline } from '@/components/run-detail/StepTimeline'
+import { TerminalTakeover } from '@/components/run-detail/TerminalTakeover'
 import { useEventStream } from '@/hooks/useEventStream'
 import { useRunDetail } from '@/hooks/useRunDetail'
 import { useWatchedSessionsStore } from '@/stores/watchedSessions'
 
-export function RunDetailView({ runId, refTime }: { runId: string; refTime: number }) {
+export function RunDetailView({ runId }: { runId: string; refTime?: number }) {
 	const detail = useRunDetail(runId)
 	const stream = useEventStream(runId, detail.syncRun)
 	const { isWatched, toggleWatch, maxReached } = useWatchedSessionsStore()
@@ -40,8 +39,6 @@ export function RunDetailView({ runId, refTime }: { runId: string; refTime: numb
 				onCancelDismiss={() => detail.setCancelConfirm(false)}
 				cancelling={detail.cancelling}
 			/>
-
-			<SessionWatchRail refTime={refTime} mode="detail" />
 
 			<div className="mx-auto max-w-4xl px-5 py-6">
 				<RunDetailsGrid run={detail.run} pr={detail.pr} />
@@ -78,14 +75,7 @@ export function RunDetailView({ runId, refTime }: { runId: string; refTime: numb
 					</section>
 				)}
 
-				<section className="mb-6">
-					<SectionTitle title="TERMINAL" />
-					<p className="font-data mb-2 text-[11px] text-dim">
-						Live PTY — direct interaction with the run's agent. Use attention requests above for
-						structured product-level decisions.
-					</p>
-					<PtyTerminal runId={detail.run.id} isTerminal={detail.isTerminal} />
-				</section>
+				<TerminalTakeover runId={detail.run.id} isTerminal={detail.isTerminal} />
 
 				<section className="mb-6">
 					<EventsPanel events={stream.events} />
