@@ -30,6 +30,16 @@ pub enum EventKind {
     OwnershipReleased,
     OwnershipSuspended,
     OwnershipResumed,
+    /// A child agent session has been registered and is about to run. Emitted
+    /// once per session so the operator ledger can show lineage (role, purpose,
+    /// parent session, launch reason).
+    SessionSpawned,
+    /// A child agent session exited successfully.
+    SessionCompleted,
+    /// A child agent session exited with a non-zero status (including timeout).
+    SessionFailed,
+    /// A child agent session was cancelled by the orchestrator or operator.
+    SessionCancelled,
 }
 
 /// Severity level for run events.

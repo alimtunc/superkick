@@ -1,11 +1,11 @@
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
 import { AttentionRequestPanel } from '@/components/run-detail/AttentionRequestPanel'
-import { EventsPanel } from '@/components/run-detail/EventsPanel'
 import { InterruptPanel } from '@/components/run-detail/InterruptPanel'
 import { RaiseAttentionRequestForm } from '@/components/run-detail/RaiseAttentionRequestForm'
 import { ReviewResults } from '@/components/run-detail/ReviewResults'
 import { RunDetailHeader } from '@/components/run-detail/RunDetailHeader'
 import { RunHero } from '@/components/run-detail/RunHero'
+import { RunLedger } from '@/components/run-detail/RunLedger'
 import { SessionList } from '@/components/run-detail/SessionList'
 import { StepTimeline } from '@/components/run-detail/StepTimeline'
 import { TerminalTakeover } from '@/components/run-detail/TerminalTakeover'
@@ -91,6 +91,15 @@ export function RunDetailView({ runId, refTime = Date.now() }: { runId: string; 
 				) : null}
 
 				<section className="mb-8">
+					<SectionTitle title="Orchestration ledger" />
+					<RunLedger
+						events={stream.events}
+						sessions={detail.sessions}
+						attentionRequests={detail.attentionRequests}
+					/>
+				</section>
+
+				<section className="mb-8">
 					<SectionTitle title="Run progress" />
 					<StepTimeline steps={detail.steps} />
 				</section>
@@ -109,8 +118,10 @@ export function RunDetailView({ runId, refTime = Date.now() }: { runId: string; 
 				<ReviewResults steps={detail.steps} />
 
 				<section className="mb-6 space-y-3">
-					<SectionTitle title="Supporting detail" />
-					<EventsPanel events={stream.events} />
+					<SectionTitle title="Terminal inspection" />
+					<p className="font-data text-[11px] text-dim">
+						Supporting evidence only. Use the orchestration ledger above for run understanding.
+					</p>
 					<TerminalTakeover runId={detail.run.id} isTerminal={detail.isTerminal} />
 				</section>
 			</div>

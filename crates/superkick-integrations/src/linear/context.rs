@@ -23,7 +23,7 @@ pub fn issue_context_from_detail(detail: &IssueDetailResponse) -> IssueContext {
     // the upstream total if paging is ever introduced.
     let received = detail.comments.len() as u32;
     let mut sorted = detail.comments.clone();
-    sorted.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    sorted.sort_by_key(|c| std::cmp::Reverse(c.created_at));
     sorted.truncate(ISSUE_COMMENT_MAX_COUNT);
 
     let comments = sorted

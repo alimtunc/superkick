@@ -14,6 +14,18 @@ export type EventKind =
 	| 'attention_requested'
 	| 'attention_replied'
 	| 'attention_cancelled'
+	| 'handoff_created'
+	| 'handoff_delivered'
+	| 'handoff_completed'
+	| 'handoff_failed'
+	| 'ownership_taken_over'
+	| 'ownership_released'
+	| 'ownership_suspended'
+	| 'ownership_resumed'
+	| 'session_spawned'
+	| 'session_completed'
+	| 'session_failed'
+	| 'session_cancelled'
 
 export type EventLevel = 'debug' | 'info' | 'warn' | 'error'
 
@@ -25,5 +37,5 @@ export interface RunEvent {
 	kind: EventKind
 	level: EventLevel
 	message: string
-	payload_json: string | null
+	payload_json: unknown
 }

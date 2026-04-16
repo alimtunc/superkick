@@ -17,7 +17,7 @@ use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
 
 use super::output::{emit_event, spawn_output_reader};
 use super::process::kill_by_pid;
-use super::{AgentResult, publish_lifecycle};
+use super::{AgentResult, record_lifecycle};
 use crate::pty_session::{PtySession, PtySessionRegistry};
 use crate::session_bus::SessionBus;
 
@@ -68,11 +68,13 @@ where
     session.pid = pid;
     session.status = AgentStatus::Running;
     session_repo.update(&session).await?;
-    publish_lifecycle(
+    record_lifecycle(
         lifecycle_bus.as_deref(),
+        &*event_repo,
         &session,
         SessionLifecyclePhase::Running,
-    );
+    )
+    .await;
 
     debug!(provider = %session.provider, pid = ?pid, "agent running (PTY)");
 
@@ -124,11 +126,13 @@ where
             ).await;
             let _ = output_task.await;
             session_repo.update(&session).await?;
-            publish_lifecycle(
+            record_lifecycle(
                 lifecycle_bus.as_deref(),
+                &*event_repo,
                 &session,
                 SessionLifecyclePhase::TimedOut,
-            );
+            )
+            .await;
             schedule_cleanup(registry, run_id);
             return Ok(AgentResult { session });
         }
@@ -144,11 +148,13 @@ where
             ).await;
             let _ = output_task.await;
             session_repo.update(&session).await?;
-            publish_lifecycle(
+            record_lifecycle(
                 lifecycle_bus.as_deref(),
+                &*event_repo,
                 &session,
                 SessionLifecyclePhase::Cancelled,
-            );
+            )
+            .await;
             schedule_cleanup(registry, run_id);
             return Ok(AgentResult { session });
         }
@@ -168,7 +174,13 @@ where
             reason: format!("exit code {}", exit_status.exit_code() as i32),
         }
     };
-    publish_lifecycle(lifecycle_bus.as_deref(), &session, terminal_phase);
+    record_lifecycle(
+        lifecycle_bus.as_deref(),
+        &*event_repo,
+        &session,
+        terminal_phase,
+    )
+    .await;
     schedule_cleanup(registry, run_id);
     Ok(AgentResult { session })
 }
