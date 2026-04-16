@@ -12,8 +12,8 @@ use superkick_config::LaunchProfileConfig;
 use superkick_core::RunId;
 use superkick_integrations::linear::LinearClient;
 use superkick_runtime::{
-    AttentionService, InterruptService, OwnershipService, PtySessionRegistry, RepoCache,
-    StepEngine, StepEngineDeps,
+    AttentionService, InterruptService, OwnershipService, PtySessionRegistry,
+    PublishingRunEventRepo, RepoCache, SessionBus, StepEngine, StepEngineDeps, WorkspaceEventBus,
 };
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteInterruptRepo,
@@ -26,27 +26,32 @@ mod handlers;
 
 // ── App state ──────────────────────────────────────────────────────────
 
+/// Every run-event writer in the process goes through this wrapper so the
+/// workspace-level `WorkspaceEventBus` (SUP-84) sees every persisted event
+/// without service-level changes.
+type EventRepo = PublishingRunEventRepo<SqliteRunEventRepo>;
+
 type Engine = StepEngine<
     SqliteRunRepo,
     SqliteRunStepRepo,
-    SqliteRunEventRepo,
+    EventRepo,
     SqliteAgentSessionRepo,
     SqliteArtifactRepo,
     SqliteInterruptRepo,
     SqliteTranscriptRepo,
 >;
 
-type IntService = InterruptService<SqliteRunRepo, SqliteRunEventRepo, SqliteInterruptRepo>;
+type IntService = InterruptService<SqliteRunRepo, EventRepo, SqliteInterruptRepo>;
 
-type AttnService = AttentionService<SqliteAttentionRequestRepo, SqliteRunEventRepo, SqliteRunRepo>;
+type AttnService = AttentionService<SqliteAttentionRequestRepo, EventRepo, SqliteRunRepo>;
 
-type OwnService = OwnershipService<SqliteSessionOwnershipRepo, SqliteRunEventRepo>;
+type OwnService = OwnershipService<SqliteSessionOwnershipRepo, EventRepo>;
 
 #[derive(Clone)]
 pub(crate) struct AppState {
     pub run_repo: Arc<SqliteRunRepo>,
     pub step_repo: Arc<SqliteRunStepRepo>,
-    pub event_repo: Arc<SqliteRunEventRepo>,
+    pub event_repo: Arc<EventRepo>,
     pub session_repo: Arc<SqliteAgentSessionRepo>,
     pub artifact_repo: Arc<SqliteArtifactRepo>,
     pub interrupt_repo: Arc<SqliteInterruptRepo>,
@@ -58,6 +63,7 @@ pub(crate) struct AppState {
     pub attention_service: Arc<AttnService>,
     pub ownership_service: Arc<OwnService>,
     pub pty_registry: Arc<PtySessionRegistry>,
+    pub workspace_bus: Arc<WorkspaceEventBus>,
     pub linear_client: Option<Arc<LinearClient>>,
     pub run_tokens: Arc<Mutex<HashMap<RunId, CancellationToken>>>,
     pub repo_slug: String,
@@ -88,9 +94,16 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
 
     let pool = superkick_storage::connect(&cfg.database_url).await?;
 
+    let workspace_bus = WorkspaceEventBus::new();
+    let session_bus = SessionBus::new();
+    spawn_session_lifecycle_forwarder(Arc::clone(&session_bus), Arc::clone(&workspace_bus));
+
     let run_repo = Arc::new(SqliteRunRepo::new(pool.clone()));
     let step_repo = Arc::new(SqliteRunStepRepo::new(pool.clone()));
-    let event_repo = Arc::new(SqliteRunEventRepo::new(pool.clone()));
+    let event_repo = Arc::new(PublishingRunEventRepo::new(
+        SqliteRunEventRepo::new(pool.clone()),
+        Arc::clone(&workspace_bus),
+    ));
     let session_repo = Arc::new(SqliteAgentSessionRepo::new(pool.clone()));
     let artifact_repo = Arc::new(SqliteArtifactRepo::new(pool.clone()));
     let pr_repo = Arc::new(SqlitePullRequestRepo::new(pool.clone()));
@@ -128,6 +141,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         repo_cache,
         config,
         linear_client: linear_client.clone(),
+        session_bus: Some(Arc::clone(&session_bus)),
     }));
 
     let interrupt_service = Arc::new(InterruptService::new(
@@ -163,6 +177,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         attention_service,
         ownership_service,
         pty_registry,
+        workspace_bus,
         linear_client,
         run_tokens: Arc::new(Mutex::new(HashMap::new())),
         repo_slug,
@@ -173,6 +188,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(handlers::health::health))
         .route("/config", get(handlers::health::get_config))
+        .route("/events", get(handlers::events::workspace_events))
         .route("/issues", get(handlers::issues::list_issues))
         .route("/issues/{id}", get(handlers::issues::get_issue))
         .route(
@@ -240,6 +256,34 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     axum::serve(cfg.listener, app).await?;
 
     Ok(())
+}
+
+/// Subscribe to every session lifecycle event on the shared `SessionBus` and
+/// forward it onto the workspace-level bus (SUP-84). Runs for the lifetime of
+/// the server; exits cleanly when the session bus closes.
+fn spawn_session_lifecycle_forwarder(
+    session_bus: Arc<SessionBus>,
+    workspace_bus: Arc<WorkspaceEventBus>,
+) {
+    tokio::spawn(async move {
+        let mut rx = session_bus.subscribe();
+        loop {
+            match rx.recv().await {
+                Ok(event) => workspace_bus.publish(event.into()),
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                    tracing::warn!(
+                        skipped,
+                        "workspace lifecycle forwarder lagged; persisted audit stream \
+                         remains authoritative"
+                    );
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    tracing::debug!("session bus closed; lifecycle forwarder exiting");
+                    break;
+                }
+            }
+        }
+    });
 }
 
 fn detect_repo_slug() -> Option<String> {

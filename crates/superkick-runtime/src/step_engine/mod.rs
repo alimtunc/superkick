@@ -36,6 +36,7 @@ use crate::agent_supervisor::AgentSupervisor;
 use crate::interrupt_service::InterruptService;
 use crate::pty_session::PtySessionRegistry;
 use crate::repo_cache::RepoCache;
+use crate::session_bus::SessionBus;
 
 /// Default agent timeout (10 minutes).
 const DEFAULT_AGENT_TIMEOUT: Duration = Duration::from_secs(600);
@@ -72,6 +73,12 @@ pub struct StepEngineDeps<R, ST, E, A, AR, I, T = ()> {
     /// `None` disables snapshot + MCP delivery — roles configured for it
     /// downgrade to `none` with a warning.
     pub linear_client: OptionalLinearClient,
+    /// Workspace-shared session lifecycle bus (SUP-84). When provided the
+    /// engine's supervisor publishes every session phase transition here so
+    /// shell-level subscribers can observe spawn-and-observe activity across
+    /// runs. `None` preserves the pre-SUP-84 behaviour for tests that do not
+    /// exercise the substrate.
+    pub session_bus: Option<Arc<SessionBus>>,
 }
 
 impl<R, ST, E, A, AR, I, T> StepEngine<R, ST, E, A, AR, I, T>
@@ -85,12 +92,15 @@ where
     T: TranscriptRepo + 'static,
 {
     pub fn new(deps: StepEngineDeps<R, ST, E, A, AR, I, T>) -> Self {
-        let supervisor = AgentSupervisor::new(
+        let mut supervisor = AgentSupervisor::new(
             deps.session_repo,
             Arc::clone(&deps.event_repo),
             deps.transcript_repo,
             deps.registry,
         );
+        if let Some(bus) = deps.session_bus {
+            supervisor = supervisor.with_lifecycle_bus(bus);
+        }
         let interrupt_service = InterruptService::new(
             Arc::clone(&deps.run_repo),
             Arc::clone(&deps.event_repo),
@@ -840,7 +850,7 @@ async fn check_tool_exists(tool: &str) -> Result<()> {
     Ok(())
 }
 
-async fn emit_event<E: RunEventRepo>(
+pub(super) async fn emit_event<E: RunEventRepo>(
     repo: &E,
     run_id: superkick_core::RunId,
     step_id: Option<superkick_core::StepId>,

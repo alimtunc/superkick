@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 
+import { useNow } from '@/hooks/useNow'
 import { classifyRuns } from '@/lib/domain'
 import { runsQuery } from '@/lib/queries'
 import type { ClassifiedRuns, Run, RunFilter } from '@/types'
@@ -11,7 +12,6 @@ export function useRuns() {
 		isLoading,
 		isFetching,
 		error: queryError,
-		dataUpdatedAt,
 		refetch
 	} = useQuery({
 		...runsQuery(),
@@ -20,7 +20,7 @@ export function useRuns() {
 
 	const loading = isLoading || isFetching
 	const error = queryError ? String(queryError) : null
-	const refTime = dataUpdatedAt || Date.now()
+	const refTime = useNow()
 	const classified = useMemo(() => classifyRuns(runs), [runs])
 
 	const sorted = useMemo(

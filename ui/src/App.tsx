@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { WorkspaceEventsProvider } from '@/lib/workspaceEvents'
 import { createAppRouter } from '@/routes'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
@@ -22,7 +23,9 @@ export function App() {
 	return (
 		<ErrorBoundary>
 			<QueryClientProvider client={queryClient}>
-				<RouterProvider router={router} />
+				<WorkspaceEventsProvider>
+					<RouterProvider router={router} />
+				</WorkspaceEventsProvider>
 			</QueryClientProvider>
 		</ErrorBoundary>
 	)

@@ -18,6 +18,7 @@ pub mod run;
 pub mod session_lifecycle;
 pub mod step;
 pub mod transcript;
+pub mod workspace_event;
 
 // Re-export primary types for ergonomic imports.
 pub use agent::{AgentProvider, AgentSession, AgentStatus, LaunchReason};
@@ -53,3 +54,4 @@ pub use run::{ExecutionMode, LinkedRunSummary, Run, RunState, TriggerSource};
 pub use session_lifecycle::{SessionLifecycleEvent, SessionLifecyclePhase};
 pub use step::{RunStep, StepKey, StepStatus};
 pub use transcript::TranscriptChunk;
+pub use workspace_event::WorkspaceRunEvent;
