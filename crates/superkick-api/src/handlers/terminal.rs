@@ -152,14 +152,13 @@ async fn handle_terminal_socket(
             }
             msg = receiver.next() => {
                 match msg {
-                    Some(Ok(Message::Binary(data))) => {
-                        if writable {
-                            if let Err(err) = session_for_input.write_input(&data) {
-                                tracing::warn!("PTY write failed: {err}");
-                                break;
-                            }
+                    Some(Ok(Message::Binary(data))) if writable => {
+                        if let Err(err) = session_for_input.write_input(&data) {
+                            tracing::warn!("PTY write failed: {err}");
+                            break;
                         }
                     }
+                    Some(Ok(Message::Binary(_))) => {}
                     Some(Ok(Message::Text(text))) => {
                         if let Ok(ctrl) = serde_json::from_str::<ClientControl>(&text) {
                             match ctrl {
