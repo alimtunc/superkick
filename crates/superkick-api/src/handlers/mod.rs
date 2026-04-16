@@ -1,4 +1,5 @@
 pub mod attention;
+pub mod events;
 pub mod health;
 pub mod interrupts;
 pub mod issues;

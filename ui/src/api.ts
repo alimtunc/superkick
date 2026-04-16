@@ -11,9 +11,9 @@ import type {
 	IssueListResponse,
 	PullRequest,
 	Run,
-	RunEvent,
 	RunStep,
-	ServerConfigResponse
+	ServerConfigResponse,
+	WorkspaceRunEvent
 } from '@/types'
 
 const BASE = '/api'
@@ -195,22 +195,32 @@ export async function prepareSessionAttach(runId: string, sessionId: string): Pr
 	return res.json()
 }
 
-export function subscribeToRunEvents(
-	runId: string,
-	onEvent: (event: RunEvent) => void,
-	onDone: () => void,
-	onError: (err: Event) => void
-): () => void {
-	const es = new EventSource(`${BASE}/runs/${runId}/events`)
+/**
+ * Workspace-level event stream (SUP-84). One subscription feeds the shell
+ * broker which fans out to every per-run / per-surface subscriber. Callers
+ * outside the broker should almost never talk to this endpoint directly.
+ */
+export function subscribeToWorkspaceEvents(handlers: {
+	onEvent: (event: WorkspaceRunEvent) => void
+	onLagged?: (skipped: number) => void
+	onClosed?: () => void
+	onError?: (err: Event) => void
+}): () => void {
+	const es = new EventSource(`${BASE}/events`)
 
-	es.addEventListener('run_event', (e) => {
-		const data: RunEvent = JSON.parse(e.data)
-		onEvent(data)
+	es.addEventListener('workspace_event', (e) => {
+		const data: WorkspaceRunEvent = JSON.parse(e.data)
+		handlers.onEvent(data)
+	})
+
+	es.addEventListener('lagged', (e) => {
+		const skipped = Number.parseInt(e.data, 10) || 0
+		handlers.onLagged?.(skipped)
 	})
 
 	es.addEventListener('done', () => {
 		es.close()
-		onDone()
+		handlers.onClosed?.()
 	})
 
 	es.addEventListener('error', (err) => {
@@ -218,7 +228,7 @@ export function subscribeToRunEvents(
 			return
 		}
 		es.close()
-		onError(err)
+		handlers.onError?.(err)
 	})
 
 	return () => es.close()

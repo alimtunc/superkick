@@ -1,5 +1,6 @@
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { Button } from '@/components/ui/button'
+import { useNow } from '@/hooks/useNow'
 import { fmtElapsed, stepLabel } from '@/lib/domain'
 import { runsQuery } from '@/lib/queries'
 import { useWatchedSessionsStore } from '@/stores/watchedSessions'
@@ -10,14 +11,13 @@ import { TerminalSquare, X } from 'lucide-react'
 export function RunDock() {
 	const focusedId = useWatchedSessionsStore((s) => s.focusedId)
 	const clearFocus = useWatchedSessionsStore((s) => s.clearFocus)
-	const { data: runs = [], dataUpdatedAt } = useQuery({ ...runsQuery(), enabled: !!focusedId })
+	const { data: runs = [] } = useQuery({ ...runsQuery(), enabled: !!focusedId })
+	const refTime = useNow()
 
 	if (!focusedId) return null
 
 	const run = runs.find((r) => r.id === focusedId)
 	if (!run) return null
-
-	const refTime = dataUpdatedAt || Date.now()
 	const step = run.current_step_key
 		? (stepLabel[run.current_step_key] ?? run.current_step_key)
 		: run.state.replace(/_/g, ' ')
