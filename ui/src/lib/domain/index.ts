@@ -8,6 +8,7 @@ export {
 } from './formatters'
 export {
 	providerLabel,
+	resolveProviderLabel,
 	stepLabel,
 	stateIcon,
 	stateBgColor,
@@ -27,3 +28,12 @@ export {
 	toneAccentClass,
 	toneDotClass
 } from './narrative'
+export {
+	isLedgerEvent,
+	categoryOf,
+	visualOf,
+	payloadOf,
+	ledgerTitle,
+	ledgerDetail,
+	ledgerTone
+} from './ledger'

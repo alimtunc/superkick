@@ -5,6 +5,12 @@ export const providerLabel: Record<AgentProvider, string> = {
 	codex: 'Codex'
 }
 
+export function resolveProviderLabel(provider: string | null | undefined): string | null {
+	if (!provider) return null
+	if (provider === 'claude' || provider === 'codex') return providerLabel[provider]
+	return provider
+}
+
 export const stepLabel: Record<string, string> = {
 	prepare: 'Prepare',
 	plan: 'Plan',

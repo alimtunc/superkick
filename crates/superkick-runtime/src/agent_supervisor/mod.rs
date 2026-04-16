@@ -22,8 +22,9 @@ use chrono::Utc;
 use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
-    AgentProvider, AgentSession, AgentSessionId, AgentStatus, HandoffId, LaunchReason,
-    LinearContextMode, RunId, SessionLifecycleEvent, SessionLifecyclePhase, StepId,
+    AgentProvider, AgentSession, AgentSessionId, AgentStatus, EventKind, EventLevel, HandoffId,
+    LaunchReason, LinearContextMode, RunEvent, RunId, SessionLifecycleEvent, SessionLifecyclePhase,
+    StepId,
 };
 use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
 
@@ -179,12 +180,15 @@ where
 
         // Announce the session exists but hasn't yet been spawned. Observers
         // that care about "a new child is about to come online" pick this up
-        // before the PTY is up.
-        publish_lifecycle(
+        // before the PTY is up; the ledger event surfaces it in the operator
+        // orchestration thread.
+        record_lifecycle(
             self.lifecycle_bus.as_deref(),
+            &*self.event_repo,
             &session,
             SessionLifecyclePhase::Spawning,
-        );
+        )
+        .await;
 
         let cancel_token = CancellationToken::new();
         let handle = AgentHandle {
@@ -240,4 +244,255 @@ pub(crate) fn publish_lifecycle(
         phase,
     );
     bus.publish(event);
+}
+
+/// Publish a lifecycle event to the bus **and** emit an operator-visible
+/// RunEvent for ledger-worthy transitions. `Running` is intentionally skipped
+/// because it fires immediately after `Spawning` and only signals PID
+/// assignment — noisy, not story-relevant.
+///
+/// The RunEvent payload carries the lineage fields (`role`, `purpose`,
+/// `parent_session_id`, `launch_reason`, `handoff_id`) plus exit/reason so
+/// the operator ledger can reconstruct session lineage without a DB round-trip.
+pub(crate) async fn record_lifecycle<E>(
+    bus: Option<&SessionBus>,
+    event_repo: &E,
+    session: &AgentSession,
+    phase: SessionLifecyclePhase,
+) where
+    E: RunEventRepo + ?Sized,
+{
+    publish_lifecycle(bus, session, phase.clone());
+
+    let (kind, level, message, reason) = match &phase {
+        SessionLifecyclePhase::Spawning => (
+            EventKind::SessionSpawned,
+            EventLevel::Info,
+            format!(
+                "session spawned: {} ({})",
+                session.role.as_deref().unwrap_or("agent"),
+                session.provider
+            ),
+            None,
+        ),
+        // `Running` is an internal PID-assignment signal; keep it off the ledger.
+        SessionLifecyclePhase::Running => return,
+        SessionLifecyclePhase::Completed { .. } => (
+            EventKind::SessionCompleted,
+            EventLevel::Info,
+            format!(
+                "session completed: {} ({})",
+                session.role.as_deref().unwrap_or("agent"),
+                session.provider
+            ),
+            None,
+        ),
+        SessionLifecyclePhase::Failed {
+            exit_code, reason, ..
+        } => (
+            EventKind::SessionFailed,
+            EventLevel::Error,
+            format!(
+                "session failed: {} ({}) exit={:?}",
+                session.role.as_deref().unwrap_or("agent"),
+                session.provider,
+                exit_code
+            ),
+            Some(reason.clone()),
+        ),
+        SessionLifecyclePhase::Cancelled => (
+            EventKind::SessionCancelled,
+            EventLevel::Warn,
+            format!(
+                "session cancelled: {} ({})",
+                session.role.as_deref().unwrap_or("agent"),
+                session.provider
+            ),
+            None,
+        ),
+        SessionLifecyclePhase::TimedOut => (
+            EventKind::SessionFailed,
+            EventLevel::Warn,
+            format!(
+                "session timed out: {} ({})",
+                session.role.as_deref().unwrap_or("agent"),
+                session.provider
+            ),
+            Some("timeout".to_string()),
+        ),
+    };
+
+    let payload = serde_json::json!({
+        "session_id": session.id,
+        "provider": session.provider,
+        "role": session.role,
+        "purpose": session.purpose,
+        "parent_session_id": session.parent_session_id,
+        "launch_reason": session.launch_reason,
+        "handoff_id": session.handoff_id,
+        "phase": phase,
+        "exit_code": session.exit_code,
+        "reason": reason,
+    });
+
+    let mut event = RunEvent::new(
+        session.run_id,
+        Some(session.run_step_id),
+        kind,
+        level,
+        message,
+    );
+    event.payload_json = Some(payload);
+    if let Err(e) = event_repo.insert(&event).await {
+        tracing::warn!("failed to emit session lifecycle run event: {e}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+
+    use anyhow::Result;
+    use chrono::Utc;
+    use superkick_core::{
+        AgentProvider, AgentSession, AgentSessionId, AgentStatus, EventId, EventKind, RunId,
+        SessionLifecyclePhase, StepId,
+    };
+    use superkick_storage::repo::RunEventRepo;
+
+    use super::*;
+
+    /// Captures inserted RunEvents so tests can assert on the ledger writes
+    /// without standing up a SQLite schema.
+    struct CapturingRepo {
+        events: Mutex<Vec<RunEvent>>,
+    }
+
+    impl CapturingRepo {
+        fn new() -> Self {
+            Self {
+                events: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn snapshot(&self) -> Vec<RunEvent> {
+            self.events.lock().unwrap().clone()
+        }
+    }
+
+    impl RunEventRepo for CapturingRepo {
+        async fn insert(&self, event: &RunEvent) -> Result<()> {
+            self.events.lock().unwrap().push(event.clone());
+            Ok(())
+        }
+
+        async fn get(&self, _id: EventId) -> Result<Option<RunEvent>> {
+            Ok(None)
+        }
+
+        async fn list_by_run(&self, _run_id: RunId) -> Result<Vec<RunEvent>> {
+            Ok(Vec::new())
+        }
+
+        async fn list_by_run_from_offset(
+            &self,
+            _run_id: RunId,
+            _offset: usize,
+        ) -> Result<Vec<RunEvent>> {
+            Ok(Vec::new())
+        }
+    }
+
+    fn test_session() -> AgentSession {
+        AgentSession {
+            id: AgentSessionId::new(),
+            run_id: RunId::new(),
+            run_step_id: StepId::new(),
+            provider: AgentProvider::Claude,
+            command: "claude plan".into(),
+            pid: None,
+            status: AgentStatus::Starting,
+            started_at: Utc::now(),
+            finished_at: None,
+            exit_code: None,
+            linear_context_mode: None,
+            role: Some("planner".into()),
+            purpose: Some("draft plan".into()),
+            parent_session_id: None,
+            launch_reason: Some(superkick_core::LaunchReason::InitialStep),
+            handoff_id: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn spawning_emits_session_spawned_with_lineage_payload() {
+        let repo = CapturingRepo::new();
+        let session = test_session();
+
+        record_lifecycle(None, &repo, &session, SessionLifecyclePhase::Spawning).await;
+
+        let events = repo.snapshot();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, EventKind::SessionSpawned);
+        let payload = events[0].payload_json.as_ref().expect("payload");
+        assert_eq!(payload["role"], "planner");
+        assert_eq!(payload["purpose"], "draft plan");
+        assert_eq!(payload["session_id"], serde_json::json!(session.id));
+    }
+
+    #[tokio::test]
+    async fn running_is_skipped_on_the_ledger() {
+        let repo = CapturingRepo::new();
+        let session = test_session();
+
+        record_lifecycle(None, &repo, &session, SessionLifecyclePhase::Running).await;
+
+        assert!(
+            repo.snapshot().is_empty(),
+            "Running phase is noise and must not reach the ledger"
+        );
+    }
+
+    #[tokio::test]
+    async fn completed_failed_cancelled_and_timeout_each_emit_once() {
+        let repo = CapturingRepo::new();
+        let session = test_session();
+
+        record_lifecycle(
+            None,
+            &repo,
+            &session,
+            SessionLifecyclePhase::Completed { exit_code: 0 },
+        )
+        .await;
+        record_lifecycle(
+            None,
+            &repo,
+            &session,
+            SessionLifecyclePhase::Failed {
+                exit_code: Some(2),
+                reason: "bad config".into(),
+            },
+        )
+        .await;
+        record_lifecycle(None, &repo, &session, SessionLifecyclePhase::Cancelled).await;
+        record_lifecycle(None, &repo, &session, SessionLifecyclePhase::TimedOut).await;
+
+        let events = repo.snapshot();
+        let kinds: Vec<EventKind> = events.iter().map(|e| e.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                EventKind::SessionCompleted,
+                EventKind::SessionFailed,
+                EventKind::SessionCancelled,
+                EventKind::SessionFailed,
+            ]
+        );
+        // The TimedOut variant is mapped to SessionFailed with reason=timeout so
+        // operators still see "this session did not succeed" without an extra
+        // EventKind for every terminal flavour.
+        let timeout_payload = events[3].payload_json.as_ref().expect("timeout payload");
+        assert_eq!(timeout_payload["reason"], "timeout");
+    }
 }
