@@ -13,6 +13,7 @@
  *     session rails, attention counters, replacement for `useEventStream`)
  */
 
+import type { ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
 
 import { workspaceEventBroker } from '@/lib/eventBroker'
@@ -21,28 +22,39 @@ import type { BrokerNotice, RunEvent, SubscriptionFilter, WorkspaceRunEvent } fr
 import { useQueryClient } from '@tanstack/react-query'
 
 /**
- * Kinds that indicate state mutations the run detail query cares about.
- * Keeping this list narrow avoids invalidating on every `agent_output` line
- * — which would defeat the point of a query cache.
+ * Event kinds that can shift a run into a different operator queue bucket
+ * (SUP-58). Narrower than `RUN_DETAIL_INVALIDATING_KINDS` because step
+ * progress within the same state doesn't move a run between columns.
  */
-const RUN_DETAIL_INVALIDATING_KINDS: ReadonlySet<RunEvent['kind']> = new Set([
+const QUEUE_INVALIDATING_KINDS: ReadonlySet<RunEvent['kind']> = new Set([
 	'state_change',
-	'step_started',
-	'step_completed',
-	'step_failed',
 	'interrupt_created',
 	'interrupt_resolved',
 	'attention_requested',
 	'attention_replied',
 	'attention_cancelled',
-	'ownership_taken_over',
-	'ownership_released',
 	'ownership_suspended',
 	'ownership_resumed',
-	'review_completed',
+	'ownership_taken_over',
+	'ownership_released',
 	'handoff_created',
 	'handoff_completed',
-	'handoff_failed',
+	'handoff_failed'
+])
+
+/**
+ * Kinds that indicate state mutations the run detail query cares about.
+ * Superset of `QUEUE_INVALIDATING_KINDS`: every bucket-shifting signal is also
+ * relevant to the detail view, plus per-step progress and session lifecycle
+ * events that don't move a run between columns. Kept narrow so we don't
+ * invalidate on every `agent_output` line — that would defeat the cache.
+ */
+const RUN_DETAIL_INVALIDATING_KINDS: ReadonlySet<RunEvent['kind']> = new Set<RunEvent['kind']>([
+	...QUEUE_INVALIDATING_KINDS,
+	'step_started',
+	'step_completed',
+	'step_failed',
+	'review_completed',
 	'session_spawned',
 	'session_completed',
 	'session_failed',
@@ -54,7 +66,7 @@ const RUN_DETAIL_INVALIDATING_KINDS: ReadonlySet<RunEvent['kind']> = new Set([
  * `RouterProvider` so a) the broker is alive before any route subscribes
  * and b) the `useQueryClient` hook resolves to the app-wide client.
  */
-export function WorkspaceEventsProvider({ children }: { children: React.ReactNode }) {
+export function WorkspaceEventsProvider({ children }: { children: ReactNode }) {
 	const queryClient = useQueryClient()
 
 	useEffect(() => {
@@ -64,6 +76,7 @@ export function WorkspaceEventsProvider({ children }: { children: React.ReactNod
 			if (notice.type === 'lagged') {
 				// We missed events — any cached run detail might be stale.
 				queryClient.invalidateQueries({ queryKey: queryKeys.runs.all })
+				queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.queue })
 				return
 			}
 
@@ -72,6 +85,12 @@ export function WorkspaceEventsProvider({ children }: { children: React.ReactNod
 					queryClient.invalidateQueries({
 						queryKey: queryKeys.runs.detail(notice.run_id)
 					})
+				}
+				// The operator queue depends on state, attention, interrupts,
+				// ownership, and PR status — every invalidating kind above is
+				// a bucket-shifting signal.
+				if (QUEUE_INVALIDATING_KINDS.has(notice.kind)) {
+					queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.queue })
 				}
 				if (notice.kind === 'state_change') {
 					// A run transitioned — the runs list state (and any
@@ -85,6 +104,7 @@ export function WorkspaceEventsProvider({ children }: { children: React.ReactNod
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.runs.detail(notice.run_id)
 				})
+				queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.queue })
 			}
 		})
 

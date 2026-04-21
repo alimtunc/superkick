@@ -7,5 +7,9 @@ export const queryKeys = {
 	runs: {
 		all: ['runs'] as const,
 		detail: (id: string) => ['runs', id] as const
+	},
+	dashboard: {
+		all: ['dashboard'] as const,
+		queue: ['dashboard', 'queue'] as const
 	}
 }

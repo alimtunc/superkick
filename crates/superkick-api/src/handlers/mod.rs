@@ -1,4 +1,5 @@
 pub mod attention;
+pub mod dashboard;
 pub mod events;
 pub mod health;
 pub mod interrupts;

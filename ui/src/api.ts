@@ -5,6 +5,7 @@ import type {
 	AttentionRequest,
 	CreateAttentionRequest,
 	CreateRunRequest,
+	DashboardQueueResponse,
 	Interrupt,
 	InterruptAction,
 	IssueDetailResponse,
@@ -77,6 +78,12 @@ export async function fetchIssueDetail(id: string): Promise<IssueDetailResponse>
 export async function fetchRuns(): Promise<Run[]> {
 	const res = await fetch(`${BASE}/runs`)
 	if (!res.ok) throw new Error(`GET /runs failed: ${res.status}`)
+	return res.json()
+}
+
+export async function fetchDashboardQueue(): Promise<DashboardQueueResponse> {
+	const res = await fetch(`${BASE}/dashboard/queue`)
+	if (!res.ok) throw new Error(`GET /dashboard/queue failed: ${res.status}`)
 	return res.json()
 }
 
