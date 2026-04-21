@@ -5,7 +5,8 @@ description: Commit, create PR, and mark the Linear issue as done — one comman
 
 # Ship — Superkick
 
-Commit current changes, create a PR, and close the Linear issue. One shot.
+Commit current changes, push, open a PR, close the Linear issue. One shot.
+Run this only after the operator has manually verified the work.
 
 ## Usage
 
@@ -13,29 +14,10 @@ Commit current changes, create a PR, and close the Linear issue. One shot.
 /ship
 ```
 
-## Process
+## Steps
 
-**When invoked, you MUST:**
-
-1. **Identify context:**
-   - Run `git status -s` and `git diff main --name-only` to see what's changed
-   - Run `git log --oneline -5` to match commit message style
-   - Identify the Linear issue ID from the branch name (e.g. `sup-23` from `alimtunc/sup-23-...`)
-
-2. **Commit all changes:**
-   - Stage all modified/new files relevant to the work
-   - Write a concise commit message that follows the repo's style (lowercase, imperative)
-   - Do NOT add Co-Authored-By or AI credit lines
-   - Do NOT skip hooks
-
-3. **Push and create PR:**
-   - Push the branch with `-u` flag
-   - Create a PR using `gh pr create` with:
-     - Short title (under 70 chars)
-     - Body with `## Summary` (1-3 bullets) and `## Test plan` (checklist)
-   - Return the PR URL
-
-4. **Mark the Linear issue as done:**
-   - Use the `mcp__linear-superkick__save_issue` tool to set `state: "Done"` on the issue
-
-5. **Output** the PR URL and confirm the issue is closed.
+1. **Context** — `git status -s`, `git diff main --name-only`, `git log --oneline -5`. Extract the Linear issue ID from the branch name (e.g. `sup-23` from `alimtunc/sup-23-…`).
+2. **Commit** — stage the relevant files (never `git add -A`), write a lowercase imperative message matching the repo style. No `Co-Authored-By`, no `--no-verify`, no amend after a hook failure.
+3. **Push & PR** — `git push -u`, then `gh pr create` with a title under 70 chars, body: `## Summary` (1–3 bullets) + `## Test plan` (checklist). Return the PR URL.
+4. **Linear** — `mcp__linear-superkick__save_issue` with `state: "Done"` on the issue.
+5. **Output** — PR URL + Linear confirmation.

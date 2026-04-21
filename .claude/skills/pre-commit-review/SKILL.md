@@ -5,7 +5,7 @@ description: DRY, SOC, Clean Code review with auto-fix for Superkick (Rust + Rea
 
 # Pre-Commit Review — Superkick
 
-Review + auto-fix in **one pass** before commit.
+Review + auto-fix in one pass, before committing. User-invoked only.
 
 ## Usage
 
@@ -15,62 +15,49 @@ Review + auto-fix in **one pass** before commit.
 
 ## Process
 
-**When invoked, you MUST:**
+When invoked:
 
-1. **Identify modified files:**
+1. **Identify modified files** — staged + unstaged:
 
-```bash
-git diff --name-only && echo "---STAGED---" && git diff --cached --name-only
-```
+   ```bash
+   git diff --name-only && echo "---STAGED---" && git diff --cached --name-only
+   ```
 
-2. **Launch the code-reviewer agent** with Agent tool (`subagent_type="feature-dev:code-reviewer"`):
+2. **Dispatch a review** via the `superpowers:code-reviewer` subagent with this brief:
 
-```
-One-shot code review + auto-fix on modified files.
+   > One-shot review + auto-fix on the listed files.
+   > Conventions live in `docs/conventions/rust.md`, `frontend.md`, `testing.md`, `workflow.md` — read them, apply them, cite rule names in findings.
+   >
+   > Auto-fix silently:
+   > - unused imports (Rust + TS)
+   > - dead / commented-out code
+   > - obvious `any` → precise type
+   > - `forwardRef` → ref-as-prop (React 19)
+   > - `React.FC` → typed function
+   > - `JSX.Element` → `ReactNode`
+   >
+   > Report only (do not auto-fix):
+   > - `.unwrap()` / `panic!` in production paths
+   > - non-idiomatic names
+   > - duplicated logic or SOC violations
+   > - any change that alters runtime behaviour
+   >
+   > Files: [list]
 
-Context: Rust workspace (axum, tokio, sqlx/sqlite, serde, thiserror/anyhow, edition 2024) + UI React 19 (Vite, Tailwind v4, TanStack Router/Query/Form, zustand, shadcn/base-ui).
-
-Read docs/conventions/rust.md for Rust rules.
-Read docs/conventions/frontend.md for frontend rules.
-
-AUTO-FIX immediately:
-- Remove unused imports (Rust + TS)
-- Remove dead/commented code
-- Replace any with precise types (if obvious)
-- Remove forwardRef → ref-as-prop
-- Remove React.FC → typed function
-- Replace JSX.Element → ReactNode
-
-REPORT ONLY (do not auto-fix):
-- .unwrap() in production code
-- Non-idiomatic names
-- Functions > 30 lines (Rust) or components > 150 lines (React)
-- Duplicated logic
-- SOC violations (business logic in wrong crate/component)
-
-Files: [list]
-```
-
-3. **Present the report** — concise, actionable.
+3. **Present the consolidated report** — concise, actionable.
 
 ## Output format
 
 ```markdown
 ## Auto-fixes applied (X)
-
-- [file:line] - What was fixed
+- [file:line] — what was fixed
 
 ## Suggested refactoring (X)
-
-- [file:line] - **Issue** → Suggested fix
+- [file:line] — **[Rule]** issue → suggested fix
 
 ## Positive points
-
-- Concise list
+- concise bullets
 
 ---
-
-Code validated
-OR
-X suggested refactorings to consider
+Code validated — or — X suggested refactorings to consider
 ```

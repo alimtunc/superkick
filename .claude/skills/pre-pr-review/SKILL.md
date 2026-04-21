@@ -5,8 +5,8 @@ description: Comprehensive PR review for Superkick — Rust backend + React 19 f
 
 # Pre-PR Review — Superkick
 
-Review + fix before PR: Rust + React 19 + Clean Code.
-Launch **2 agents in parallel**, consolidate results, then **fix all critical issues**.
+Full review before PR. Two subagents in parallel (Rust + frontend), then fix the criticals.
+User-invoked only.
 
 ## Usage
 
@@ -16,61 +16,36 @@ Launch **2 agents in parallel**, consolidate results, then **fix all critical is
 
 ## Process
 
-**When invoked, you MUST:**
+When invoked:
 
-1. **Identify base branch and modified files:**
+1. **Identify changed files vs `main`**:
 
-```bash
-git diff main --name-only
-```
+   ```bash
+   git diff main --name-only
+   ```
 
-Separate Rust files (`*.rs`, `Cargo.toml`) from frontend files (`ui/**`).
+   Split into Rust (`*.rs`, `Cargo.toml`) and frontend (`ui/**`).
 
-2. **Launch 2 agents IN PARALLEL** with the Agent tool — one message, 2 tool calls:
+2. **Launch both reviews in parallel** (one message, two `Agent` calls with
+   `subagent_type="superpowers:code-reviewer"`).
 
-### Agent 1 — Rust Review (`subagent_type="feature-dev:code-reviewer"`)
+   **Rust agent brief** (skip if no Rust files changed):
 
-> Only launch if `.rs` or `Cargo.toml` files are modified.
+   > Review the listed Rust files against `docs/conventions/rust.md` and `docs/conventions/testing.md`. Enforce module boundaries (no business logic in `superkick-api`, no direct DB in `superkick-core`, no circular deps, `superkick-integrations` stays thin). Report only — do not fix. Cite rule names.
+   > Files: [list]
 
-```
-Code review Rust files modified vs main.
+   **Frontend agent brief** (skip if no `ui/**` files changed):
 
-Context: Rust workspace — superkick-api (axum), superkick-core (domain), superkick-config, superkick-runtime (tokio), superkick-storage (sqlx/sqlite), superkick-integrations. Edition 2024, MSRV 1.85.
+   > Review the listed React 19 / TypeScript files against `docs/conventions/frontend.md` and `docs/conventions/testing.md`. Report only — do not fix. Cite rule names.
+   > Files: [list]
 
-Read and apply ALL rules from docs/conventions/rust.md.
-Also enforce module boundaries:
-- No business logic in superkick-api → must be in superkick-core
-- No direct DB access in superkick-core → go through superkick-storage
-- No circular dependencies between crates
+3. **Consolidate** the two reports in the format below.
 
-Do NOT auto-fix. Report only.
+4. **Fix all critical issues** directly. Do not ask for confirmation on criticals.
 
-Files: [list of modified .rs and Cargo.toml files]
-```
+5. **Present suggested improvements** — let the operator decide.
 
-### Agent 2 — Frontend Review (`subagent_type="feature-dev:code-reviewer"`)
-
-> Only launch if `ui/**` files are modified. Otherwise skip.
-
-```
-Code review React 19 + TypeScript files modified vs main.
-
-Context: React 19, Vite, Tailwind v4, TanStack (Router, Query, Form), zustand, shadcn/base-ui. No Next.js, no server components.
-
-Read and apply ALL rules from docs/conventions/frontend.md.
-
-Do NOT auto-fix. Report only.
-
-Files: [list of modified ui/ files]
-```
-
-3. **Consolidate reports** in the format below.
-
-4. **Fix all critical issues** — apply fixes directly to the code. Do NOT ask for confirmation on criticals.
-
-5. **Present suggested improvements** to the user — let them decide which to apply.
-
-6. **Run `just check`** after fixes to confirm nothing is broken.
+6. **Run `just check`** to confirm nothing is broken.
 
 ## Output format
 
@@ -78,22 +53,14 @@ Files: [list of modified ui/ files]
 # Pre-PR Review — Superkick
 
 ## Critical issues (X) — FIXED
-
-- [file:line] - **[Category]** Description → Fix applied
+- [file:line] — **[Rule]** description → fix applied
 
 ## Suggested improvements (X)
-
-- [file:line] - **[Category]** Description → Suggested fix
+- [file:line] — **[Rule]** description → suggested fix
 
 ## Positive points
-
-- Concise list
+- concise bullets
 
 ---
-
-All criticals fixed, X improvements to consider
-OR
-PR ready — no issues found
+All criticals fixed, X improvements to consider — or — PR ready, no issues
 ```
-
-Categories: `Error Handling`, `Ownership`, `Async`, `API Design`, `SQL`, `Clean Code`, `DRY`, `SOC`, `React 19`, `Composition`, `Bundle`, `Tailwind`.
