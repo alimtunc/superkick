@@ -1,19 +1,35 @@
 ---
 name: ticket-execute
-description: Operator-invoked. Execute a validated Superkick plan. Reads `.claude/plans/<TICKET>.md`, verifies alignment with current code, sets up the worktree if needed, implements criterion by criterion, emits a handoff. Never commits. Does not auto-invoke pre-pr-review.
+description: Implements a validated Superkick plan. Called by ticket-triage for the one-shot path (with an inline mini-plan), auto-chained from ticket-plan for small plans, or invoked directly by the operator in a fresh session to resume a plan written previously. Reads `.claude/plans/<TICKET>.md` (or an inline mini-plan), verifies alignment with current code, sets up the worktree if needed, implements criterion by criterion, emits a handoff. Never commits. Does not auto-invoke pre-pr-review.
 ---
 
 # Ticket Execute — Superkick
 
-Session 2 of the plan-then-execute path (or the implementation step of a one-shot).
+Implementation skill. Entered three ways:
+- `ticket-triage` → `ticket-execute` (one-shot path, mini-plan passed inline).
+- `ticket-plan` → `ticket-execute` (plan-then-execute auto-chain when the plan is small enough — see ticket-plan's auto-chain criteria).
+- Operator → `ticket-execute` directly in a fresh session, typically to resume a plan written in an earlier session.
 
 ## Preconditions
 
-1. `.claude/plans/<TICKET>.md` exists and the operator has validated it (for the plan path). For one-shot, the skill inlines the mini-plan from the triage prompt.
-2. **Never edits the root working copy.** Either:
-   - Already inside a `.worktrees/<slug>/` path → proceed.
-   - Invoked from the root → create a worktree at `.worktrees/sup-xxx-<slug>/` off `origin/main` on a new branch (name per `docs/conventions/workflow.md`), then `cd` into it.
-3. **Worktree init**, per `docs/conventions/workflow.md`:
+1. Either `.claude/plans/<TICKET>.md` exists (plan-then-execute path) **or** a mini-plan was passed inline by `ticket-triage` (one-shot path). If neither, ask the operator.
+
+2. **Worktree is mandatory — create it before touching any file.** This is a hard precondition. If you edit the root working copy the change won't land on the feature branch and the operator won't see it in source control. No exception.
+
+   - If the current working directory is already inside `.worktrees/<slug>/` → skip to step 3.
+   - Otherwise, run these two commands literally (substituting `<slug>` and `<branch>`):
+
+     ```bash
+     git worktree add .worktrees/<slug> -b <branch>
+     cd .worktrees/<slug>
+     ```
+
+     - `<slug>` convention: `sup-xxx-<kebab-short-title>` for Linear tickets, `<kebab-short-title>` for free-form work.
+     - `<branch>` per `docs/conventions/workflow.md`.
+     - Before any further tool call, verify with `pwd` that the path contains `.worktrees/<slug>/`. If not, stop.
+     - Never use `Edit`/`Write` on a path that doesn't start with the worktree root. Grep/Read against the parent repo is fine; edits are not.
+
+3. **Worktree init**, per `docs/conventions/workflow.md` — run before any code change:
    - `cp examples/superkick.yaml superkick.yaml`
    - Copy `.env` from the root working copy into the worktree root.
    - `cd ui && pnpm install`
@@ -52,6 +68,7 @@ Next steps (operator invokes):
 
 ## Hard constraints
 
+- **No edit to the root working copy.** Every file write must happen inside the worktree directory created in preconditions step 2. If `git worktree add` was not run, do not edit anything — go back to step 2.
 - Never commits, pushes, creates a PR, or moves a Linear issue.
 - Never invokes `pre-pr-review`, `ship`, or `test-instructions`.
 - Reminders (already in `CLAUDE.md`, restated here because Opus 4.7 is literal): no `as T`, no `any`, no `cond && <X />` in JSX, no `forwardRef`, no `React.FC`, no `export default`, no `.unwrap()` / `panic!` in production paths, no `Co-Authored-By`, no `--no-verify`.
