@@ -35,7 +35,16 @@ Every skill is operator-invoked. None auto-chains.
 
 Claude Opus 4.7 is literal — vague one-line prompts regress because the model no longer silently fills implicit context. Well-scoped briefs with numbered acceptance criteria win big. Two-session plan → execute beats one session on non-trivial tickets: cleaner execution context, cheap human checkpoint.
 
-Reference: [Anthropic — Best practices for Opus 4.7 with Claude Code](https://claude.com/blog/best-practices-for-using-claude-opus-4-7-with-claude-code).
+4.7 also spawns fewer subagents and makes fewer tool calls by default, so our skills dispatch subagents explicitly (`pre-pr-review`) and name the Linear MCP capability upfront (`ticket-triage`, `ticket-plan`).
+
+References: [Anthropic — Best practices for Opus 4.7 with Claude Code](https://claude.com/blog/best-practices-for-using-claude-opus-4-7-with-claude-code) · [Migration guide — Opus 4.7](https://platform.claude.com/docs/en/about-claude/models/migration-guide#migrating-to-claude-opus-4-7).
+
+---
+
+## Operator setup
+
+- **Effort:** run Claude Code at `xhigh` effort for Superkick coding sessions. Anthropic's migration guide recommends `xhigh` as the starting point for coding + agentic use cases on Opus 4.7; `high` works but under-thinks on moderately complex tickets.
+- **Thinking display:** default is `omitted` on 4.7; if you want to see reasoning in the IDE, set the Claude Code config to display summarized thinking.
 
 ---
 
