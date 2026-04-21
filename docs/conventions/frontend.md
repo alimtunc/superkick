@@ -3,50 +3,67 @@
 Source of truth for React 19 / TypeScript code in `ui/`.
 Applies during implementation and review.
 
-## React 19
+## React 19 API
 
-- `forwardRef` is BANNED → ref is a standard prop
-- `React.FC` / `React.FunctionComponent` are BANNED → use typed functions directly
-- `JSX.Element` → use `ReactNode` for rendered props
-- `defaultProps` is BANNED → use ES6 default values
-- Prefer `use(MyContext)` over `useContext(MyContext)` for new components
+- **`forwardRef` is banned** — in React 19, `ref` is a standard prop. Declare `ref: Ref<HTMLDivElement>` in the props type and forward it directly.
+  - **Why:** `forwardRef` wraps the component in a non-transparent object, which breaks the React Compiler's memoization and confuses devtools. Removing it is mandatory for the compiler to optimise correctly.
+- **`React.FC` / `React.FunctionComponent` are banned** — write the component as a typed function: `function Foo(props: FooProps) { … }`.
+  - **Why:** `React.FC` implicitly adds `children`, which hides whether a component actually renders children. Typed functions make the contract explicit.
+- **`JSX.Element` is banned as a return/prop type** — use `ReactNode` for slots and let inference handle return types.
+  - **Why:** `JSX.Element` only admits a single element; `ReactNode` admits fragments, strings, numbers, and arrays — which is what slots actually need.
+- **`defaultProps` is banned** — use ES6 default values in the destructuring: `function Foo({ size = 'md' }: FooProps)`.
+  - **Why:** React 19 dropped `defaultProps` on function components. It silently does nothing.
+- **Prefer `use(MyContext)` over `useContext(MyContext)`** in new code.
+  - **Why:** `use` is conditionally callable (inside `if`, loops) and is the forward path. `useContext` still works but is being phased out of new patterns.
 
-## Clean Code
+## Component structure
 
-- Named exports only — no `export default`
-- Conditional rendering: `condition ? <X /> : null`, NEVER `condition && <X />`
-- Empty returns: `return null`, NEVER `return <></>`
-- No unused imports
-- No dead/commented code
-- No `any` types — use precise types
-- Descriptive variable names — no single-letter names (use `label` not `l`, `issue` not `i`, `priority` not `p`)
-- One component per file — split by default, colocate only when genuinely coupled
+- **One component per file.** Split by default; colocate only when two components are genuinely coupled (e.g. a compound component's subparts).
+  - **Why:** single-component files are trivial to find, move, and rename. Files with three unrelated components cause import noise and make git diffs harder to read.
+- **Named exports only** — no `export default`.
+  - **Why:** named exports rename-refactor cleanly across the codebase (IDE follows the symbol), survive re-export via barrels, and eliminate the "is it default or named?" coin-flip at import time.
+- Extract hooks when a component holds business logic. Components render; hooks decide.
 
-## DRY / SOC
+## Conditional rendering & empty states
 
-- Duplicated logic → extract into a hook or utility
-- Business logic in components → must be in hooks
-- No direct fetch — use separate API functions
+- **`condition ? <X /> : null`**, never `condition && <X />`.
+  - **Why:** `0 && <X />` renders `0` to the DOM. `"" && <X />` renders nothing but passes `""` as a child. The ternary makes the "nothing here" branch explicit and typesafe.
+- **Empty returns: `return null`**, never `return <></>`.
+  - **Why:** empty fragments are valid but meaningless; `null` is the idiomatic "render nothing" signal.
 
-## Types location
+## Types
 
-All shared type declarations (domain entities, API contracts, classification/grouping view models) live in `ui/src/types/**`, split by sub-domain (`runs.ts`, `issues.ts`, `attention.ts`, …). Import through the barrel: `import type { Run } from '@/types'`.
+- **Shared type declarations live in `ui/src/types/**`**, split by sub-domain (`runs.ts`, `issues.ts`, `attention.ts`, …). Import through the barrel: `import type { Run } from '@/types'`.
+- Exported type declarations **outside** `src/types/**` are banned, with these narrow exceptions:
+  - Component `*Props` interfaces (colocated with their component).
+  - Hook return-type aliases defined via `ReturnType<typeof useXxx>` (must stay with the hook).
+  - `src/routes/**` — routing types (`RouterContext`, `AppRouter`).
+  - `src/stores/**` — Zustand store/state/actions types.
 
-Exported type declarations are BANNED outside `src/types/**` with these narrow exceptions:
+  **Why:** when domain types scatter across feature folders, two things happen: (1) imports diverge (`import { Run } from '@/features/runs'` vs `'@/types'`), and (2) refactors across features require touching N files instead of one. Centralised domain types keep the app's mental model stable.
 
-- Component `*Props` interfaces (colocated with their component)
-- Hook return-type aliases defined via `ReturnType<typeof useXxx>` (must stay with the hook)
-- `src/routes/**` — routing types (`RouterContext`, `AppRouter`)
-- `src/stores/**` — Zustand store/state/actions types
+- **No `any`.** If a type is unknown at a boundary, use `unknown` and narrow explicitly.
+  - **Why:** `any` poisons inference downstream. `unknown` forces the narrowing to happen at the boundary, where the context exists.
 
+## Naming
 
-## UI Components
+- Descriptive names: `label`, not `l`; `issue`, not `i`; `priority`, not `p`. Single letters are fine only for generic type parameters and trivial loop indices.
+- Components are `PascalCase`, hooks are `useCamelCase`, utilities are `camelCase`, constants are `SCREAMING_SNAKE_CASE`.
 
-- Use shadcn components first (`pnpm dlx shadcn@latest add <component>`) — they live in `ui/src/components/ui/`
-- Only drop down to `@base-ui/react` primitives if no shadcn component exists for the use case
-- Never hand-roll interactive UI (switch, dialog, dropdown, etc.) when a shadcn or base-ui primitive is available
+## Data fetching & state
+
+- No direct `fetch` in components — go through a typed API function (in `ui/src/api/**` or equivalent).
+- Business logic lives in hooks, not in components. A component that computes anything beyond trivial derivation is a hook waiting to be extracted.
+- Server state: TanStack Query. Client state: zustand. URL state: TanStack Router. Do not mix roles.
+
+## UI components
+
+- Use shadcn components first (`pnpm dlx shadcn@latest add <component>`) — they live in `ui/src/components/ui/`.
+- Drop down to `@base-ui/react` primitives only if no shadcn component covers the use case.
+- **Never hand-roll** interactive UI (switch, dialog, dropdown, combobox, tooltip) when a shadcn or base-ui primitive exists.
+  - **Why:** hand-rolled interactive components miss accessibility wiring (focus traps, ARIA, keyboard) and diverge in styling from the rest of the app.
 
 ## Tailwind v4
 
-- No custom CSS classes if a Tailwind utility exists
-- Consistent responsive design
+- Use Tailwind utilities. Add a custom class only when no utility (or sensible combination) exists.
+- Theme tokens live in `@theme` blocks in CSS — do not hardcode hex colours in components.

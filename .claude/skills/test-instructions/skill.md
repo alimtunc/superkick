@@ -1,46 +1,26 @@
 ---
 name: test-instructions
-description: Generate clear test instructions after completing an issue implementation. Auto-triggered after issue work is done.
-autoTrigger: after finishing an issue implementation
+description: Use after finishing an issue implementation to emit a copy-pasteable test checklist for the operator. Covers automated tests, live manual steps, edge cases, and a short French summary.
 ---
 
 # Test Instructions — Superkick
 
-Generate concise, actionable test instructions after completing an issue.
+Generate a concise test checklist the operator can copy-paste to verify the work.
 
 ## When to use
 
-Automatically after finishing the implementation of a Linear issue — before or after commit.
+After finishing the implementation of an issue (before the operator takes over for manual verification). Can also be run manually via `/test-instructions`.
 
 ## Process
 
-**When triggered, you MUST:**
+1. **Summarise what was built** in one line (feature / fix / contract).
+2. **List the commands to run**, in order:
+   - Automated tests: `cargo test -p <affected-crate>` and `just check`.
+   - Live test (if applicable): server start command with required env vars, then curl or browser steps.
+3. **Surface edge cases** worth checking manually (missing config, bad input, failure paths).
+4. **Emit the checklist** in the template below, followed by a short French summary.
 
-1. **Identify what was built** — summarize the feature/contract/fix in one line.
-
-2. **List test commands** in order:
-
-### Unit / integration tests
-```bash
-cargo test -p <affected-crate>
-```
-
-### Compile check
-```bash
-just check
-```
-
-### Live test (if applicable)
-- Provide the exact commands to start the server with required env vars
-- Provide the exact curl/browser commands to verify the feature
-- Include expected output or status codes
-
-### Edge cases to verify manually
-- What happens without required config (e.g. missing API key → 503)
-- What happens with bad input
-- Frontend behavior (if UI hook/component was added)
-
-3. **Format output** as a ready-to-copy checklist:
+## Template
 
 ```markdown
 ## Test instructions — <ISSUE-ID>
@@ -59,7 +39,7 @@ just check
 
 Then in another terminal:
 \`\`\`bash
-<curl or browser instructions>
+<curl or browser steps>
 \`\`\`
 
 **Expected**: <what you should see>
@@ -67,20 +47,16 @@ Then in another terminal:
 ### 3. Edge cases
 - [ ] <edge case 1>
 - [ ] <edge case 2>
-```
 
-4. **Add a French summary** at the end:
-
-```markdown
 ### Résumé
 
 <2-3 phrases en français décrivant ce qui a été implémenté, le comportement attendu, et les points d'attention pour le test>
 ```
 
-## Key principles
+## Principles
 
-- Commands must be copy-pasteable — no placeholders except secrets
-- Always include the worktree path if working in one
-- Always mention required env vars
-- Keep it short — no explanations, just steps
-- The résumé section is always in French
+- Commands must be copy-pasteable — no placeholders except secrets.
+- Include the worktree path if working in one.
+- Mention required env vars explicitly.
+- Short — no explanations, just steps.
+- The résumé section stays in French.

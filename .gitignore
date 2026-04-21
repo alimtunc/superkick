@@ -15,7 +15,10 @@ _bmad*
 .agents/
 .claude/*
 !.claude/skills/
+!.claude/commands/
 
 .superkick-cache
 .superkick-port
 superkick.yaml
+
+docs/superpowers/
