@@ -1,64 +1,63 @@
-# Superkick — Development Rules
+# Superkick — Instructions
 
-## Project
-
-Local-first tool that turns Linear issues into reviewed PRs.
+Local-first tool: Linear issue → worktree → playbook → review swarm → PR.
 Rust workspace backend + React 19 dashboard UI.
 
 ## Stack
 
-- **Backend**: Rust workspace (edition 2024, MSRV 1.85) — axum, tokio, sqlx/sqlite, serde, thiserror/anyhow
-  - `superkick-api` — HTTP (axum). No business logic here.
-  - `superkick-core` — Domain logic, run state machine, application services
-  - `superkick-config` — Config parsing (superkick.yaml)
-  - `superkick-runtime` — Async runtime, subprocess supervision, worktree lifecycle
-  - `superkick-storage` — SQLite persistence, repository implementations
-  - `superkick-integrations` — Linear/GitHub adapters (keep thin)
-- **Frontend**: React 19 in `ui/` — Vite, Tailwind v4, TanStack (Router, Query, Form), zustand, shadcn/base-ui
-- **No** Next.js, no server components, no react-router-dom
+- **Backend**: Rust workspace (edition 2024, MSRV 1.85) — axum, tokio, sqlx/sqlite, serde, thiserror, anyhow.
+  Crates: `superkick-api`, `superkick-core`, `superkick-config`, `superkick-runtime`, `superkick-storage`, `superkick-integrations`.
+- **Frontend**: React 19 in `ui/` — Vite, Tailwind v4, TanStack (Router, Query, Form), zustand, shadcn / base-ui.
+- **No** Next.js, no server components, no react-router-dom.
 
-## Worktree initialization
+## Conventions (read these before editing)
 
-After creating a git worktree for feature work, always run:
+- **Rust** — `docs/conventions/rust.md`
+- **Frontend** — `docs/conventions/frontend.md`
+- **Testing** — `docs/conventions/testing.md`
+- **Workflow** (branches, commits, Linear, PRs) — `docs/conventions/workflow.md`
 
-1. `cp examples/superkick.yaml superkick.yaml`
-2. Copy `.env` from the main worktree root
-3. `cd ui && pnpm install`
+These are the source of truth. Every rule carries its rationale so edge cases can be reasoned about.
 
-This is a mandatory prerequisite before any other work in a worktree.
+## Write-time defaults
+
+The highest-leverage rules — violate these and the cost to rattrape is real. Full context in the convention files above.
+
+1. **Module boundaries.** No business logic in `superkick-api`. No direct DB in `superkick-core`. `superkick-integrations` stays thin.
+2. **No `.unwrap()` / `panic!`** in production paths. Use `Result` + `?` + `.context()`. A panic kills the run supervisor silently.
+3. **`thiserror` for domain errors, `anyhow` at the edge.** HTTP mapping lives in one place (`AppError` in `superkick-api`), not per-handler.
+4. **React 19 bans: `forwardRef`, `React.FC`, `JSX.Element`, `defaultProps`.** Ref is a standard prop; use typed functions and `ReactNode`.
+5. **Conditional rendering:** `cond ? <X /> : null`. Never `cond && <X />` (falsy values render as `0` / `""`).
+6. **Named exports only.** No `export default`. One component per file.
+7. **Shared types in `ui/src/types/**`** via barrel import. Colocate only `*Props` and hook return types.
+8. **No `any`.** Use `unknown` and narrow at boundaries.
+9. **Integration tests hit a real SQLite.** Never mock the storage layer — mocked migrations have lied to us before.
+10. **Never commit unless asked. Never on `main`. Never with `Co-Authored-By` or `--no-verify`.**
 
 ## Before you code
 
-- Read the issue/spec fully before starting
-- Run `just check` to confirm the workspace compiles
-- Identify which crates/packages are impacted — stay within scope
-- Do not commit unless explicitly asked
-
-## Conventions
-
-Follow these strictly during implementation AND review:
-- Rust rules: `docs/conventions/rust.md`
-- Frontend rules: `docs/conventions/frontend.md`
-
-## Module boundaries (SOC)
-
-- No business logic in `superkick-api` → must be in `superkick-core`
-- No direct DB access in `superkick-core` → go through `superkick-storage`
-- No circular dependencies between crates
-- `superkick-integrations` adapts external systems to core interfaces — keep it thin
+- Read the issue fully. Stay within the impacted crates/packages.
+- Run `just check` to confirm the workspace is green before changing anything.
+- Work on a branch or a `.worktrees/<slug>/` — never on `main`. See `docs/conventions/workflow.md` for the init checklist.
 
 ## Commands
 
 | Action | Command |
-|--------|---------|
+|---|---|
 | Compile check | `just check` |
 | Format | `just fmt` |
 | Lint | `just lint` |
 | Dev (api + ui) | `just dev` |
 | Build all | `just build` |
 
-## Review skills
+## User-invoked review skills
 
-- `/pre-commit-review` — auto-fix + report before commit
-- `/pre-pr-review` — full review before PR
-- `/pr-description` — generate PR description
+These do not fire on their own — the operator runs them:
+
+- `/pre-commit-review` — DRY / SOC / clean-code pass with auto-fix, before committing.
+- `/pre-pr-review` — full Rust + frontend review in parallel, before opening a PR.
+- `/pr-description` — generate a PR body from the branch diff.
+- `/test-instructions` — emit a copy-pasteable test checklist after finishing an issue.
+- `/ship` — commit + PR + Linear "Done" in one shot (after the operator has verified manually).
+
+Quality is produced at write-time by following the conventions above. Review skills are a safety net, not the teaching mechanism.
