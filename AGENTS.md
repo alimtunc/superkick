@@ -8,6 +8,8 @@ The source of truth for this repository is [`CLAUDE.md`](./CLAUDE.md) and the
 Cursor, Gemini…) that read `AGENTS.md` by convention — its contents are a
 subset of `CLAUDE.md`, kept minimal to avoid drift.
 
+**Codex-specific:** see [`docs/codex-workflow.md`](./docs/codex-workflow.md) for the Codex ↔ Claude ticket-dispatch contract (thin orchestrator role, `Invoke ticket-triage on SUP-XXX` handoff, invariants).
+
 ## Conventions — read before editing
 
 - **Rust** — `docs/conventions/rust.md`
