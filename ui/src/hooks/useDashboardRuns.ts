@@ -4,6 +4,7 @@ import { fetchRuns } from '@/api'
 import { useNow } from '@/hooks/useNow'
 import { AGING_THRESHOLD_MS } from '@/lib/constants'
 import { classifyRuns, elapsedMs, fmtElapsed } from '@/lib/domain'
+import { toErrorMessage } from '@/lib/errors'
 import { queryKeys } from '@/lib/queryKeys'
 import { useQuery } from '@tanstack/react-query'
 
@@ -20,7 +21,7 @@ export function useDashboardRuns() {
 		refetchInterval: 15_000
 	})
 
-	const error = queryError ? String(queryError) : null
+	const error = toErrorMessage(queryError)
 	const refTime = useNow()
 	const lastRefresh = useMemo(() => new Date(dataUpdatedAt || Date.now()), [dataUpdatedAt])
 	const classified = useMemo(() => classifyRuns(runs), [runs])

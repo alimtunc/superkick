@@ -12,6 +12,7 @@ pub mod interrupt;
 pub mod linear_context;
 pub mod ownership;
 pub mod pull_request;
+pub mod queue;
 pub mod review;
 pub mod role_router;
 pub mod run;
@@ -45,6 +46,7 @@ pub use ownership::{
     transition_suspend, transition_takeover,
 };
 pub use pull_request::{LinkedPrSummary, PrState, PullRequest, parse_pr_number};
+pub use queue::{OperatorQueue, QueueInputs, classify as classify_queue};
 pub use review::{ReviewFinding, ReviewSwarmResult};
 pub use role_router::{
     AgentCatalog, AgentDefinition as CoreAgentDefinition, ResolvedAgent, RoleRouter, RouterError,

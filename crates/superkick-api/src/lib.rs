@@ -188,6 +188,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(handlers::health::health))
         .route("/config", get(handlers::health::get_config))
+        .route("/dashboard/queue", get(handlers::dashboard::get_queue))
         .route("/events", get(handlers::events::workspace_events))
         .route("/issues", get(handlers::issues::list_issues))
         .route("/issues/{id}", get(handlers::issues::get_issue))

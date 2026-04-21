@@ -1,15 +1,17 @@
-import { AlertRow } from '@/components/dashboard/AlertRow'
-import { BoardCol } from '@/components/dashboard/BoardCol'
-import { CompletedTable } from '@/components/dashboard/CompletedTable'
+import { useCallback, useRef } from 'react'
+
 import { DistPanel } from '@/components/dashboard/DistPanel'
 import { DurationRow } from '@/components/dashboard/DurationRow'
 import { FocusedRunPanel } from '@/components/dashboard/FocusedRunPanel'
-import { KpiCell } from '@/components/dashboard/KpiCell'
-import { MetricCard } from '@/components/dashboard/MetricCard'
+import { QueueColumn } from '@/components/dashboard/QueueColumn'
+import { QueueSummary } from '@/components/dashboard/QueueSummary'
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
 import { useDashboardRuns } from '@/hooks/useDashboardRuns'
+import { useOperatorQueue } from '@/hooks/useOperatorQueue'
 import { avgDuration, medianDuration, stateDistribution } from '@/lib/domain'
-import { runsQuery } from '@/lib/queries'
+import { dashboardQueueQuery, runsQuery } from '@/lib/queries'
+import type { OperatorQueue } from '@/types'
+import { OPERATOR_QUEUES } from '@/types'
 import { createRoute } from '@tanstack/react-router'
 
 import { Route as shellRoute } from './route'
@@ -17,155 +19,98 @@ import { Route as shellRoute } from './route'
 export const Route = createRoute({
 	getParentRoute: () => shellRoute,
 	path: '/',
-	loader: ({ context }) => context.queryClient.ensureQueryData(runsQuery()),
+	loader: ({ context }) =>
+		Promise.all([
+			context.queryClient.ensureQueryData(runsQuery()),
+			context.queryClient.ensureQueryData(dashboardQueueQuery())
+		]),
 	component: OverviewPage
 })
 
 function OverviewPage() {
-	const d = useDashboardRuns()
+	const queue = useOperatorQueue()
+	const reliability = useDashboardRuns()
+	const columnRefs = useRef<Map<OperatorQueue, HTMLDivElement | null>>(new Map())
+
+	// One stable callback per mount; uses a `data-queue` attribute to key the
+	// Map so React 19 doesn't detach/reattach refs on every render.
+	const registerColumnRef = useCallback((el: HTMLDivElement | null) => {
+		if (!el) return
+		const queueId = el.dataset.queue as OperatorQueue | undefined
+		if (queueId) columnRefs.current.set(queueId, el)
+	}, [])
+
+	const jumpToQueue = useCallback((queueId: OperatorQueue) => {
+		columnRefs.current.get(queueId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+	}, [])
+
+	const errorMessage = queue.error ?? reliability.error
+
 	return (
 		<>
-			<FocusedRunPanel refTime={d.refTime} />
+			<FocusedRunPanel refTime={reliability.refTime} />
 
 			<div className="mx-auto flex max-w-360 flex-col gap-16 px-6 py-12">
-				{d.error ? (
-					<div className="panel glow-red font-data p-3 text-[12px] text-oxide">{d.error}</div>
+				{errorMessage ? (
+					<div className="panel glow-red font-data p-3 text-[12px] text-oxide">{errorMessage}</div>
 				) : null}
 
-				{/* ── Executive Summary + KPI ── */}
+				{/* ── Operator queue ── */}
 				<div className="flex flex-col gap-6">
-					<div className="fade-up grid grid-cols-2 gap-4 md:grid-cols-4">
-						<MetricCard
-							label="Completed"
-							value={d.completed.length}
-							sub={d.terminal.length > 0 ? `/ ${d.terminal.length} total` : ''}
-							color="mineral"
-						/>
-						<MetricCard
-							label="Active"
-							value={d.active.length}
-							sub={d.inProgress.length > 0 ? `${d.inProgress.length} in progress` : 'idle'}
-							color="cyan"
-						/>
-						<MetricCard
-							label="Attention"
-							value={d.needsAttention.length}
-							sub={
-								d.needsAttention.length === 0
-									? 'all clear'
-									: `${d.waitingHuman.length} blocked · ${d.failed.length} failed`
-							}
-							color={d.needsAttention.length > 0 ? 'oxide' : 'dim'}
-							glow={d.needsAttention.length > 0}
-						/>
-						<MetricCard
-							label="Success Rate"
-							value={d.successRate !== null ? `${d.successRate}%` : '--'}
-							sub={d.terminal.length > 0 ? `${d.terminal.length} terminal runs` : 'no data'}
-							color={
-								d.successRate !== null && d.successRate >= 80
-									? 'mineral'
-									: d.successRate !== null && d.successRate < 50
-										? 'oxide'
-										: 'silver'
-							}
-						/>
+					<div className="flex flex-wrap items-baseline gap-4">
+						<h1 className="font-data text-[13px] tracking-widest text-fog uppercase">
+							Operator Queue
+						</h1>
+						<p className="font-data text-[11px] text-dim">
+							{queue.actionable > 0
+								? `${queue.actionable} need action · ${queue.totalInFlight} in flight`
+								: `${queue.totalInFlight} in flight · all clear`}
+						</p>
+						{queue.generatedAt ? (
+							<p className="font-data ml-auto text-[10px] text-dim">
+								refreshed {new Date(queue.generatedAt).toLocaleTimeString()}
+							</p>
+						) : null}
 					</div>
-
-					<div className="fade-up grid grid-cols-3 gap-3 delay-1 md:grid-cols-6">
-						<KpiCell label="Median" value={medianDuration(d.runs)} />
-						<KpiCell label="Oldest Active" value={d.oldestActive} />
-						<KpiCell
-							label="Waiting"
-							value={d.waitingHuman.length}
-							alert={d.waitingHuman.length > 0}
-						/>
-						<KpiCell label="Failed" value={d.failed.length} alert={d.failed.length > 0} />
-						<KpiCell label="Reviewing" value={d.reviewing.length} />
-						<KpiCell label="Opening PR" value={d.openingPr.length} />
+					<QueueSummary groups={queue.groups} totals={queue.totals} onJump={jumpToQueue} />
+					<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
+						{OPERATOR_QUEUES.map((queueId) => (
+							<div key={queueId} ref={registerColumnRef} data-queue={queueId}>
+								<QueueColumn
+									queue={queueId}
+									runs={queue.groups[queueId]}
+									refTime={queue.refTime}
+								/>
+							</div>
+						))}
 					</div>
 				</div>
-
-				{/* ── Attention Zone ── */}
-				{d.needsAttention.length > 0 || d.aging.length > 0 ? (
-					<section className="fade-up delay-2">
-						<SectionTitle
-							title="ATTENTION"
-							accent="oxide"
-							count={d.needsAttention.length + d.aging.length}
-						/>
-						<div className="panel glow-red overflow-hidden">
-							{d.needsAttention.map((run, i) => (
-								<AlertRow
-									key={run.id}
-									run={run}
-									refTime={d.refTime}
-									reason={
-										run.state === 'waiting_human'
-											? 'Blocked — waiting human'
-											: 'Run failed'
-									}
-									isLast={i === d.needsAttention.length - 1 && d.aging.length === 0}
-								/>
-							))}
-							{d.aging.map((run, i) => (
-								<AlertRow
-									key={run.id}
-									run={run}
-									refTime={d.refTime}
-									reason={`Aging — ${d.oldestActive} elapsed`}
-									isLast={i === d.aging.length - 1}
-								/>
-							))}
-						</div>
-					</section>
-				) : null}
-
-				{/* ── Active Runs Board ── */}
-				{d.active.length > 0 ? (
-					<section className="fade-up delay-3">
-						<SectionTitle title="ACTIVE RUNS" count={d.active.length} />
-						<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-							<BoardCol
-								title="In Progress"
-								count={d.inProgress.length}
-								runs={d.inProgress}
-								refTime={d.refTime}
-								accent="cyan"
-							/>
-							<BoardCol
-								title="Needs Human"
-								count={d.waitingHuman.length}
-								runs={d.waitingHuman}
-								refTime={d.refTime}
-								accent="gold"
-							/>
-							<BoardCol
-								title="Queued"
-								count={d.queued.length}
-								runs={d.queued}
-								refTime={d.refTime}
-								accent="dim"
-							/>
-						</div>
-					</section>
-				) : null}
-
-				<CompletedTable completed={d.completed} />
 
 				{/* ── Reliability ── */}
 				<section className="fade-up">
 					<SectionTitle title="RELIABILITY" />
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-						<DistPanel title="By State" items={stateDistribution(d.runs)} total={d.runs.length} />
+						<DistPanel
+							title="By State"
+							items={stateDistribution(reliability.runs)}
+							total={reliability.runs.length}
+						/>
 						<DistPanel
 							title="Terminal Outcomes"
 							items={[
-								{ label: 'Completed', count: d.completed.length, color: 'bg-mineral' },
-								{ label: 'Failed', count: d.failed.length, color: 'bg-oxide' },
-								{ label: 'Cancelled', count: d.cancelled.length, color: 'bg-dim' }
+								{
+									label: 'Completed',
+									count: reliability.completed.length,
+									color: 'bg-mineral'
+								},
+								{ label: 'Failed', count: reliability.failed.length, color: 'bg-oxide' },
+								{
+									label: 'Cancelled',
+									count: reliability.cancelled.length,
+									color: 'bg-dim'
+								}
 							]}
-							total={d.terminal.length}
+							total={reliability.terminal.length}
 						/>
 						<div className="panel p-4">
 							<h4 className="font-data mb-4 text-[10px] tracking-wider text-dim uppercase">
@@ -174,17 +119,17 @@ function OverviewPage() {
 							<div className="space-y-3">
 								<DurationRow
 									label="Completed"
-									value={avgDuration(d.completed)}
+									value={avgDuration(reliability.completed)}
 									color="text-mineral"
 								/>
 								<DurationRow
 									label="Failed"
-									value={avgDuration(d.failed)}
+									value={avgDuration(reliability.failed)}
 									color="text-oxide"
 								/>
 								<DurationRow
 									label="Median (all)"
-									value={medianDuration(d.runs)}
+									value={medianDuration(reliability.runs)}
 									color="text-silver"
 								/>
 							</div>

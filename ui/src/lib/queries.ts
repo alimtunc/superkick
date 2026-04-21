@@ -1,4 +1,4 @@
-import { fetchIssueDetail, fetchIssues, fetchRun, fetchRuns } from '@/api'
+import { fetchDashboardQueue, fetchIssueDetail, fetchIssues, fetchRun, fetchRuns } from '@/api'
 import { queryOptions } from '@tanstack/react-query'
 
 import { queryKeys } from './queryKeys'
@@ -28,4 +28,11 @@ export const runDetailQuery = (id: string) =>
 	queryOptions({
 		queryKey: queryKeys.runs.detail(id),
 		queryFn: () => fetchRun(id)
+	})
+
+export const dashboardQueueQuery = () =>
+	queryOptions({
+		queryKey: queryKeys.dashboard.queue,
+		queryFn: fetchDashboardQueue,
+		staleTime: 5_000
 	})
