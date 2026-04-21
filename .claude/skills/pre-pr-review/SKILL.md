@@ -5,7 +5,7 @@ description: Comprehensive PR review for Superkick — Rust backend + React 19 f
 
 # Pre-PR Review — Superkick
 
-One unified review before opening the PR. Combines DRY/SOC auto-fix (formerly `pre-commit-review`) with the comprehensive Rust + React parallel review. Expensive — launches subagents — run only when you are ready to open the PR.
+One unified review before opening the PR. Combines DRY/SOC auto-fix with the comprehensive Rust + React parallel review. Expensive — launches subagents — run only when you are ready to open the PR.
 
 ## Usage
 
