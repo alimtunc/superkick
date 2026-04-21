@@ -56,9 +56,9 @@ These do not fire on their own — the operator runs them:
 
 ### Ticket lifecycle
 
-- `/ticket-triage` — route a Linear ticket to one-shot / plan-then-execute / split-first. Emits a next-step prompt. See [docs/codex-workflow.md](docs/codex-workflow.md).
-- `/ticket-plan` — write `.claude/plans/<TICKET>.md` for operator validation. No code changes.
-- `/ticket-execute` — implement a validated plan in a worktree. Never commits.
+- `/ticket-triage` — route a Linear ticket to one-shot / plan-then-execute / split-first, then auto-invoke the next skill (`/ticket-execute` for one-shot, `/ticket-plan` for plan-then-execute). Split-first stops for operator review. See [docs/codex-workflow.md](docs/codex-workflow.md).
+- `/ticket-plan` — write `.claude/plans/<TICKET>.md`. For small mono-stack plans, auto-chains into `/ticket-execute` in the same session; otherwise stops with a fresh-session handoff.
+- `/ticket-execute` — implement a validated plan (or one-shot mini-plan) in a worktree. Never commits.
 
 ### Review & ship
 

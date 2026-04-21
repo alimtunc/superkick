@@ -23,17 +23,17 @@ Claude's `ticket-triage` does all of that.
 
 | Skill | What it does | Next step |
 |---|---|---|
-| `ticket-triage` | Fetches the ticket, picks the path, emits a next-step prompt | Operator reads the prompt, decides |
-| `ticket-plan` (if routed there) | Writes `.claude/plans/SUP-XXX.md`, stops | Operator validates, pastes prompt into S2 |
-| `ticket-execute` | Worktree + implementation, stops at handoff | Operator runs `/test-instructions` / `/pre-pr-review` / commits / `/ship` |
+| `ticket-triage` | Fetches the ticket, picks the path, **auto-invokes** `ticket-plan` (plan path) or `ticket-execute` (one-shot). Stops on split-first. | Automatic — unless split-first, where the operator creates the sub-tickets. |
+| `ticket-plan` | Writes `.claude/plans/SUP-XXX.md`. Auto-invokes `ticket-execute` if the plan is small (≤ 3 criteria, mono-stack, no migration, fresh session); otherwise stops with a fresh-session handoff. | Automatic for small plans; for large plans, operator resumes in a new session with `Invoke ticket-execute on SUP-XXX`. |
+| `ticket-execute` | Worktree + implementation, stops at handoff. | Operator runs `/test-instructions` / `/pre-pr-review` / commits / `/ship`. |
 
-Every skill is operator-invoked. None auto-chains.
+Triage and plan auto-chain into the next ticket skill. Review/ship skills (`pre-pr-review`, `ship`, `test-instructions`) are never auto-chained — the operator always invokes those.
 
 ---
 
 ## Why this shape
 
-Claude Opus 4.7 is literal — vague one-line prompts regress because the model no longer silently fills implicit context. Well-scoped briefs with numbered acceptance criteria win big. Two-session plan → execute beats one session on non-trivial tickets: cleaner execution context, cheap human checkpoint.
+Claude Opus 4.7 is literal — vague one-line prompts regress because the model no longer silently fills implicit context. Well-scoped briefs with numbered acceptance criteria win big. The plan → execute split is still two sessions for non-trivial tickets (cleaner execution context, cheap human checkpoint), but small mono-stack plans now auto-chain in one session — triage and plan own the fetch + context, so re-dispatching for a trivial execute was pure friction.
 
 4.7 also spawns fewer subagents and makes fewer tool calls by default, so our skills dispatch subagents explicitly (`pre-pr-review`) and name the Linear MCP capability upfront (`ticket-triage`, `ticket-plan`).
 

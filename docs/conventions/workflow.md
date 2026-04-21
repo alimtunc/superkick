@@ -4,15 +4,18 @@ Operational rules for contributors (human or agent). Applies to every session.
 
 ## Ticket lifecycle
 
-Superkick tickets go through an explicit lifecycle, operator-driven at every step:
+Superkick tickets go through an explicit lifecycle:
 
 1. **Codex** picks the next ticket with the operator.
-2. Operator runs `/ticket-triage` in Claude — Claude fetches the issue and emits a next-step prompt.
-3. Depending on the path, operator runs `/ticket-plan` (non-trivial or cross-stack) or goes directly to `/ticket-execute` (one-shot).
+2. Operator runs `/ticket-triage` in Claude — triage fetches the issue, picks the path, then **auto-invokes** the downstream skill:
+   - One-shot → `/ticket-execute` (inline mini-plan).
+   - Plan-then-execute → `/ticket-plan`.
+   - Split-first → stops; operator reviews the split proposal and creates sub-tickets.
+3. `/ticket-plan` writes `.claude/plans/<TICKET>.md`. If the plan is small (≤ 3 criteria, mono-stack, no migration, fresh session) it auto-invokes `/ticket-execute` in the same session. Otherwise it stops and emits a fresh-session handoff — the operator resumes with `Invoke ticket-execute on SUP-XXX` in a new session.
 4. `/ticket-execute` runs in a worktree (see "Worktree initialization" below), stops at the handoff.
 5. Operator runs `/test-instructions`, `/pre-pr-review`, commits, then `/ship`.
 
-No skill auto-chains. See [docs/codex-workflow.md](../codex-workflow.md) for the Codex ↔ Claude contract and [the ticket skills](../../.claude/skills/) for details.
+Review/ship skills (`/pre-pr-review`, `/ship`, `/test-instructions`) are never auto-chained — the operator always invokes those. See [docs/codex-workflow.md](../codex-workflow.md) for the Codex ↔ Claude contract and [the ticket skills](../../.claude/skills/) for details.
 
 ## Worktree initialization
 
