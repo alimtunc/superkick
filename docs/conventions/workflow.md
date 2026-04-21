@@ -2,6 +2,18 @@
 
 Operational rules for contributors (human or agent). Applies to every session.
 
+## Ticket lifecycle
+
+Superkick tickets go through an explicit lifecycle, operator-driven at every step:
+
+1. **Codex** picks the next ticket with the operator.
+2. Operator runs `/ticket-triage` in Claude — Claude fetches the issue and emits a next-step prompt.
+3. Depending on the path, operator runs `/ticket-plan` (non-trivial or cross-stack) or goes directly to `/ticket-execute` (one-shot).
+4. `/ticket-execute` runs in a worktree (see "Worktree initialization" below), stops at the handoff.
+5. Operator runs `/test-instructions`, `/pre-pr-review`, commits, then `/ship`.
+
+No skill auto-chains. See [docs/codex-workflow.md](../codex-workflow.md) for the Codex ↔ Claude contract and [the ticket skills](../../.claude/skills/) for details.
+
 ## Worktree initialization
 
 Feature work happens in a git worktree under `.worktrees/`, never on `main`.
@@ -34,11 +46,9 @@ After creating a worktree, run these three steps **before** any code change:
 - Use `/pr-description` to draft the body from the branch diff.
 - After merging, close the Linear issue manually (again: operator controls "Done").
 
-## Pre-commit / pre-PR review
+## Pre-PR review
 
-- `/pre-commit-review` — review + auto-fix for the small stuff, before you commit.
-- `/pre-pr-review` — two parallel reviews (Rust + frontend) before opening a PR.
-- Both are **user-invoked** — Claude does not trigger them automatically.
+- `/pre-pr-review` — auto-fix DRY/SOC + two parallel reviews (Rust + frontend) before opening a PR. User-invoked; Claude never triggers it automatically.
 
 ## Hooks
 

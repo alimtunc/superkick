@@ -54,8 +54,15 @@ The highest-leverage rules — violate these and the cost to rattrape is real. F
 
 These do not fire on their own — the operator runs them:
 
-- `/pre-commit-review` — DRY / SOC / clean-code pass with auto-fix, before committing.
-- `/pre-pr-review` — full Rust + frontend review in parallel, before opening a PR.
+### Ticket lifecycle
+
+- `/ticket-triage` — route a Linear ticket to one-shot / plan-then-execute / split-first. Emits a next-step prompt. See [docs/codex-workflow.md](docs/codex-workflow.md).
+- `/ticket-plan` — write `.claude/plans/<TICKET>.md` for operator validation. No code changes.
+- `/ticket-execute` — implement a validated plan in a worktree. Never commits.
+
+### Review & ship
+
+- `/pre-pr-review` — auto-fix DRY/SOC + full Rust + frontend review in parallel, before opening a PR.
 - `/pr-description` — generate a PR body from the branch diff.
 - `/test-instructions` — emit a copy-pasteable test checklist after finishing an issue.
 - `/ship` — commit + PR + Linear "Done" in one shot (after the operator has verified manually).
