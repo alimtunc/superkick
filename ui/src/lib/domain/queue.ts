@@ -1,4 +1,4 @@
-import type { OperatorQueue, QueueRunSummary, SessionOwnershipSnapshot } from '@/types'
+import type { OperatorQueue } from '@/types'
 
 interface QueueAccent {
 	border: string
@@ -68,39 +68,4 @@ export const queueAccent: Record<OperatorQueue, QueueAccent> = {
  */
 export function isUrgentQueue(queue: OperatorQueue, count: number): boolean {
 	return count > 0 && queue === 'needs-human'
-}
-
-/**
- * Pick a concise one-line reason an operator card should show next to the
- * run. Leans on the strongest signal: pending attention first (since it is
- * what the operator has to actually do), then pending interrupts, then the
- * run-level state (failed / waiting_human), then the PR state.
- */
-export function queueCardReason(run: QueueRunSummary): string | null {
-	if (run.pending_attention_count > 0) {
-		return run.pending_attention_count === 1
-			? '1 attention request pending'
-			: `${run.pending_attention_count} attention requests pending`
-	}
-	if (run.pending_interrupt_count > 0) {
-		return run.pending_interrupt_count === 1
-			? '1 interrupt pending'
-			: `${run.pending_interrupt_count} interrupts pending`
-	}
-	if (run.state === 'failed') return 'Run failed — retry or archive'
-	if (run.state === 'waiting_human') return 'Waiting on human'
-	const handoff = pendingHandoff(run.ownership)
-	if (handoff) return 'Paused — handoff pending'
-	if (run.pr) {
-		if (run.pr.state === 'draft') return `Draft PR #${run.pr.number}`
-		if (run.pr.state === 'open') return `Open PR #${run.pr.number}`
-	}
-	if (run.state === 'queued') return 'Queued'
-	return null
-}
-
-export function pendingHandoff(ownership: SessionOwnershipSnapshot[]): SessionOwnershipSnapshot | undefined {
-	return ownership.find(
-		(o) => o.orchestration.kind === 'suspended' && o.orchestration.reason.kind === 'pending_handoff'
-	)
 }

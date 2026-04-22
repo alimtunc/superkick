@@ -86,14 +86,7 @@ pub struct QueueInputs<'a> {
 
 impl QueueInputs<'_> {
     fn has_pending_handoff(&self) -> bool {
-        self.ownership.iter().any(|o| {
-            matches!(
-                &o.orchestration,
-                OrchestrationOwner::Suspended {
-                    reason: SuspendReason::PendingHandoff { .. }
-                }
-            )
-        })
+        has_pending_handoff(self.ownership)
     }
 
     fn has_open_pr(&self) -> bool {
@@ -101,6 +94,85 @@ impl QueueInputs<'_> {
             .map(|pr| matches!(pr.state, PrState::Open | PrState::Draft))
             .unwrap_or(false)
     }
+}
+
+/// Does this run have a session suspended waiting for a handoff? Exposed so
+/// the launch-queue handler and any other surface can consume the same
+/// predicate that drives `BlockedByDependency` classification.
+#[must_use]
+pub fn has_pending_handoff(ownership: &[SessionOwnership]) -> bool {
+    ownership.iter().any(|o| {
+        matches!(
+            &o.orchestration,
+            OrchestrationOwner::Suspended {
+                reason: SuspendReason::PendingHandoff { .. }
+            }
+        )
+    })
+}
+
+/// One-line operator-facing reason for why a run sits in its current queue
+/// bucket. The precedence mirrors `classify` so the reason string always
+/// describes the same signal the bucket was picked on. Returning a fixed
+/// `String` keeps both the dashboard and the launch queue aligned — the UI
+/// reads it verbatim rather than re-deriving per-surface copy.
+#[must_use]
+pub fn queue_card_reason(inputs: QueueInputs<'_>) -> String {
+    if inputs.pending_attention > 0 {
+        return if inputs.pending_attention == 1 {
+            "1 attention request pending".into()
+        } else {
+            format!("{} attention requests pending", inputs.pending_attention)
+        };
+    }
+    if inputs.pending_interrupts > 0 {
+        return if inputs.pending_interrupts == 1 {
+            "1 interrupt pending".into()
+        } else {
+            format!("{} interrupts pending", inputs.pending_interrupts)
+        };
+    }
+    match inputs.run.state {
+        RunState::Failed => return "run failed — retry or archive".into(),
+        RunState::WaitingHuman => return "waiting on human".into(),
+        _ => {}
+    }
+    if let Some(pr) = inputs.pr {
+        return format!("PR #{} ({})", pr.number, pr.state);
+    }
+    if has_pending_handoff(inputs.ownership) {
+        return "paused — handoff pending".into();
+    }
+    if matches!(inputs.run.state, RunState::Queued) {
+        return "queued".into();
+    }
+    format!("run in state {}", inputs.run.state)
+}
+
+/// How many completed runs either operator surface keeps visible. Older
+/// completed runs fall off the tail so the `Done` column stays a rolling
+/// "just shipped" view.
+pub const DONE_COLUMN_LIMIT: usize = 15;
+
+/// Shared policy for selecting runs into the operator queue and the launch
+/// queue: drop cancelled runs entirely, keep the tail of the most recently
+/// completed runs up to `DONE_COLUMN_LIMIT`. Extracted so the two handler
+/// surfaces cannot drift on the horizon.
+#[must_use]
+pub fn trim_for_queue(runs: Vec<Run>) -> Vec<Run> {
+    let (live, mut completed): (Vec<_>, Vec<_>) = runs
+        .into_iter()
+        .filter(|r| !matches!(r.state, RunState::Cancelled))
+        .partition(|r| !matches!(r.state, RunState::Completed));
+
+    completed.sort_by(|a, b| {
+        let a_t = a.finished_at.unwrap_or(a.updated_at);
+        let b_t = b.finished_at.unwrap_or(b.updated_at);
+        b_t.cmp(&a_t)
+    });
+    completed.truncate(DONE_COLUMN_LIMIT);
+
+    live.into_iter().chain(completed).collect()
 }
 
 /// Classify a run into exactly one operator queue. `Cancelled` runs return

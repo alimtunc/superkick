@@ -60,6 +60,7 @@ pub(crate) struct GqlIssueRef {
     pub id: String,
     pub identifier: String,
     pub title: String,
+    pub state: GqlIssueState,
 }
 
 #[derive(Debug, Deserialize)]

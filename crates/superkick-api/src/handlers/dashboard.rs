@@ -19,17 +19,12 @@ use std::collections::BTreeMap;
 use axum::extract::State;
 use axum::response::Json;
 use chrono::{DateTime, Utc};
-use futures_util::future::try_join_all;
 use serde::Serialize;
-use superkick_core::{
-    AttentionStatus, InterruptStatus, LinkedPrSummary, OperatorQueue, QueueInputs, Run, RunState,
-    SessionOwnership, classify_queue,
-};
-use superkick_storage::repo::{AttentionRequestRepo, InterruptRepo, RunRepo};
+use superkick_core::{LinkedPrSummary, OperatorQueue, Run, SessionOwnership};
 
 use crate::AppState;
 use crate::error::AppError;
-use crate::handlers::runs::resolve_pr_summary;
+use crate::handlers::queue_common::{RunTriage, load_triages};
 
 /// Per-run triage summary shown in the operator queue.
 #[derive(Debug, Serialize)]
@@ -37,6 +32,10 @@ pub struct QueueRunSummary {
     #[serde(flatten)]
     pub run: Run,
     pub queue: OperatorQueue,
+    /// One-line operator-facing reason — produced server-side by the shared
+    /// `queue_card_reason` so the dashboard and the launch queue read the
+    /// same text for the same run.
+    pub reason: String,
     pub pending_attention_count: usize,
     pub pending_interrupt_count: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -50,20 +49,11 @@ pub struct DashboardQueueResponse {
     pub groups: BTreeMap<String, Vec<QueueRunSummary>>,
 }
 
-/// Keep the `Done` column focused on recently-shipped work. Older completed
-/// runs stay visible via the reliability table further down the page.
-const DONE_COLUMN_LIMIT: usize = 15;
-
 pub async fn get_queue(
     State(state): State<AppState>,
 ) -> Result<Json<DashboardQueueResponse>, AppError> {
-    let all_runs = state.run_repo.list_all().await?;
-    let queue_runs = select_queue_runs(all_runs);
-
-    // Fetch each run's triage signals in parallel — the per-run DB round-trips
-    // are independent and sequential awaiting scales linearly with live runs.
-    let summaries =
-        try_join_all(queue_runs.into_iter().map(|run| build_summary(&state, run))).await?;
+    let triages = load_triages(&state).await?;
+    let summaries = triages.into_iter().map(into_summary).collect();
 
     Ok(Json(DashboardQueueResponse {
         generated_at: Utc::now(),
@@ -71,22 +61,16 @@ pub async fn get_queue(
     }))
 }
 
-/// Drop cancelled runs (operator decided not to ship) and cap the completed
-/// set so the `Done` column stays a rolling tail rather than a lifetime log.
-fn select_queue_runs(runs: Vec<Run>) -> Vec<Run> {
-    let (live, mut completed): (Vec<_>, Vec<_>) = runs
-        .into_iter()
-        .filter(|run| !matches!(run.state, RunState::Cancelled))
-        .partition(|run| !matches!(run.state, RunState::Completed));
-
-    completed.sort_by(|a, b| {
-        let a_t = a.finished_at.unwrap_or(a.updated_at);
-        let b_t = b.finished_at.unwrap_or(b.updated_at);
-        b_t.cmp(&a_t)
-    });
-    completed.truncate(DONE_COLUMN_LIMIT);
-
-    live.into_iter().chain(completed).collect()
+fn into_summary(triage: RunTriage) -> QueueRunSummary {
+    QueueRunSummary {
+        run: triage.run,
+        queue: triage.operator_bucket,
+        reason: triage.reason,
+        pending_attention_count: triage.pending_attention_count,
+        pending_interrupt_count: triage.pending_interrupt_count,
+        pr: triage.pr,
+        ownership: triage.ownership,
+    }
 }
 
 /// Seed every queue with an empty column so the UI can render placeholders
@@ -103,52 +87,4 @@ fn group_by_queue(summaries: Vec<QueueRunSummary>) -> BTreeMap<String, Vec<Queue
             .push(summary);
     }
     groups
-}
-
-async fn build_summary(state: &AppState, run: Run) -> Result<QueueRunSummary, AppError> {
-    let run_id = run.id;
-
-    let attention = state.attention_repo.list_by_run(run_id).await?;
-    let pending_attention_count = attention
-        .iter()
-        .filter(|request| request.status == AttentionStatus::Pending)
-        .count();
-
-    let interrupts = state.interrupt_repo.list_by_run(run_id).await?;
-    let pending_interrupt_count = interrupts
-        .iter()
-        .filter(|interrupt| interrupt.status == InterruptStatus::Pending)
-        .count();
-
-    let pr = resolve_pr_summary(state, run_id, &run.repo_slug).await;
-
-    let ownership = match state.ownership_service.snapshots_for_run(run_id).await {
-        Ok(snaps) => snaps,
-        Err(err) => {
-            tracing::warn!(
-                run_id = %run_id,
-                error = %err,
-                "failed to read run ownership snapshots for dashboard queue"
-            );
-            Vec::new()
-        }
-    };
-
-    let queue = classify_queue(QueueInputs {
-        run: &run,
-        pending_attention: pending_attention_count,
-        pending_interrupts: pending_interrupt_count,
-        pr: pr.as_ref(),
-        ownership: &ownership,
-    })
-    .unwrap_or(OperatorQueue::Active);
-
-    Ok(QueueRunSummary {
-        run,
-        queue,
-        pending_attention_count,
-        pending_interrupt_count,
-        pr,
-        ownership,
-    })
 }

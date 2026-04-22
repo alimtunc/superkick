@@ -8,7 +8,7 @@ use tokio_util::sync::CancellationToken;
 use axum::Router;
 use axum::routing::{get, post};
 
-use superkick_config::LaunchProfileConfig;
+use superkick_config::{IssueTrigger, LaunchProfileConfig, OrchestrationConfig};
 use superkick_core::RunId;
 use superkick_integrations::linear::LinearClient;
 use superkick_runtime::{
@@ -69,6 +69,8 @@ pub(crate) struct AppState {
     pub repo_slug: String,
     pub base_branch: String,
     pub launch_profile: LaunchProfileConfig,
+    pub orchestration: OrchestrationConfig,
+    pub issue_trigger: IssueTrigger,
 }
 
 // ── Server config ─────────────────────────────────────────────────────
@@ -87,6 +89,8 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let config = superkick_config::load_file(std::path::Path::new(&cfg.config_path))?;
     let base_branch = config.runner.base_branch.clone();
     let launch_profile = config.launch_profile.clone();
+    let orchestration = config.orchestration.clone();
+    let issue_trigger = config.issue_source.trigger;
     let repo_slug = detect_repo_slug().unwrap_or_else(|| {
         tracing::warn!("could not detect repo_slug from git remote — /config will return empty");
         String::new()
@@ -183,12 +187,19 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         repo_slug,
         base_branch,
         launch_profile,
+        orchestration,
+        issue_trigger,
     };
 
     let app = Router::new()
         .route("/health", get(handlers::health::health))
         .route("/config", get(handlers::health::get_config))
         .route("/dashboard/queue", get(handlers::dashboard::get_queue))
+        .route("/launch-queue", get(handlers::launch_queue::get_queue))
+        .route(
+            "/launch-queue/{issue_identifier}/dispatch",
+            post(handlers::launch_queue::dispatch_from_queue),
+        )
         .route("/events", get(handlers::events::workspace_events))
         .route("/issues", get(handlers::issues::list_issues))
         .route("/issues/{id}", get(handlers::issues::get_issue))

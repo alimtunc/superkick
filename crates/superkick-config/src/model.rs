@@ -19,6 +19,8 @@ pub struct SuperkickConfig {
     pub budget: BudgetConfig,
     #[serde(default)]
     pub launch_profile: LaunchProfileConfig,
+    #[serde(default)]
+    pub orchestration: OrchestrationConfig,
 }
 
 // ── Issue source ────────────────────────────────────────────────────
@@ -39,6 +41,19 @@ pub enum IssueProvider {
 #[serde(rename_all = "snake_case")]
 pub enum IssueTrigger {
     InProgress,
+}
+
+impl IssueTrigger {
+    /// Linear workflow `state.type` this trigger promotes from "tracked" to
+    /// "triggerable". Threaded into the launch-queue classifier so the core
+    /// crate stays unaware of the config-level enum but the coupling is
+    /// compile-checked at the edge rather than via a string constant.
+    #[must_use]
+    pub const fn state_type(self) -> &'static str {
+        match self {
+            Self::InProgress => "started",
+        }
+    }
 }
 
 // ── Runner ──────────────────────────────────────────────────────────
@@ -296,6 +311,48 @@ pub struct LaunchProfileConfig {
     /// The orchestrator refuses to spawn any role outside this set.
     #[serde(default)]
     pub allowed_agents: Option<Vec<String>>,
+}
+
+// ── Orchestration (SUP-80) ──────────────────────────────────────────
+//
+// Caps that gate when a Linear issue is allowed to transition from
+// "triggerable" to "launchable" in the launch queue. Purely declarative —
+// classification is a pure function of (issues, runs, config); no background
+// scheduler reads these values.
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrchestrationConfig {
+    /// Maximum concurrent non-terminal runs (Queued + every in-flight state).
+    /// Issues that would otherwise be `launchable` fall into `waiting-capacity`
+    /// once this cap is hit. Default 3 matches the historical `max_parallel_agents`
+    /// value from `budget:` so existing configs behave the same by default.
+    #[serde(default = "default_max_concurrent_active_runs")]
+    pub max_concurrent_active_runs: u32,
+    #[serde(default)]
+    pub approval_required_for: ApprovalRulesConfig,
+}
+
+impl Default for OrchestrationConfig {
+    fn default() -> Self {
+        Self {
+            max_concurrent_active_runs: default_max_concurrent_active_runs(),
+            approval_required_for: ApprovalRulesConfig::default(),
+        }
+    }
+}
+
+fn default_max_concurrent_active_runs() -> u32 {
+    3
+}
+
+/// Rules that force an issue into the `waiting-approval` bucket even when
+/// everything else is green. Operator can still dispatch manually from the UI.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ApprovalRulesConfig {
+    /// Linear `IssuePriority.value` values that require manual approval.
+    /// Linear priorities: 0 = None, 1 = Urgent, 2 = High, 3 = Medium, 4 = Low.
+    #[serde(default)]
+    pub priorities: Vec<u8>,
 }
 
 impl Default for LaunchProfileConfig {

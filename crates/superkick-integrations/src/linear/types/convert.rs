@@ -68,11 +68,7 @@ impl From<GqlIssueDetail> for IssueDetailResponse {
             }),
             estimate: g.estimate,
             due_date: g.due_date,
-            parent: g.parent.map(|p| IssueParentRef {
-                id: p.id,
-                identifier: p.identifier,
-                title: p.title,
-            }),
+            parent: g.parent.map(parent_ref_from_gql),
             children: g
                 .children
                 .into_iter()
@@ -143,11 +139,7 @@ impl From<GqlIssue> for LinearIssueListItem {
                 avatar_url: a.avatar_url,
             }),
             project: g.project.map(|p| IssueProject { name: p.name }),
-            parent: g.parent.map(|p| IssueParentRef {
-                id: p.id,
-                identifier: p.identifier,
-                title: p.title,
-            }),
+            parent: g.parent.map(parent_ref_from_gql),
             children: g
                 .children
                 .into_iter()
@@ -158,6 +150,15 @@ impl From<GqlIssue> for LinearIssueListItem {
             created_at: g.created_at,
             updated_at: g.updated_at,
         }
+    }
+}
+
+fn parent_ref_from_gql(p: GqlIssueRef) -> IssueParentRef {
+    IssueParentRef {
+        id: p.id,
+        identifier: p.identifier,
+        title: p.title,
+        status: IssueStatus::from(p.state),
     }
 }
 

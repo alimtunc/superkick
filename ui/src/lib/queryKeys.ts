@@ -11,5 +11,8 @@ export const queryKeys = {
 	dashboard: {
 		all: ['dashboard'] as const,
 		queue: ['dashboard', 'queue'] as const
+	},
+	launchQueue: {
+		all: ['launch-queue'] as const
 	}
 }

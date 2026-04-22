@@ -28,12 +28,15 @@ pub struct LinearIssueListItem {
     pub updated_at: DateTime<Utc>,
 }
 
-/// Minimal parent issue reference for launch context.
+/// Minimal parent issue reference for launch context. Carries its own
+/// `status` so the launch queue can short-circuit "parent not completed"
+/// without a second GraphQL round-trip.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IssueParentRef {
     pub id: String,
     pub identifier: String,
     pub title: String,
+    pub status: IssueStatus,
 }
 
 /// Child issue reference with enough context for inline display.

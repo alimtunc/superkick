@@ -28,10 +28,7 @@ pub async fn list_issues(
         .as_ref()
         .ok_or_else(|| AppError::ServiceUnavailable("LINEAR_API_KEY not configured"))?;
 
-    let response = client
-        .list_issues(params.limit)
-        .await
-        .map_err(AppError::Internal)?;
+    let response = client.list_issues(params.limit).await?;
 
     Ok(Json(response))
 }
@@ -45,7 +42,7 @@ pub async fn get_issue(
         .as_ref()
         .ok_or_else(|| AppError::ServiceUnavailable("LINEAR_API_KEY not configured"))?;
 
-    let mut detail = client.get_issue(&id).await.map_err(AppError::Internal)?;
+    let mut detail = client.get_issue(&id).await?;
 
     let runs = state
         .run_repo

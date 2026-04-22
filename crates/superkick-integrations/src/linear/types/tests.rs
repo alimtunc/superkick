@@ -35,6 +35,11 @@ fn sample_gql_issue() -> GqlIssue {
             id: "parent-1".into(),
             identifier: "SUP-10".into(),
             title: "Auth epic".into(),
+            state: GqlIssueState {
+                state_type: "started".into(),
+                name: "In Progress".into(),
+                color: "#f2c94c".into(),
+            },
         }),
         children: Some(GqlChildConnection {
             nodes: vec![GqlChildIssue {
@@ -71,6 +76,7 @@ fn gql_issue_converts_to_list_item() {
     assert_eq!(item.assignee.unwrap().name, "Alice");
     assert_eq!(item.project.as_ref().unwrap().name, "Superkick Product");
     assert_eq!(item.parent.as_ref().unwrap().identifier, "SUP-10");
+    assert_eq!(item.parent.as_ref().unwrap().status.state_type, "started");
     assert_eq!(item.children.len(), 1);
     assert_eq!(item.children[0].identifier, "SUP-43");
 }
@@ -168,6 +174,11 @@ fn sample_gql_issue_detail() -> GqlIssueDetail {
             id: "parent-1".into(),
             identifier: "SUP-10".into(),
             title: "Auth epic".into(),
+            state: GqlIssueState {
+                state_type: "started".into(),
+                name: "In Progress".into(),
+                color: "#f2c94c".into(),
+            },
         }),
         children: Some(GqlChildConnection {
             nodes: vec![GqlChildIssue {
@@ -219,6 +230,7 @@ fn gql_issue_detail_converts_to_response() {
     assert_eq!(detail.estimate, Some(3.0));
     assert_eq!(detail.due_date.as_deref(), Some("2026-04-01"));
     assert_eq!(detail.parent.as_ref().unwrap().identifier, "SUP-10");
+    assert_eq!(detail.parent.as_ref().unwrap().status.state_type, "started");
     assert_eq!(detail.children.len(), 1);
     assert_eq!(detail.children[0].identifier, "SUP-43");
     assert_eq!(detail.comments.len(), 1);
@@ -379,4 +391,44 @@ fn gql_response_deserializes_from_linear_shape() {
     let data = parsed.data.unwrap();
     assert_eq!(data.issues.nodes.len(), 1);
     assert_eq!(data.issues.nodes[0].identifier, "SUP-1");
+}
+
+#[test]
+fn parent_state_is_exposed_on_list_item() {
+    let raw = r##"{
+        "data": {
+            "issues": {
+                "nodes": [{
+                    "id": "abc",
+                    "identifier": "SUP-1",
+                    "title": "Test",
+                    "url": "https://linear.app/t/SUP-1",
+                    "createdAt": "2026-01-01T00:00:00.000Z",
+                    "updatedAt": "2026-01-02T00:00:00.000Z",
+                    "state": { "type": "unstarted", "name": "Todo", "color": "#bbb" },
+                    "priority": 1,
+                    "priorityLabel": "Urgent",
+                    "labels": { "nodes": [] },
+                    "assignee": null,
+                    "project": null,
+                    "parent": {
+                        "id": "p1",
+                        "identifier": "SUP-10",
+                        "title": "Epic",
+                        "state": { "type": "completed", "name": "Done", "color": "#0b0" }
+                    },
+                    "children": { "nodes": [] }
+                }],
+                "pageInfo": { "hasNextPage": false, "endCursor": null }
+            }
+        }
+    }"##;
+
+    let parsed: GqlResponse = serde_json::from_str(raw).unwrap();
+    let data = parsed.data.unwrap();
+    let item = LinearIssueListItem::from(data.issues.nodes.into_iter().next().unwrap());
+    let parent = item.parent.expect("parent should be hydrated");
+    assert_eq!(parent.identifier, "SUP-10");
+    assert_eq!(parent.status.state_type, "completed");
+    assert_eq!(parent.status.name, "Done");
 }
