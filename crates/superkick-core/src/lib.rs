@@ -9,6 +9,7 @@ pub mod event;
 pub mod handoff;
 pub mod id;
 pub mod interrupt;
+pub mod launch_queue;
 pub mod linear_context;
 pub mod ownership;
 pub mod pull_request;
@@ -36,6 +37,10 @@ pub use id::{
     OwnershipEventId, PullRequestId, RunId, SessionLifecycleEventId, StepId, TranscriptChunkId,
 };
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
+pub use launch_queue::{
+    ClassifiedIssue, ClassifiedRun, LaunchQueue, LaunchQueueClassification, OrchestrationInputs,
+    QueueIssueInput, QueueRunInput, classify_launch_queue,
+};
 pub use linear_context::{
     ISSUE_COMMENT_CHAR_LIMIT, ISSUE_COMMENT_MAX_COUNT, ISSUE_DESCRIPTION_CHAR_LIMIT, IssueContext,
     IssueContextComment, IssueContextParent, LinearContextMode,
@@ -46,7 +51,10 @@ pub use ownership::{
     transition_suspend, transition_takeover,
 };
 pub use pull_request::{LinkedPrSummary, PrState, PullRequest, parse_pr_number};
-pub use queue::{OperatorQueue, QueueInputs, classify as classify_queue};
+pub use queue::{
+    DONE_COLUMN_LIMIT, OperatorQueue, QueueInputs, classify as classify_queue, has_pending_handoff,
+    queue_card_reason, trim_for_queue,
+};
 pub use review::{ReviewFinding, ReviewSwarmResult};
 pub use role_router::{
     AgentCatalog, AgentDefinition as CoreAgentDefinition, ResolvedAgent, RoleRouter, RouterError,

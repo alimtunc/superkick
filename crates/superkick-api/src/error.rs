@@ -2,6 +2,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json};
 
 use superkick_core::CoreError;
+use superkick_integrations::linear::LinearError;
 
 #[derive(Debug)]
 pub enum AppError {
@@ -19,6 +20,23 @@ pub enum AppError {
 impl From<anyhow::Error> for AppError {
     fn from(err: anyhow::Error) -> Self {
         AppError::Internal(err)
+    }
+}
+
+impl From<LinearError> for AppError {
+    /// Map a Linear failure onto the closest user-facing status. 404s
+    /// surface as NotFound (the operator can fix by typing a valid
+    /// identifier); 5xx / transport errors surface as ServiceUnavailable so
+    /// the dashboard can differentiate "bad input" from "Linear is down".
+    fn from(err: LinearError) -> Self {
+        if err.is_not_found() {
+            AppError::NotFound("issue not found in Linear")
+        } else if err.is_server_error() {
+            tracing::warn!(error = %err, "Linear API unavailable");
+            AppError::ServiceUnavailable("Linear API unavailable")
+        } else {
+            AppError::Internal(anyhow::Error::from(err))
+        }
     }
 }
 

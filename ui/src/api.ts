@@ -6,10 +6,12 @@ import type {
 	CreateAttentionRequest,
 	CreateRunRequest,
 	DashboardQueueResponse,
+	DispatchFromQueueRequest,
 	Interrupt,
 	InterruptAction,
 	IssueDetailResponse,
 	IssueListResponse,
+	LaunchQueueResponse,
 	PullRequest,
 	Run,
 	RunStep,
@@ -41,23 +43,32 @@ export class DuplicateRunError extends Error {
 	}
 }
 
+/**
+ * Parse a non-OK response, promoting the 409/`active_run_id` shape into a
+ * typed `DuplicateRunError` and falling back to a generic `Error` with the
+ * server-supplied `error` string. Shared by every mutation that goes
+ * through the duplicate-run guard (`POST /runs`, `dispatch_from_queue`) so
+ * a change to the wire contract only touches one place.
+ */
+async function throwApiError(res: Response, fallbackLabel: string): Promise<never> {
+	const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
+	if (res.status === 409 && body.active_run_id) {
+		throw new DuplicateRunError(
+			body.error || 'A run is already active for this issue',
+			body.active_run_id,
+			body.active_run_state
+		)
+	}
+	throw new Error(body.error || `${fallbackLabel}: ${res.status}`)
+}
+
 export async function createRun(req: CreateRunRequest): Promise<Run> {
 	const res = await fetch(`${BASE}/runs`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(req)
 	})
-	if (!res.ok) {
-		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
-		if (res.status === 409 && body.active_run_id) {
-			throw new DuplicateRunError(
-				body.error || 'A run is already active for this issue',
-				body.active_run_id,
-				body.active_run_state
-			)
-		}
-		throw new Error(body.error || `create run failed: ${res.status}`)
-	}
+	if (!res.ok) await throwApiError(res, 'create run failed')
 	return res.json()
 }
 
@@ -84,6 +95,30 @@ export async function fetchRuns(): Promise<Run[]> {
 export async function fetchDashboardQueue(): Promise<DashboardQueueResponse> {
 	const res = await fetch(`${BASE}/dashboard/queue`)
 	if (!res.ok) throw new Error(`GET /dashboard/queue failed: ${res.status}`)
+	return res.json()
+}
+
+export async function fetchLaunchQueue(): Promise<LaunchQueueResponse> {
+	const res = await fetch(`${BASE}/launch-queue`)
+	if (!res.ok) throw new Error(`GET /launch-queue failed: ${res.status}`)
+	return res.json()
+}
+
+/**
+ * Dispatch a launchable Linear issue. Delegates server-side to the shared
+ * spawn path, so the 409 `DuplicateRunError` contract is identical to
+ * `POST /runs` — no fork in the UI error-handling surface.
+ */
+export async function dispatchFromQueue(
+	issueIdentifier: string,
+	req: DispatchFromQueueRequest = {}
+): Promise<Run> {
+	const res = await fetch(`${BASE}/launch-queue/${encodeURIComponent(issueIdentifier)}/dispatch`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(req)
+	})
+	if (!res.ok) await throwApiError(res, 'dispatch from queue failed')
 	return res.json()
 }
 

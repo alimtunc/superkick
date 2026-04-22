@@ -2294,6 +2294,7 @@ dependencies = [
  "chrono",
  "dotenvy",
  "futures-util",
+ "indexmap",
  "serde",
  "serde_json",
  "superkick-config",
@@ -2358,6 +2359,7 @@ dependencies = [
  "serde",
  "serde_json",
  "superkick-core",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
 ]

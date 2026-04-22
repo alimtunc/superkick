@@ -27,6 +27,7 @@ export interface IssueParentRef {
 	id: string
 	identifier: string
 	title: string
+	status: IssueStatus
 }
 
 export interface IssueChildRef {

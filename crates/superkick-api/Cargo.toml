@@ -24,3 +24,4 @@ tokio-util.workspace = true
 futures-util = "0.3"
 bytes = "1"
 dotenvy = "0.15"
+indexmap = { version = "2", features = ["serde"] }

@@ -37,6 +37,12 @@ export interface SessionOwnershipSnapshot {
 
 export interface QueueRunSummary extends Run {
 	queue: OperatorQueue
+	/**
+	 * Server-supplied one-line reason (from `queue_card_reason` in
+	 * superkick-core). Same field the launch queue reads, so dashboard and
+	 * launch queue stay visually identical for the same run.
+	 */
+	reason: string
 	pending_attention_count: number
 	pending_interrupt_count: number
 	pr?: LinkedPrSummary

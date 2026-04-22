@@ -22,17 +22,17 @@ use crate::error::AppError;
 
 #[derive(Deserialize)]
 pub struct CreateRunRequest {
-    repo_slug: String,
-    issue_id: String,
-    issue_identifier: String,
+    pub repo_slug: String,
+    pub issue_id: String,
+    pub issue_identifier: String,
     #[serde(default = "default_base_branch")]
-    base_branch: String,
+    pub base_branch: String,
     /// Per-run worktree override. If absent, falls back to the launch profile default.
-    use_worktree: Option<bool>,
+    pub use_worktree: Option<bool>,
     /// Execution mode override. Defaults to `full_auto`.
     #[serde(default)]
-    execution_mode: ExecutionMode,
-    operator_instructions: Option<String>,
+    pub execution_mode: ExecutionMode,
+    pub operator_instructions: Option<String>,
 }
 
 fn default_base_branch() -> String {
@@ -43,6 +43,19 @@ pub async fn create_run(
     State(state): State<AppState>,
     Json(body): Json<CreateRunRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let run = spawn_run_from_request(&state, body).await?;
+    Ok((StatusCode::CREATED, Json(run)))
+}
+
+/// Shared spawn path used by `create_run` (raw API) and SUP-80's
+/// `dispatch_from_queue`. Validates, guards against duplicates, inserts the
+/// run, then kicks off execution. Extracted so the launch-queue dispatch
+/// endpoint does not reimplement (and drift from) the guard/race-resolution
+/// semantics already proven by `create_run`.
+pub(crate) async fn spawn_run_from_request(
+    state: &AppState,
+    body: CreateRunRequest,
+) -> Result<Run, AppError> {
     let repo_slug = body.repo_slug.trim().to_string();
     let issue_id = body.issue_id.trim().to_string();
     let issue_identifier = body.issue_identifier.trim().to_string();
@@ -130,7 +143,7 @@ pub async fn create_run(
         run_tokens.lock().await.remove(&run_id);
     });
 
-    Ok((StatusCode::CREATED, Json(run)))
+    Ok(run)
 }
 
 pub async fn list_runs(State(state): State<AppState>) -> Result<Json<Vec<Run>>, AppError> {

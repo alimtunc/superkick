@@ -20,7 +20,8 @@ export { healthSignal, shouldShowInterrupts } from './health'
 export { extractFormError, parseAnswer } from './parsers'
 export { watchButtonClass, watchButtonTitle } from './watch'
 export { classifyRuns } from './classify'
-export { queueAccent, queueCardReason, pendingHandoff, isUrgentQueue } from './queue'
+export { queueAccent, isUrgentQueue } from './queue'
+export { launchQueueAccent } from './launchQueueAccent'
 export {
 	runNarrative,
 	summarizeAttention,

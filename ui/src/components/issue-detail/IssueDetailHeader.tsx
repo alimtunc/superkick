@@ -6,7 +6,7 @@ import { useConfig } from '@/hooks/useConfig'
 import { useCreateRun } from '@/hooks/useCreateRun'
 import { useLaunchDialog } from '@/hooks/useLaunchDialog'
 import type { IssueDetailResponse } from '@/types'
-import { Link } from '@tanstack/react-router'
+import { Link, useRouter } from '@tanstack/react-router'
 import { ArrowLeft, ExternalLink, Play, RefreshCw } from 'lucide-react'
 
 export function IssueDetailHeader({
@@ -17,6 +17,7 @@ export function IssueDetailHeader({
 	onRefresh: () => void
 }) {
 	const { config } = useConfig()
+	const router = useRouter()
 	const createRun = useCreateRun({ issueId: issue.id })
 	const launchProfile = config?.launch_profile
 	const dialog = useLaunchDialog({
@@ -49,14 +50,15 @@ export function IssueDetailHeader({
 		<header className="sticky top-0 z-50 border-b border-edge bg-carbon/90 backdrop-blur-md">
 			<div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-5">
 				<div className="flex items-center gap-3">
-					<Tooltip label="Back to issues">
-						<Link
-							to="/issues"
+					<Tooltip label="Back">
+						<button
+							type="button"
+							onClick={() => router.history.back()}
 							className="inline-flex items-center text-dim transition-colors hover:text-silver"
-							aria-label="Back to issues"
+							aria-label="Back"
 						>
 							<ArrowLeft size={14} />
-						</Link>
+						</button>
 					</Tooltip>
 					<span className="text-edge">|</span>
 					{issue.parent ? (

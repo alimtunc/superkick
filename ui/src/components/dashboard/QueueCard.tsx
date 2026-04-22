@@ -1,6 +1,6 @@
 import { Badge } from '@/components/dashboard/Badge'
 import { Button } from '@/components/ui/button'
-import { fmtElapsed, queueCardReason, stepLabel, watchButtonClass, watchButtonTitle } from '@/lib/domain'
+import { fmtElapsed, stepLabel, watchButtonClass, watchButtonTitle } from '@/lib/domain'
 import { useWatchedSessionsStore } from '@/stores/watchedSessions'
 import type { QueueRunSummary } from '@/types'
 import { Link } from '@tanstack/react-router'
@@ -13,7 +13,7 @@ interface QueueCardProps {
 export function QueueCard({ run, refTime }: QueueCardProps) {
 	const { isWatched, toggleWatch, maxReached } = useWatchedSessionsStore()
 	const watched = isWatched(run.id)
-	const reason = queueCardReason(run)
+	const reason = run.reason
 	const watchLabel = watched ? 'Unwatch' : 'Watch'
 
 	return (
