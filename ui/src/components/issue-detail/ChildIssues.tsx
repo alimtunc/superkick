@@ -14,6 +14,7 @@ function childRefToListItem(child: IssueChildRef): LinearIssueListItem {
 		project: null,
 		parent: null,
 		children: [],
+		blocked_by: [],
 		url: '',
 		created_at: child.updated_at ?? '',
 		updated_at: child.updated_at ?? ''

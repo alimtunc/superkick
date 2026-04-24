@@ -4,11 +4,13 @@ pub mod agent;
 pub mod artifact;
 pub mod attach;
 pub mod attention;
+pub mod blocker;
 pub mod error;
 pub mod event;
 pub mod handoff;
 pub mod id;
 pub mod interrupt;
+pub mod issue_event;
 pub mod launch_queue;
 pub mod linear_context;
 pub mod ownership;
@@ -27,6 +29,7 @@ pub use agent::{AgentProvider, AgentSession, AgentStatus, LaunchReason};
 pub use artifact::{Artifact, ArtifactKind};
 pub use attach::{AttachKind, AttachPayload};
 pub use attention::{AttentionKind, AttentionReply, AttentionRequest, AttentionStatus};
+pub use blocker::{IssueBlocker, TERMINAL_BLOCKER_STATES, is_terminal_blocker_state};
 pub use error::CoreError;
 pub use event::{EventKind, EventLevel, RunEvent};
 pub use handoff::{
@@ -37,9 +40,10 @@ pub use id::{
     OwnershipEventId, PullRequestId, RunId, SessionLifecycleEventId, StepId, TranscriptChunkId,
 };
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
+pub use issue_event::{DependencyResolvedPayload, IssueEvent};
 pub use launch_queue::{
     ClassifiedIssue, ClassifiedRun, LaunchQueue, LaunchQueueClassification, OrchestrationInputs,
-    QueueIssueInput, QueueRunInput, classify_launch_queue,
+    QueueIssueBlocker, QueueIssueInput, QueueRunInput, classify_launch_queue,
 };
 pub use linear_context::{
     ISSUE_COMMENT_CHAR_LIMIT, ISSUE_COMMENT_MAX_COUNT, ISSUE_DESCRIPTION_CHAR_LIMIT, IssueContext,

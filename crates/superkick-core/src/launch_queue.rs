@@ -26,15 +26,34 @@
 //!
 //! For an issue without an active run, the first matching gate wins:
 //!
-//! 1. Parent issue is not terminal in Linear (`state_type` ∉ {`completed`,
-//!    `canceled`}) → `blocked` with reason `"parent <ID> not completed"`.
-//! 2. Parent has an active Superkick run → `blocked` with reason
-//!    `"parent <ID> has active run <run-id>"`.
-//! 3. Linear state does not match the configured trigger state → `blocked`
-//!    with reason `"linear status is '<name>', trigger requires '<state>'"`.
-//! 4. Priority is in `approval_required_priorities` → `waiting-approval`.
-//! 5. Active-run cap is reached → `waiting-capacity`.
-//! 6. Otherwise → `launchable`.
+//! 1. Issue's own Linear state is terminal (`completed` / `canceled`) →
+//!    `done`. A sub-issue inherits nothing from its parent here: the Linear
+//!    parent/child relation is hierarchy, not dependency (SUP-81).
+//! 2. A Linear "blocks" relation gates the issue with a non-terminal
+//!    blocker → `blocked`, with a `reason` naming the blocker identifiers
+//!    (SUP-81). This is the *only* dependency signal — parent state is
+//!    intentionally not checked here.
+//! 3. Parent has an active Superkick run → `blocked` with reason
+//!    `"parent <ID> has active run <run-id>"`. Kept as a concurrency
+//!    guardrail: two Superkick runs on related issues at once tends to
+//!    produce merge storms.
+//! 4. Linear state does not match the configured trigger state →
+//!    `backlog` if `state.type == "backlog"`, otherwise `todo`. These
+//!    issues aren't blocked by anything — they simply haven't been moved
+//!    to "In Progress" yet. The two buckets mirror Linear's own workflow
+//!    groups so the operator's mental model maps 1:1.
+//! 5. Priority is in `approval_required_priorities` → `waiting` with reason
+//!    `"priority N requires manual approval"`.
+//! 6. Active-run cap is reached → `waiting` with reason
+//!    `"concurrency cap reached: M/N"`.
+//! 7. Otherwise → `launchable`.
+//!
+//! Blocker resolution is implicit: when a previously non-terminal blocker
+//! becomes `completed` / `canceled` (or disappears from the Linear relation
+//! set), the next classification pulse returns no gating blocker for the
+//! downstream, so it transitions back to `launchable` on its own. The poll
+//! diff in `superkick-api` is responsible for the audit event; this module
+//! only reads the post-transition state. See `docs/product/unblock-flow.md`.
 //!
 //! Runs are mapped 1:1 from their `OperatorQueue` classification:
 //! `Waiting`/`Active` → `Active`, `InPr` → `InPr`, `Done` → `Done`,
@@ -42,25 +61,33 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::blocker::is_terminal_blocker_state;
 use crate::id::RunId;
 use crate::queue::OperatorQueue;
 use crate::run::RunState;
 
-/// Linear state types that count as "parent resolved" for dependency
-/// blocking. Anything outside this set blocks its children.
-const TERMINAL_LINEAR_STATE_TYPES: [&str; 2] = ["completed", "canceled"];
-
 /// Operator-facing launch-queue bucket.
 ///
 /// Runs and issues both classify into exactly one variant. Fixed ordering
-/// (`ALL`) is the display order for columns left-to-right: what can go →
-/// what's paused → what's running → what's shipped.
+/// (`ALL`) is the display order for columns left-to-right and follows the
+/// natural Linear → Superkick workflow progression: backlog → todo →
+/// launchable → waiting → blocked → running → shipped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum LaunchQueue {
+    /// Linear `state.type == "backlog"` (SUP-81). Not yet picked up.
+    Backlog,
+    /// Linear `state.type == "unstarted"` — Linear's "Todo" group (SUP-81).
+    /// Picked up but not started; one Linear-side click away from being
+    /// triggered for Superkick.
+    Todo,
     Launchable,
-    WaitingCapacity,
-    WaitingApproval,
+    /// Held back by an operator-facing gate — capacity cap reached *or*
+    /// priority requires manual approval. The two reasons are functionally
+    /// the same from the operator's point of view ("can't dispatch right
+    /// now"), so SUP-81 collapses them into a single column. The card-level
+    /// `reason` string distinguishes the cause when it matters.
+    Waiting,
     Blocked,
     Active,
     NeedsHuman,
@@ -69,12 +96,13 @@ pub enum LaunchQueue {
 }
 
 impl LaunchQueue {
-    /// Canonical left-to-right display order for the UI. Matches criterion 6
-    /// of SUP-80: the route `/queue` renders the 8 columns in this order.
-    pub const ALL: [LaunchQueue; 8] = [
+    /// Canonical left-to-right display order for the UI. Matches the grid
+    /// layout of the `/queue` route.
+    pub const ALL: [LaunchQueue; 9] = [
+        Self::Backlog,
+        Self::Todo,
         Self::Launchable,
-        Self::WaitingCapacity,
-        Self::WaitingApproval,
+        Self::Waiting,
         Self::Blocked,
         Self::Active,
         Self::NeedsHuman,
@@ -85,9 +113,10 @@ impl LaunchQueue {
     #[must_use]
     pub const fn slug(self) -> &'static str {
         match self {
+            Self::Backlog => "backlog",
+            Self::Todo => "todo",
             Self::Launchable => "launchable",
-            Self::WaitingCapacity => "waiting-capacity",
-            Self::WaitingApproval => "waiting-approval",
+            Self::Waiting => "waiting",
             Self::Blocked => "blocked",
             Self::Active => "active",
             Self::NeedsHuman => "needs-human",
@@ -112,11 +141,30 @@ pub struct QueueIssueInput {
     /// slug.
     pub state_name: String,
     pub priority_value: u8,
-    /// Identifier (e.g. `SUP-10`) of the parent issue, if any.
+    /// Identifier (e.g. `SUP-10`) of the parent issue, if any. Used solely
+    /// to detect an active Superkick run on the parent (concurrency
+    /// guardrail). Parent state is deliberately NOT tracked: Linear
+    /// parent/child is hierarchy, not dependency (SUP-81 — only the
+    /// `blocks` relation expresses dependency).
     pub parent_identifier: Option<String>,
-    /// State type of the parent, if any. Hydrated by the Linear GraphQL
-    /// query so we don't per-parent round-trip.
-    pub parent_state_type: Option<String>,
+    /// Linear "blocks" relations gating this issue (SUP-81). Populated from
+    /// the freshly-upserted `issue_blockers` snapshot; terminal blockers are
+    /// filtered client-side so the classifier sees only live gates. Empty
+    /// vec is the no-blockers case.
+    pub blockers: Vec<QueueIssueBlocker>,
+}
+
+/// Minimal blocker projection carried alongside a `QueueIssueInput`. Only
+/// the identifier and state type drive classification; the title is passed
+/// through so the `reason` string reads the same way the UI card does.
+#[derive(Debug, Clone)]
+pub struct QueueIssueBlocker {
+    pub identifier: String,
+    /// `"unknown"` for blockers outside the fetched workspace slice (e.g.
+    /// cross-team issues the caller lacks access to). Non-terminal by
+    /// construction: the classifier keeps the block active and surfaces
+    /// "unknown state" in the reason so the operator can arbitrate.
+    pub state_type: String,
 }
 
 /// Minimal run projection used for classification. The handler has already
@@ -238,15 +286,32 @@ fn classify_issue(
 
     // Precedence cascade — first match wins. Order justified in module
     // docs; tests pin every branch.
-    let parent = issue
-        .parent_identifier
-        .as_deref()
-        .zip(issue.parent_state_type.as_deref());
-    if let Some((parent_id, parent_state)) = parent
-        && !is_terminal_linear_state(parent_state)
-    {
-        let reason = format!("parent {parent_id} not completed (status: {parent_state})");
-        return blocked(issue, reason);
+
+    // Issue's own Linear state wins over everything below: a Done/Cancelled
+    // issue belongs in `Done`, not `Blocked`, regardless of parent or
+    // blocker state.
+    if is_terminal_blocker_state(&issue.state_type) {
+        let state_name = issue.state_name.clone();
+        return ClassifiedIssue {
+            id: issue.id,
+            identifier: issue.identifier,
+            bucket: LaunchQueue::Done,
+            reason: format!("linear status is '{state_name}'"),
+            linked_run_id: None,
+        };
+    }
+
+    // Blocker gate: any non-terminal Linear "blocks" relation keeps the
+    // issue in `Blocked`. This is the sole dependency signal — parent state
+    // is not checked here (SUP-81: hierarchy ≠ dependency).
+    let blocker_reasons: Vec<String> = issue
+        .blockers
+        .iter()
+        .filter(|b| !is_terminal_blocker_state(&b.state_type))
+        .map(|b| format!("blocked by {} ({})", b.identifier, b.state_type))
+        .collect();
+    if !blocker_reasons.is_empty() {
+        return blocked(issue, blocker_reasons.join("; "));
     }
 
     if let Some(parent_id) = issue.parent_identifier.as_deref()
@@ -258,11 +323,23 @@ fn classify_issue(
 
     let trigger = orchestration.trigger_state_type;
     if issue.state_type != trigger {
+        // Route to the bucket that mirrors Linear's own workflow group.
+        // `backlog` → `Backlog`, anything else non-trigger and non-terminal
+        // (currently only `unstarted`, future-proofed by defaulting to
+        // `Todo`) → `Todo`. Terminal states are handled earlier.
+        let bucket = if issue.state_type == "backlog" {
+            LaunchQueue::Backlog
+        } else {
+            LaunchQueue::Todo
+        };
         let state_name = issue.state_name.clone();
-        return blocked(
-            issue,
-            format!("linear status is '{state_name}', trigger requires '{trigger}'"),
-        );
+        return ClassifiedIssue {
+            id: issue.id,
+            identifier: issue.identifier,
+            bucket,
+            reason: format!("linear status is '{state_name}'"),
+            linked_run_id: None,
+        };
     }
 
     if orchestration
@@ -272,7 +349,7 @@ fn classify_issue(
         return ClassifiedIssue {
             id: issue.id,
             identifier: issue.identifier,
-            bucket: LaunchQueue::WaitingApproval,
+            bucket: LaunchQueue::Waiting,
             reason: format!("priority {} requires manual approval", issue.priority_value),
             linked_run_id: None,
         };
@@ -282,7 +359,7 @@ fn classify_issue(
         return ClassifiedIssue {
             id: issue.id,
             identifier: issue.identifier,
-            bucket: LaunchQueue::WaitingCapacity,
+            bucket: LaunchQueue::Waiting,
             reason: format!(
                 "concurrency cap reached: {active_runs}/{}",
                 orchestration.max_concurrent_active_runs
@@ -311,10 +388,6 @@ fn blocked(issue: QueueIssueInput, reason: String) -> ClassifiedIssue {
         reason,
         linked_run_id: None,
     }
-}
-
-fn is_terminal_linear_state(state_type: &str) -> bool {
-    TERMINAL_LINEAR_STATE_TYPES.contains(&state_type)
 }
 
 fn find_active_run_for<'a>(
@@ -360,7 +433,7 @@ mod tests {
             state_name: state_type.to_string(),
             priority_value: 3,
             parent_identifier: None,
-            parent_state_type: None,
+            blockers: Vec::new(),
         }
     }
 
@@ -387,7 +460,7 @@ mod tests {
         for bucket in LaunchQueue::ALL {
             assert!(!bucket.slug().is_empty());
         }
-        assert_eq!(LaunchQueue::ALL.len(), 8);
+        assert_eq!(LaunchQueue::ALL.len(), 9);
     }
 
     #[test]
@@ -405,56 +478,35 @@ mod tests {
     }
 
     #[test]
-    fn unstarted_issue_blocks_with_trigger_reason() {
+    fn unstarted_issue_lands_in_todo() {
         let out = classify_launch_queue(
             vec![issue("SUP-1", "unstarted")],
             vec![],
             &default_orchestration(),
         );
 
-        assert_eq!(out.issues[0].bucket, LaunchQueue::Blocked);
-        assert!(out.issues[0].reason.contains("trigger requires 'started'"));
+        assert_eq!(out.issues[0].bucket, LaunchQueue::Todo);
+        assert!(out.issues[0].reason.contains("linear status"));
     }
 
     #[test]
-    fn backlog_issue_blocks_with_trigger_reason() {
+    fn backlog_issue_lands_in_backlog_bucket() {
         let out = classify_launch_queue(
             vec![issue("SUP-1", "backlog")],
             vec![],
             &default_orchestration(),
         );
 
-        assert_eq!(out.issues[0].bucket, LaunchQueue::Blocked);
+        assert_eq!(out.issues[0].bucket, LaunchQueue::Backlog);
     }
 
     #[test]
-    fn parent_not_completed_wins_over_trigger_gate() {
+    fn sub_issue_with_backlog_parent_is_launchable() {
+        // SUP-81: Linear parent/child is hierarchy, not dependency. A sub-
+        // issue whose parent sits in backlog must still be dispatchable on
+        // its own merits.
         let mut i = issue("SUP-11", "started");
         i.parent_identifier = Some("SUP-10".into());
-        i.parent_state_type = Some("started".into());
-
-        let out = classify_launch_queue(vec![i], vec![], &default_orchestration());
-
-        assert_eq!(out.issues[0].bucket, LaunchQueue::Blocked);
-        assert!(out.issues[0].reason.contains("parent SUP-10 not completed"));
-    }
-
-    #[test]
-    fn parent_completed_does_not_block_child() {
-        let mut i = issue("SUP-11", "started");
-        i.parent_identifier = Some("SUP-10".into());
-        i.parent_state_type = Some("completed".into());
-
-        let out = classify_launch_queue(vec![i], vec![], &default_orchestration());
-
-        assert_eq!(out.issues[0].bucket, LaunchQueue::Launchable);
-    }
-
-    #[test]
-    fn parent_cancelled_does_not_block_child() {
-        let mut i = issue("SUP-11", "started");
-        i.parent_identifier = Some("SUP-10".into());
-        i.parent_state_type = Some("canceled".into());
 
         let out = classify_launch_queue(vec![i], vec![], &default_orchestration());
 
@@ -463,9 +515,10 @@ mod tests {
 
     #[test]
     fn parent_with_active_superkick_run_blocks_child() {
+        // Concurrency guardrail kept from SUP-80: running two Superkick
+        // sessions on related issues at once tends to cause merge storms.
         let mut child = issue("SUP-11", "started");
         child.parent_identifier = Some("SUP-10".into());
-        child.parent_state_type = Some("completed".into());
         let parent_run = run("SUP-10", RunState::Coding, OperatorQueue::Active);
 
         let out = classify_launch_queue(vec![child], vec![parent_run], &default_orchestration());
@@ -476,6 +529,39 @@ mod tests {
                 .reason
                 .contains("parent SUP-10 has active run")
         );
+    }
+
+    #[test]
+    fn completed_issue_goes_to_done_bucket() {
+        let out = classify_launch_queue(
+            vec![issue("SUP-1", "completed")],
+            vec![],
+            &default_orchestration(),
+        );
+        assert_eq!(out.issues[0].bucket, LaunchQueue::Done);
+    }
+
+    #[test]
+    fn cancelled_issue_goes_to_done_bucket() {
+        let out = classify_launch_queue(
+            vec![issue("SUP-1", "canceled")],
+            vec![],
+            &default_orchestration(),
+        );
+        assert_eq!(out.issues[0].bucket, LaunchQueue::Done);
+    }
+
+    #[test]
+    fn terminal_issue_with_blockers_still_lands_in_done() {
+        // Terminal state wins over blocker gate: a shipped issue belongs in
+        // Done, not Blocked, even if a stale `blocks` relation remains.
+        let mut i = issue("SUP-1", "completed");
+        i.blockers.push(QueueIssueBlocker {
+            identifier: "SUP-77".into(),
+            state_type: "started".into(),
+        });
+        let out = classify_launch_queue(vec![i], vec![], &default_orchestration());
+        assert_eq!(out.issues[0].bucket, LaunchQueue::Done);
     }
 
     #[test]
@@ -560,7 +646,7 @@ mod tests {
 
         let out = classify_launch_queue(vec![issue("SUP-4", "started")], runs, &orchestration);
 
-        assert_eq!(out.issues[0].bucket, LaunchQueue::WaitingCapacity);
+        assert_eq!(out.issues[0].bucket, LaunchQueue::Waiting);
         assert!(out.issues[0].reason.contains("concurrency cap reached"));
         assert_eq!(out.active_capacity_current, 3);
     }
@@ -582,7 +668,7 @@ mod tests {
     }
 
     #[test]
-    fn approval_required_priority_forces_waiting_approval() {
+    fn approval_required_priority_forces_waiting() {
         let mut i = issue("SUP-1", "started");
         i.priority_value = 1; // Urgent
 
@@ -594,7 +680,8 @@ mod tests {
 
         let out = classify_launch_queue(vec![i], vec![], &orchestration);
 
-        assert_eq!(out.issues[0].bucket, LaunchQueue::WaitingApproval);
+        assert_eq!(out.issues[0].bucket, LaunchQueue::Waiting);
+        assert!(out.issues[0].reason.contains("manual approval"));
     }
 
     #[test]
@@ -613,7 +700,9 @@ mod tests {
     }
 
     #[test]
-    fn approval_wins_over_capacity_when_both_apply() {
+    fn approval_reason_wins_over_capacity_reason_when_both_apply() {
+        // Both rules now route to `Waiting`; precedence is observable only
+        // through the `reason` string the operator reads on the card.
         let mut i = issue("SUP-4", "started");
         i.priority_value = 1;
         let runs = vec![
@@ -629,7 +718,9 @@ mod tests {
 
         let out = classify_launch_queue(vec![i], runs, &orchestration);
 
-        assert_eq!(out.issues[0].bucket, LaunchQueue::WaitingApproval);
+        assert_eq!(out.issues[0].bucket, LaunchQueue::Waiting);
+        assert!(out.issues[0].reason.contains("manual approval"));
+        assert!(!out.issues[0].reason.contains("concurrency cap"));
     }
 
     #[test]
@@ -648,11 +739,104 @@ mod tests {
     }
 
     #[test]
+    fn linear_blocker_keeps_downstream_blocked() {
+        let mut i = issue("SUP-81", "started");
+        i.blockers.push(QueueIssueBlocker {
+            identifier: "SUP-77".into(),
+            state_type: "started".into(),
+        });
+
+        let out = classify_launch_queue(vec![i], vec![], &default_orchestration());
+        assert_eq!(out.issues[0].bucket, LaunchQueue::Blocked);
+        assert!(out.issues[0].reason.contains("blocked by SUP-77"));
+    }
+
+    #[test]
+    fn terminal_blocker_does_not_block() {
+        let mut i = issue("SUP-81", "started");
+        i.blockers.push(QueueIssueBlocker {
+            identifier: "SUP-77".into(),
+            state_type: "completed".into(),
+        });
+
+        let out = classify_launch_queue(vec![i], vec![], &default_orchestration());
+        assert_eq!(out.issues[0].bucket, LaunchQueue::Launchable);
+    }
+
+    #[test]
+    fn cancelled_blocker_does_not_block() {
+        let mut i = issue("SUP-81", "started");
+        i.blockers.push(QueueIssueBlocker {
+            identifier: "SUP-77".into(),
+            state_type: "canceled".into(),
+        });
+
+        let out = classify_launch_queue(vec![i], vec![], &default_orchestration());
+        assert_eq!(out.issues[0].bucket, LaunchQueue::Launchable);
+    }
+
+    #[test]
+    fn mixed_blocker_states_only_non_terminal_gate_applies() {
+        let mut i = issue("SUP-81", "started");
+        i.blockers.push(QueueIssueBlocker {
+            identifier: "SUP-77".into(),
+            state_type: "completed".into(),
+        });
+        i.blockers.push(QueueIssueBlocker {
+            identifier: "SUP-78".into(),
+            state_type: "started".into(),
+        });
+
+        let out = classify_launch_queue(vec![i], vec![], &default_orchestration());
+        assert_eq!(out.issues[0].bucket, LaunchQueue::Blocked);
+        assert!(out.issues[0].reason.contains("SUP-78"));
+        assert!(!out.issues[0].reason.contains("SUP-77"));
+    }
+
+    #[test]
+    fn multiple_non_terminal_blockers_are_all_listed() {
+        let mut i = issue("SUP-11", "started");
+        i.parent_identifier = Some("SUP-10".into());
+        i.blockers.push(QueueIssueBlocker {
+            identifier: "SUP-77".into(),
+            state_type: "started".into(),
+        });
+        i.blockers.push(QueueIssueBlocker {
+            identifier: "SUP-78".into(),
+            state_type: "unstarted".into(),
+        });
+
+        let out = classify_launch_queue(vec![i], vec![], &default_orchestration());
+        assert_eq!(out.issues[0].bucket, LaunchQueue::Blocked);
+        assert!(out.issues[0].reason.contains("SUP-77"));
+        assert!(out.issues[0].reason.contains("SUP-78"));
+        // Parent is not a dependency signal — its identifier must not leak
+        // into the Blocked reason (SUP-81).
+        assert!(!out.issues[0].reason.contains("SUP-10"));
+    }
+
+    #[test]
+    fn unknown_blocker_state_still_blocks() {
+        let mut i = issue("SUP-81", "started");
+        i.blockers.push(QueueIssueBlocker {
+            identifier: "SUP-XX".into(),
+            state_type: "unknown".into(),
+        });
+
+        let out = classify_launch_queue(vec![i], vec![], &default_orchestration());
+        assert_eq!(out.issues[0].bucket, LaunchQueue::Blocked);
+        assert!(out.issues[0].reason.contains("unknown"));
+    }
+
+    #[test]
     fn classification_is_idempotent_for_same_inputs() {
         let make = || {
             let mut i = issue("SUP-11", "started");
             i.parent_identifier = Some("SUP-10".into());
-            i.parent_state_type = Some("started".into());
+            i.blockers.push(QueueIssueBlocker {
+                identifier: "SUP-77".into(),
+                state_type: "started".into(),
+            });
             classify_launch_queue(
                 vec![i],
                 vec![run("SUP-99", RunState::Coding, OperatorQueue::Active)],

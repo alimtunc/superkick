@@ -7,8 +7,8 @@ pub mod sqlite;
 pub use db::connect;
 pub use sqlite::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteHandoffRepo,
-    SqliteInterruptRepo, SqlitePullRequestRepo, SqliteRunEventRepo, SqliteRunRepo,
-    SqliteRunStepRepo, SqliteSessionLifecycleRepo, SqliteSessionOwnershipRepo,
+    SqliteInterruptRepo, SqliteIssueBlockerRepo, SqlitePullRequestRepo, SqliteRunEventRepo,
+    SqliteRunRepo, SqliteRunStepRepo, SqliteSessionLifecycleRepo, SqliteSessionOwnershipRepo,
     SqliteTranscriptRepo,
 };
 

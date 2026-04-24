@@ -1,6 +1,6 @@
 import { LaunchQueueCard } from '@/components/launch-queue/LaunchQueueCard'
 import { launchQueueAccent } from '@/lib/domain'
-import type { LaunchQueue, LaunchQueueItem } from '@/types'
+import type { LaunchQueue, LaunchQueueItem, RecentUnblocks } from '@/types'
 
 interface LaunchQueueColumnProps {
 	queue: LaunchQueue
@@ -8,6 +8,9 @@ interface LaunchQueueColumnProps {
 	refTime: number
 	onDispatch: (issueIdentifier: string) => void
 	dispatchPending: boolean
+	/** downstream_issue_id → ISO resolved_at for recently-unblocked items
+	 *  (SUP-81). Consumed via `unblockedAt` lookup on each issue card. */
+	recentUnblocks: RecentUnblocks
 }
 
 export function LaunchQueueColumn({
@@ -15,7 +18,8 @@ export function LaunchQueueColumn({
 	items,
 	refTime,
 	onDispatch,
-	dispatchPending
+	dispatchPending,
+	recentUnblocks
 }: LaunchQueueColumnProps) {
 	const accent = launchQueueAccent[queue]
 	const Icon = accent.icon
@@ -37,19 +41,26 @@ export function LaunchQueueColumn({
 				<p className="font-data px-3 py-4 text-[11px] text-dim">Empty</p>
 			) : (
 				<div className="flex-1 divide-y divide-edge/50 overflow-y-auto">
-					{items.map((item) => (
+					{items.map((item, index) => (
 						<LaunchQueueCard
 							key={keyForItem(item)}
 							item={item}
 							refTime={refTime}
 							onDispatch={onDispatch}
 							dispatchPending={dispatchPending}
+							unblockedAt={unblockedAtFor(item, recentUnblocks)}
+							dispatchPosition={queue === 'launchable' ? index + 1 : undefined}
 						/>
 					))}
 				</div>
 			)}
 		</div>
 	)
+}
+
+function unblockedAtFor(item: LaunchQueueItem, recentUnblocks: RecentUnblocks): string | undefined {
+	if (item.kind !== 'issue') return undefined
+	return recentUnblocks[item.issue.id]
 }
 
 function keyForItem(item: LaunchQueueItem): string {

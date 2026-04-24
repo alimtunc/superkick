@@ -3,6 +3,7 @@
 //! respective buckets, attaches the linked issue for runs, and drops issues
 //! that are already covered by a live run.
 
+use chrono::{DateTime, Utc};
 use indexmap::IndexMap;
 use superkick_core::{ClassifiedIssue, ClassifiedRun, LaunchQueue, LaunchQueueClassification};
 use superkick_integrations::linear::LinearIssueListItem;
@@ -45,7 +46,48 @@ pub(super) fn merge_into_groups(
         push_run(&mut groups, classified, triage, linked_issue);
     }
 
+    // Sort items in every column so the operator reads dispatch order
+    // top-to-bottom: Linear-priority asc (Urgent first, "no priority" last)
+    // then `updated_at` desc. Runs are sorted purely by recency since they
+    // don't carry a Linear priority of their own. SUP-81: the Launchable
+    // column's order is also surfaced as a position indicator (#1, #2, …)
+    // in the UI, so the order *is* the launch order.
+    for items in groups.values_mut() {
+        items.sort_by(|a, b| {
+            sort_key_for(a)
+                .cmp(&sort_key_for(b))
+                .then_with(|| timestamp_for(b).cmp(&timestamp_for(a)))
+        });
+    }
+
     groups
+}
+
+/// Sentinel sort keys for items without a natural Linear priority. Live above
+/// every real priority value (Linear uses `0`..=`4` today; picking `98`/`99`
+/// leaves headroom if Linear ever adds `5`/`6`) and preserve the invariant
+/// "real-priority issues first, no-priority issues, then runs".
+const NO_PRIORITY_SORT_KEY: u16 = 98;
+const RUN_SORT_KEY: u16 = 99;
+
+/// Lower is earlier in the column. Issues sort by Linear priority value
+/// (treating `0` — "no priority set" — as last). Runs sit after issues
+/// within the same bucket; they don't carry a Linear priority signal.
+fn sort_key_for(item: &LaunchQueueWireItem) -> u16 {
+    match item {
+        LaunchQueueWireItem::Issue { issue, .. } => match issue.priority.value {
+            0 => NO_PRIORITY_SORT_KEY,
+            n => u16::from(n),
+        },
+        LaunchQueueWireItem::Run { .. } => RUN_SORT_KEY,
+    }
+}
+
+fn timestamp_for(item: &LaunchQueueWireItem) -> DateTime<Utc> {
+    match item {
+        LaunchQueueWireItem::Issue { issue, .. } => issue.updated_at,
+        LaunchQueueWireItem::Run { run, .. } => run.updated_at,
+    }
 }
 
 fn push_issue(

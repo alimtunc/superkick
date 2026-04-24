@@ -58,6 +58,7 @@ fn sample_gql_issue() -> GqlIssue {
                 assignee: None,
             }],
         }),
+        inverse_relations: None,
     }
 }
 
@@ -197,6 +198,7 @@ fn sample_gql_issue_detail() -> GqlIssueDetail {
                 assignee: None,
             }],
         }),
+        inverse_relations: None,
         comments: GqlCommentConnection {
             nodes: vec![GqlComment {
                 id: "comment-1".into(),
@@ -391,6 +393,64 @@ fn gql_response_deserializes_from_linear_shape() {
     let data = parsed.data.unwrap();
     assert_eq!(data.issues.nodes.len(), 1);
     assert_eq!(data.issues.nodes[0].identifier, "SUP-1");
+}
+
+#[test]
+fn inverse_blocks_relations_expose_blocked_by() {
+    let raw = r##"{
+        "data": {
+            "issues": {
+                "nodes": [{
+                    "id": "abc",
+                    "identifier": "SUP-81",
+                    "title": "Unblock flow",
+                    "url": "https://linear.app/t/SUP-81",
+                    "createdAt": "2026-01-01T00:00:00.000Z",
+                    "updatedAt": "2026-01-02T00:00:00.000Z",
+                    "state": { "type": "started", "name": "In Progress", "color": "#bbb" },
+                    "priority": 2,
+                    "priorityLabel": "High",
+                    "labels": { "nodes": [] },
+                    "assignee": null,
+                    "project": null,
+                    "parent": null,
+                    "children": { "nodes": [] },
+                    "inverseRelations": {
+                        "nodes": [
+                            {
+                                "type": "blocks",
+                                "issue": {
+                                    "id": "blocker-1",
+                                    "identifier": "SUP-77",
+                                    "title": "Launch queue",
+                                    "state": { "type": "started", "name": "In Progress", "color": "#aaa" }
+                                }
+                            },
+                            {
+                                "type": "duplicate",
+                                "issue": {
+                                    "id": "dup-1",
+                                    "identifier": "SUP-99",
+                                    "title": "Old dup",
+                                    "state": { "type": "canceled", "name": "Cancelled", "color": "#777" }
+                                }
+                            },
+                            { "type": "blocks", "issue": null }
+                        ]
+                    }
+                }],
+                "pageInfo": { "hasNextPage": false, "endCursor": null }
+            }
+        }
+    }"##;
+
+    let parsed: GqlResponse = serde_json::from_str(raw).unwrap();
+    let data = parsed.data.unwrap();
+    let item = LinearIssueListItem::from(data.issues.nodes.into_iter().next().unwrap());
+
+    assert_eq!(item.blocked_by.len(), 1);
+    assert_eq!(item.blocked_by[0].identifier, "SUP-77");
+    assert_eq!(item.blocked_by[0].status.state_type, "started");
 }
 
 #[test]

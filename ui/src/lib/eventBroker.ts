@@ -125,8 +125,11 @@ export class WorkspaceEventBroker {
 	}
 
 	private fanOut(event: WorkspaceRunEvent): void {
+		// Issue-scope events (SUP-81) have no `run_id` — a run-filter should
+		// drop them, a variant-filter on `issue_event` should pass them.
+		const eventRunId = runIdForEvent(event)
 		for (const { filter, callback } of this.subscribers.values()) {
-			if (filter.runId && event.run_id !== filter.runId) continue
+			if (filter.runId && eventRunId !== filter.runId) continue
 			if (filter.variant && event.type !== filter.variant) continue
 			callback(event)
 		}
@@ -138,3 +141,13 @@ export class WorkspaceEventBroker {
  * is only ever one EventSource open.
  */
 export const workspaceEventBroker = new WorkspaceEventBroker()
+
+function runIdForEvent(event: WorkspaceRunEvent): string | undefined {
+	switch (event.type) {
+		case 'run_event':
+		case 'session_lifecycle':
+			return event.run_id
+		case 'issue_event':
+			return undefined
+	}
+}

@@ -23,6 +23,11 @@ pub struct LinearIssueListItem {
     pub project: Option<IssueProject>,
     pub parent: Option<IssueParentRef>,
     pub children: Vec<IssueChildRef>,
+    /// Issues that block this one via a Linear `blocks` relation (SUP-81).
+    /// Empty when the issue has no incoming blocker relations or when Linear
+    /// hid the source issues (access control).
+    #[serde(default)]
+    pub blocked_by: Vec<IssueBlockerRef>,
     pub url: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -33,6 +38,17 @@ pub struct LinearIssueListItem {
 /// without a second GraphQL round-trip.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IssueParentRef {
+    pub id: String,
+    pub identifier: String,
+    pub title: String,
+    pub status: IssueStatus,
+}
+
+/// Reference to an issue that blocks another via a Linear `blocks` relation
+/// (SUP-81). Mirrors `IssueParentRef`: the `status` is hydrated so the
+/// classifier can decide "blocker resolved" without a second round-trip.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IssueBlockerRef {
     pub id: String,
     pub identifier: String,
     pub title: String,
@@ -98,6 +114,9 @@ pub struct IssueDetailResponse {
     pub due_date: Option<String>,
     pub parent: Option<IssueParentRef>,
     pub children: Vec<IssueChildRef>,
+    /// See `LinearIssueListItem::blocked_by`.
+    #[serde(default)]
+    pub blocked_by: Vec<IssueBlockerRef>,
     pub comments: Vec<IssueComment>,
     pub linked_runs: Vec<LinkedRunSummary>,
 }

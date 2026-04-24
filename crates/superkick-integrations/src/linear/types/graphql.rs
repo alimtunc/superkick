@@ -53,6 +53,27 @@ pub(crate) struct GqlIssue {
     pub parent: Option<GqlIssueRef>,
     #[serde(default)]
     pub children: Option<GqlChildConnection>,
+    /// Incoming relations — each node's `issue` is a candidate blocker when
+    /// `type == "blocks"`. Optional so the query can be served from Linear
+    /// tenants where the field is suppressed (we still want the issue itself).
+    #[serde(default)]
+    pub inverse_relations: Option<GqlInverseRelationConnection>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlInverseRelationConnection {
+    pub nodes: Vec<GqlInverseRelation>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlInverseRelation {
+    #[serde(rename = "type")]
+    pub relation_type: String,
+    /// The subject of the relation — i.e. the *other* issue that has a
+    /// relation pointing at this one. When `relation_type == "blocks"`, this
+    /// issue is the blocker. Optional because Linear may hide the source
+    /// issue when the operator lacks access to its team.
+    pub issue: Option<GqlIssueRef>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -143,6 +164,8 @@ pub(crate) struct GqlIssueDetail {
     pub parent: Option<GqlIssueRef>,
     #[serde(default)]
     pub children: Option<GqlChildConnection>,
+    #[serde(default)]
+    pub inverse_relations: Option<GqlInverseRelationConnection>,
     pub comments: GqlCommentConnection,
 }
 

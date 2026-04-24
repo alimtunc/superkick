@@ -7,6 +7,13 @@ interface LaunchQueueCardProps {
 	refTime: number
 	onDispatch: (issueIdentifier: string) => void
 	dispatchPending: boolean
+	/** ISO timestamp of a `DependencyResolved` for this issue, if observed in
+	 *  the current session (SUP-81). Ignored for run cards. */
+	unblockedAt: string | undefined
+	/** 1-indexed position in the dispatch queue, set by the column for
+	 *  Launchable items so the operator reads "this is next" without having
+	 *  to count cards. `undefined` everywhere else. */
+	dispatchPosition: number | undefined
 }
 
 /**
@@ -15,9 +22,25 @@ interface LaunchQueueCardProps {
  * kind-specific affordances — e.g. the Dispatch button only exists for
  * `launchable` issues — isolated.
  */
-export function LaunchQueueCard({ item, refTime, onDispatch, dispatchPending }: LaunchQueueCardProps) {
+export function LaunchQueueCard({
+	item,
+	refTime,
+	onDispatch,
+	dispatchPending,
+	unblockedAt,
+	dispatchPosition
+}: LaunchQueueCardProps) {
 	if (item.kind === 'issue') {
-		return <LaunchQueueIssueCard item={item} onDispatch={onDispatch} dispatchPending={dispatchPending} />
+		return (
+			<LaunchQueueIssueCard
+				item={item}
+				onDispatch={onDispatch}
+				dispatchPending={dispatchPending}
+				unblockedAt={unblockedAt}
+				refTime={refTime}
+				dispatchPosition={dispatchPosition}
+			/>
+		)
 	}
 	return <LaunchQueueRunCard item={item} refTime={refTime} />
 }

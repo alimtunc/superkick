@@ -22,6 +22,7 @@ export { watchButtonClass, watchButtonTitle } from './watch'
 export { classifyRuns } from './classify'
 export { queueAccent, isUrgentQueue } from './queue'
 export { launchQueueAccent } from './launchQueueAccent'
+export { UNBLOCK_BADGE_WINDOW_MS, isWithinUnblockWindow } from './unblockBadge'
 export {
 	runNarrative,
 	summarizeAttention,

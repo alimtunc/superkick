@@ -6,8 +6,8 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use superkick_core::{
     AgentSession, AgentSessionId, Artifact, ArtifactId, AttentionRequest, AttentionRequestId,
-    EventId, Handoff, HandoffId, Interrupt, InterruptId, OwnershipEvent, PullRequest, Run,
-    RunEvent, RunId, RunStep, SessionLifecycleEvent, StepId, TranscriptChunk,
+    EventId, Handoff, HandoffId, Interrupt, InterruptId, IssueBlocker, OwnershipEvent, PullRequest,
+    Run, RunEvent, RunId, RunStep, SessionLifecycleEvent, StepId, TranscriptChunk,
 };
 
 /// Repository for `Run` entities.
@@ -182,4 +182,36 @@ pub trait InterruptTxRepo: Send + Sync {
         run: &Run,
         interrupt: &Interrupt,
     ) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// Repository for `issue_blockers` — Linear "blocks" relation snapshots
+/// (SUP-81). Re-polling Linear replaces the rows for a given downstream
+/// wholesale; `list_all` returns the pre-replacement state so the caller can
+/// diff it against the fresh snapshot to detect transitions.
+pub trait IssueBlockerRepo: Send + Sync {
+    /// Replace every row for `downstream_issue_id` with `blockers` in a
+    /// single transaction. Passing an empty slice deletes any stale rows.
+    fn replace_for_downstream(
+        &self,
+        downstream_issue_id: &str,
+        blockers: &[IssueBlocker],
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    /// Replace the rows for every downstream in `entries` in a single
+    /// transaction. `(downstream_id, rows)` pairs are written atomically: a
+    /// failure on any pair rolls back the entire snapshot so the poll diff
+    /// never observes a partial state.
+    fn replace_for_downstreams(
+        &self,
+        entries: &[(String, Vec<IssueBlocker>)],
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    /// Return every row, used to build a pre-poll snapshot for diffing.
+    fn list_all(&self) -> impl Future<Output = Result<Vec<IssueBlocker>>> + Send;
+
+    /// Return rows for a single downstream issue.
+    fn list_for_downstream(
+        &self,
+        downstream_issue_id: &str,
+    ) -> impl Future<Output = Result<Vec<IssueBlocker>>> + Send;
 }

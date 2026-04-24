@@ -163,6 +163,7 @@ mod tests {
         let rb = b.recv().await.unwrap();
         assert_eq!(ra.run_id(), run_id);
         assert_eq!(rb.run_id(), run_id);
+        assert!(run_id.is_some());
     }
 
     /// A minimal in-memory `RunEventRepo` used to exercise the publishing
@@ -233,7 +234,7 @@ mod tests {
         repo.insert(&event).await.unwrap();
 
         let got = rx.recv().await.unwrap();
-        assert_eq!(got.run_id(), run_id);
+        assert_eq!(got.run_id(), Some(run_id));
         assert_eq!(got.variant(), "run_event");
         assert_eq!(repo.inner().events.lock().unwrap().len(), 1);
     }

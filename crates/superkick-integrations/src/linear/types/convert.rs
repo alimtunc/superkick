@@ -75,6 +75,7 @@ impl From<GqlIssueDetail> for IssueDetailResponse {
                 .flat_map(|c| c.nodes)
                 .map(gql_child_to_child_ref)
                 .collect(),
+            blocked_by: blockers_from_inverse_relations(g.inverse_relations),
             url: g.url,
             created_at: g.created_at,
             updated_at: g.updated_at,
@@ -146,6 +147,7 @@ impl From<GqlIssue> for LinearIssueListItem {
                 .flat_map(|c| c.nodes)
                 .map(gql_child_to_child_ref)
                 .collect(),
+            blocked_by: blockers_from_inverse_relations(g.inverse_relations),
             url: g.url,
             created_at: g.created_at,
             updated_at: g.updated_at,
@@ -160,6 +162,30 @@ fn parent_ref_from_gql(p: GqlIssueRef) -> IssueParentRef {
         title: p.title,
         status: IssueStatus::from(p.state),
     }
+}
+
+/// Extract Linear "blocks"-typed incoming relations into `IssueBlockerRef`.
+/// Non-"blocks" relation types (duplicate, related) are skipped here — only
+/// the unblock flow cares about this signal. Nodes with a null `issue` are
+/// skipped: Linear hides them when the operator lacks access to the source.
+fn blockers_from_inverse_relations(
+    conn: Option<GqlInverseRelationConnection>,
+) -> Vec<IssueBlockerRef> {
+    let Some(conn) = conn else {
+        return Vec::new();
+    };
+    conn.nodes
+        .into_iter()
+        .filter(|r| r.relation_type == "blocks")
+        .filter_map(|r| {
+            r.issue.map(|i| IssueBlockerRef {
+                id: i.id,
+                identifier: i.identifier,
+                title: i.title,
+                status: IssueStatus::from(i.state),
+            })
+        })
+        .collect()
 }
 
 fn gql_child_to_child_ref(c: GqlChildIssue) -> IssueChildRef {
