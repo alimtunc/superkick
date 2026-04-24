@@ -17,8 +17,8 @@ use superkick_runtime::{
 };
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteInterruptRepo,
-    SqlitePullRequestRepo, SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
-    SqliteSessionOwnershipRepo, SqliteTranscriptRepo,
+    SqliteIssueBlockerRepo, SqlitePullRequestRepo, SqliteRunEventRepo, SqliteRunRepo,
+    SqliteRunStepRepo, SqliteSessionOwnershipRepo, SqliteTranscriptRepo,
 };
 
 mod error;
@@ -58,6 +58,11 @@ pub(crate) struct AppState {
     pub attention_repo: Arc<SqliteAttentionRequestRepo>,
     pub pr_repo: Arc<SqlitePullRequestRepo>,
     pub transcript_repo: Arc<SqliteTranscriptRepo>,
+    pub issue_blocker_repo: Arc<SqliteIssueBlockerRepo>,
+    /// Serialises `reconcile_blockers` so two concurrent `GET /launch-queue`
+    /// calls cannot both publish the same `DependencyResolved` transition
+    /// (SUP-81). Held only around the diff+persist+emit window.
+    pub blocker_reconcile_lock: Arc<Mutex<()>>,
     pub engine: Arc<Engine>,
     pub interrupt_service: Arc<IntService>,
     pub attention_service: Arc<AttnService>,
@@ -114,6 +119,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let interrupt_repo = Arc::new(SqliteInterruptRepo::new(pool.clone()));
     let attention_repo = Arc::new(SqliteAttentionRequestRepo::new(pool.clone()));
     let ownership_repo = Arc::new(SqliteSessionOwnershipRepo::new(pool.clone()));
+    let issue_blocker_repo = Arc::new(SqliteIssueBlockerRepo::new(pool.clone()));
 
     let transcript_repo = Arc::new(SqliteTranscriptRepo::new(pool));
     let pty_registry = Arc::new(PtySessionRegistry::new());
@@ -176,6 +182,8 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         attention_repo,
         pr_repo,
         transcript_repo,
+        issue_blocker_repo,
+        blocker_reconcile_lock: Arc::new(Mutex::new(())),
         engine,
         interrupt_service,
         attention_service,

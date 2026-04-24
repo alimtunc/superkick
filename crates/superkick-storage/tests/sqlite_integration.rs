@@ -27,6 +27,128 @@ async fn schema_created_from_scratch() -> Result<()> {
     assert!(tables.contains(&"handoffs".to_string()));
     assert!(tables.contains(&"session_ownership_events".to_string()));
     assert!(tables.contains(&"session_lifecycle_events".to_string()));
+    assert!(tables.contains(&"issue_blockers".to_string()));
+    Ok(())
+}
+
+#[tokio::test]
+async fn issue_blocker_replace_then_list_roundtrips() -> Result<()> {
+    let pool = setup().await?;
+    let repo = SqliteIssueBlockerRepo::new(pool);
+
+    let rows = vec![
+        IssueBlocker {
+            downstream_issue_id: "down-uuid".into(),
+            blocker_issue_id: "blk-1-uuid".into(),
+            blocker_identifier: "SUP-77".into(),
+            blocker_title: "Launch queue".into(),
+            blocker_state_type: "started".into(),
+            recorded_at: Utc::now(),
+        },
+        IssueBlocker {
+            downstream_issue_id: "down-uuid".into(),
+            blocker_issue_id: "blk-2-uuid".into(),
+            blocker_identifier: "SUP-80".into(),
+            blocker_title: "Operator dashboard".into(),
+            blocker_state_type: "completed".into(),
+            recorded_at: Utc::now(),
+        },
+    ];
+    repo.replace_for_downstream("down-uuid", &rows).await?;
+
+    let listed = repo.list_for_downstream("down-uuid").await?;
+    assert_eq!(listed.len(), 2);
+    let identifiers: Vec<_> = listed
+        .iter()
+        .map(|b| b.blocker_identifier.as_str())
+        .collect();
+    assert!(identifiers.contains(&"SUP-77"));
+    assert!(identifiers.contains(&"SUP-80"));
+
+    // Re-replace with a smaller set deletes the missing row.
+    repo.replace_for_downstream(
+        "down-uuid",
+        &[IssueBlocker {
+            downstream_issue_id: "down-uuid".into(),
+            blocker_issue_id: "blk-1-uuid".into(),
+            blocker_identifier: "SUP-77".into(),
+            blocker_title: "Launch queue".into(),
+            blocker_state_type: "completed".into(),
+            recorded_at: Utc::now(),
+        }],
+    )
+    .await?;
+    let listed = repo.list_for_downstream("down-uuid").await?;
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].blocker_identifier, "SUP-77");
+    assert_eq!(listed[0].blocker_state_type, "completed");
+    Ok(())
+}
+
+#[tokio::test]
+async fn issue_blocker_batch_replace_is_atomic_across_downstreams() -> Result<()> {
+    let pool = setup().await?;
+    let repo = SqliteIssueBlockerRepo::new(pool);
+
+    // Seed two downstreams with stale rows.
+    repo.replace_for_downstream(
+        "down-a",
+        &[IssueBlocker {
+            downstream_issue_id: "down-a".into(),
+            blocker_issue_id: "blk-old".into(),
+            blocker_identifier: "SUP-OLD".into(),
+            blocker_title: "stale".into(),
+            blocker_state_type: "started".into(),
+            recorded_at: Utc::now(),
+        }],
+    )
+    .await?;
+    repo.replace_for_downstream(
+        "down-b",
+        &[IssueBlocker {
+            downstream_issue_id: "down-b".into(),
+            blocker_issue_id: "blk-old".into(),
+            blocker_identifier: "SUP-OLD".into(),
+            blocker_title: "stale".into(),
+            blocker_state_type: "started".into(),
+            recorded_at: Utc::now(),
+        }],
+    )
+    .await?;
+
+    // Batch-replace both downstreams in one call.
+    let entries = vec![
+        (
+            "down-a".to_string(),
+            vec![IssueBlocker {
+                downstream_issue_id: "down-a".into(),
+                blocker_issue_id: "blk-new-a".into(),
+                blocker_identifier: "SUP-NEWA".into(),
+                blocker_title: "fresh a".into(),
+                blocker_state_type: "started".into(),
+                recorded_at: Utc::now(),
+            }],
+        ),
+        (
+            "down-b".to_string(),
+            vec![IssueBlocker {
+                downstream_issue_id: "down-b".into(),
+                blocker_issue_id: "blk-new-b".into(),
+                blocker_identifier: "SUP-NEWB".into(),
+                blocker_title: "fresh b".into(),
+                blocker_state_type: "completed".into(),
+                recorded_at: Utc::now(),
+            }],
+        ),
+    ];
+    repo.replace_for_downstreams(&entries).await?;
+
+    let a = repo.list_for_downstream("down-a").await?;
+    assert_eq!(a.len(), 1);
+    assert_eq!(a[0].blocker_identifier, "SUP-NEWA");
+    let b = repo.list_for_downstream("down-b").await?;
+    assert_eq!(b.len(), 1);
+    assert_eq!(b[0].blocker_identifier, "SUP-NEWB");
     Ok(())
 }
 

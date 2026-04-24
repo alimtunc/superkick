@@ -30,6 +30,18 @@ export interface IssueParentRef {
 	status: IssueStatus
 }
 
+/**
+ * Issue that blocks another via a Linear `blocks` relation (SUP-81).
+ * Same shape as `IssueParentRef` — the `status` is hydrated so the UI can
+ * render the blocker's current state without a second lookup.
+ */
+export interface IssueBlockerRef {
+	id: string
+	identifier: string
+	title: string
+	status: IssueStatus
+}
+
 export interface IssueChildRef {
 	id: string
 	identifier: string
@@ -70,6 +82,8 @@ export interface LinearIssueListItem {
 	project: IssueProject | null
 	parent: IssueParentRef | null
 	children: IssueChildRef[]
+	/** Linear `blocks` relations gating this issue (SUP-81). Empty when none. */
+	blocked_by: IssueBlockerRef[]
 	url: string
 	created_at: string
 	updated_at: string
@@ -113,6 +127,8 @@ export interface IssueDetailResponse {
 	due_date: string | null
 	parent: IssueParentRef | null
 	children: IssueChildRef[]
+	/** Linear `blocks` relations gating this issue (SUP-81). Empty when none. */
+	blocked_by: IssueBlockerRef[]
 
 	// Optional: review-relevant context (SUP-21 ready)
 	comments: IssueComment[]

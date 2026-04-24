@@ -9,7 +9,7 @@ pub use client::LinearClient;
 pub use context::issue_context_from_detail;
 pub use error::LinearError;
 pub use types::{
-    IssueAssignee, IssueChildRef, IssueComment, IssueCycle, IssueDetailResponse, IssueLabel,
-    IssueListResponse, IssueParentRef, IssuePriority, IssueProject, IssueStatus,
+    IssueAssignee, IssueBlockerRef, IssueChildRef, IssueComment, IssueCycle, IssueDetailResponse,
+    IssueLabel, IssueListResponse, IssueParentRef, IssuePriority, IssueProject, IssueStatus,
     LinearIssueListItem,
 };

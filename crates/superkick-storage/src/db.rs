@@ -91,6 +91,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "012_session_lifecycle_events",
             include_str!("../migrations/012_session_lifecycle_events.sql"),
         ),
+        (
+            "013_issue_blockers",
+            include_str!("../migrations/013_issue_blockers.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

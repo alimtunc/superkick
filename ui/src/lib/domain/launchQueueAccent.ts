@@ -3,12 +3,13 @@ import type { LucideIcon } from 'lucide-react'
 import {
 	AlertTriangle,
 	CheckCircle2,
+	Circle,
+	CircleDashed,
 	CircleSlash,
 	Gauge,
 	GitPullRequest,
 	Play,
-	Rocket,
-	Stamp
+	Rocket
 } from 'lucide-react'
 
 interface LaunchQueueAccent {
@@ -28,6 +29,20 @@ interface LaunchQueueAccent {
  * sync visually is a design choice, not a DRY shortcut.
  */
 export const launchQueueAccent: Record<LaunchQueue, LaunchQueueAccent> = {
+	backlog: {
+		border: 'border-t-dim',
+		text: 'text-ash',
+		label: 'Backlog',
+		icon: CircleDashed,
+		description: 'Not yet picked up in Linear.'
+	},
+	todo: {
+		border: 'border-t-ash',
+		text: 'text-silver',
+		label: 'Todo',
+		icon: Circle,
+		description: 'Linear Todo — one click from triggered.'
+	},
 	launchable: {
 		border: 'border-t-neon-green',
 		text: 'text-neon-green',
@@ -35,26 +50,19 @@ export const launchQueueAccent: Record<LaunchQueue, LaunchQueueAccent> = {
 		icon: Rocket,
 		description: 'Ready to dispatch.'
 	},
-	'waiting-capacity': {
+	waiting: {
 		border: 'border-t-gold/60',
 		text: 'text-gold/80',
-		label: 'Waiting — capacity',
+		label: 'Waiting',
 		icon: Gauge,
-		description: 'Concurrency cap reached.'
-	},
-	'waiting-approval': {
-		border: 'border-t-violet/60',
-		text: 'text-violet/80',
-		label: 'Waiting — approval',
-		icon: Stamp,
-		description: 'Priority requires manual approval.'
+		description: 'Held by capacity or approval gate.'
 	},
 	blocked: {
 		border: 'border-t-gold/60',
 		text: 'text-gold/80',
 		label: 'Blocked',
 		icon: CircleSlash,
-		description: 'Dependency or trigger gate.'
+		description: 'Waiting on a Linear blocker.'
 	},
 	active: {
 		border: 'border-t-cyan',

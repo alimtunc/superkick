@@ -1,5 +1,7 @@
 import { PriorityIcon } from '@/components/issues/PriorityIcon'
 import { StatusIcon } from '@/components/issues/StatusIcon'
+import { LaunchQueueBlockerList } from '@/components/launch-queue/LaunchQueueBlockerList'
+import { LaunchQueueUnblockBadge } from '@/components/launch-queue/LaunchQueueUnblockBadge'
 import { Button } from '@/components/ui/button'
 import type { LaunchQueueItem } from '@/types'
 import { Link } from '@tanstack/react-router'
@@ -8,6 +10,12 @@ interface LaunchQueueIssueCardProps {
 	item: Extract<LaunchQueueItem, { kind: 'issue' }>
 	onDispatch: (issueIdentifier: string) => void
 	dispatchPending: boolean
+	/** ISO timestamp of the most recent `DependencyResolved` for this issue in
+	 *  the current session (SUP-81). `undefined` when no resolution seen. */
+	unblockedAt: string | undefined
+	refTime: number
+	/** 1-indexed position in the Launchable dispatch order, when applicable. */
+	dispatchPosition: number | undefined
 }
 
 /**
@@ -17,17 +25,30 @@ interface LaunchQueueIssueCardProps {
  * (SR announcing the button as part of the link target, clicks activating
  * both) while keeping the rest of the card clickable via the title row.
  */
-export function LaunchQueueIssueCard({ item, onDispatch, dispatchPending }: LaunchQueueIssueCardProps) {
+export function LaunchQueueIssueCard({
+	item,
+	onDispatch,
+	dispatchPending,
+	unblockedAt,
+	refTime,
+	dispatchPosition
+}: LaunchQueueIssueCardProps) {
 	const canDispatch = item.bucket === 'launchable'
 	const dispatchLabel = dispatchPending ? 'Dispatching…' : 'Dispatch'
+	const showBlockers = item.bucket === 'blocked' && item.issue.blocked_by.length > 0
 
 	return (
-		<div
-			className="group flex flex-col gap-1.5 px-3 py-2.5 transition-colors hover:bg-slate-deep/50"
-			title={item.reason}
-		>
+		<div className="group flex flex-col gap-1.5 px-3 py-2.5 transition-colors hover:bg-slate-deep/50">
 			<Link to="/issues/$issueId" params={{ issueId: item.issue.id }} className="flex flex-col gap-1">
 				<div className="flex items-center gap-2">
+					{dispatchPosition !== undefined ? (
+						<span
+							className="font-data shrink-0 rounded bg-neon-green/15 px-1.5 py-0.5 text-[10px] text-neon-green"
+							aria-label={`Position ${dispatchPosition} in dispatch order`}
+						>
+							#{dispatchPosition}
+						</span>
+					) : null}
 					<span className="flex w-4 shrink-0 items-center justify-center">
 						<PriorityIcon value={item.issue.priority.value} />
 					</span>
@@ -44,6 +65,8 @@ export function LaunchQueueIssueCard({ item, onDispatch, dispatchPending }: Laun
 				</div>
 			</Link>
 			<p className="font-data line-clamp-2 text-[10px] text-dim">{item.reason}</p>
+			{showBlockers ? <LaunchQueueBlockerList blockers={item.issue.blocked_by} /> : null}
+			{unblockedAt ? <LaunchQueueUnblockBadge resolvedAt={unblockedAt} refTime={refTime} /> : null}
 			{canDispatch ? (
 				<Button
 					variant="secondary"

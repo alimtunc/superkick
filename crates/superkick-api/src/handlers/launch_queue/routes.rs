@@ -5,13 +5,16 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json};
 use chrono::Utc;
 use serde::Deserialize;
-use superkick_core::{OrchestrationInputs, QueueIssueInput, QueueRunInput, classify_launch_queue};
+use superkick_core::{
+    OrchestrationInputs, QueueIssueBlocker, QueueIssueInput, QueueRunInput, classify_launch_queue,
+};
 
 use crate::AppState;
 use crate::error::AppError;
 use crate::handlers::queue_common::load_triages;
 use crate::handlers::runs::{CreateRunRequest, spawn_run_from_request};
 
+use super::blockers::reconcile_blockers;
 use super::merge::merge_into_groups;
 use super::wire::{ActiveCapacity, LaunchQueueResponse};
 
@@ -30,6 +33,20 @@ pub async fn get_queue(
         },
         None => Vec::new(),
     };
+
+    // SUP-81: reconcile the `issue_blockers` snapshot with the freshly fetched
+    // relations. This emits `DependencyResolved` events for blockers that
+    // have just transitioned to terminal and leaves the DB in a consistent
+    // state for the classifier input below. Reconciliation failure is
+    // surfaced rather than swallowed: a stale snapshot would quietly
+    // mis-bucket downstream issues.
+    reconcile_blockers(
+        &linear_issues,
+        state.issue_blocker_repo.as_ref(),
+        &state.workspace_bus,
+        &state.blocker_reconcile_lock,
+    )
+    .await?;
 
     let triages = load_triages(&state).await?;
 
@@ -53,7 +70,14 @@ pub async fn get_queue(
             state_name: issue.status.name.clone(),
             priority_value: issue.priority.value,
             parent_identifier: issue.parent.as_ref().map(|p| p.identifier.clone()),
-            parent_state_type: issue.parent.as_ref().map(|p| p.status.state_type.clone()),
+            blockers: issue
+                .blocked_by
+                .iter()
+                .map(|b| QueueIssueBlocker {
+                    identifier: b.identifier.clone(),
+                    state_type: b.status.state_type.clone(),
+                })
+                .collect(),
         })
         .collect();
 

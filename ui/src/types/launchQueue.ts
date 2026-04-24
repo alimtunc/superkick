@@ -3,15 +3,21 @@ import type { LinkedPrSummary } from './pr'
 import type { ExecutionMode, Run } from './runs'
 
 /**
- * Launch-queue buckets — SUP-80. Derived server-side from (Linear issues,
- * Superkick runs, orchestration config). The wire shape is deliberately a
- * kebab-case string union so the 8 columns can be rendered with `.map()`
- * over the canonical order.
+ * Launch-queue buckets — SUP-80 + SUP-81. Derived server-side from (Linear
+ * issues, Superkick runs, orchestration config). The wire shape is
+ * deliberately a kebab-case string union so the columns can be rendered
+ * with `.map()` over the canonical order.
+ *
+ * `backlog` / `todo` (SUP-81): mirror Linear's two pre-trigger workflow
+ * groups (`state.type == "backlog"` / `"unstarted"`). Distinct from
+ * `blocked` because nothing is gating these — the operator just hasn't
+ * moved them to "In Progress" yet.
  */
 export type LaunchQueue =
+	| 'backlog'
+	| 'todo'
 	| 'launchable'
-	| 'waiting-capacity'
-	| 'waiting-approval'
+	| 'waiting'
 	| 'blocked'
 	| 'active'
 	| 'needs-human'
@@ -20,15 +26,25 @@ export type LaunchQueue =
 
 /** Canonical left-to-right display order. Must match `LaunchQueue::ALL`. */
 export const LAUNCH_QUEUES: readonly LaunchQueue[] = [
+	'backlog',
+	'todo',
 	'launchable',
-	'waiting-capacity',
-	'waiting-approval',
+	'waiting',
 	'blocked',
 	'active',
 	'needs-human',
 	'in-pr',
 	'done'
 ] as const
+
+/** Columns the operator must always see, even when empty — they are the
+ *  intake anchors. Other columns collapse out of view when empty so the
+ *  Kanban stays focused on what's actionable (SUP-81). */
+export const ALWAYS_VISIBLE_QUEUES: readonly LaunchQueue[] = ['backlog', 'todo', 'launchable'] as const
+
+/** Map of downstream issue id → resolved_at (ISO) for recently-unblocked
+ *  items (SUP-81). Session-local by design — reload clears the map. */
+export type RecentUnblocks = Record<string, string>
 
 export interface LaunchQueueLinkedIssue {
 	identifier: string

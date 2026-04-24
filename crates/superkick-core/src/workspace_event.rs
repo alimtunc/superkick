@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::event::RunEvent;
 use crate::id::RunId;
+use crate::issue_event::IssueEvent;
 use crate::session_lifecycle::SessionLifecycleEvent;
 
 /// Event envelope published on the workspace-level bus.
@@ -28,15 +29,20 @@ pub enum WorkspaceRunEvent {
     RunEvent(RunEvent),
     /// Session lifecycle transition from the spawn-and-observe orchestrator.
     SessionLifecycle(SessionLifecycleEvent),
+    /// Issue-level transition that does not belong to any single run — e.g.
+    /// a Linear blocker resolving (SUP-81). `run_id()` returns `None` for
+    /// these; subscribers filtering by run should ignore them.
+    IssueEvent(IssueEvent),
 }
 
 impl WorkspaceRunEvent {
-    /// Run id this event relates to — always present, so shell brokers can
-    /// route to watched-session subscribers without deserialising the payload.
-    pub fn run_id(&self) -> RunId {
+    /// Run id this event relates to. `None` for issue-scope events that
+    /// outlive any specific run (currently: blocker resolution).
+    pub fn run_id(&self) -> Option<RunId> {
         match self {
-            Self::RunEvent(e) => e.run_id,
-            Self::SessionLifecycle(e) => e.run_id,
+            Self::RunEvent(e) => Some(e.run_id),
+            Self::SessionLifecycle(e) => Some(e.run_id),
+            Self::IssueEvent(_) => None,
         }
     }
 
@@ -45,6 +51,7 @@ impl WorkspaceRunEvent {
         match self {
             Self::RunEvent(e) => e.ts,
             Self::SessionLifecycle(e) => e.ts,
+            Self::IssueEvent(e) => e.ts(),
         }
     }
 
@@ -54,6 +61,7 @@ impl WorkspaceRunEvent {
         match self {
             Self::RunEvent(_) => "run_event",
             Self::SessionLifecycle(_) => "session_lifecycle",
+            Self::IssueEvent(_) => "issue_event",
         }
     }
 }
@@ -70,11 +78,18 @@ impl From<SessionLifecycleEvent> for WorkspaceRunEvent {
     }
 }
 
+impl From<IssueEvent> for WorkspaceRunEvent {
+    fn from(event: IssueEvent) -> Self {
+        Self::IssueEvent(event)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::event::{EventKind, EventLevel, RunEvent};
     use crate::id::{AgentSessionId, RunId, StepId};
+    use crate::issue_event::{DependencyResolvedPayload, IssueEvent};
     use crate::session_lifecycle::{SessionLifecycleEvent, SessionLifecyclePhase};
 
     #[test]
@@ -88,7 +103,7 @@ mod tests {
             "queued → running".into(),
         );
         let envelope: WorkspaceRunEvent = event.into();
-        assert_eq!(envelope.run_id(), run_id);
+        assert_eq!(envelope.run_id(), Some(run_id));
         assert_eq!(envelope.variant(), "run_event");
     }
 
@@ -106,8 +121,22 @@ mod tests {
             SessionLifecyclePhase::Running,
         );
         let envelope: WorkspaceRunEvent = event.into();
-        assert_eq!(envelope.run_id(), run_id);
+        assert_eq!(envelope.run_id(), Some(run_id));
         assert_eq!(envelope.variant(), "session_lifecycle");
+    }
+
+    #[test]
+    fn issue_event_variant_has_no_run_id() {
+        let event = IssueEvent::DependencyResolved(DependencyResolvedPayload {
+            blocker_issue_id: "blocker-uuid".into(),
+            blocker_identifier: "SUP-77".into(),
+            downstream_issue_id: "downstream-uuid".into(),
+            downstream_identifier: "SUP-81".into(),
+            resolved_at: Utc::now(),
+        });
+        let envelope: WorkspaceRunEvent = event.into();
+        assert_eq!(envelope.run_id(), None);
+        assert_eq!(envelope.variant(), "issue_event");
     }
 
     #[test]
@@ -124,5 +153,21 @@ mod tests {
         let json = serde_json::to_value(&envelope).unwrap();
         assert_eq!(json["type"], "run_event");
         assert_eq!(json["run_id"], serde_json::json!(run_id));
+    }
+
+    #[test]
+    fn issue_event_serialises_with_kind_discriminant() {
+        let event = IssueEvent::DependencyResolved(DependencyResolvedPayload {
+            blocker_issue_id: "blocker-uuid".into(),
+            blocker_identifier: "SUP-77".into(),
+            downstream_issue_id: "downstream-uuid".into(),
+            downstream_identifier: "SUP-81".into(),
+            resolved_at: Utc::now(),
+        });
+        let envelope: WorkspaceRunEvent = event.into();
+        let json = serde_json::to_value(&envelope).unwrap();
+        assert_eq!(json["type"], "issue_event");
+        assert_eq!(json["kind"], "dependency_resolved");
+        assert_eq!(json["blocker_identifier"], "SUP-77");
     }
 }

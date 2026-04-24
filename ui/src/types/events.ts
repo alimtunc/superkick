@@ -62,14 +62,32 @@ export interface SessionLifecycleEvent {
 }
 
 /**
- * Workspace-level run event envelope (SUP-84). The shell broker subscribes
- * once to `GET /api/events` and receives every event produced process-wide
- * wrapped in this tagged union. The Rust backend flattens the inner event
- * fields alongside the `type` discriminant.
+ * Issue-scope event payload (SUP-81). Blocker-resolution transitions live at
+ * the Linear-issue level — not a run — so they flow on the same bus but with
+ * `run_id` omitted on the envelope. The backend flattens `kind` + payload
+ * fields alongside the outer `type: 'issue_event'` discriminant.
+ */
+export interface DependencyResolvedEvent {
+	kind: 'dependency_resolved'
+	blocker_issue_id: string
+	blocker_identifier: string
+	downstream_issue_id: string
+	downstream_identifier: string
+	resolved_at: string
+}
+
+export type IssueEvent = DependencyResolvedEvent
+
+/**
+ * Workspace-level run event envelope (SUP-84 + SUP-81). The shell broker
+ * subscribes once to `GET /api/events` and receives every event produced
+ * process-wide wrapped in this tagged union. The Rust backend flattens the
+ * inner event fields alongside the `type` discriminant.
  */
 export type WorkspaceRunEvent =
 	| ({ type: 'run_event' } & RunEvent)
 	| ({ type: 'session_lifecycle' } & SessionLifecycleEvent)
+	| ({ type: 'issue_event' } & IssueEvent)
 
 /**
  * Shell broker subscription filter. Omit fields to match everything — the

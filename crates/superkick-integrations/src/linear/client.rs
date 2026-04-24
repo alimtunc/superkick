@@ -43,6 +43,12 @@ query ListIssues($first: Int!, $after: String) {
           assignee { name avatarUrl }
         }
       }
+      inverseRelations(first: 50) {
+        nodes {
+          type
+          issue { id identifier title state { type name color } }
+        }
+      }
     }
     pageInfo { hasNextPage endCursor }
   }
@@ -76,6 +82,12 @@ query GetIssue($id: String!) {
         priority priorityLabel
         labels { nodes { name color } }
         assignee { name avatarUrl }
+      }
+    }
+    inverseRelations {
+      nodes {
+        type
+        issue { id identifier title state { type name color } }
       }
     }
     comments(first: 50, orderBy: createdAt) {

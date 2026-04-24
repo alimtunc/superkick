@@ -107,6 +107,7 @@ mod tests {
             due_date: None,
             parent: None,
             children: vec![],
+            blocked_by: vec![],
             comments,
             linked_runs: vec![],
         }
