@@ -3,7 +3,7 @@ import { ChildIssues } from '@/components/issue-detail/ChildIssues'
 import { IssueComments } from '@/components/issue-detail/IssueComments'
 import { IssueDetailHeader } from '@/components/issue-detail/IssueDetailHeader'
 import { IssueMetaGrid } from '@/components/issue-detail/IssueMetaGrid'
-import { LinkedRuns } from '@/components/issue-detail/LinkedRuns'
+import { IssueRunsPanel } from '@/components/issue-detail/IssueRunsPanel'
 import { useIssueDetail } from '@/hooks/useIssueDetail'
 
 export function IssueDetail({ issueId }: { issueId: string }) {
@@ -19,7 +19,7 @@ export function IssueDetail({ issueId }: { issueId: string }) {
 			<div className="mx-auto max-w-5xl px-5 py-6">
 				<IssueMetaGrid issue={issue} />
 				{issue.children.length > 0 ? <ChildIssues issues={issue.children} /> : null}
-				{issue.linked_runs.length > 0 ? <LinkedRuns runs={issue.linked_runs} /> : null}
+				<IssueRunsPanel runs={issue.linked_runs} />
 				{issue.description ? (
 					<section className="mb-6">
 						<SectionTitle title="DESCRIPTION" />
