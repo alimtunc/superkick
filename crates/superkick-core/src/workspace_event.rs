@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::event::RunEvent;
 use crate::id::RunId;
 use crate::issue_event::IssueEvent;
+use crate::recovery::StalledReason;
 use crate::session_lifecycle::SessionLifecycleEvent;
 
 /// Event envelope published on the workspace-level bus.
@@ -33,6 +34,32 @@ pub enum WorkspaceRunEvent {
     /// a Linear blocker resolving (SUP-81). `run_id()` returns `None` for
     /// these; subscribers filtering by run should ignore them.
     IssueEvent(IssueEvent),
+    /// Recovery scheduler observed a `Healthy → Stalled` transition for a run
+    /// (SUP-73). Annotation only — the run state itself is **never** changed
+    /// by the scheduler.
+    RunStalled(RunStalledPayload),
+    /// Recovery scheduler observed a `Stalled → Healthy` transition (the
+    /// dual of `RunStalled`). Lets subscribers clear their badge without
+    /// re-fetching the queue.
+    RunRecovered(RunRecoveredPayload),
+}
+
+/// Payload for [`WorkspaceRunEvent::RunStalled`]. The `reason` is the same
+/// structured value the scheduler persists in `run_recovery_events`, so
+/// subscribers can render it without re-deriving copy.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunStalledPayload {
+    pub run_id: RunId,
+    pub since: DateTime<Utc>,
+    pub reason: StalledReason,
+    pub detected_at: DateTime<Utc>,
+}
+
+/// Payload for [`WorkspaceRunEvent::RunRecovered`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunRecoveredPayload {
+    pub run_id: RunId,
+    pub detected_at: DateTime<Utc>,
 }
 
 impl WorkspaceRunEvent {
@@ -43,6 +70,8 @@ impl WorkspaceRunEvent {
             Self::RunEvent(e) => Some(e.run_id),
             Self::SessionLifecycle(e) => Some(e.run_id),
             Self::IssueEvent(_) => None,
+            Self::RunStalled(p) => Some(p.run_id),
+            Self::RunRecovered(p) => Some(p.run_id),
         }
     }
 
@@ -52,6 +81,8 @@ impl WorkspaceRunEvent {
             Self::RunEvent(e) => e.ts,
             Self::SessionLifecycle(e) => e.ts,
             Self::IssueEvent(e) => e.ts(),
+            Self::RunStalled(p) => p.detected_at,
+            Self::RunRecovered(p) => p.detected_at,
         }
     }
 
@@ -62,6 +93,8 @@ impl WorkspaceRunEvent {
             Self::RunEvent(_) => "run_event",
             Self::SessionLifecycle(_) => "session_lifecycle",
             Self::IssueEvent(_) => "issue_event",
+            Self::RunStalled(_) => "run_stalled",
+            Self::RunRecovered(_) => "run_recovered",
         }
     }
 }
@@ -81,6 +114,18 @@ impl From<SessionLifecycleEvent> for WorkspaceRunEvent {
 impl From<IssueEvent> for WorkspaceRunEvent {
     fn from(event: IssueEvent) -> Self {
         Self::IssueEvent(event)
+    }
+}
+
+impl From<RunStalledPayload> for WorkspaceRunEvent {
+    fn from(payload: RunStalledPayload) -> Self {
+        Self::RunStalled(payload)
+    }
+}
+
+impl From<RunRecoveredPayload> for WorkspaceRunEvent {
+    fn from(payload: RunRecoveredPayload) -> Self {
+        Self::RunRecovered(payload)
     }
 }
 

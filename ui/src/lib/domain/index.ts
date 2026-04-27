@@ -4,7 +4,8 @@ export {
 	medianDuration,
 	elapsedMs,
 	fmtElapsed,
-	fmtRelativeTime
+	fmtRelativeTime,
+	fmtSecondsCompact
 } from './formatters'
 export {
 	providerLabel,

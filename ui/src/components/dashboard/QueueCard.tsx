@@ -1,4 +1,5 @@
 import { Badge } from '@/components/dashboard/Badge'
+import { StalledBadge } from '@/components/dashboard/queue/StalledBadge'
 import { Button } from '@/components/ui/button'
 import { fmtElapsed, stepLabel, watchButtonClass, watchButtonTitle } from '@/lib/domain'
 import { useWatchedSessionsStore } from '@/stores/watchedSessions'
@@ -34,6 +35,11 @@ export function QueueCard({ run, refTime }: QueueCardProps) {
 					) : null}
 				</div>
 				{reason ? <p className="font-data mt-1 truncate text-[10px] text-silver">{reason}</p> : null}
+				{run.stalled_for_seconds != null && run.stalled_reason != null ? (
+					<div className="mt-1">
+						<StalledBadge run={run} />
+					</div>
+				) : null}
 				<div className="mt-1 flex items-center justify-between">
 					<span className="font-data text-[10px] text-dim">
 						{fmtElapsed(run.started_at, refTime)}

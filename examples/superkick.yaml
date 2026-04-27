@@ -58,3 +58,21 @@ launch_profile:
   # Subset of the agent catalog this project is allowed to spawn.
   # Omit or set to null to allow every role in the catalog.
   allowed_agents: [planner, coder, reviewer]
+
+# SUP-73 — heartbeat-driven recovery. The scheduler annotates non-terminal
+# runs as Stalled when they exceed the per-state staleness ceiling. It never
+# mutates a run; it only surfaces the annotation on the operator dashboard.
+# Defaults live in `superkick_core::RecoveryConfig::default_thresholds` —
+# the values below mirror those defaults so this example self-documents the
+# section. Comment a line out to fall back to the core default for that key.
+recovery:
+  tick_interval_secs: 30
+  thresholds_secs:
+    queued: 120              # 2 min — undispatched runs surface fast
+    preparing: 300           # 5 min
+    planning: 600            # 10 min
+    coding: 300              # 5 min
+    running_commands: 600    # 10 min
+    reviewing: 300           # 5 min
+    opening_pr: 300          # 5 min
+    waiting_human: 1800      # 30 min — long human-ask path

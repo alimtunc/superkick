@@ -4,6 +4,7 @@ pub mod agent_supervisor;
 pub mod attention_service;
 pub mod git;
 pub mod handoff_service;
+pub mod heartbeat;
 pub mod interrupt_service;
 pub mod linear_context;
 pub mod orchestrator;
@@ -20,6 +21,7 @@ pub use agent_supervisor::{
 };
 pub use attention_service::AttentionService;
 pub use handoff_service::HandoffService;
+pub use heartbeat::spawn_heartbeat_listener;
 pub use interrupt_service::InterruptService;
 pub use orchestrator::{
     OrchestratedSession, Orchestrator, SessionObservation, spawn_lifecycle_persistence_sink,

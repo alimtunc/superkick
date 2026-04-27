@@ -14,15 +14,17 @@ use superkick_integrations::linear::LinearClient;
 use superkick_runtime::{
     AttentionService, InterruptService, OwnershipService, PtySessionRegistry,
     PublishingRunEventRepo, RepoCache, SessionBus, StepEngine, StepEngineDeps, WorkspaceEventBus,
+    spawn_heartbeat_listener,
 };
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteInterruptRepo,
-    SqliteIssueBlockerRepo, SqlitePullRequestRepo, SqliteRunEventRepo, SqliteRunRepo,
-    SqliteRunStepRepo, SqliteSessionOwnershipRepo, SqliteTranscriptRepo,
+    SqliteIssueBlockerRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo, SqliteRunEventRepo,
+    SqliteRunRepo, SqliteRunStepRepo, SqliteSessionOwnershipRepo, SqliteTranscriptRepo,
 };
 
 mod error;
 mod handlers;
+pub mod recovery_scheduler;
 
 // ── App state ──────────────────────────────────────────────────────────
 
@@ -60,6 +62,7 @@ pub(crate) struct AppState {
     pub pr_repo: Arc<SqlitePullRequestRepo>,
     pub transcript_repo: Arc<SqliteTranscriptRepo>,
     pub issue_blocker_repo: Arc<SqliteIssueBlockerRepo>,
+    pub recovery_event_repo: Arc<SqliteRecoveryEventRepo>,
     /// Serialises `reconcile_blockers` so two concurrent `GET /launch-queue`
     /// calls cannot both publish the same `DependencyResolved` transition
     /// (SUP-81). Held only around the diff+persist+emit window.
@@ -102,6 +105,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let orchestration = config.orchestration.clone();
     let issue_trigger = config.issue_source.trigger;
     let run_budget = config.budget.run_budget_snapshot();
+    let recovery_config = config.recovery.to_recovery_config();
     let repo_slug = detect_repo_slug().unwrap_or_else(|| {
         tracing::warn!("could not detect repo_slug from git remote — /config will return empty");
         String::new()
@@ -112,6 +116,9 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let workspace_bus = WorkspaceEventBus::new();
     let session_bus = SessionBus::new();
     spawn_session_lifecycle_forwarder(Arc::clone(&session_bus), Arc::clone(&workspace_bus));
+    // SUP-73 — heartbeat listener and recovery scheduler are wired below
+    // once the run repo and recovery repo are constructed. Both are detached
+    // tasks that live for the lifetime of the server.
 
     let run_repo = Arc::new(SqliteRunRepo::new(pool.clone()));
     let step_repo = Arc::new(SqliteRunStepRepo::new(pool.clone()));
@@ -126,6 +133,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let attention_repo = Arc::new(SqliteAttentionRequestRepo::new(pool.clone()));
     let ownership_repo = Arc::new(SqliteSessionOwnershipRepo::new(pool.clone()));
     let issue_blocker_repo = Arc::new(SqliteIssueBlockerRepo::new(pool.clone()));
+    let recovery_event_repo = Arc::new(SqliteRecoveryEventRepo::new(pool.clone()));
 
     let transcript_repo = Arc::new(SqliteTranscriptRepo::new(pool));
     let pty_registry = Arc::new(PtySessionRegistry::new());
@@ -179,6 +187,16 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         Arc::clone(&pty_registry),
     ));
 
+    // SUP-73 — start the heartbeat listener (stamps `runs.last_heartbeat_at`
+    // from `SessionBus` events) and the recovery scheduler (periodic
+    // Healthy↔Stalled classification).
+    spawn_heartbeat_listener(Arc::clone(&session_bus), Arc::clone(&run_repo));
+    recovery_scheduler::spawn_recovery_scheduler(
+        Arc::clone(&recovery_event_repo),
+        Arc::clone(&workspace_bus),
+        recovery_config,
+    );
+
     let state = AppState {
         run_repo,
         step_repo,
@@ -190,6 +208,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         pr_repo,
         transcript_repo,
         issue_blocker_repo,
+        recovery_event_repo,
         blocker_reconcile_lock: Arc::new(Mutex::new(())),
         engine,
         interrupt_service,

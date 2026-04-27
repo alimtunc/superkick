@@ -146,8 +146,14 @@ function runIdForEvent(event: WorkspaceRunEvent): string | undefined {
 	switch (event.type) {
 		case 'run_event':
 		case 'session_lifecycle':
+		case 'run_stalled':
+		case 'run_recovered':
 			return event.run_id
 		case 'issue_event':
 			return undefined
+		default: {
+			const _exhaustive: never = event
+			return _exhaustive
+		}
 	}
 }

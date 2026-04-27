@@ -16,6 +16,7 @@ pub mod linear_context;
 pub mod ownership;
 pub mod pull_request;
 pub mod queue;
+pub mod recovery;
 pub mod review;
 pub mod role_router;
 pub mod run;
@@ -59,6 +60,10 @@ pub use queue::{
     DONE_COLUMN_LIMIT, OperatorQueue, QueueInputs, classify as classify_queue, has_pending_handoff,
     queue_card_reason, trim_for_queue,
 };
+pub use recovery::{
+    LatestEventTag, RecoveryAction, RecoveryCandidate, RecoveryConfig, RecoveryStatus,
+    StalledReason, classify as classify_recovery, decide_action as decide_recovery_action,
+};
 pub use review::{ReviewFinding, ReviewSwarmResult};
 pub use role_router::{
     AgentCatalog, AgentDefinition as CoreAgentDefinition, ResolvedAgent, RoleRouter, RouterError,
@@ -71,4 +76,4 @@ pub use run::{
 pub use session_lifecycle::{SessionLifecycleEvent, SessionLifecyclePhase};
 pub use step::{RunStep, StepKey, StepStatus};
 pub use transcript::TranscriptChunk;
-pub use workspace_event::WorkspaceRunEvent;
+pub use workspace_event::{RunRecoveredPayload, RunStalledPayload, WorkspaceRunEvent};

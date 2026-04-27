@@ -1361,6 +1361,7 @@ mod gate_tests {
                 approval_checkpoints,
                 ..Default::default()
             },
+            recovery: Default::default(),
         }
     }
 

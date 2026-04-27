@@ -227,6 +227,13 @@ pub struct Run {
     /// Free-form reason rendered to the operator when the run is paused.
     #[serde(default)]
     pub pause_reason: Option<String>,
+    /// Last time the runtime observed life signs for this run — written when
+    /// a `SessionLifecycleEvent` lands for an active session. The recovery
+    /// scheduler (SUP-73) reads it alongside `updated_at` to classify a run
+    /// as healthy or stalled. `None` means "no heartbeat yet" (the run was
+    /// created but never produced a session lifecycle event).
+    #[serde(default)]
+    pub last_heartbeat_at: Option<DateTime<Utc>>,
 }
 
 /// Lightweight run reference for embedding in issue detail payloads.
@@ -319,6 +326,7 @@ impl Run {
             budget_grant: RunBudgetGrant::default(),
             pause_kind: PauseKind::None,
             pause_reason: None,
+            last_heartbeat_at: None,
         }
     }
 
@@ -354,6 +362,21 @@ impl Run {
     pub fn clear_pause(&mut self) {
         self.pause_kind = PauseKind::None;
         self.pause_reason = None;
+    }
+
+    /// Stamp a fresh heartbeat for the run without touching `state` or
+    /// `updated_at`. Called by the runtime heartbeat listener when a session
+    /// lifecycle event is observed for an active run. We deliberately leave
+    /// `updated_at` alone — it is the supervisor's signal that a state-bearing
+    /// transition happened, and the recovery scheduler relies on it to detect
+    /// staleness when no heartbeat has ever fired (`last_heartbeat_at` is
+    /// `None`). No-op for terminal runs to keep audit consistent with the
+    /// "terminal runs are out of scope" invariant in `recovery_scheduler`.
+    pub fn touch_heartbeat(&mut self, now: DateTime<Utc>) {
+        if self.state.is_terminal() {
+            return;
+        }
+        self.last_heartbeat_at = Some(now);
     }
 
     /// Append a labelled note to `operator_instructions`. The note is rendered

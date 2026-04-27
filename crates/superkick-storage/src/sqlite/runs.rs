@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
 use sqlx::SqlitePool;
 use superkick_core::{
     ExecutionMode, PauseKind, Run, RunBudget, RunBudgetGrant, RunId, RunState, StepKey,
@@ -24,8 +25,8 @@ impl RunRepo for SqliteRunRepo {
         let budget_grant_json =
             serde_json::to_string(&run.budget_grant).context("serialize run budget_grant")?;
         sqlx::query(
-            "INSERT INTO runs (id, issue_id, issue_identifier, repo_slug, state, trigger_source, execution_mode, current_step_key, base_branch, use_worktree, worktree_path, branch_name, operator_instructions, started_at, updated_at, finished_at, error_message, budget_json, pause_kind, pause_reason, budget_grant_json)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
+            "INSERT INTO runs (id, issue_id, issue_identifier, repo_slug, state, trigger_source, execution_mode, current_step_key, base_branch, use_worktree, worktree_path, branch_name, operator_instructions, started_at, updated_at, finished_at, error_message, budget_json, pause_kind, pause_reason, budget_grant_json, last_heartbeat_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
         )
         .bind(run.id.0.to_string())
         .bind(&run.issue_id)
@@ -48,6 +49,7 @@ impl RunRepo for SqliteRunRepo {
         .bind(serialize_enum(&run.pause_kind)?)
         .bind(&run.pause_reason)
         .bind(budget_grant_json)
+        .bind(run.last_heartbeat_at.map(|t| t.to_rfc3339()))
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -103,7 +105,7 @@ impl RunRepo for SqliteRunRepo {
         let budget_grant_json =
             serde_json::to_string(&run.budget_grant).context("serialize run budget_grant")?;
         sqlx::query(
-            "UPDATE runs SET state = ?1, trigger_source = ?2, current_step_key = ?3, worktree_path = ?4, branch_name = ?5, operator_instructions = ?6, updated_at = ?7, finished_at = ?8, error_message = ?9, budget_json = ?10, pause_kind = ?11, pause_reason = ?12, budget_grant_json = ?13 WHERE id = ?14",
+            "UPDATE runs SET state = ?1, trigger_source = ?2, current_step_key = ?3, worktree_path = ?4, branch_name = ?5, operator_instructions = ?6, updated_at = ?7, finished_at = ?8, error_message = ?9, budget_json = ?10, pause_kind = ?11, pause_reason = ?12, budget_grant_json = ?13, last_heartbeat_at = ?14 WHERE id = ?15",
         )
         .bind(serialize_enum(&run.state)?)
         .bind(serialize_enum(&run.trigger_source)?)
@@ -118,9 +120,23 @@ impl RunRepo for SqliteRunRepo {
         .bind(serialize_enum(&run.pause_kind)?)
         .bind(&run.pause_reason)
         .bind(budget_grant_json)
+        .bind(run.last_heartbeat_at.map(|t| t.to_rfc3339()))
         .bind(run.id.0.to_string())
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
+
+    async fn update_heartbeat(&self, run_id: RunId, now: DateTime<Utc>) -> Result<()> {
+        sqlx::query(
+            "UPDATE runs SET last_heartbeat_at = ?1
+             WHERE id = ?2 AND state NOT IN ('completed', 'failed', 'cancelled')",
+        )
+        .bind(now.to_rfc3339())
+        .bind(run_id.0.to_string())
+        .execute(&self.pool)
+        .await
+        .with_context(|| format!("update heartbeat for run {run_id}"))?;
         Ok(())
     }
 }
@@ -148,6 +164,7 @@ struct RunRow {
     pause_kind: String,
     pause_reason: Option<String>,
     budget_grant_json: String,
+    last_heartbeat_at: Option<String>,
 }
 
 impl RunRow {
@@ -193,6 +210,11 @@ impl RunRow {
             budget_grant,
             pause_kind: deserialize_enum::<PauseKind>(&self.pause_kind)?,
             pause_reason: self.pause_reason,
+            last_heartbeat_at: self
+                .last_heartbeat_at
+                .as_deref()
+                .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
+                .transpose()?,
         })
     }
 }
