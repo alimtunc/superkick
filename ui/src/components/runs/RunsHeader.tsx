@@ -3,19 +3,16 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { useLastRefreshed } from '@/hooks/useLastRefreshed'
 import { RefreshCw } from 'lucide-react'
 
-export function RunsHeader({
-	total,
-	activeCount,
-	loading,
-	lastRefresh,
-	onRefresh
-}: {
-	total: number
-	activeCount: number
+interface RunsHeaderProps {
+	/** Open work — active + needs-human + in-review. Excludes the 20-cap "recent". */
+	openCount: number
+	needsHumanCount: number
 	loading: boolean
 	lastRefresh: number | null
 	onRefresh: () => void
-}) {
+}
+
+export function RunsHeader({ openCount, needsHumanCount, loading, lastRefresh, onRefresh }: RunsHeaderProps) {
 	const refreshLabel = useLastRefreshed(lastRefresh, loading)
 
 	return (
@@ -25,9 +22,9 @@ export function RunsHeader({
 					<span className="font-data text-[11px] font-medium tracking-wider text-fog uppercase">
 						RUNS
 					</span>
-					<span className="font-data text-[10px] text-dim">{total}</span>
-					{activeCount > 0 ? (
-						<span className="font-data text-[10px] text-cyan">{activeCount} active</span>
+					<span className="font-data text-[10px] text-dim">{openCount} open</span>
+					{needsHumanCount > 0 ? (
+						<span className="font-data text-[10px] text-oxide">{needsHumanCount} need human</span>
 					) : null}
 				</div>
 				<Tooltip label={refreshLabel}>

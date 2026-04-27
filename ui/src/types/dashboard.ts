@@ -63,3 +63,12 @@ export interface DashboardQueueResponse {
 	generated_at: string
 	groups: Record<OperatorQueue, QueueRunSummary[]>
 }
+
+export type RunGroupKey = 'active' | 'needsHuman' | 'inReview' | 'recent'
+
+export interface RunGroups {
+	active: QueueRunSummary[]
+	needsHuman: QueueRunSummary[]
+	inReview: QueueRunSummary[]
+	recent: QueueRunSummary[]
+}
