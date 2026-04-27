@@ -50,7 +50,9 @@ export function useEventStream(runId: string, onStateChange?: () => void) {
 				notice.kind === 'state_change' ||
 				notice.kind === 'step_started' ||
 				notice.kind === 'step_completed' ||
-				notice.kind === 'interrupt_created'
+				notice.kind === 'interrupt_created' ||
+				notice.kind === 'budget_tripped' ||
+				notice.kind === 'approval_gate_entered'
 			) {
 				onStateChangeRef.current?.()
 			}

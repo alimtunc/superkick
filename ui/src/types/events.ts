@@ -26,6 +26,8 @@ export type EventKind =
 	| 'session_completed'
 	| 'session_failed'
 	| 'session_cancelled'
+	| 'budget_tripped'
+	| 'approval_gate_entered'
 
 export type EventLevel = 'debug' | 'info' | 'warn' | 'error'
 

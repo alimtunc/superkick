@@ -20,6 +20,14 @@ export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipp
 
 export type ExecutionMode = 'full_auto' | 'semi_auto'
 
+export type PauseKind = 'none' | 'budget' | 'approval'
+
+export interface RunBudget {
+	duration_secs: number | null
+	retries_max: number | null
+	token_ceiling: number | null
+}
+
 export interface Run {
 	id: string
 	issue_id: string
@@ -37,6 +45,9 @@ export interface Run {
 	updated_at: string
 	finished_at: string | null
 	error_message: string | null
+	budget: RunBudget
+	pause_kind: PauseKind
+	pause_reason: string | null
 }
 
 export interface RunStep {

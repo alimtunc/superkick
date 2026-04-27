@@ -40,6 +40,15 @@ pub enum EventKind {
     SessionFailed,
     /// A child agent session was cancelled by the orchestrator or operator.
     SessionCancelled,
+    /// A run-level budget dimension (duration/retries/tokens) exceeded its
+    /// ceiling. The supervisor has transitioned the run to `WaitingHuman` and
+    /// awaits an operator override. `payload_json` carries `{ dimension,
+    /// observed, limit }`.
+    BudgetTripped,
+    /// The supervisor reached an approval checkpoint (per `OrchestrationConfig`)
+    /// and emitted an `AttentionRequest` of kind `approval`. `payload_json`
+    /// carries `{ step_key, attention_request_id }`.
+    ApprovalGateEntered,
 }
 
 /// Severity level for run events.

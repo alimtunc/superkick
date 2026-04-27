@@ -5,6 +5,7 @@
 //! events are emitted, and the run state machine is advanced at every boundary.
 
 mod agent;
+pub(crate) mod budget;
 mod commands;
 mod create_pr;
 mod prepare;
@@ -24,12 +25,13 @@ use tracing::{info, warn};
 use crate::linear_context::OptionalLinearClient;
 use superkick_config::{InterruptPolicy, SuperkickConfig, WorkflowStep};
 use superkick_core::{
-    AgentCatalog, EventKind, EventLevel, ExecutionMode, InterruptAction, RoleRouter, RunEvent,
-    RunPolicy, RunState, RunStep, StepKey, StepStatus,
+    AgentCatalog, AttentionKind, AttentionReply, AttentionRequest, AttentionRequestId,
+    AttentionStatus, EventKind, EventLevel, ExecutionMode, InterruptAction, PauseKind, RoleRouter,
+    RunBudgetGrant, RunEvent, RunPolicy, RunState, RunStep, StepKey, StepStatus,
 };
 use superkick_storage::repo::{
-    AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
-    RunStepRepo, TranscriptRepo,
+    AgentSessionRepo, ArtifactRepo, AttentionRequestRepo, InterruptRepo, InterruptTxRepo,
+    RunEventRepo, RunRepo, RunStepRepo, TranscriptRepo,
 };
 
 use crate::agent_supervisor::AgentSupervisor;
@@ -41,13 +43,23 @@ use crate::session_bus::SessionBus;
 /// Default agent timeout (10 minutes).
 const DEFAULT_AGENT_TIMEOUT: Duration = Duration::from_secs(600);
 
+/// How often the step engine re-reads the DB while waiting for an operator
+/// to resolve an interrupt / attention request. Shortened under `cfg(test)`
+/// so gate tests finish in tens of milliseconds rather than multi-second
+/// increments.
+#[cfg(not(test))]
+const GATE_POLL_INTERVAL: Duration = Duration::from_secs(2);
+#[cfg(test)]
+const GATE_POLL_INTERVAL: Duration = Duration::from_millis(25);
+
 /// Drives a single run through its typed step sequence.
-pub struct StepEngine<R, ST, E, A, AR, I, T = ()> {
+pub struct StepEngine<R, ST, E, A, AR, I, AT, T = ()> {
     run_repo: Arc<R>,
     step_repo: Arc<ST>,
     event_repo: Arc<E>,
     interrupt_repo: Arc<I>,
     artifact_repo: Arc<AR>,
+    attention_repo: Arc<AT>,
     supervisor: AgentSupervisor<A, E, T>,
     interrupt_service: InterruptService<R, E, I>,
     repo_cache: RepoCache,
@@ -57,13 +69,14 @@ pub struct StepEngine<R, ST, E, A, AR, I, T = ()> {
     linear_client: OptionalLinearClient,
 }
 
-pub struct StepEngineDeps<R, ST, E, A, AR, I, T = ()> {
+pub struct StepEngineDeps<R, ST, E, A, AR, I, AT, T = ()> {
     pub run_repo: Arc<R>,
     pub step_repo: Arc<ST>,
     pub event_repo: Arc<E>,
     pub session_repo: Arc<A>,
     pub artifact_repo: Arc<AR>,
     pub interrupt_repo: Arc<I>,
+    pub attention_repo: Arc<AT>,
     pub transcript_repo: Arc<T>,
     pub registry: Arc<PtySessionRegistry>,
     pub repo_cache: RepoCache,
@@ -81,7 +94,7 @@ pub struct StepEngineDeps<R, ST, E, A, AR, I, T = ()> {
     pub session_bus: Option<Arc<SessionBus>>,
 }
 
-impl<R, ST, E, A, AR, I, T> StepEngine<R, ST, E, A, AR, I, T>
+impl<R, ST, E, A, AR, I, AT, T> StepEngine<R, ST, E, A, AR, I, AT, T>
 where
     R: RunRepo + 'static,
     ST: RunStepRepo + 'static,
@@ -89,9 +102,10 @@ where
     A: AgentSessionRepo + 'static,
     AR: ArtifactRepo + 'static,
     I: InterruptRepo + InterruptTxRepo + 'static,
+    AT: AttentionRequestRepo + 'static,
     T: TranscriptRepo + 'static,
 {
-    pub fn new(deps: StepEngineDeps<R, ST, E, A, AR, I, T>) -> Self {
+    pub fn new(deps: StepEngineDeps<R, ST, E, A, AR, I, AT, T>) -> Self {
         let mut supervisor = AgentSupervisor::new(
             deps.session_repo,
             Arc::clone(&deps.event_repo),
@@ -114,6 +128,7 @@ where
             event_repo: deps.event_repo,
             interrupt_repo: deps.interrupt_repo,
             artifact_repo: deps.artifact_repo,
+            attention_repo: deps.attention_repo,
             supervisor,
             interrupt_service,
             repo_cache: deps.repo_cache,
@@ -166,6 +181,16 @@ where
         run: &mut superkick_core::Run,
         cancel_token: &CancellationToken,
     ) -> Result<()> {
+        // Token aggregation is not wired up yet (SUP-72 risk 1). Surface the
+        // misconfiguration once at run start so an operator who configured
+        // `token_ceiling` doesn't silently believe it's enforced.
+        if run.budget.token_ceiling.is_some() {
+            warn!(
+                run_id = %run.id,
+                "budget.token_ceiling configured but no integration reports tokens — dimension is skipped (SUP-72 risk 1)"
+            );
+        }
+
         let step_keys = self.build_step_plan();
         let mut setup_handle: Option<tokio::task::JoinHandle<Result<()>>> = None;
 
@@ -191,6 +216,17 @@ where
                 }
             }
 
+            // SUP-72: Run-level gate. Enforces budget tripwires and
+            // approval checkpoints before the step transitions. Returns
+            // `Terminated` when the operator aborts or rejects approval —
+            // the run is already transitioned to its terminal state by then.
+            if let GateDecision::Terminated =
+                self.pre_step_gate(run, step_key, cancel_token).await?
+            {
+                abort_setup_handle(&mut setup_handle).await;
+                return Ok(());
+            }
+
             let run_state = step_key_to_run_state(step_key);
 
             'step_retry: loop {
@@ -198,6 +234,7 @@ where
                     if let Err(e) = run.transition_to(run_state) {
                         self.fail_run(run, format!("invalid transition: {e}"))
                             .await?;
+                        abort_setup_handle(&mut setup_handle).await;
                         return Ok(());
                     }
                     true
@@ -334,12 +371,16 @@ where
                     match action {
                         Some(BlockedAction::Retry) => continue 'step_retry,
                         Some(BlockedAction::Skip) => break 'step_retry,
-                        Some(BlockedAction::Abort) => return Ok(()),
+                        Some(BlockedAction::Abort) => {
+                            abort_setup_handle(&mut setup_handle).await;
+                            return Ok(());
+                        }
                         None => {}
                     }
                 }
 
                 self.fail_run(run, error_msg).await?;
+                abort_setup_handle(&mut setup_handle).await;
                 return Ok(());
             }
         }
@@ -578,6 +619,328 @@ where
         }
     }
 
+    /// SUP-72 gate. Enforces the run's budget contract and approval
+    /// checkpoints before a step is allowed to execute. Pauses the run via
+    /// `WaitingHuman` and blocks until the operator resolves the gate:
+    ///
+    /// * **Budget trip** → interrupt flow (override / abort). On override the
+    ///   run resumes at the gated step; on abort it transitions to Cancelled.
+    /// * **Approval checkpoint** → `AttentionRequest` of kind `approval`.
+    ///   `approved=true` resumes, `approved=false` fails the run with the
+    ///   operator's reason.
+    async fn pre_step_gate(
+        &self,
+        run: &mut superkick_core::Run,
+        step_key: StepKey,
+        cancel_token: &CancellationToken,
+    ) -> Result<GateDecision> {
+        // 1. Budget tripwires
+        let snapshot = self.build_budget_snapshot(run).await?;
+        if let Some(trip) = budget::evaluate(&run.budget, &snapshot, &run.budget_grant) {
+            match self
+                .handle_budget_trip(run, step_key, trip, snapshot, cancel_token)
+                .await?
+            {
+                GateDecision::Terminated => return Ok(GateDecision::Terminated),
+                GateDecision::Continue => {}
+            }
+        }
+
+        // 2. Approval checkpoints
+        if self
+            .config
+            .orchestration
+            .approval_checkpoints
+            .contains(&step_key)
+        {
+            return self
+                .handle_approval_checkpoint(run, step_key, cancel_token)
+                .await;
+        }
+
+        Ok(GateDecision::Continue)
+    }
+
+    async fn build_budget_snapshot(
+        &self,
+        run: &superkick_core::Run,
+    ) -> Result<budget::BudgetSnapshot> {
+        let steps = self.step_repo.list_by_run(run.id).await?;
+        // Retries observed: sum of `attempt - 1` across every run step —
+        // every retry attempt represents one unit of cumulative retry cost.
+        let retries_observed: u32 = steps.iter().map(|s| s.attempt.saturating_sub(1)).sum();
+        Ok(budget::BudgetSnapshot {
+            now: Utc::now(),
+            started_at: run.started_at,
+            retries_observed,
+            // Token aggregation is deferred until integrations report usage
+            // uniformly (SUP-72 risk 1). `None` means "skip the tokens
+            // dimension" rather than "zero tokens observed".
+            tokens_observed: None,
+        })
+    }
+
+    /// Convert a snapshot to `RunBudgetGrant` offsets, used to mark "operator
+    /// acknowledged the current observed values" so the next gate doesn't
+    /// re-trip on the same counters.
+    fn snapshot_to_grant(snapshot: &budget::BudgetSnapshot) -> RunBudgetGrant {
+        let elapsed = snapshot
+            .now
+            .signed_duration_since(snapshot.started_at)
+            .num_seconds()
+            .max(0) as u64;
+        RunBudgetGrant {
+            duration_secs: elapsed,
+            retries: snapshot.retries_observed,
+            tokens: snapshot.tokens_observed.unwrap_or(0),
+        }
+    }
+
+    async fn handle_budget_trip(
+        &self,
+        run: &mut superkick_core::Run,
+        step_key: StepKey,
+        trip: budget::BudgetTrip,
+        snapshot: budget::BudgetSnapshot,
+        cancel_token: &CancellationToken,
+    ) -> Result<GateDecision> {
+        let reason = trip.reason();
+        info!(
+            run_id = %run.id,
+            dimension = trip.dimension.as_str(),
+            observed = trip.observed,
+            limit = trip.limit,
+            "budget tripwire tripped"
+        );
+
+        // Structured trip event (payload is consumed by the UI to render the
+        // pause banner without re-parsing `reason`).
+        self.emit_with_payload(
+            run,
+            None,
+            EventKind::BudgetTripped,
+            EventLevel::Warn,
+            format!("budget tripwire: {reason}"),
+            serde_json::json!({
+                "dimension": trip.dimension.as_str(),
+                "observed": trip.observed,
+                "limit": trip.limit,
+            }),
+        )
+        .await;
+
+        // Atomically update the run (pause metadata + state) alongside the
+        // interrupt insert so a crash between the two can't produce a
+        // "waiting-human without interrupt" orphan.
+        run.mark_paused(PauseKind::Budget, &reason);
+        run.transition_to(RunState::WaitingHuman)
+            .context("cannot transition to waiting_human for budget gate")?;
+        let interrupt = superkick_core::Interrupt::new(
+            run.id,
+            None,
+            format!("Budget tripped: {reason}. Override and continue, or abort the run?"),
+        );
+        self.interrupt_repo
+            .create_interrupt_atomic(run, &interrupt)
+            .await
+            .context("failed to create budget-gate interrupt")?;
+
+        self.emit(
+            run,
+            None,
+            EventKind::StateChange,
+            EventLevel::Info,
+            format!("run state → waiting_human (budget: {reason})"),
+        )
+        .await;
+        self.emit(
+            run,
+            None,
+            EventKind::InterruptCreated,
+            EventLevel::Warn,
+            format!("interrupt created: {}", interrupt.question),
+        )
+        .await;
+
+        let action = self.wait_for_interrupt(interrupt.id, cancel_token).await?;
+
+        match action {
+            InterruptAction::RetryStep | InterruptAction::ContinueWithNote { .. } => {
+                info!(run_id = %run.id, "operator overrode budget trip; resuming");
+                if let InterruptAction::ContinueWithNote { note } = &action {
+                    run.append_operator_note("budget override", note);
+                }
+                // Snapshot the observed values so the next gate's `evaluate`
+                // doesn't re-trip on the same counters — without this the
+                // override would loop forever.
+                run.budget_grant = Self::snapshot_to_grant(&snapshot);
+                run.clear_pause();
+                let next_state = step_key_to_run_state(step_key);
+                run.transition_to(next_state)
+                    .context("failed to resume after budget override")?;
+                run.current_step_key = Some(step_key);
+                self.run_repo.update(run).await?;
+                self.emit(
+                    run,
+                    None,
+                    EventKind::StateChange,
+                    EventLevel::Info,
+                    format!("run state → {next_state} (budget override)"),
+                )
+                .await;
+                Ok(GateDecision::Continue)
+            }
+            InterruptAction::AbortRun => {
+                info!(run_id = %run.id, "operator aborted run at budget tripwire");
+                // Keep the pause metadata on the run so the dashboard can
+                // still surface *why* the run is terminal — same policy as
+                // approval rejection at the checkpoint below.
+                run.transition_to(RunState::Cancelled)
+                    .context("failed to cancel after budget abort")?;
+                run.current_step_key = None;
+                self.run_repo.update(run).await?;
+                self.emit(
+                    run,
+                    None,
+                    EventKind::StateChange,
+                    EventLevel::Info,
+                    "run state → cancelled (budget abort)".into(),
+                )
+                .await;
+                Ok(GateDecision::Terminated)
+            }
+        }
+    }
+
+    async fn handle_approval_checkpoint(
+        &self,
+        run: &mut superkick_core::Run,
+        step_key: StepKey,
+        cancel_token: &CancellationToken,
+    ) -> Result<GateDecision> {
+        info!(run_id = %run.id, step = %step_key, "entering approval checkpoint");
+
+        let title = format!("Approval required before {step_key}");
+        let body = format!(
+            "Step `{step_key}` is in `approval_checkpoints`. Approve to proceed, reject to fail the run."
+        );
+        let request =
+            AttentionRequest::new(run.id, AttentionKind::Approval, title.clone(), body, None)
+                .context("failed to build approval attention request")?;
+        self.attention_repo
+            .insert(&request)
+            .await
+            .context("failed to insert approval attention request")?;
+
+        // Structured checkpoint event; the generic attention_requested event
+        // is emitted below so existing UI subscribers still refresh.
+        self.emit_with_payload(
+            run,
+            None,
+            EventKind::ApprovalGateEntered,
+            EventLevel::Warn,
+            format!("approval required before {step_key}"),
+            serde_json::json!({
+                "step_key": step_key.to_string(),
+                "attention_request_id": request.id.0.to_string(),
+            }),
+        )
+        .await;
+        let mut arq_event = RunEvent::new(
+            run.id,
+            None,
+            EventKind::AttentionRequested,
+            EventLevel::Warn,
+            format!("attention requested (Approval): {title}"),
+        );
+        arq_event.payload_json = serde_json::to_value(&request).ok();
+        if let Err(e) = self.event_repo.insert(&arq_event).await {
+            warn!("failed to emit attention_requested event: {e}");
+        }
+
+        let pause_reason = format!("awaiting approval before {step_key}");
+        run.mark_paused(PauseKind::Approval, &pause_reason);
+        run.transition_to(RunState::WaitingHuman)
+            .context("cannot transition to waiting_human for approval gate")?;
+        self.run_repo.update(run).await?;
+        self.emit(
+            run,
+            None,
+            EventKind::StateChange,
+            EventLevel::Info,
+            format!("run state → waiting_human ({pause_reason})"),
+        )
+        .await;
+
+        let reply = self
+            .wait_for_attention_reply(request.id, cancel_token)
+            .await?;
+
+        match reply {
+            AttentionReply::Approval { approved: true, .. } => {
+                info!(run_id = %run.id, step = %step_key, "approval granted");
+                run.clear_pause();
+                let next_state = step_key_to_run_state(step_key);
+                run.transition_to(next_state)
+                    .context("failed to resume after approval granted")?;
+                run.current_step_key = Some(step_key);
+                self.run_repo.update(run).await?;
+                self.emit(
+                    run,
+                    None,
+                    EventKind::StateChange,
+                    EventLevel::Info,
+                    format!("run state → {next_state} (checkpoint approved)"),
+                )
+                .await;
+                Ok(GateDecision::Continue)
+            }
+            AttentionReply::Approval {
+                approved: false,
+                reason,
+            } => {
+                let reject_reason = reason.unwrap_or_else(|| "no reason provided".to_string());
+                let error_msg =
+                    format!("approval rejected at checkpoint {step_key}: {reject_reason}");
+                info!(run_id = %run.id, step = %step_key, "operator rejected approval");
+                // Keep the pause metadata on the run so the dashboard can
+                // still surface *why* the run is terminal — see criterion 4.
+                run.error_message = Some(error_msg.clone());
+                run.transition_to(RunState::Failed)
+                    .context("failed to transition to Failed after approval rejection")?;
+                run.current_step_key = None;
+                self.run_repo.update(run).await?;
+                self.emit(
+                    run,
+                    None,
+                    EventKind::StateChange,
+                    EventLevel::Error,
+                    format!("run state → failed ({error_msg})"),
+                )
+                .await;
+                Ok(GateDecision::Terminated)
+            }
+            other => bail!("unexpected reply for approval request: {other:?}"),
+        }
+    }
+
+    async fn wait_for_attention_reply(
+        &self,
+        request_id: AttentionRequestId,
+        cancel_token: &CancellationToken,
+    ) -> Result<AttentionReply> {
+        poll_until(cancel_token, "approval", || async move {
+            let Some(request) = self.attention_repo.get(request_id).await? else {
+                return Ok(None);
+            };
+            if request.status != AttentionStatus::Replied {
+                return Ok(None);
+            }
+            Ok(request.reply)
+        })
+        .await
+    }
+
     fn interrupt_policy_for_step(&self, key: StepKey) -> InterruptPolicy {
         match key {
             StepKey::ReviewSwarm => self.config.interrupts.on_review_conflict,
@@ -629,14 +992,7 @@ where
             }
             InterruptAction::ContinueWithNote { note } => {
                 info!(run_id = %run.id, note = %note, "semi-auto: operator approved with note");
-                // Append note to operator_instructions so the coding agent sees it.
-                let existing = run.operator_instructions.take().unwrap_or_default();
-                let combined = if existing.is_empty() {
-                    note
-                } else {
-                    format!("{existing}\n\n--- Operator note (semi-auto checkpoint) ---\n{note}")
-                };
-                run.operator_instructions = Some(combined);
+                run.append_operator_note("semi-auto checkpoint", &note);
                 // Transition back from WaitingHuman to resume.
                 run.transition_to(RunState::Coding)
                     .context("failed to resume after semi-auto continue")?;
@@ -694,29 +1050,30 @@ where
         interrupt_id: superkick_core::InterruptId,
         cancel_token: &CancellationToken,
     ) -> Result<InterruptAction> {
-        loop {
-            tokio::select! {
-                _ = tokio::time::sleep(Duration::from_secs(2)) => {}
-                _ = cancel_token.cancelled() => {
-                    bail!("run cancelled while waiting for human interrupt");
-                }
+        poll_until(cancel_token, "human interrupt", || async move {
+            let Some(interrupt) = self.interrupt_repo.get(interrupt_id).await? else {
+                return Ok(None);
+            };
+            if interrupt.status != superkick_core::InterruptStatus::Resolved {
+                return Ok(None);
             }
-
-            if let Some(interrupt) = self.interrupt_repo.get(interrupt_id).await? {
-                if interrupt.status == superkick_core::InterruptStatus::Resolved {
-                    if let Some(answer) = &interrupt.answer_json {
-                        let action: InterruptAction = serde_json::from_value(answer.clone())
-                            .context("failed to parse interrupt action")?;
-                        return Ok(action);
-                    }
-                }
-            }
-        }
+            let Some(answer) = interrupt.answer_json.as_ref() else {
+                return Ok(None);
+            };
+            let action: InterruptAction = serde_json::from_value(answer.clone())
+                .context("failed to parse interrupt action")?;
+            Ok(Some(action))
+        })
+        .await
     }
 
     async fn fail_run(&self, run: &mut superkick_core::Run, message: String) -> Result<()> {
         warn!(run_id = %run.id, error = %message, "run failed");
 
+        // Defensive: a concurrent cancellation may have already moved the run
+        // to a terminal state before us. Treat that as success — the run is
+        // already in its final state, and cascading the error would mask the
+        // real terminal reason.
         if let Err(e) = run.transition_to(RunState::Failed) {
             warn!(run_id = %run.id, error = %e, "could not transition to Failed (already terminal)");
             return Ok(());
@@ -758,12 +1115,36 @@ where
     ) {
         emit_event(&*self.event_repo, run.id, step_id, kind, level, message).await;
     }
+
+    async fn emit_with_payload(
+        &self,
+        run: &superkick_core::Run,
+        step_id: Option<superkick_core::StepId>,
+        kind: EventKind,
+        level: EventLevel,
+        message: String,
+        payload: serde_json::Value,
+    ) {
+        let mut event = RunEvent::new(run.id, step_id, kind, level, message);
+        event.payload_json = Some(payload);
+        if let Err(e) = self.event_repo.insert(&event).await {
+            warn!("failed to emit run event: {e}");
+        }
+    }
 }
 
 enum BlockedAction {
     Retry,
     Skip,
     Abort,
+}
+
+/// Outcome of `pre_step_gate`. `Continue` → the caller proceeds with step
+/// execution; `Terminated` → the run has already been transitioned to a
+/// terminal state (Cancelled/Failed) and the caller should unwind.
+enum GateDecision {
+    Continue,
+    Terminated,
 }
 
 // ── free functions ─────────────────────────────────────────────────────
@@ -861,5 +1242,431 @@ pub(super) async fn emit_event<E: RunEventRepo>(
     let event = RunEvent::new(run_id, step_id, kind, level, message);
     if let Err(e) = repo.insert(&event).await {
         warn!("failed to emit run event: {e}");
+    }
+}
+
+/// Polls `f` every `GATE_POLL_INTERVAL` until it yields `Ok(Some(_))` or the
+/// cancel token fires. `subject` is folded into the cancellation error message
+/// so log readers can tell which gate was waiting.
+async fn poll_until<T, F, Fut>(
+    cancel_token: &CancellationToken,
+    subject: &'static str,
+    mut f: F,
+) -> Result<T>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<Option<T>>>,
+{
+    loop {
+        tokio::select! {
+            _ = tokio::time::sleep(GATE_POLL_INTERVAL) => {}
+            _ = cancel_token.cancelled() => {
+                bail!("run cancelled while waiting for {subject}");
+            }
+        }
+        if let Some(value) = f().await? {
+            return Ok(value);
+        }
+    }
+}
+
+// ── SUP-72 gate tests ──────────────────────────────────────────────────
+//
+// Exercise `pre_step_gate` end-to-end against a real in-memory SQLite so the
+// persistence + state transitions are covered the same way integration tests
+// prove the storage layer. The step engine is instantiated with real repos
+// and stubbed tool-dependent bits (no repo_cache clone, no agents declared).
+// The gate path under test touches only the repos + config, so we can leave
+// the rest of the engine surface alone.
+
+#[cfg(test)]
+mod gate_tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+
+    use superkick_config::{
+        BudgetConfig, InterruptsConfig, IssueProvider, IssueSourceConfig, IssueTrigger,
+        LaunchProfileConfig, OrchestrationConfig, RunnerConfig, RunnerMode, SuperkickConfig,
+        WorkflowConfig,
+    };
+    use superkick_core::{
+        AttentionKind, AttentionReply, ExecutionMode, PauseKind, Run, RunBudget, RunState, RunStep,
+        StepKey, TriggerSource,
+    };
+    use superkick_storage::repo::{AttentionRequestRepo, InterruptRepo, RunRepo, RunStepRepo};
+    // `RunEventRepo` trait methods (`list_by_run`) must be in scope for
+    // method resolution below — imported as an anonymous bound.
+    #[allow(unused_imports)]
+    use superkick_storage::repo::RunEventRepo;
+    use superkick_storage::{
+        SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo,
+        SqliteInterruptRepo, SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
+        SqliteTranscriptRepo, connect_with_capacity,
+    };
+
+    type TestEngine = StepEngine<
+        SqliteRunRepo,
+        SqliteRunStepRepo,
+        SqliteRunEventRepo,
+        SqliteAgentSessionRepo,
+        SqliteArtifactRepo,
+        SqliteInterruptRepo,
+        SqliteAttentionRequestRepo,
+        SqliteTranscriptRepo,
+    >;
+
+    struct Harness {
+        engine: Arc<TestEngine>,
+        run_repo: Arc<SqliteRunRepo>,
+        step_repo: Arc<SqliteRunStepRepo>,
+        event_repo: Arc<SqliteRunEventRepo>,
+        interrupt_repo: Arc<SqliteInterruptRepo>,
+        attention_repo: Arc<SqliteAttentionRequestRepo>,
+        tmp_cache: PathBuf,
+        db_path: PathBuf,
+    }
+
+    impl Drop for Harness {
+        fn drop(&mut self) {
+            // Best-effort cleanup so /tmp doesn't accumulate stale gate
+            // fixtures across CI runs. Errors here are non-fatal.
+            let _ = std::fs::remove_dir_all(&self.tmp_cache);
+            let _ = std::fs::remove_file(&self.db_path);
+            let _ = std::fs::remove_file(self.db_path.with_extension("sqlite-shm"));
+            let _ = std::fs::remove_file(self.db_path.with_extension("sqlite-wal"));
+        }
+    }
+
+    fn mk_config(approval_checkpoints: Vec<StepKey>) -> SuperkickConfig {
+        SuperkickConfig {
+            version: 1,
+            issue_source: IssueSourceConfig {
+                provider: IssueProvider::Linear,
+                trigger: IssueTrigger::InProgress,
+            },
+            runner: RunnerConfig {
+                mode: RunnerMode::Local,
+                repo_root: ".".into(),
+                base_branch: "main".into(),
+                worktree_prefix: "test".into(),
+                setup_commands: vec![],
+            },
+            agents: HashMap::new(),
+            workflow: WorkflowConfig { steps: vec![] },
+            interrupts: InterruptsConfig::default(),
+            budget: BudgetConfig::default(),
+            launch_profile: LaunchProfileConfig::default(),
+            orchestration: OrchestrationConfig {
+                approval_checkpoints,
+                ..Default::default()
+            },
+        }
+    }
+
+    async fn setup(config: SuperkickConfig) -> Harness {
+        // Per-test temp file — SQLite `:memory:` isolates state per
+        // connection so the concurrent "operator" spawned task would see an
+        // empty DB. A real file sidesteps that; `Harness::drop` cleans up.
+        let db_path =
+            std::env::temp_dir().join(format!("superkick-gate-{}.sqlite", uuid::Uuid::new_v4()));
+        let url = format!("sqlite:{}", db_path.display());
+        let pool = connect_with_capacity(&url, 5)
+            .await
+            .expect("connect sqlite");
+        let run_repo = Arc::new(SqliteRunRepo::new(pool.clone()));
+        let step_repo = Arc::new(SqliteRunStepRepo::new(pool.clone()));
+        let event_repo = Arc::new(SqliteRunEventRepo::new(pool.clone()));
+        let session_repo = Arc::new(SqliteAgentSessionRepo::new(pool.clone()));
+        let artifact_repo = Arc::new(SqliteArtifactRepo::new(pool.clone()));
+        let interrupt_repo = Arc::new(SqliteInterruptRepo::new(pool.clone()));
+        let attention_repo = Arc::new(SqliteAttentionRequestRepo::new(pool.clone()));
+        let transcript_repo = Arc::new(SqliteTranscriptRepo::new(pool));
+        let registry = Arc::new(crate::pty_session::PtySessionRegistry::new());
+
+        let tmp = std::env::temp_dir().join(format!("superkick-gate-{}", uuid::Uuid::new_v4()));
+        let repo_cache = crate::repo_cache::RepoCache::new(tmp.clone())
+            .await
+            .expect("repo cache init");
+
+        let engine = Arc::new(StepEngine::new(StepEngineDeps {
+            run_repo: Arc::clone(&run_repo),
+            step_repo: Arc::clone(&step_repo),
+            event_repo: Arc::clone(&event_repo),
+            session_repo,
+            artifact_repo,
+            interrupt_repo: Arc::clone(&interrupt_repo),
+            attention_repo: Arc::clone(&attention_repo),
+            transcript_repo,
+            registry,
+            repo_cache,
+            config,
+            linear_client: None,
+            session_bus: None,
+        }));
+
+        Harness {
+            engine,
+            run_repo,
+            step_repo,
+            event_repo,
+            interrupt_repo,
+            attention_repo,
+            tmp_cache: tmp,
+            db_path,
+        }
+    }
+
+    async fn insert_run(repo: &SqliteRunRepo, budget: RunBudget) -> Run {
+        let run = Run::new(
+            "issue-1".into(),
+            "SUP-TEST".into(),
+            "owner/repo".into(),
+            TriggerSource::Manual,
+            ExecutionMode::FullAuto,
+            "main".into(),
+            false,
+            None,
+        )
+        .with_budget(budget);
+        repo.insert(&run).await.expect("insert run");
+        run
+    }
+
+    /// Spin-wait for an interrupt on this run (pending), then resolve it with
+    /// `action`. Used to simulate the operator pressing a button while the
+    /// gate's poll loop is blocked.
+    /// Poll for a pending interrupt and resolve it with `action`. Returns
+    /// after the first update; the gate's own poll loop observes the status
+    /// change on its next cycle. Bounded by `max_polls` so a mis-configured
+    /// test fails fast instead of hanging the suite.
+    async fn answer_interrupt_when_created(
+        interrupt_repo: Arc<SqliteInterruptRepo>,
+        run_id: superkick_core::RunId,
+        action: superkick_core::InterruptAction,
+    ) -> superkick_core::Interrupt {
+        let max_polls = 200;
+        for _ in 0..max_polls {
+            let interrupts = interrupt_repo
+                .list_by_run(run_id)
+                .await
+                .expect("list interrupts");
+            if let Some(mut i) = interrupts
+                .into_iter()
+                .find(|i| i.status == superkick_core::InterruptStatus::Pending)
+            {
+                i.resolve(&action).expect("resolve interrupt");
+                interrupt_repo.update(&i).await.expect("update interrupt");
+                return i;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!(
+            "no pending interrupt appeared within {} polls — gate likely didn't fire",
+            max_polls
+        );
+    }
+
+    async fn reply_attention_when_created(
+        attention_repo: Arc<SqliteAttentionRequestRepo>,
+        run_id: superkick_core::RunId,
+        reply: AttentionReply,
+    ) {
+        let max_polls = 200;
+        for _ in 0..max_polls {
+            let requests = attention_repo
+                .list_by_run(run_id)
+                .await
+                .expect("list attention requests");
+            if let Some(mut r) = requests
+                .into_iter()
+                .find(|r| r.status == superkick_core::AttentionStatus::Pending)
+            {
+                r.record_reply(reply, Some("tester".into()))
+                    .expect("record reply");
+                attention_repo.update(&r).await.expect("update attention");
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!(
+            "no pending attention request appeared within {} polls — checkpoint didn't fire",
+            max_polls
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn duration_tripwire_pauses_then_resumes_on_override() {
+        let h = setup(mk_config(vec![])).await;
+        // 1-second ceiling, artificially age `started_at` so the tripwire
+        // fires on the very first gate check.
+        let budget = RunBudget {
+            duration_secs: Some(1),
+            ..Default::default()
+        };
+        let mut run = insert_run(&h.run_repo, budget).await;
+        run.started_at -= chrono::Duration::seconds(60);
+
+        let cancel = CancellationToken::new();
+        let interrupt_repo = Arc::clone(&h.interrupt_repo);
+        let run_id = run.id;
+        let answer = tokio::spawn(answer_interrupt_when_created(
+            interrupt_repo,
+            run_id,
+            superkick_core::InterruptAction::RetryStep,
+        ));
+
+        let decision = h
+            .engine
+            .pre_step_gate(&mut run, StepKey::Plan, &cancel)
+            .await
+            .expect("gate completes");
+        answer.await.unwrap();
+
+        assert!(matches!(decision, GateDecision::Continue));
+        let persisted = h.run_repo.get(run.id).await.unwrap().unwrap();
+        assert_eq!(persisted.state, RunState::Planning);
+        assert_eq!(persisted.pause_kind, PauseKind::None);
+        assert!(persisted.pause_reason.is_none());
+
+        // A budget_tripped event was recorded.
+        let events = h.event_repo.list_by_run(run.id).await.unwrap();
+        assert!(
+            events.iter().any(|e| e.kind == EventKind::BudgetTripped),
+            "expected a budget_tripped event"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn retries_tripwire_pauses_run() {
+        let h = setup(mk_config(vec![])).await;
+        let budget = RunBudget {
+            retries_max: Some(1),
+            ..Default::default()
+        };
+        let mut run = insert_run(&h.run_repo, budget).await;
+
+        // Seed two step rows so cumulative retries = 2 (attempts 2 each means 1
+        // retry each, total 2 > limit 1).
+        for _ in 0..2 {
+            let mut step = RunStep::new(run.id, StepKey::Code, 2);
+            step.status = superkick_core::StepStatus::Succeeded;
+            h.step_repo.insert(&step).await.unwrap();
+        }
+
+        let cancel = CancellationToken::new();
+        let interrupt_repo = Arc::clone(&h.interrupt_repo);
+        let answer = tokio::spawn(answer_interrupt_when_created(
+            interrupt_repo,
+            run.id,
+            superkick_core::InterruptAction::AbortRun,
+        ));
+
+        let decision = h
+            .engine
+            .pre_step_gate(&mut run, StepKey::Plan, &cancel)
+            .await
+            .expect("gate completes");
+        answer.await.unwrap();
+
+        assert!(matches!(decision, GateDecision::Terminated));
+        let persisted = h.run_repo.get(run.id).await.unwrap().unwrap();
+        assert_eq!(persisted.state, RunState::Cancelled);
+
+        // Verify the trip event payload mentions the retries dimension.
+        let events = h.event_repo.list_by_run(run.id).await.unwrap();
+        let trip = events
+            .iter()
+            .find(|e| e.kind == EventKind::BudgetTripped)
+            .expect("budget_tripped event missing");
+        let payload = trip.payload_json.as_ref().expect("trip payload");
+        assert_eq!(
+            payload.get("dimension").and_then(|v| v.as_str()),
+            Some("retries")
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn approval_checkpoint_blocks_then_resumes_on_approve() {
+        let h = setup(mk_config(vec![StepKey::Code])).await;
+        let mut run = insert_run(&h.run_repo, RunBudget::default()).await;
+
+        let cancel = CancellationToken::new();
+        let attention_repo = Arc::clone(&h.attention_repo);
+        let reply = tokio::spawn(reply_attention_when_created(
+            attention_repo,
+            run.id,
+            AttentionReply::Approval {
+                approved: true,
+                reason: Some("LGTM".into()),
+            },
+        ));
+
+        let decision = h
+            .engine
+            .pre_step_gate(&mut run, StepKey::Code, &cancel)
+            .await
+            .expect("gate completes");
+        reply.await.unwrap();
+
+        assert!(matches!(decision, GateDecision::Continue));
+        let persisted = h.run_repo.get(run.id).await.unwrap().unwrap();
+        assert_eq!(persisted.state, RunState::Coding);
+        assert_eq!(persisted.pause_kind, PauseKind::None);
+
+        // Approval request persisted + resolved as approved.
+        let requests = h.attention_repo.list_by_run(run.id).await.unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].kind, AttentionKind::Approval);
+        assert!(matches!(
+            requests[0].reply,
+            Some(AttentionReply::Approval { approved: true, .. })
+        ));
+
+        // An approval_gate_entered event was recorded.
+        let events = h.event_repo.list_by_run(run.id).await.unwrap();
+        assert!(
+            events
+                .iter()
+                .any(|e| e.kind == EventKind::ApprovalGateEntered),
+            "expected an approval_gate_entered event"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn approval_checkpoint_rejection_fails_run_with_reason() {
+        let h = setup(mk_config(vec![StepKey::Code])).await;
+        let mut run = insert_run(&h.run_repo, RunBudget::default()).await;
+
+        let cancel = CancellationToken::new();
+        let attention_repo = Arc::clone(&h.attention_repo);
+        let reply = tokio::spawn(reply_attention_when_created(
+            attention_repo,
+            run.id,
+            AttentionReply::Approval {
+                approved: false,
+                reason: Some("insufficient context".into()),
+            },
+        ));
+
+        let decision = h
+            .engine
+            .pre_step_gate(&mut run, StepKey::Code, &cancel)
+            .await
+            .expect("gate completes");
+        reply.await.unwrap();
+
+        assert!(matches!(decision, GateDecision::Terminated));
+        let persisted = h.run_repo.get(run.id).await.unwrap().unwrap();
+        assert_eq!(persisted.state, RunState::Failed);
+        let err = persisted
+            .error_message
+            .as_deref()
+            .expect("error_message populated on rejection");
+        assert!(
+            err.contains("insufficient context"),
+            "error_message must echo the operator's reason: got {err:?}"
+        );
+        assert!(err.contains("code"), "error_message must mention the step");
     }
 }

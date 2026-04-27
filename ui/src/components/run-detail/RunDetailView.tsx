@@ -3,9 +3,11 @@ import { AttentionRequestPanel } from '@/components/run-detail/AttentionRequestP
 import { InterruptPanel } from '@/components/run-detail/InterruptPanel'
 import { RaiseAttentionRequestForm } from '@/components/run-detail/RaiseAttentionRequestForm'
 import { ReviewResults } from '@/components/run-detail/ReviewResults'
+import { RunBudgetCard } from '@/components/run-detail/RunBudgetCard'
 import { RunDetailHeader } from '@/components/run-detail/RunDetailHeader'
 import { RunHero } from '@/components/run-detail/RunHero'
 import { RunLedger } from '@/components/run-detail/RunLedger'
+import { RunPauseBanner } from '@/components/run-detail/RunPauseBanner'
 import { SessionList } from '@/components/run-detail/SessionList'
 import { StepTimeline } from '@/components/run-detail/StepTimeline'
 import { TerminalTakeover } from '@/components/run-detail/TerminalTakeover'
@@ -52,6 +54,8 @@ export function RunDetailView({ runId, refTime = Date.now() }: { runId: string; 
 			/>
 
 			<div className="mx-auto max-w-4xl px-5 py-6">
+				<RunPauseBanner run={detail.run} />
+
 				<RunHero
 					run={detail.run}
 					pr={detail.pr}
@@ -60,6 +64,8 @@ export function RunDetailView({ runId, refTime = Date.now() }: { runId: string; 
 					interrupts={detail.interrupts}
 					refTime={refTime}
 				/>
+
+				<RunBudgetCard run={detail.run} steps={detail.steps} refTime={refTime} />
 
 				{detail.showInterrupts ? (
 					<section className="mb-8">

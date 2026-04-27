@@ -8,14 +8,14 @@ use superkick_core::{
     EventKind, EventLevel, LaunchReason, ReviewFinding, ReviewSwarmResult, RunEvent, RunStep,
 };
 use superkick_storage::repo::{
-    AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
-    RunStepRepo, TranscriptRepo,
+    AgentSessionRepo, ArtifactRepo, AttentionRequestRepo, InterruptRepo, InterruptTxRepo,
+    RunEventRepo, RunRepo, RunStepRepo, TranscriptRepo,
 };
 
 use super::{DEFAULT_AGENT_TIMEOUT, StepEngine, build_full_prompt};
 use crate::agent_supervisor::{AgentHandle, AgentLaunchConfig, SessionLaunchInfo};
 
-impl<R, ST, E, A, AR, I, T> StepEngine<R, ST, E, A, AR, I, T>
+impl<R, ST, E, A, AR, I, AT, T> StepEngine<R, ST, E, A, AR, I, AT, T>
 where
     R: RunRepo + 'static,
     ST: RunStepRepo + 'static,
@@ -23,6 +23,7 @@ where
     A: AgentSessionRepo + 'static,
     AR: ArtifactRepo + 'static,
     I: InterruptRepo + InterruptTxRepo + 'static,
+    AT: AttentionRequestRepo + 'static,
     T: TranscriptRepo + 'static,
 {
     /// Execute the ReviewSwarm step: launch N review agents in parallel, aggregate findings.

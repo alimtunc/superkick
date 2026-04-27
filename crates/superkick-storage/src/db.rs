@@ -7,12 +7,22 @@ use std::str::FromStr;
 
 /// Create a connection pool with WAL mode enabled and run migrations.
 pub async fn connect(database_url: &str) -> Result<SqlitePool> {
-    let options = SqliteConnectOptions::from_str(database_url)?
-        .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
-        .create_if_missing(true);
+    connect_with_capacity(database_url, 5).await
+}
+
+/// Variant that caps the connection pool. Used by tests backed by
+/// `sqlite::memory:` where each additional connection would open its own
+/// (empty) in-memory database and hide writes from concurrent readers —
+/// forcing `max_connections = 1` serialises access and avoids the split.
+pub async fn connect_with_capacity(database_url: &str, max_connections: u32) -> Result<SqlitePool> {
+    let mut options = SqliteConnectOptions::from_str(database_url)?.create_if_missing(true);
+    // WAL journaling requires a real disk file — skip it for in-memory tests.
+    if !database_url.contains(":memory:") {
+        options = options.journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
+    }
 
     let pool = SqlitePoolOptions::new()
-        .max_connections(5)
+        .max_connections(max_connections)
         .connect_with(options)
         .await?;
 
@@ -94,6 +104,14 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
         (
             "013_issue_blockers",
             include_str!("../migrations/013_issue_blockers.sql"),
+        ),
+        (
+            "014_run_budget_and_pause",
+            include_str!("../migrations/014_run_budget_and_pause.sql"),
+        ),
+        (
+            "015_run_budget_grant",
+            include_str!("../migrations/015_run_budget_grant.sql"),
         ),
     ];
 

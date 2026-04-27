@@ -38,6 +38,7 @@ type Engine = StepEngine<
     SqliteAgentSessionRepo,
     SqliteArtifactRepo,
     SqliteInterruptRepo,
+    SqliteAttentionRequestRepo,
     SqliteTranscriptRepo,
 >;
 
@@ -76,6 +77,10 @@ pub(crate) struct AppState {
     pub launch_profile: LaunchProfileConfig,
     pub orchestration: OrchestrationConfig,
     pub issue_trigger: IssueTrigger,
+    /// Run-level budget snapshot applied to every new run at launch time.
+    /// Computed once from `BudgetConfig` on boot; mid-flight config changes do
+    /// not retroactively affect in-flight runs.
+    pub run_budget: superkick_core::RunBudget,
 }
 
 // ── Server config ─────────────────────────────────────────────────────
@@ -96,6 +101,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let launch_profile = config.launch_profile.clone();
     let orchestration = config.orchestration.clone();
     let issue_trigger = config.issue_source.trigger;
+    let run_budget = config.budget.run_budget_snapshot();
     let repo_slug = detect_repo_slug().unwrap_or_else(|| {
         tracing::warn!("could not detect repo_slug from git remote — /config will return empty");
         String::new()
@@ -146,6 +152,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         session_repo: Arc::clone(&session_repo),
         artifact_repo: Arc::clone(&artifact_repo),
         interrupt_repo: Arc::clone(&interrupt_repo),
+        attention_repo: Arc::clone(&attention_repo),
         transcript_repo: Arc::clone(&transcript_repo),
         registry: Arc::clone(&pty_registry),
         repo_cache,
@@ -197,6 +204,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         launch_profile,
         orchestration,
         issue_trigger,
+        run_budget,
     };
 
     let app = Router::new()

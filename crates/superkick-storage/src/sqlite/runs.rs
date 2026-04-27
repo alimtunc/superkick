@@ -1,6 +1,9 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use sqlx::SqlitePool;
-use superkick_core::{ExecutionMode, Run, RunId, RunState, StepKey, TriggerSource};
+use superkick_core::{
+    ExecutionMode, PauseKind, Run, RunBudget, RunBudgetGrant, RunId, RunState, StepKey,
+    TriggerSource,
+};
 
 use super::codec::{deserialize_enum, serialize_enum};
 use crate::repo::RunRepo;
@@ -17,9 +20,12 @@ impl SqliteRunRepo {
 
 impl RunRepo for SqliteRunRepo {
     async fn insert(&self, run: &Run) -> Result<()> {
+        let budget_json = serde_json::to_string(&run.budget).context("serialize run budget")?;
+        let budget_grant_json =
+            serde_json::to_string(&run.budget_grant).context("serialize run budget_grant")?;
         sqlx::query(
-            "INSERT INTO runs (id, issue_id, issue_identifier, repo_slug, state, trigger_source, execution_mode, current_step_key, base_branch, use_worktree, worktree_path, branch_name, operator_instructions, started_at, updated_at, finished_at, error_message)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+            "INSERT INTO runs (id, issue_id, issue_identifier, repo_slug, state, trigger_source, execution_mode, current_step_key, base_branch, use_worktree, worktree_path, branch_name, operator_instructions, started_at, updated_at, finished_at, error_message, budget_json, pause_kind, pause_reason, budget_grant_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
         )
         .bind(run.id.0.to_string())
         .bind(&run.issue_id)
@@ -38,6 +44,10 @@ impl RunRepo for SqliteRunRepo {
         .bind(run.updated_at.to_rfc3339())
         .bind(run.finished_at.map(|t| t.to_rfc3339()))
         .bind(&run.error_message)
+        .bind(budget_json)
+        .bind(serialize_enum(&run.pause_kind)?)
+        .bind(&run.pause_reason)
+        .bind(budget_grant_json)
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -89,8 +99,11 @@ impl RunRepo for SqliteRunRepo {
     }
 
     async fn update(&self, run: &Run) -> Result<()> {
+        let budget_json = serde_json::to_string(&run.budget).context("serialize run budget")?;
+        let budget_grant_json =
+            serde_json::to_string(&run.budget_grant).context("serialize run budget_grant")?;
         sqlx::query(
-            "UPDATE runs SET state = ?1, trigger_source = ?2, current_step_key = ?3, worktree_path = ?4, branch_name = ?5, operator_instructions = ?6, updated_at = ?7, finished_at = ?8, error_message = ?9 WHERE id = ?10",
+            "UPDATE runs SET state = ?1, trigger_source = ?2, current_step_key = ?3, worktree_path = ?4, branch_name = ?5, operator_instructions = ?6, updated_at = ?7, finished_at = ?8, error_message = ?9, budget_json = ?10, pause_kind = ?11, pause_reason = ?12, budget_grant_json = ?13 WHERE id = ?14",
         )
         .bind(serialize_enum(&run.state)?)
         .bind(serialize_enum(&run.trigger_source)?)
@@ -101,6 +114,10 @@ impl RunRepo for SqliteRunRepo {
         .bind(run.updated_at.to_rfc3339())
         .bind(run.finished_at.map(|t| t.to_rfc3339()))
         .bind(&run.error_message)
+        .bind(budget_json)
+        .bind(serialize_enum(&run.pause_kind)?)
+        .bind(&run.pause_reason)
+        .bind(budget_grant_json)
         .bind(run.id.0.to_string())
         .execute(&self.pool)
         .await?;
@@ -127,10 +144,25 @@ struct RunRow {
     updated_at: String,
     finished_at: Option<String>,
     error_message: Option<String>,
+    budget_json: String,
+    pause_kind: String,
+    pause_reason: Option<String>,
+    budget_grant_json: String,
 }
 
 impl RunRow {
     fn into_domain(self) -> Result<Run> {
+        let budget: RunBudget = if self.budget_json.trim().is_empty() {
+            RunBudget::default()
+        } else {
+            serde_json::from_str(&self.budget_json).context("deserialize run budget_json")?
+        };
+        let budget_grant: RunBudgetGrant = if self.budget_grant_json.trim().is_empty() {
+            RunBudgetGrant::default()
+        } else {
+            serde_json::from_str(&self.budget_grant_json)
+                .context("deserialize run budget_grant_json")?
+        };
         Ok(Run {
             id: RunId(uuid::Uuid::parse_str(&self.id)?),
             issue_id: self.issue_id,
@@ -157,6 +189,10 @@ impl RunRow {
                 .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
                 .transpose()?,
             error_message: self.error_message,
+            budget,
+            budget_grant,
+            pause_kind: deserialize_enum::<PauseKind>(&self.pause_kind)?,
+            pause_reason: self.pause_reason,
         })
     }
 }

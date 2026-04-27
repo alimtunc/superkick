@@ -35,7 +35,10 @@ impl RunState {
     pub fn allowed_transitions(self) -> &'static [RunState] {
         use RunState::*;
         match self {
-            Queued => &[Preparing, Cancelled],
+            // `Queued → WaitingHuman` lets `pre_step_gate` pause a fresh run
+            // before its first step (e.g. approval checkpoint on `Prepare`, or
+            // a duration tripwire that fires the moment the run is queued).
+            Queued => &[Preparing, WaitingHuman, Cancelled],
             Preparing => &[Planning, WaitingHuman, Failed, Cancelled],
             Planning => &[Coding, WaitingHuman, Failed, Cancelled],
             Coding => &[RunningCommands, WaitingHuman, Failed, Cancelled],
@@ -124,6 +127,71 @@ impl std::fmt::Display for ExecutionMode {
     }
 }
 
+/// Per-run execution contract. Any dimension set to `None` is not enforced.
+///
+/// The budget is copied from project config at launch time and then persisted
+/// against the run so a config change mid-flight cannot retroactively widen or
+/// tighten an in-flight run. The supervisor checks each dimension before every
+/// step and transitions to `WaitingHuman` when one trips.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunBudget {
+    /// Hard wall-clock ceiling in seconds from `started_at` to step entry.
+    pub duration_secs: Option<u64>,
+    /// Sum of `(attempt - 1)` across every run step. Caps cumulative retry
+    /// cost, orthogonal to the per-step `max_retries_per_step` policy.
+    pub retries_max: Option<u32>,
+    /// Aggregate token ceiling across every session in the run.
+    /// When no integration reports tokens, this dimension is skipped rather
+    /// than tripped (see SUP-72 plan, risk 1).
+    pub token_ceiling: Option<u64>,
+}
+
+/// Snapshot of observed budget usage at the moment of an operator override.
+///
+/// Without this baseline, every subsequent `pre_step_gate` would re-evaluate
+/// the same observed counters against the same limits and trip again on the
+/// next step — pause → override → run one step → pause → override forever.
+/// The evaluator subtracts these offsets from the live observed values, so an
+/// override grants a fresh full budget cycle from "now" for each dimension.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunBudgetGrant {
+    /// Seconds of duration that were already consumed when the operator
+    /// overrode the trip — subtracted from `now - started_at` on next check.
+    #[serde(default)]
+    pub duration_secs: u64,
+    /// Cumulative retry count at override time.
+    #[serde(default)]
+    pub retries: u32,
+    /// Aggregate token usage at override time.
+    #[serde(default)]
+    pub tokens: u64,
+}
+
+/// Structured reason a run is paused. `None` means "not paused", even when
+/// `RunState::WaitingHuman` because of an unrelated reason (e.g. step failure).
+///
+/// We keep `WaitingHuman` as the only "paused" state and discriminate the
+/// *cause* via this enum + `pause_reason` — avoids fragmenting the state
+/// machine while still letting the UI render distinct affordances.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PauseKind {
+    #[default]
+    None,
+    Budget,
+    Approval,
+}
+
+impl std::fmt::Display for PauseKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::None => f.write_str("none"),
+            Self::Budget => f.write_str("budget"),
+            Self::Approval => f.write_str("approval"),
+        }
+    }
+}
+
 /// A single run of the Superkick pipeline for one issue.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Run {
@@ -144,6 +212,21 @@ pub struct Run {
     pub updated_at: DateTime<Utc>,
     pub finished_at: Option<DateTime<Utc>>,
     pub error_message: Option<String>,
+    /// Execution contract snapshotted at launch. Enforced pre-step by the supervisor.
+    #[serde(default)]
+    pub budget: RunBudget,
+    /// Cumulative offsets applied by operator overrides — subtracted from
+    /// observed values so a budget trip + override grants a fresh budget cycle
+    /// rather than re-tripping immediately on the next step.
+    #[serde(default)]
+    pub budget_grant: RunBudgetGrant,
+    /// Discriminator for *why* the run is paused — see `pause_reason` for the
+    /// human-readable detail.
+    #[serde(default)]
+    pub pause_kind: PauseKind,
+    /// Free-form reason rendered to the operator when the run is paused.
+    #[serde(default)]
+    pub pause_reason: Option<String>,
 }
 
 /// Lightweight run reference for embedding in issue detail payloads.
@@ -198,6 +281,10 @@ impl Run {
     }
 
     /// Create a new run in the `Queued` state.
+    ///
+    /// The budget defaults to an empty `RunBudget` (no enforcement). Chain
+    /// `.with_budget(...)` at launch time to snapshot the project budget into
+    /// the run — keeping `Run::new` backwards-compatible with test helpers.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         issue_id: String,
@@ -228,7 +315,19 @@ impl Run {
             updated_at: now,
             finished_at: None,
             error_message: None,
+            budget: RunBudget::default(),
+            budget_grant: RunBudgetGrant::default(),
+            pause_kind: PauseKind::None,
+            pause_reason: None,
         }
+    }
+
+    /// Attach a budget contract to a freshly created run. Typically called
+    /// with `config.budget.run_budget_snapshot()` at launch time.
+    #[must_use]
+    pub fn with_budget(mut self, budget: RunBudget) -> Self {
+        self.budget = budget;
+        self
     }
 
     /// Transition the run to a new state.
@@ -240,5 +339,37 @@ impl Run {
             self.finished_at = Some(now);
         }
         Ok(())
+    }
+
+    /// Mark the run as paused with a structured reason. Caller is responsible
+    /// for persisting and emitting the corresponding event — this only mutates
+    /// the in-memory pause fields.
+    pub fn mark_paused(&mut self, kind: PauseKind, reason: impl Into<String>) {
+        self.pause_kind = kind;
+        self.pause_reason = Some(reason.into());
+    }
+
+    /// Clear the pause metadata. Call after the operator has resolved the
+    /// gate (approve / override / reject).
+    pub fn clear_pause(&mut self) {
+        self.pause_kind = PauseKind::None;
+        self.pause_reason = None;
+    }
+
+    /// Append a labelled note to `operator_instructions`. The note is rendered
+    /// to the agent under a section header (e.g. "budget override",
+    /// "semi-auto checkpoint") so multiple checkpoints in one run remain
+    /// distinguishable. No-op when `note` is empty.
+    pub fn append_operator_note(&mut self, header: &str, note: &str) {
+        if note.is_empty() {
+            return;
+        }
+        let existing = self.operator_instructions.take().unwrap_or_default();
+        let combined = if existing.is_empty() {
+            note.to_string()
+        } else {
+            format!("{existing}\n\n--- Operator note ({header}) ---\n{note}")
+        };
+        self.operator_instructions = Some(combined);
     }
 }

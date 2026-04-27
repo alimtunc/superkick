@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{Interrupt, InterruptId, InterruptStatus, Run, RunId, StepId};
 
@@ -71,9 +71,11 @@ impl InterruptTxRepo for SqliteInterruptRepo {
     async fn create_interrupt_atomic(&self, run: &Run, interrupt: &Interrupt) -> Result<()> {
         let mut tx = self.pool.begin().await?;
 
+        let budget_json = serde_json::to_string(&run.budget).context("serialize run budget")?;
+
         // 1. Update run state.
         sqlx::query(
-            "UPDATE runs SET state = ?1, trigger_source = ?2, current_step_key = ?3, worktree_path = ?4, branch_name = ?5, updated_at = ?6, finished_at = ?7, error_message = ?8 WHERE id = ?9",
+            "UPDATE runs SET state = ?1, trigger_source = ?2, current_step_key = ?3, worktree_path = ?4, branch_name = ?5, updated_at = ?6, finished_at = ?7, error_message = ?8, budget_json = ?9, pause_kind = ?10, pause_reason = ?11 WHERE id = ?12",
         )
         .bind(serialize_enum(&run.state)?)
         .bind(serialize_enum(&run.trigger_source)?)
@@ -83,6 +85,9 @@ impl InterruptTxRepo for SqliteInterruptRepo {
         .bind(run.updated_at.to_rfc3339())
         .bind(run.finished_at.map(|t| t.to_rfc3339()))
         .bind(&run.error_message)
+        .bind(budget_json)
+        .bind(serialize_enum(&run.pause_kind)?)
+        .bind(&run.pause_reason)
         .bind(run.id.0.to_string())
         .execute(&mut *tx)
         .await?;
