@@ -51,6 +51,13 @@ function OverviewPage() {
 			<FocusedRunPanel refTime={reliability.refTime} />
 
 			<div className="mx-auto flex max-w-360 flex-col gap-16 px-6 py-12">
+				<header className="flex flex-col gap-1">
+					<h1 className="font-data text-[20px] tracking-wider text-fog uppercase">Inbox</h1>
+					<p className="font-data text-[11px] text-dim">
+						Triage what needs your attention before launching new work.
+					</p>
+				</header>
+
 				{errorMessage ? (
 					<div className="panel glow-red font-data p-3 text-[12px] text-oxide">{errorMessage}</div>
 				) : null}
@@ -58,9 +65,9 @@ function OverviewPage() {
 				{/* ── Operator queue ── */}
 				<div className="flex flex-col gap-6">
 					<div className="flex flex-wrap items-baseline gap-4">
-						<h1 className="font-data text-[13px] tracking-widest text-fog uppercase">
+						<h2 className="font-data text-[13px] tracking-widest text-fog uppercase">
 							Operator Queue
-						</h1>
+						</h2>
 						<p className="font-data text-[11px] text-dim">
 							{queue.actionable > 0
 								? `${queue.actionable} need action · ${queue.totalInFlight} in flight`
