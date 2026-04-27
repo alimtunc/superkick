@@ -6,14 +6,14 @@ use tracing::{info, warn};
 use superkick_core::EventKind;
 use superkick_core::EventLevel;
 use superkick_storage::repo::{
-    AgentSessionRepo, ArtifactRepo, InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo,
-    RunStepRepo, TranscriptRepo,
+    AgentSessionRepo, ArtifactRepo, AttentionRequestRepo, InterruptRepo, InterruptTxRepo,
+    RunEventRepo, RunRepo, RunStepRepo, TranscriptRepo,
 };
 
 use super::StepEngine;
 use crate::worktree::{WorktreeInfo, WorktreeManager};
 
-impl<R, ST, E, A, AR, I, T> StepEngine<R, ST, E, A, AR, I, T>
+impl<R, ST, E, A, AR, I, AT, T> StepEngine<R, ST, E, A, AR, I, AT, T>
 where
     R: RunRepo + 'static,
     ST: RunStepRepo + 'static,
@@ -21,6 +21,7 @@ where
     A: AgentSessionRepo + 'static,
     AR: ArtifactRepo + 'static,
     I: InterruptRepo + InterruptTxRepo + 'static,
+    AT: AttentionRequestRepo + 'static,
     T: TranscriptRepo + 'static,
 {
     /// Prepare step: ensure bare clone exists, create worktree (or use repo root).

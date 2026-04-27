@@ -134,7 +134,19 @@ pub fn queue_card_reason(inputs: QueueInputs<'_>) -> String {
     }
     match inputs.run.state {
         RunState::Failed => return "run failed — retry or archive".into(),
-        RunState::WaitingHuman => return "waiting on human".into(),
+        RunState::WaitingHuman => {
+            // Surface the structured pause reason when we have one
+            // (SUP-72 criterion 4). Falls back to the generic string so pre-72
+            // runs with `pause_kind = 'none'` keep their previous copy.
+            if let Some(reason) = inputs.run.pause_reason.as_deref() {
+                return match inputs.run.pause_kind {
+                    crate::run::PauseKind::Budget => format!("paused — budget: {reason}"),
+                    crate::run::PauseKind::Approval => format!("paused — approval: {reason}"),
+                    crate::run::PauseKind::None => format!("paused — {reason}"),
+                };
+            }
+            return "waiting on human".into();
+        }
         _ => {}
     }
     if let Some(pr) = inputs.pr {

@@ -41,6 +41,8 @@ const LEDGER_KINDS = new Set<EventKind>([
 	'review_completed',
 	'external_attach',
 	'operator_input',
+	'budget_tripped',
+	'approval_gate_entered',
 	'error'
 ])
 
@@ -69,9 +71,11 @@ export function categoryOf(kind: EventKind): LedgerCategory {
 		case 'attention_requested':
 		case 'attention_replied':
 		case 'attention_cancelled':
+		case 'approval_gate_entered':
 			return 'attention'
 		case 'interrupt_created':
 		case 'interrupt_resolved':
+		case 'budget_tripped':
 			return 'interrupt'
 		case 'ownership_taken_over':
 		case 'ownership_released':

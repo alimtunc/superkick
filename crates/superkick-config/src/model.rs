@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use superkick_core::{
-    AgentCatalog, AgentProvider, CoreAgentDefinition as CoreAgent, LinearContextMode, RunPolicy,
+    AgentCatalog, AgentProvider, CoreAgentDefinition as CoreAgent, LinearContextMode, RunBudget,
+    RunPolicy, StepKey,
 };
 
 // ── Root ────────────────────────────────────────────────────────────
@@ -260,6 +261,19 @@ pub struct BudgetConfig {
     pub max_parallel_agents: u32,
     #[serde(default = "default_token_budget")]
     pub token_budget: TokenBudget,
+    /// Hard wall-clock ceiling in minutes. When set, the supervisor pauses
+    /// the run for operator review once the elapsed time exceeds the value.
+    /// Omit to disable the tripwire.
+    #[serde(default)]
+    pub duration_mins_per_run: Option<u64>,
+    /// Cumulative retry ceiling across every step of a run. Orthogonal to
+    /// `max_retries_per_step` which caps per-step attempts. Omit to disable.
+    #[serde(default)]
+    pub retries_max_per_run: Option<u32>,
+    /// Aggregate token ceiling across every agent session. Skipped when no
+    /// integration reports token usage for the run.
+    #[serde(default)]
+    pub token_ceiling: Option<u64>,
 }
 
 impl Default for BudgetConfig {
@@ -268,6 +282,24 @@ impl Default for BudgetConfig {
             max_retries_per_step: default_max_retries(),
             max_parallel_agents: default_max_parallel(),
             token_budget: default_token_budget(),
+            duration_mins_per_run: None,
+            retries_max_per_run: None,
+            token_ceiling: None,
+        }
+    }
+}
+
+impl BudgetConfig {
+    /// Snapshot the run-level dimensions of this config into a `RunBudget`
+    /// that gets persisted on the `Run`. The minute-based config is converted
+    /// to the second-based domain type so the supervisor's tripwire math
+    /// stays in a single unit.
+    #[must_use]
+    pub fn run_budget_snapshot(&self) -> RunBudget {
+        RunBudget {
+            duration_secs: self.duration_mins_per_run.map(|m| m.saturating_mul(60)),
+            retries_max: self.retries_max_per_run,
+            token_ceiling: self.token_ceiling,
         }
     }
 }
@@ -330,6 +362,12 @@ pub struct OrchestrationConfig {
     pub max_concurrent_active_runs: u32,
     #[serde(default)]
     pub approval_required_for: ApprovalRulesConfig,
+    /// Step keys that require an explicit operator approval before the
+    /// supervisor will enter them. The supervisor creates an
+    /// `AttentionRequest` of kind `approval` and pauses until the operator
+    /// replies. Empty by default — operators opt in per deployment.
+    #[serde(default)]
+    pub approval_checkpoints: Vec<StepKey>,
 }
 
 impl Default for OrchestrationConfig {
@@ -337,6 +375,7 @@ impl Default for OrchestrationConfig {
         Self {
             max_concurrent_active_runs: default_max_concurrent_active_runs(),
             approval_required_for: ApprovalRulesConfig::default(),
+            approval_checkpoints: Vec::new(),
         }
     }
 }

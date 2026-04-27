@@ -64,7 +64,10 @@ pub use role_router::{
     AgentCatalog, AgentDefinition as CoreAgentDefinition, ResolvedAgent, RoleRouter, RouterError,
     RunPolicy,
 };
-pub use run::{ExecutionMode, LinkedRunSummary, Run, RunState, TriggerSource};
+pub use run::{
+    ExecutionMode, LinkedRunSummary, PauseKind, Run, RunBudget, RunBudgetGrant, RunState,
+    TriggerSource,
+};
 pub use session_lifecycle::{SessionLifecycleEvent, SessionLifecyclePhase};
 pub use step::{RunStep, StepKey, StepStatus};
 pub use transcript::TranscriptChunk;

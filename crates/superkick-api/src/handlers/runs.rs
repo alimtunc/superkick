@@ -102,7 +102,8 @@ pub(crate) async fn spawn_run_from_request(
         base_branch,
         use_worktree,
         operator_instructions,
-    );
+    )
+    .with_budget(state.run_budget);
 
     if let Err(err) = state.run_repo.insert(&run).await {
         if is_unique_violation(&err) {

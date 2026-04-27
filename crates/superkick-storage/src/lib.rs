@@ -4,7 +4,7 @@ pub mod db;
 pub mod repo;
 pub mod sqlite;
 
-pub use db::connect;
+pub use db::{connect, connect_with_capacity};
 pub use sqlite::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteHandoffRepo,
     SqliteInterruptRepo, SqliteIssueBlockerRepo, SqlitePullRequestRepo, SqliteRunEventRepo,
