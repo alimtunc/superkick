@@ -57,8 +57,21 @@ export function fmtSecondsCompact(seconds: number): string {
 	return minutes === 0 ? `${hours}h` : `${hours}h${minutes}m`
 }
 
-export function fmtRelativeTime(iso: string): string {
-	const diff = Date.now() - new Date(iso).getTime()
+/**
+ * Render a relative-time label like `2m ago`. Accepts ms-since-epoch, an
+ * ISO/string the `Date` constructor understands, or a `Date` directly so
+ * callers don't have to round-trip through `toISOString()`. Pass an explicit
+ * `refTime` to keep the result stable across re-renders (avoids the implicit
+ * `Date.now()` that fights TanStack Query / React Compiler memoisation).
+ */
+export function fmtRelativeTime(value: number | string | Date, refTime: number = Date.now()): string {
+	const ts =
+		value instanceof Date
+			? value.getTime()
+			: typeof value === 'number'
+				? value
+				: new Date(value).getTime()
+	const diff = refTime - ts
 	const sec = Math.floor(diff / 1000)
 	if (sec < 60) return 'just now'
 	const min = Math.floor(sec / 60)
@@ -67,5 +80,5 @@ export function fmtRelativeTime(iso: string): string {
 	if (h < 24) return `${h}h ago`
 	const d = Math.floor(h / 24)
 	if (d < 30) return `${d}d ago`
-	return new Date(iso).toLocaleDateString()
+	return new Date(ts).toLocaleDateString()
 }
