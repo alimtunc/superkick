@@ -20,7 +20,7 @@ use axum::extract::State;
 use axum::response::Json;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use superkick_core::{LinkedPrSummary, OperatorQueue, Run, SessionOwnership};
+use superkick_core::{LinkedPrSummary, OperatorQueue, Run, SessionOwnership, StalledReason};
 
 use crate::AppState;
 use crate::error::AppError;
@@ -41,6 +41,16 @@ pub struct QueueRunSummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pr: Option<LinkedPrSummary>,
     pub ownership: Vec<SessionOwnership>,
+    /// SUP-73 — staleness annotation. Both fields are `None` when the run is
+    /// healthy. The run still lives in its `queue` bucket; staleness is an
+    /// annotation, not a re-classification.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stalled_for_seconds: Option<u64>,
+    /// Structured cause from the classifier. Mirrors `StalledReason` so the
+    /// UI can humanize per kind (`awaiting_human` → "awaiting human", etc.)
+    /// rather than re-parsing a flattened display string.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stalled_reason: Option<StalledReason>,
 }
 
 #[derive(Debug, Serialize)]
@@ -70,6 +80,8 @@ fn into_summary(triage: RunTriage) -> QueueRunSummary {
         pending_interrupt_count: triage.pending_interrupt_count,
         pr: triage.pr,
         ownership: triage.ownership,
+        stalled_for_seconds: triage.stalled_for_seconds,
+        stalled_reason: triage.stalled_reason,
     }
 }
 

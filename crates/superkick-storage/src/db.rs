@@ -113,6 +113,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "015_run_budget_grant",
             include_str!("../migrations/015_run_budget_grant.sql"),
         ),
+        (
+            "016_run_heartbeat_recovery",
+            include_str!("../migrations/016_run_heartbeat_recovery.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

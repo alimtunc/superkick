@@ -81,15 +81,39 @@ export interface DependencyResolvedEvent {
 export type IssueEvent = DependencyResolvedEvent
 
 /**
- * Workspace-level run event envelope (SUP-84 + SUP-81). The shell broker
- * subscribes once to `GET /api/events` and receives every event produced
- * process-wide wrapped in this tagged union. The Rust backend flattens the
- * inner event fields alongside the `type` discriminant.
+ * Recovery scheduler stalled-reason payload (SUP-73). Mirrors
+ * `superkick_core::recovery::StalledReason` so the structured cause is
+ * available to subscribers without re-deriving copy.
+ */
+export type StalledReason =
+	| { kind: 'never_dispatched'; state: string; age_secs: number }
+	| { kind: 'awaiting_human'; age_secs: number }
+	| { kind: 'no_heartbeat'; state: string; age_secs: number }
+
+export interface RunStalledPayload {
+	run_id: string
+	since: string
+	reason: StalledReason
+	detected_at: string
+}
+
+export interface RunRecoveredPayload {
+	run_id: string
+	detected_at: string
+}
+
+/**
+ * Workspace-level run event envelope (SUP-84 + SUP-81 + SUP-73). The shell
+ * broker subscribes once to `GET /api/events` and receives every event
+ * produced process-wide wrapped in this tagged union. The Rust backend
+ * flattens the inner event fields alongside the `type` discriminant.
  */
 export type WorkspaceRunEvent =
 	| ({ type: 'run_event' } & RunEvent)
 	| ({ type: 'session_lifecycle' } & SessionLifecycleEvent)
 	| ({ type: 'issue_event' } & IssueEvent)
+	| ({ type: 'run_stalled' } & RunStalledPayload)
+	| ({ type: 'run_recovered' } & RunRecoveredPayload)
 
 /**
  * Shell broker subscription filter. Omit fields to match everything — the

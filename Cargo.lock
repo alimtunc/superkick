@@ -2297,6 +2297,7 @@ dependencies = [
  "indexmap",
  "serde",
  "serde_json",
+ "sqlx",
  "superkick-config",
  "superkick-core",
  "superkick-integrations",

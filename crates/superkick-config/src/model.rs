@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::time::Duration;
 use superkick_core::{
-    AgentCatalog, AgentProvider, CoreAgentDefinition as CoreAgent, LinearContextMode, RunBudget,
-    RunPolicy, StepKey,
+    AgentCatalog, AgentProvider, CoreAgentDefinition as CoreAgent, LinearContextMode,
+    RecoveryConfig, RunBudget, RunPolicy, RunState, StepKey,
 };
 
 // ── Root ────────────────────────────────────────────────────────────
@@ -22,6 +24,8 @@ pub struct SuperkickConfig {
     pub launch_profile: LaunchProfileConfig,
     #[serde(default)]
     pub orchestration: OrchestrationConfig,
+    #[serde(default)]
+    pub recovery: RecoverySettings,
 }
 
 // ── Issue source ────────────────────────────────────────────────────
@@ -392,6 +396,43 @@ pub struct ApprovalRulesConfig {
     /// Linear priorities: 0 = None, 1 = Urgent, 2 = High, 3 = Medium, 4 = Low.
     #[serde(default)]
     pub priorities: Vec<u8>,
+}
+
+// ── Recovery scheduler (SUP-73) ─────────────────────────────────────
+//
+// Heartbeat-driven recovery. The defaults live in
+// [`superkick_core::RecoveryConfig`] so they stay in one place; this section
+// only exposes operator-tunable knobs. Empty / unset fields fall through to
+// the core defaults — that's why each field is `Option`.
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RecoverySettings {
+    /// How often the scheduler ticks. Defaults to
+    /// [`superkick_core::RecoveryConfig::DEFAULT_TICK_INTERVAL`] (30s).
+    #[serde(default)]
+    pub tick_interval_secs: Option<u64>,
+    /// Per-`RunState` staleness ceiling (seconds). Keys must match the
+    /// `RunState` snake_case serde name (`waiting_human`, `coding`, ...).
+    /// Unset states fall back to
+    /// [`superkick_core::RecoveryConfig::default_thresholds`].
+    #[serde(default)]
+    pub thresholds_secs: HashMap<RunState, u64>,
+}
+
+impl RecoverySettings {
+    /// Materialise a [`RecoveryConfig`] from this section, applying the core
+    /// defaults for anything left unset.
+    #[must_use]
+    pub fn to_recovery_config(&self) -> RecoveryConfig {
+        let mut cfg = RecoveryConfig::default();
+        if let Some(tick) = self.tick_interval_secs {
+            cfg.tick_interval = Duration::from_secs(tick);
+        }
+        for (state, secs) in &self.thresholds_secs {
+            cfg.thresholds.insert(*state, Duration::from_secs(*secs));
+        }
+        cfg
+    }
 }
 
 impl Default for LaunchProfileConfig {

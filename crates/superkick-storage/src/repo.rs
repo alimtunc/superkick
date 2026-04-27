@@ -26,6 +26,15 @@ pub trait RunRepo: Send + Sync {
         &self,
         issue_identifier: &str,
     ) -> impl Future<Output = Result<Option<Run>>> + Send;
+    /// Stamp a fresh heartbeat without touching `state` / `updated_at` / pause
+    /// fields. Skips terminal runs at the storage level so a late-arriving
+    /// session lifecycle event for a finished run cannot revive its heartbeat
+    /// clock for the recovery scheduler. See SUP-73 AC1.
+    fn update_heartbeat(
+        &self,
+        run_id: RunId,
+        now: DateTime<Utc>,
+    ) -> impl Future<Output = Result<()>> + Send;
 }
 
 /// Repository for `RunStep` entities.

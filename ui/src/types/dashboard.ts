@@ -1,3 +1,4 @@
+import type { StalledReason } from './events'
 import type { LinkedPrSummary } from './pr'
 import type { Run } from './runs'
 
@@ -47,6 +48,15 @@ export interface QueueRunSummary extends Run {
 	pending_interrupt_count: number
 	pr?: LinkedPrSummary
 	ownership: SessionOwnershipSnapshot[]
+	/**
+	 * SUP-73 — heartbeat-driven recovery annotation. `undefined` when the
+	 * run is healthy. The run still lives in its `queue` bucket; staleness
+	 * annotates without re-classifying. `stalled_for_seconds` measures the
+	 * time since the underlying signal went silent (the classifier's
+	 * `since`), not the time since the scheduler first noticed.
+	 */
+	stalled_for_seconds?: number
+	stalled_reason?: StalledReason
 }
 
 export interface DashboardQueueResponse {

@@ -44,6 +44,19 @@ export function fmtElapsed(startedAt: string, refTime: number): string {
 	return `${h}h ${min % 60}m`
 }
 
+/**
+ * Compact second-precision duration for inline annotations (SUP-73 stalled
+ * badge). Sub-minute as `Ns`, sub-hour as `Nm`, otherwise `NhMm` (omitting
+ * the `Mm` part when zero).
+ */
+export function fmtSecondsCompact(seconds: number): string {
+	if (seconds < 60) return `${seconds}s`
+	if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
+	const hours = Math.floor(seconds / 3600)
+	const minutes = Math.floor((seconds % 3600) / 60)
+	return minutes === 0 ? `${hours}h` : `${hours}h${minutes}m`
+}
+
 export function fmtRelativeTime(iso: string): string {
 	const diff = Date.now() - new Date(iso).getTime()
 	const sec = Math.floor(diff / 1000)

@@ -106,6 +106,18 @@ export function WorkspaceEventsProvider({ children }: { children: ReactNode }) {
 				})
 				queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.queue })
 			}
+
+			// SUP-73 — recovery scheduler annotated a run as stalled or
+			// recovered. Refresh the queue (badge in/out on the card) AND the
+			// detail view (RunDetail surfaces the same annotation, and the
+			// operator may be staring at it when the transition fires).
+			if (notice.type === 'run_stalled' || notice.type === 'run_recovered') {
+				queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.queue })
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.runs.detail(notice.run_id)
+				})
+				return
+			}
 		})
 
 		return () => {
