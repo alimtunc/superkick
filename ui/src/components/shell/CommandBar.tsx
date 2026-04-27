@@ -5,7 +5,7 @@ import { runsQuery } from '@/lib/queries'
 import { useCommandBarStore } from '@/stores/commandBar'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
-import { AlertTriangle, LayoutDashboard, ListTodo, Play, Radio, Search, Settings } from 'lucide-react'
+import { Bot, Inbox, ListTodo, Play, Search, Settings } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 interface CommandItem {
@@ -47,10 +47,10 @@ export function CommandBar() {
 	const navItems: CommandItem[] = useMemo(
 		() => [
 			{
-				id: 'nav:overview',
-				label: 'Go to Overview',
-				hint: 'Dashboard',
-				icon: LayoutDashboard,
+				id: 'nav:inbox',
+				label: 'Go to Inbox',
+				hint: 'Triage',
+				icon: Inbox,
 				run: () => router.navigate({ to: '/' })
 			},
 			{
@@ -68,21 +68,15 @@ export function CommandBar() {
 				run: () => router.navigate({ to: '/runs' })
 			},
 			{
-				id: 'nav:sessions',
-				label: 'Go to Sessions',
-				icon: Radio,
-				run: () => router.navigate({ to: '/sessions' })
-			},
-			{
-				id: 'nav:attention',
-				label: 'Go to Attention',
-				hint: 'Needs human',
-				icon: AlertTriangle,
-				run: () => router.navigate({ to: '/attention' })
+				id: 'nav:agents',
+				label: 'Go to Agents',
+				hint: 'Roles',
+				icon: Bot,
+				run: () => router.navigate({ to: '/agents' })
 			},
 			{
 				id: 'nav:settings',
-				label: 'Settings',
+				label: 'Go to Settings',
 				icon: Settings,
 				run: () => router.navigate({ to: '/settings' })
 			}

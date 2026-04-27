@@ -1,5 +1,5 @@
 import { Link, useMatches } from '@tanstack/react-router'
-import { LayoutDashboard, ListTodo, Play, Radio, AlertTriangle, Rocket, Settings } from 'lucide-react'
+import { Bot, Inbox, ListTodo, Play, Settings } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 interface NavItem {
@@ -10,12 +10,10 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-	{ to: '/', label: 'Overview', icon: LayoutDashboard },
-	{ to: '/queue', label: 'Queue', icon: Rocket },
-	{ to: '/issues', label: 'Issues', icon: ListTodo },
+	{ to: '/', label: 'Inbox', icon: Inbox },
+	{ to: '/issues', label: 'Issues', icon: ListTodo, matchPrefix: '/issues' },
 	{ to: '/runs', label: 'Runs', icon: Play, matchPrefix: '/runs' },
-	{ to: '/sessions', label: 'Sessions', icon: Radio },
-	{ to: '/attention', label: 'Attention', icon: AlertTriangle }
+	{ to: '/agents', label: 'Agents', icon: Bot }
 ]
 
 const BOTTOM_ITEMS: NavItem[] = [{ to: '/settings', label: 'Settings', icon: Settings }]
