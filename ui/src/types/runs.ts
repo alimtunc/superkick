@@ -72,8 +72,6 @@ export interface LinkedRunSummary {
 	pr?: LinkedPrSummary
 }
 
-export type RunFilter = 'all' | 'active' | 'completed' | 'failed' | 'cancelled'
-
 export interface ClassifiedRuns {
 	active: Run[]
 	completed: Run[]

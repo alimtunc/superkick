@@ -1,12 +1,10 @@
-import { useState } from 'react'
+import { useMemo } from 'react'
 
-import { RunFilterBar } from '@/components/runs/RunFilterBar'
-import { RunRow } from '@/components/runs/RunRow'
+import { RunGroup } from '@/components/runs/RunGroup'
 import { RunsHeader } from '@/components/runs/RunsHeader'
-import { RunsSummary } from '@/components/runs/RunsSummary'
-import { filterRuns, useRuns } from '@/hooks/useRuns'
-import { runsQuery } from '@/lib/queries'
-import type { RunFilter } from '@/types'
+import { useOperatorQueue } from '@/hooks/useOperatorQueue'
+import { toRunGroups } from '@/lib/domain'
+import { dashboardQueueQuery } from '@/lib/queries'
 import { createRoute } from '@tanstack/react-router'
 
 import { Route as shellRoute } from './route'
@@ -14,64 +12,82 @@ import { Route as shellRoute } from './route'
 export const Route = createRoute({
 	getParentRoute: () => shellRoute,
 	path: '/runs',
-	loader: ({ context }) => context.queryClient.ensureQueryData(runsQuery()),
+	loader: ({ context }) => context.queryClient.ensureQueryData(dashboardQueueQuery()),
 	component: RunsPage
 })
 
 function RunsPage() {
-	const { runs, loading, error, refTime, refresh, classified, total } = useRuns()
-	const [filter, setFilter] = useState<RunFilter>('all')
-
-	const filtered = filterRuns(runs, filter, classified)
+	const queue = useOperatorQueue()
+	const groups = useMemo(() => toRunGroups(queue.groups), [queue.groups])
+	const openCount = groups.active.length + groups.needsHuman.length + groups.inReview.length
+	const total = openCount + groups.recent.length
+	const lastRefresh = queue.generatedAt ? new Date(queue.generatedAt).getTime() : null
 
 	return (
-		<div>
+		<div className="flex h-full min-h-0 flex-col">
 			<RunsHeader
-				total={total}
-				activeCount={classified.active.length}
-				loading={loading}
-				lastRefresh={refTime}
-				onRefresh={refresh}
+				openCount={openCount}
+				needsHumanCount={groups.needsHuman.length}
+				loading={queue.loading}
+				lastRefresh={lastRefresh}
+				onRefresh={queue.refresh}
 			/>
 
-			<div className="mx-auto flex max-w-5xl flex-col gap-8 px-5 py-8">
-				{error ? <p className="font-data text-[11px] text-oxide">{error}</p> : null}
+			<div className="mx-auto flex min-h-0 w-full max-w-360 flex-1 flex-col gap-4 px-5 py-5">
+				{queue.error ? <p className="font-data text-[11px] text-oxide">{queue.error}</p> : null}
 
-				<RunsSummary
-					total={total}
-					active={classified.active.length}
-					completed={classified.completed.length}
-					failed={classified.failed.length}
-					needsAttention={classified.needsAttention.length}
-				/>
-
-				<RunFilterBar
-					filter={filter}
-					onFilter={setFilter}
-					counts={{
-						all: total,
-						active: classified.active.length,
-						completed: classified.completed.length,
-						failed: classified.failed.length,
-						cancelled: classified.cancelled.length
-					}}
-				/>
-
-				{loading && runs.length === 0 ? (
+				{queue.loading && total === 0 ? (
 					<p className="font-data py-10 text-center text-dim">Loading runs...</p>
 				) : null}
 
-				{!loading && filtered.length === 0 ? (
+				{!queue.loading && total === 0 ? (
 					<p className="font-data py-10 text-center text-dim">
-						{total === 0 ? 'No runs yet. Start one from an issue.' : 'No runs match this filter.'}
+						No runs yet. Start one from an issue.
 					</p>
 				) : null}
 
-				{filtered.length > 0 ? (
-					<div className="space-y-2">
-						{filtered.map((run) => (
-							<RunRow key={run.id} run={run} refTime={refTime} />
-						))}
+				{total > 0 ? (
+					<div className="grid min-h-0 flex-1 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+						<RunGroup
+							id="active"
+							tone="cyan"
+							label="Active"
+							description="In flight — no operator signal needed."
+							runs={groups.active}
+							refTime={queue.refTime}
+							cardVariant="default"
+							emptyLabel="Nothing in flight."
+						/>
+						<RunGroup
+							id="needs-human"
+							tone="oxide"
+							label="Needs Human"
+							description="Attention requested, paused, or blocked — act now."
+							runs={groups.needsHuman}
+							refTime={queue.refTime}
+							cardVariant="respond"
+							emptyLabel="All clear — nothing needs you right now."
+						/>
+						<RunGroup
+							id="in-review"
+							tone="violet"
+							label="In Review"
+							description="Pull request open or draft — review or merge."
+							runs={groups.inReview}
+							refTime={queue.refTime}
+							cardVariant="default"
+							emptyLabel="No PRs awaiting review."
+						/>
+						<RunGroup
+							id="recent"
+							tone="mineral"
+							label="Recent"
+							description="Last 20 completed runs."
+							runs={groups.recent}
+							refTime={queue.refTime}
+							cardVariant="default"
+							emptyLabel="No completed runs yet."
+						/>
 					</div>
 				) : null}
 			</div>
