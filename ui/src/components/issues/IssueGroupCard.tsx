@@ -1,12 +1,23 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import { IssueRow } from '@/components/issues/IssueRow'
-import type { IssueGroup } from '@/types'
+import type { IssueGroup, LinearIssueListItem } from '@/types'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
-export function IssueGroupCard({ group }: { group: IssueGroup }) {
+interface IssueGroupCardProps {
+	group: IssueGroup
+	renderRow?: (issue: LinearIssueListItem, indent: boolean) => ReactNode
+}
+
+/** Defaults to the legacy `IssueRow`. The list view (SUP-92) injects
+ *  `IssueListRow` so grouped sub-issues carry the state pill / run chip too. */
+export function IssueGroupCard({ group, renderRow }: IssueGroupCardProps) {
 	const [expanded, setExpanded] = useState(true)
 	const childCount = group.children.length
+
+	const renderIssue =
+		renderRow ??
+		((issue: LinearIssueListItem, indent: boolean) => <IssueRow issue={issue} indent={indent} />)
 
 	return (
 		<div>
@@ -19,15 +30,13 @@ export function IssueGroupCard({ group }: { group: IssueGroup }) {
 				>
 					{expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
 				</button>
-				<div className="min-w-0 flex-1">
-					<IssueRow issue={group.parent} />
-				</div>
+				<div className="min-w-0 flex-1">{renderIssue(group.parent, false)}</div>
 			</div>
 
 			{expanded ? (
 				<div className="ml-7">
 					{group.children.map((child) => (
-						<IssueRow key={child.id} issue={child} indent />
+						<div key={child.id}>{renderIssue(child, true)}</div>
 					))}
 				</div>
 			) : (

@@ -1,9 +1,9 @@
 import { useState } from 'react'
 
-import type { BucketFilter } from '@/types'
+import type { IssueStateFilter } from '@/types'
 
 export function useIssueFilters() {
-	const [activeBucket, setActiveBucket] = useState<BucketFilter>('all')
+	const [activeIssueState, setActiveIssueState] = useState<IssueStateFilter>('all')
 	const [search, setSearch] = useState('')
 	const [activeLabels, setActiveLabels] = useState<Set<string>>(new Set())
 	const [activeProject, setActiveProject] = useState<string | null>(null)
@@ -48,8 +48,8 @@ export function useIssueFilters() {
 	}
 
 	return {
-		activeBucket,
-		setActiveBucket,
+		activeIssueState,
+		setActiveIssueState,
 		search,
 		setSearch,
 		activeLabels,
