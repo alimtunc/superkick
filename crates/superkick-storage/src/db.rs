@@ -121,6 +121,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "017_runtime_registry",
             include_str!("../migrations/017_runtime_registry.sql"),
         ),
+        (
+            "018_agent_session_tool_policy",
+            include_str!("../migrations/018_agent_session_tool_policy.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

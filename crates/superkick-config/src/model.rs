@@ -2,9 +2,20 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 use superkick_core::{
-    AgentCatalog, AgentProvider, CoreAgentDefinition as CoreAgent, LinearContextMode,
-    RecoveryConfig, RunBudget, RunPolicy, RunState, StepKey,
+    AgentCatalog, AgentProvider, CoreAgentDefinition as CoreAgent, LinearContextMode, McpMode,
+    RecoveryConfig, ResolvedMcpPolicy, ResolvedToolPolicy, RunBudget, RunPolicy, RunState, StepKey,
 };
+
+/// Canonical name used by the legacy `linear_context: snapshot_plus_mcp`
+/// sugar when desugaring into the MCP registry. Public so the runtime can
+/// match it against the auto-injected registry entry without re-hardcoding
+/// the literal in two places.
+pub const LINEAR_MCP_SERVER_NAME: &str = "linear";
+
+/// URL of the hosted Linear MCP server. Auto-injected into the registry
+/// when any agent uses the legacy `snapshot_plus_mcp` sugar without an
+/// explicit registry entry.
+pub const LINEAR_MCP_URL: &str = "https://mcp.linear.app/mcp";
 
 // ── Root ────────────────────────────────────────────────────────────
 
@@ -26,6 +37,14 @@ pub struct SuperkickConfig {
     pub orchestration: OrchestrationConfig,
     #[serde(default)]
     pub recovery: RecoverySettings,
+    /// Project-level registry of MCP servers a role may opt into. Empty by
+    /// default; agents that need MCP access reference these by name through
+    /// their per-role `mcp.servers` allowlist. The legacy
+    /// `linear_context: snapshot_plus_mcp` sugar implicitly registers a
+    /// `linear` entry pointing at the hosted Linear MCP — see
+    /// [`SuperkickConfig::effective_mcp_servers`].
+    #[serde(default)]
+    pub mcp_servers: HashMap<String, McpServerSpec>,
 }
 
 // ── Issue source ────────────────────────────────────────────────────
@@ -130,6 +149,94 @@ pub struct AgentDefinition {
     /// entirely.
     #[serde(default)]
     pub linear_context: LinearContextMode,
+    /// Per-role MCP policy (registry allowlist + mode). Defaults to no MCP
+    /// access. The legacy `linear_context: snapshot_plus_mcp` sugar
+    /// desugars at catalog-build time into `mcp.mode = servers` plus an
+    /// implicit `linear` entry in the allowlist — operators do not have
+    /// to repeat themselves.
+    #[serde(default)]
+    pub mcp: Option<AgentMcpPolicy>,
+    /// Per-role tool policy (allow/deny lists + audit booleans). When
+    /// absent the role inherits the project default: no allowlist, no
+    /// require-approval, results persisted.
+    #[serde(default, rename = "tool_policy")]
+    pub tool_policy: Option<AgentToolPolicy>,
+}
+
+// ── MCP policy ──────────────────────────────────────────────────────
+
+/// One entry in the project's `mcp_servers` registry.
+///
+/// Two transports are modelled. HTTP is what the hosted Linear MCP uses.
+/// Stdio covers the long tail of locally-launched MCP processes (filesystem
+/// servers, language-specific bridges, ...). Both can declare an
+/// `env_passthrough` list of environment variable **names** — the names
+/// are persisted, the resolved values are not. The runtime resolves them
+/// at file-write time so the child process can authenticate.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum McpServerSpec {
+    /// Remote HTTP MCP server. Auth typically rides on the URL or
+    /// upstream OAuth — `env_passthrough` is provided for symmetry but
+    /// rarely needed.
+    Http {
+        url: String,
+        #[serde(default)]
+        env_passthrough: Vec<String>,
+    },
+    /// Local stdio MCP server. The child process inherits the listed
+    /// environment variables from the supervisor; their values are
+    /// resolved at write time and never persisted in the audit row.
+    Stdio {
+        command: String,
+        #[serde(default)]
+        args: Vec<String>,
+        #[serde(default)]
+        env_passthrough: Vec<String>,
+    },
+}
+
+/// YAML-facing per-agent MCP policy block.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentMcpPolicy {
+    /// `none` (default) writes no MCP config and appends no flag.
+    /// `servers` enables wiring against the named registry entries.
+    #[serde(default)]
+    pub mode: McpMode,
+    /// Whitelist of registry entry names this role may use. Names not
+    /// found in the registry are dropped at spawn time with a warning.
+    #[serde(default)]
+    pub servers: Vec<String>,
+}
+
+/// YAML-facing per-agent tool policy block.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentToolPolicy {
+    /// Tool allowlist. Omit (or set to `null`) for "no restriction".
+    /// An explicit empty list means "deny everything".
+    #[serde(default)]
+    pub allow: Option<Vec<String>>,
+    /// Tool denylist. Combined with `allow` when both are set.
+    #[serde(default)]
+    pub deny: Option<Vec<String>>,
+    /// `true` ⇒ provider must ask the operator before each tool call.
+    #[serde(default)]
+    pub require_approval: bool,
+    /// `false` ⇒ tool result payloads are not stored on the audit row
+    /// (use for roles handling secrets). Default-on.
+    #[serde(default = "bool_true")]
+    pub persist_results: bool,
+}
+
+impl Default for AgentToolPolicy {
+    fn default() -> Self {
+        Self {
+            allow: None,
+            deny: None,
+            require_approval: false,
+            persist_results: true,
+        }
+    }
 }
 
 /// Budget overrides applied per role. Missing fields inherit project defaults.
@@ -153,6 +260,11 @@ impl SuperkickConfig {
     /// The catalog is the *project-level* source of truth: only roles in this
     /// catalog can ever be spawned, regardless of what the launch profile or
     /// a per-run override requests.
+    ///
+    /// The legacy `linear_context: snapshot_plus_mcp` shortcut is desugared
+    /// here so the core router never has to know about it: a role using the
+    /// shortcut gets `mcp.mode = servers` plus an implicit `linear` entry
+    /// in the allowlist if it didn't list one explicitly.
     pub fn agent_catalog(&self) -> AgentCatalog {
         AgentCatalog::from_definitions(self.agents.iter().map(|(name, def)| CoreAgent {
             name: name.clone(),
@@ -164,7 +276,31 @@ impl SuperkickConfig {
             timeout_secs: def.budget.timeout_secs,
             max_turns: def.budget.max_turns,
             linear_context: def.linear_context,
+            mcp_policy: resolve_mcp_policy(def),
+            tool_policy: resolve_tool_policy(def),
         }))
+    }
+
+    /// Materialised MCP server registry, including the auto-injected
+    /// `linear` entry when any agent uses the legacy
+    /// `linear_context: snapshot_plus_mcp` shortcut without naming an
+    /// explicit registry entry. The runtime calls this once per spawn so
+    /// the desugaring rule lives in one place.
+    pub fn effective_mcp_servers(&self) -> HashMap<String, McpServerSpec> {
+        let mut servers = self.mcp_servers.clone();
+        let needs_linear = self
+            .agents
+            .values()
+            .any(|a| a.linear_context == LinearContextMode::SnapshotPlusMcp);
+        if needs_linear {
+            servers
+                .entry(LINEAR_MCP_SERVER_NAME.to_string())
+                .or_insert_with(|| McpServerSpec::Http {
+                    url: LINEAR_MCP_URL.to_string(),
+                    env_passthrough: Vec::new(),
+                });
+        }
+        servers
     }
 
     /// Build the `RunPolicy` implied by the project's launch profile.
@@ -445,5 +581,52 @@ impl Default for LaunchProfileConfig {
             handoff_instructions: String::new(),
             allowed_agents: None,
         }
+    }
+}
+
+// ── MCP / tool policy resolution helpers ────────────────────────────
+
+/// Project-level → core-level translation of an agent's MCP block.
+///
+/// The legacy `linear_context: snapshot_plus_mcp` shortcut is folded in
+/// here: a role using it gets `mcp.mode = servers` plus an implicit
+/// `linear` entry in the allowlist if it didn't already list one. This is
+/// the only place that fold lives.
+fn resolve_mcp_policy(def: &AgentDefinition) -> ResolvedMcpPolicy {
+    let mut policy = match &def.mcp {
+        Some(p) => ResolvedMcpPolicy {
+            mode: p.mode,
+            servers: p.servers.clone(),
+        },
+        None => ResolvedMcpPolicy::default(),
+    };
+    if def.linear_context == LinearContextMode::SnapshotPlusMcp {
+        policy.mode = McpMode::Servers;
+        if !policy.servers.iter().any(|s| s == LINEAR_MCP_SERVER_NAME) {
+            policy.servers.push(LINEAR_MCP_SERVER_NAME.to_string());
+        }
+    }
+    policy
+}
+
+/// Resolves the per-role tool policy, with the legacy informational
+/// `tools:` field as a fallback for `tool_policy.allow`. This keeps
+/// configs that pre-date SUP-104 working: a role that listed
+/// `tools: [read, grep]` for documentation now gets the same list as
+/// its allowlist snapshot. An explicit `tool_policy.allow` always wins.
+fn resolve_tool_policy(def: &AgentDefinition) -> ResolvedToolPolicy {
+    match &def.tool_policy {
+        Some(p) => ResolvedToolPolicy {
+            allow: p.allow.clone().or_else(|| def.tools.clone()),
+            deny: p.deny.clone(),
+            require_approval: p.require_approval,
+            persist_results: p.persist_results,
+        },
+        None => ResolvedToolPolicy {
+            allow: def.tools.clone(),
+            deny: None,
+            require_approval: false,
+            persist_results: true,
+        },
     }
 }

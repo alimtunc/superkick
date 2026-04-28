@@ -1,0 +1,93 @@
+version: 1
+
+issue_source:
+  provider: linear
+  trigger: in_progress
+
+runner:
+  mode: local
+  base_branch: main
+
+# SUP-104: explicit multi-server MCP registry with a stdio entry. Each
+# server must be opted into per role via the `mcp.servers` allowlist —
+# no role inherits the registry implicitly.
+mcp_servers:
+  linear:
+    type: http
+    url: https://mcp.linear.app/mcp
+    env_passthrough: []
+  fs:
+    type: stdio
+    command: mcp-fs-server
+    args: ["--root", "."]
+    # Names of env vars the supervisor will pass through to the stdio
+    # child at spawn time. Values are resolved on disk under
+    # `<worktree>/.superkick/mcp-*.json` (gitignored) and never written
+    # to the agent_sessions audit row.
+    env_passthrough: ["MCP_FS_TOKEN"]
+
+agents:
+  planner:
+    provider: claude
+    role: planner
+    system_prompt: |
+      You are the planner. You may consult the Linear MCP for parent /
+      sibling issue context, and the filesystem MCP for cross-cutting
+      reads. Do not write through either MCP.
+    # Planner gets both servers; mode `servers` is what enables wiring.
+    mcp:
+      mode: servers
+      servers: [linear, fs]
+    tool_policy:
+      # Tool-policy precedence (SUP-104):
+      #   - explicit `allow` here always wins over the legacy
+      #     `tools: [...]` field on the role (none set in this example).
+      #   - `deny` composes with whichever allow source applies.
+      # Belt-and-braces: an explicit allowlist alongside `require_approval`
+      # so any tool call outside the list pauses for the operator.
+      allow: [read, grep, glob, mcp__linear__list_issues, mcp__linear__get_issue]
+      require_approval: true
+      persist_results: true
+  coder:
+    provider: claude
+    role: coder
+    # Coder only gets the filesystem MCP — no Linear access while
+    # editing code.
+    mcp:
+      mode: servers
+      servers: [fs]
+    tool_policy:
+      # Coder needs write-level tools; persist results so reviewers can
+      # diff after the fact.
+      persist_results: true
+  reviewer:
+    provider: claude
+    role: reviewer
+    # Reviewer is hermetic — no MCP at all.
+    mcp:
+      mode: none
+    tool_policy:
+      deny: [bash, write, edit]
+      persist_results: true
+
+workflow:
+  steps:
+    - type: plan
+      agent: planner
+    - type: code
+      agent: coder
+    - type: commands
+      run:
+        - cargo test
+        - cargo clippy -- -D warnings
+    - type: review_swarm
+      agents: [reviewer, reviewer]
+    - type: pr
+      create: true
+
+interrupts:
+  on_blocked: ask_human
+
+launch_profile:
+  use_worktree: true
+  allowed_agents: [planner, coder, reviewer]

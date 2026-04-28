@@ -68,7 +68,7 @@ where
             args.extend(resolved.args.iter().cloned());
 
             let ctx_plan = self
-                .prepare_linear_context(run, &resolved, worktree, step.id)
+                .prepare_mcp_policy(run, &resolved, worktree, step.id)
                 .await?;
 
             let base_prompt = format!(
@@ -107,6 +107,7 @@ where
                 workdir: worktree.to_path_buf(),
                 timeout: resolved.timeout.unwrap_or(DEFAULT_AGENT_TIMEOUT),
                 linear_context_mode: ctx_plan.effective_mode,
+                policy_audit: ctx_plan.policy_audit.clone(),
                 session_launch: SessionLaunchInfo {
                     role: resolved.role.clone(),
                     purpose: format!(

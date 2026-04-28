@@ -22,3 +22,7 @@ libc.workspace = true
 regex.workspace = true
 which.workspace = true
 futures-util.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+serial_test.workspace = true

@@ -10,6 +10,21 @@ runner:
   setup_commands:
     - cargo build
 
+# SUP-104: project-level registry of MCP servers a role may opt into.
+# Roles never get MCP access by default — they must name a server here
+# AND list it under their `mcp.servers` allowlist. The hosted Linear MCP
+# is auto-injected when any role uses the legacy
+# `linear_context: snapshot_plus_mcp` shortcut, so simple Linear-only
+# setups don't need to declare it.
+mcp_servers:
+  linear:
+    type: http
+    url: https://mcp.linear.app/mcp
+    # `env_passthrough` lists env-var NAMES; values are resolved at
+    # spawn time and never persisted on the audit row. Empty here —
+    # the hosted Linear MCP authenticates via the user's OAuth session.
+    env_passthrough: []
+
 agents:
   planner:
     provider: claude
@@ -19,7 +34,22 @@ agents:
     budget:
       timeout_secs: 900
     # Planner benefits from live Linear lookups for sibling/child issues.
+    # The shortcut below desugars to:
+    #   mcp:
+    #     mode: servers
+    #     servers: [linear]
+    # without needing the explicit block.
     linear_context: snapshot_plus_mcp
+    # Tool-policy precedence (SUP-104):
+    #   - Legacy `tools: [...]` (informational pre-104) becomes
+    #     `tool_policy.allow` when no explicit `allow` is set here.
+    #   - An explicit `tool_policy.allow` always wins over the legacy field.
+    #   - `tool_policy.deny` is independent — it composes with whichever
+    #     allow source applies.
+    tool_policy:
+      # No allowlist → no tool restriction. Audit recorded, never enforced.
+      require_approval: false
+      persist_results: true
   coder:
     provider: claude
     role: coder
@@ -30,6 +60,13 @@ agents:
     role: reviewer
     # Reviewer judges the diff, not the issue — no Linear context needed.
     linear_context: none
+    # Explicit "no MCP" — equivalent to omitting the block entirely.
+    mcp:
+      mode: none
+    tool_policy:
+      # Reviewers should not modify state; deny-list the destructive tools.
+      deny: [bash, write]
+      persist_results: true
 
 workflow:
   steps:

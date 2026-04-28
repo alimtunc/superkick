@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::agent::AgentProvider;
 use crate::linear_context::LinearContextMode;
+use crate::mcp_policy::{ResolvedMcpPolicy, ResolvedToolPolicy};
 
 /// One project-level agent role as consumed by the router.
 ///
@@ -44,6 +45,16 @@ pub struct AgentDefinition {
     /// but no live MCP access.
     #[serde(default)]
     pub linear_context: LinearContextMode,
+    /// Resolved MCP policy for this role. Already desugared from the
+    /// `linear_context: snapshot_plus_mcp` shortcut at catalog-build time —
+    /// the router never re-applies the sugar.
+    #[serde(default)]
+    pub mcp_policy: ResolvedMcpPolicy,
+    /// Resolved tool policy for this role. Allow/deny lists are
+    /// informational; the booleans (`require_approval`, `persist_results`)
+    /// drive audit columns on the agent session.
+    #[serde(default)]
+    pub tool_policy: ResolvedToolPolicy,
 }
 
 impl AgentDefinition {
@@ -157,6 +168,11 @@ pub struct ResolvedAgent {
     /// Linear context mode carried through from the catalog so the runtime
     /// can decide whether to fetch a snapshot and/or wire an MCP config.
     pub linear_context: LinearContextMode,
+    /// Resolved MCP policy. The runtime joins `mcp_policy.servers` with the
+    /// project registry to materialise the per-role MCP config file.
+    pub mcp_policy: ResolvedMcpPolicy,
+    /// Resolved tool policy snapshot. Audited as-is on the agent session.
+    pub tool_policy: ResolvedToolPolicy,
 }
 
 /// Errors the router can emit when a role cannot be launched.
@@ -211,6 +227,8 @@ impl<'a> RoleRouter<'a> {
             timeout: def.timeout_secs.map(Duration::from_secs),
             max_turns: def.max_turns,
             linear_context: def.linear_context,
+            mcp_policy: def.mcp_policy.clone(),
+            tool_policy: def.tool_policy.clone(),
         })
     }
 }
@@ -239,6 +257,8 @@ mod tests {
             timeout_secs: None,
             max_turns: None,
             linear_context: LinearContextMode::default(),
+            mcp_policy: ResolvedMcpPolicy::default(),
+            tool_policy: ResolvedToolPolicy::default(),
         }
     }
 

@@ -566,6 +566,10 @@ async fn agent_session_insert_and_list() -> Result<()> {
         finished_at: None,
         exit_code: None,
         linear_context_mode: None,
+        mcp_servers_used: Vec::new(),
+        tools_allow_snapshot: None,
+        tool_approval_required: false,
+        tool_results_persisted: true,
         role: None,
         purpose: None,
         parent_session_id: None,
@@ -617,6 +621,10 @@ async fn agent_session_linear_context_mode_round_trips() -> Result<()> {
         finished_at: None,
         exit_code: None,
         linear_context_mode: Some(LinearContextMode::SnapshotPlusMcp),
+        mcp_servers_used: Vec::new(),
+        tools_allow_snapshot: None,
+        tool_approval_required: false,
+        tool_results_persisted: true,
         role: None,
         purpose: None,
         parent_session_id: None,
@@ -629,6 +637,187 @@ async fn agent_session_linear_context_mode_round_trips() -> Result<()> {
     assert_eq!(
         fetched.linear_context_mode,
         Some(LinearContextMode::SnapshotPlusMcp)
+    );
+    Ok(())
+}
+
+// ── SUP-104: agent_sessions tool/MCP policy audit columns ──────────
+
+#[tokio::test]
+async fn agent_session_tool_policy_columns_round_trip() -> Result<()> {
+    let pool = setup().await?;
+    let run_repo = SqliteRunRepo::new(pool.clone());
+    let step_repo = SqliteRunStepRepo::new(pool.clone());
+    let session_repo = SqliteAgentSessionRepo::new(pool);
+
+    let run = Run::new(
+        "i".into(),
+        "SK-104".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        ExecutionMode::FullAuto,
+        "main".into(),
+        true,
+        None,
+    );
+    run_repo.insert(&run).await?;
+    let step = RunStep::new(run.id, StepKey::Code, 1);
+    step_repo.insert(&step).await?;
+
+    let session = AgentSession {
+        id: AgentSessionId::new(),
+        run_id: run.id,
+        run_step_id: step.id,
+        provider: AgentProvider::Claude,
+        command: "claude --code".into(),
+        pid: Some(42),
+        status: AgentStatus::Running,
+        started_at: Utc::now(),
+        finished_at: None,
+        exit_code: None,
+        linear_context_mode: Some(LinearContextMode::SnapshotPlusMcp),
+        mcp_servers_used: vec!["linear".to_string(), "fs".to_string()],
+        tools_allow_snapshot: Some(vec!["read".to_string(), "grep".to_string()]),
+        tool_approval_required: true,
+        tool_results_persisted: false,
+        role: Some("planner".into()),
+        purpose: Some("plan SUP-104".into()),
+        parent_session_id: None,
+        launch_reason: None,
+        handoff_id: None,
+    };
+    session_repo.insert(&session).await?;
+
+    let fetched = session_repo.get(session.id).await?.expect("session exists");
+    assert_eq!(
+        fetched.mcp_servers_used,
+        vec!["linear".to_string(), "fs".to_string()]
+    );
+    assert_eq!(
+        fetched.tools_allow_snapshot.as_deref(),
+        Some(&["read".to_string(), "grep".to_string()][..])
+    );
+    assert!(fetched.tool_approval_required);
+    assert!(!fetched.tool_results_persisted);
+    Ok(())
+}
+
+#[tokio::test]
+async fn agent_session_tool_policy_defaults_when_absent() -> Result<()> {
+    let pool = setup().await?;
+    let run_repo = SqliteRunRepo::new(pool.clone());
+    let step_repo = SqliteRunStepRepo::new(pool.clone());
+    let session_repo = SqliteAgentSessionRepo::new(pool);
+
+    let run = Run::new(
+        "i".into(),
+        "SK-104b".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        ExecutionMode::FullAuto,
+        "main".into(),
+        true,
+        None,
+    );
+    run_repo.insert(&run).await?;
+    let step = RunStep::new(run.id, StepKey::Plan, 0);
+    step_repo.insert(&step).await?;
+
+    let session = AgentSession {
+        id: AgentSessionId::new(),
+        run_id: run.id,
+        run_step_id: step.id,
+        provider: AgentProvider::Claude,
+        command: "claude".into(),
+        pid: None,
+        status: AgentStatus::Running,
+        started_at: Utc::now(),
+        finished_at: None,
+        exit_code: None,
+        linear_context_mode: None,
+        mcp_servers_used: Vec::new(),
+        tools_allow_snapshot: None,
+        tool_approval_required: false,
+        tool_results_persisted: true,
+        role: None,
+        purpose: None,
+        parent_session_id: None,
+        launch_reason: None,
+        handoff_id: None,
+    };
+    session_repo.insert(&session).await?;
+
+    let fetched = session_repo.get(session.id).await?.unwrap();
+    assert!(fetched.mcp_servers_used.is_empty());
+    assert!(fetched.tools_allow_snapshot.is_none());
+    assert!(!fetched.tool_approval_required);
+    assert!(fetched.tool_results_persisted);
+    Ok(())
+}
+
+#[tokio::test]
+async fn agent_session_legacy_row_picks_up_017_defaults() -> Result<()> {
+    // Simulate a row written before migration 017: only the pre-017
+    // columns are populated, the new columns rely on the `ALTER TABLE
+    // ... DEFAULT` clauses. Read back through the domain repo and
+    // assert the audit shape matches the historical-behaviour intent
+    // (no MCP wiring, no allowlist snapshot, no approval gate, results
+    // are persisted).
+    let pool = setup().await?;
+    let run_repo = SqliteRunRepo::new(pool.clone());
+    let step_repo = SqliteRunStepRepo::new(pool.clone());
+    let session_repo = SqliteAgentSessionRepo::new(pool.clone());
+
+    let run = Run::new(
+        "i".into(),
+        "SK-104c".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        ExecutionMode::FullAuto,
+        "main".into(),
+        true,
+        None,
+    );
+    run_repo.insert(&run).await?;
+    let step = RunStep::new(run.id, StepKey::Plan, 0);
+    step_repo.insert(&step).await?;
+
+    // Write only the pre-017 columns. The new columns get their DEFAULTs
+    // (NULL for the JSON ones, 0/1 for the booleans), exactly as a row
+    // migrated from a 016-state database would.
+    let legacy_id = AgentSessionId::new();
+    sqlx::query(
+        "INSERT INTO agent_sessions (\
+             id, run_id, run_step_id, provider, command, pid, status, started_at\
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+    )
+    .bind(legacy_id.0.to_string())
+    .bind(run.id.0.to_string())
+    .bind(step.id.0.to_string())
+    .bind(AgentProvider::Claude.to_string())
+    .bind("claude --legacy")
+    .bind::<Option<i64>>(None)
+    .bind("running")
+    .bind(Utc::now().to_rfc3339())
+    .execute(&pool)
+    .await?;
+
+    let fetched = session_repo.get(legacy_id).await?.expect("legacy row");
+    assert!(
+        fetched.mcp_servers_used.is_empty(),
+        "NULL mcp_servers_used should map to []"
+    );
+    assert!(
+        fetched.tools_allow_snapshot.is_none(),
+        "NULL tools_allow_snapshot should map to None (no restriction)"
+    );
+    assert!(
+        !fetched.tool_approval_required,
+        "DEFAULT 0 should map to require_approval = false"
+    );
+    assert!(
+        fetched.tool_results_persisted,
+        "DEFAULT 1 should map to persist_results = true"
     );
     Ok(())
 }
@@ -666,6 +855,10 @@ async fn agent_session_update() -> Result<()> {
         finished_at: None,
         exit_code: None,
         linear_context_mode: None,
+        mcp_servers_used: Vec::new(),
+        tools_allow_snapshot: None,
+        tool_approval_required: false,
+        tool_results_persisted: true,
         role: None,
         purpose: None,
         parent_session_id: None,
@@ -903,6 +1096,10 @@ async fn handoff_lifecycle_round_trip() -> Result<()> {
         finished_at: None,
         exit_code: None,
         linear_context_mode: None,
+        mcp_servers_used: Vec::new(),
+        tools_allow_snapshot: None,
+        tool_approval_required: false,
+        tool_results_persisted: true,
         role: Some("planner".into()),
         purpose: Some("plan".into()),
         parent_session_id: None,
@@ -969,6 +1166,10 @@ async fn agent_session_lineage_round_trips() -> Result<()> {
         finished_at: Some(Utc::now()),
         exit_code: Some(0),
         linear_context_mode: None,
+        mcp_servers_used: Vec::new(),
+        tools_allow_snapshot: None,
+        tool_approval_required: false,
+        tool_results_persisted: true,
         role: Some("planner".into()),
         purpose: Some("plan".into()),
         parent_session_id: None,
@@ -990,6 +1191,10 @@ async fn agent_session_lineage_round_trips() -> Result<()> {
         finished_at: None,
         exit_code: None,
         linear_context_mode: Some(LinearContextMode::Snapshot),
+        mcp_servers_used: Vec::new(),
+        tools_allow_snapshot: None,
+        tool_approval_required: false,
+        tool_results_persisted: true,
         role: Some("coder".into()),
         purpose: Some("implement SUP-46".into()),
         parent_session_id: Some(parent_id),
@@ -1037,6 +1242,10 @@ async fn seed_session_for_ownership(pool: sqlx::SqlitePool) -> Result<AgentSessi
         finished_at: None,
         exit_code: None,
         linear_context_mode: None,
+        mcp_servers_used: Vec::new(),
+        tools_allow_snapshot: None,
+        tool_approval_required: false,
+        tool_results_persisted: true,
         role: Some("coder".into()),
         purpose: Some("x".into()),
         parent_session_id: None,
@@ -1157,6 +1366,10 @@ async fn seed_session(pool: &sqlx::SqlitePool) -> Result<AgentSession> {
         finished_at: None,
         exit_code: None,
         linear_context_mode: None,
+        mcp_servers_used: Vec::new(),
+        tools_allow_snapshot: None,
+        tool_approval_required: false,
+        tool_results_persisted: true,
         role: Some("planner".into()),
         purpose: Some("plan".into()),
         parent_session_id: None,
