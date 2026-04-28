@@ -23,6 +23,8 @@ export { watchButtonClass, watchButtonTitle } from './watch'
 export { classifyRuns } from './classify'
 export { toRunGroups } from './runGroups'
 export { pickRunReason, fmtRunElapsed } from './runCard'
+export { isTerminalRunState, isActiveRun, pickLatestRun } from './runState'
+export { buildIssueActivity, type IssueActivityItem } from './issueActivity'
 export { launchQueueAccent } from './launchQueueAccent'
 export {
 	ISSUE_STATE_ORDER,
