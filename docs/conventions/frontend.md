@@ -67,3 +67,9 @@ Applies during implementation and review.
 
 - Use Tailwind utilities. Add a custom class only when no utility (or sensible combination) exists.
 - Theme tokens live in `@theme` blocks in CSS — do not hardcode hex colours in components.
+
+## Visual design
+
+- Surfaces, density, typography, icons, and interactive states are governed by [visual-design.md](./visual-design.md). Read it before adding a new surface or chip.
+- Status / domain pills go through `Pill` ([ui/src/components/ui/pill.tsx](../../ui/src/components/ui/pill.tsx)). The shadcn `Badge` stays for shadcn-internal slots (form errors, etc.); domain code uses `Pill`.
+- Empty / loading / error states use the shared `EmptyState` / `LoadingState` / `ErrorState` primitives — never inline a placeholder string.

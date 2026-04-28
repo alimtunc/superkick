@@ -1,9 +1,9 @@
-import { useMemo } from 'react'
-
 import { LedgerRow } from '@/components/run-detail/LedgerRow'
+import { EmptyState } from '@/components/ui/state-empty'
 import { isLedgerEvent } from '@/lib/domain'
 import { indexById } from '@/lib/utils'
 import type { AgentSession, AttentionRequest, RunEvent } from '@/types'
+import { Activity } from 'lucide-react'
 
 interface RunLedgerProps {
 	events: RunEvent[]
@@ -15,15 +15,17 @@ interface RunLedgerProps {
 // command_output events are intentionally excluded and live under the
 // terminal-inspection surface as supporting evidence.
 export function RunLedger({ events, sessions, attentionRequests }: RunLedgerProps) {
-	const sessionById = useMemo(() => indexById(sessions), [sessions])
-	const attentionById = useMemo(() => indexById(attentionRequests), [attentionRequests])
-	const entries = useMemo(() => events.filter(isLedgerEvent), [events])
+	const sessionById = indexById(sessions)
+	const attentionById = indexById(attentionRequests)
+	const entries = events.filter(isLedgerEvent)
 
 	if (entries.length === 0) {
 		return (
-			<p className="font-data rounded-lg border border-edge bg-carbon px-3 py-6 text-center text-[12px] text-dim">
-				No orchestration events yet. Structured activity will appear here as the run progresses.
-			</p>
+			<EmptyState
+				icon={Activity}
+				title="No orchestration events yet"
+				description="Structured activity will appear here as the run progresses."
+			/>
 		)
 	}
 

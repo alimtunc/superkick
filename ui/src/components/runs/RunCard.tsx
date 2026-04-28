@@ -47,12 +47,12 @@ export function RunCard({ run, refTime, variant }: RunCardProps) {
 			: { to: '/runs/$runId' as const, params: { runId: run.id }, label: 'Detail' }
 
 	return (
-		<div className="panel group flex flex-col gap-1.5 p-2.5 transition-colors hover:border-edge-bright">
+		<div className="group flex flex-col gap-1.5 rounded-md border border-edge bg-slate-deep p-2.5 transition-colors focus-within:border-edge-bright hover:border-edge-bright hover:bg-slate-deep/80">
 			<Link
 				to={primary.to}
 				params={primary.params}
 				aria-label={primary.label}
-				className="flex flex-col gap-1.5"
+				className="flex flex-col gap-1.5 rounded focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
 			>
 				<div className="flex items-center gap-2">
 					<RunStateBadge state={run.state} />
@@ -65,11 +65,11 @@ export function RunCard({ run, refTime, variant }: RunCardProps) {
 				</div>
 
 				<div className="flex items-center justify-between gap-2">
-					<span className="font-data truncate text-[10px] text-ash">{step ?? '—'}</span>
-					<span className="font-data shrink-0 text-[10px] text-dim">{elapsed}</span>
+					<span className="font-data truncate text-[10px] text-silver">{step ?? '—'}</span>
+					<span className="font-data shrink-0 text-[10px] text-ash">{elapsed}</span>
 				</div>
 
-				<div className="font-data truncate text-[10px] text-dim">
+				<div className="font-data truncate text-[10px] text-ash">
 					{run.repo_slug}
 					{run.branch_name ? ` → ${run.branch_name}` : null}
 				</div>
@@ -90,11 +90,11 @@ export function RunCard({ run, refTime, variant }: RunCardProps) {
 			<Link
 				to={secondary.to}
 				params={secondary.params}
-				className="font-data inline-flex items-center gap-1 self-end rounded px-1.5 py-0.5 text-[10px] tracking-wider text-dim uppercase transition-colors hover:bg-slate-deep hover:text-silver"
+				className="font-data inline-flex h-5 items-center gap-1 self-end rounded px-1.5 text-[10px] tracking-wider text-ash uppercase transition-colors hover:bg-graphite hover:text-silver focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
 				aria-label={`${secondary.label} for ${run.issue_identifier}`}
 			>
 				<span>{secondary.label}</span>
-				<ArrowUpRight size={10} aria-hidden="true" />
+				<ArrowUpRight size={10} strokeWidth={1.75} aria-hidden="true" />
 			</Link>
 		</div>
 	)

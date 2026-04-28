@@ -1,3 +1,4 @@
+import { Pill } from '@/components/ui/pill'
 import { fmtElapsed, stepLabel } from '@/lib/domain'
 import type { LaunchQueueItem } from '@/types'
 
@@ -14,12 +15,14 @@ export function RunSummaryChip({ item, refTime }: RunSummaryChipProps) {
 	const label = stepText ? `${stepText} · ${elapsed}` : elapsed
 
 	return (
-		<span
-			className="font-data inline-flex shrink-0 items-center gap-1 rounded-full border border-cyan/30 bg-cyan/5 px-2 py-0.5 text-[10px] text-cyan"
+		<Pill
+			tone="cyan"
+			size="xs"
+			shape="round"
 			title={item.reason}
+			leading={<span className="h-1.5 w-1.5 rounded-full bg-cyan" aria-hidden="true" />}
 		>
-			<span className="h-1.5 w-1.5 rounded-full bg-cyan" aria-hidden="true" />
 			{label}
-		</span>
+		</Pill>
 	)
 }

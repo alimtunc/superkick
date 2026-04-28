@@ -24,7 +24,7 @@ export function IssueActivityTimeline({ comments, runs }: IssueActivityTimelineP
 					item.kind === 'comment' ? (
 						<CommentThread key={item.key} node={item.node} isRoot />
 					) : (
-						<div key={item.key} className="panel">
+						<div key={item.key} className="rounded-md border border-edge bg-graphite">
 							<ActivityRunEntry run={item.run} />
 						</div>
 					)

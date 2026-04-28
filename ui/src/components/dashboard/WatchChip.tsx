@@ -1,6 +1,8 @@
 import { Button } from '@/components/ui/button'
 import { fmtElapsed, healthSignal, stepLabel } from '@/lib/domain'
+import { cn } from '@/lib/utils'
 import type { Run } from '@/types'
+import { X } from 'lucide-react'
 
 interface WatchChipProps {
 	run: Run
@@ -21,28 +23,31 @@ export function WatchChip({ run, refTime, isFocused, onUnwatch }: WatchChipProps
 
 	return (
 		<span
-			className={`group flex shrink-0 cursor-pointer items-center gap-2 rounded border px-2.5 py-1 transition-colors ${
+			className={cn(
+				'group flex shrink-0 cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1 transition-colors',
 				isFocused
 					? 'border-mineral/40 bg-mineral-dim ring-1 ring-mineral/20'
-					: 'border-edge bg-graphite hover:border-edge-bright'
-			}`}
+					: 'border-edge bg-graphite hover:border-edge-bright hover:bg-slate-deep/40'
+			)}
 		>
 			<span
-				className={`h-1.5 w-1.5 rounded-full ${dotColor} ${sig === 'critical' ? 'live-pulse' : ''}`}
+				className={cn('h-1.5 w-1.5 rounded-full', dotColor, sig === 'critical' ? 'live-pulse' : '')}
+				aria-hidden="true"
 			/>
 			<span
-				className={`font-data text-[11px] transition-colors ${
+				className={cn(
+					'font-data text-[11px] transition-colors',
 					isFocused ? 'font-medium text-mineral' : 'text-fog group-hover:text-neon-green'
-				}`}
+				)}
 			>
 				{run.issue_identifier}
 			</span>
-			<span className="font-data text-[10px] text-dim">
+			<span className="font-data text-[10px] text-ash">
 				{run.current_step_key
 					? (stepLabel[run.current_step_key] ?? run.current_step_key)
 					: run.state.replace(/_/g, ' ')}
 			</span>
-			<span className="font-data text-[10px] text-dim">{fmtElapsed(run.started_at, refTime)}</span>
+			<span className="font-data text-[10px] text-ash">{fmtElapsed(run.started_at, refTime)}</span>
 			<Button
 				variant="ghost"
 				size="icon-xs"
@@ -51,10 +56,11 @@ export function WatchChip({ run, refTime, isFocused, onUnwatch }: WatchChipProps
 					e.stopPropagation()
 					onUnwatch()
 				}}
-				className="font-data ml-0.5 text-[10px] text-dim hover:text-oxide"
+				className="ml-0.5 text-dim hover:text-oxide"
 				title="Unwatch"
+				aria-label="Unwatch"
 			>
-				&times;
+				<X size={11} aria-hidden="true" />
 			</Button>
 		</span>
 	)

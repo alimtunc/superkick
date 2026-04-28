@@ -1,16 +1,17 @@
-import type { IssueDetailResponse } from '@/types'
+import type { IssueStatus } from '@/types'
 
 interface StatusChipProps {
-	status: IssueDetailResponse['status']
+	status: IssueStatus
 }
 
 export function StatusChip({ status }: StatusChipProps) {
 	return (
 		<span
-			className="inline-block rounded px-2 py-0.5 text-[10px] font-medium"
+			className="font-data inline-flex h-5 shrink-0 items-center rounded-md border px-2 text-[11px] leading-none whitespace-nowrap"
 			style={{
 				color: status.color,
-				backgroundColor: `color-mix(in oklch, ${status.color} 8%, transparent)`
+				borderColor: `color-mix(in oklch, ${status.color} 30%, transparent)`,
+				backgroundColor: `color-mix(in oklch, ${status.color} 10%, transparent)`
 			}}
 		>
 			{status.name}

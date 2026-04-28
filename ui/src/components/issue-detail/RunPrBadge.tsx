@@ -1,4 +1,5 @@
 import { PrStateBadge } from '@/components/PrStateBadge'
+import { Pill } from '@/components/ui/pill'
 import { cn } from '@/lib/utils'
 import type { LinkedPrSummary } from '@/types'
 
@@ -14,12 +15,14 @@ export function RunPrBadge({ pr, className }: RunPrBadgeProps) {
 			target="_blank"
 			rel="noopener noreferrer"
 			className={cn(
-				'font-data inline-flex h-5 items-center gap-1.5 rounded border border-neon-green/30 bg-neon-green/10 px-1.5 text-[10px] text-neon-green transition-colors hover:border-neon-green/50',
+				'inline-flex shrink-0 rounded-md focus-visible:ring-2 focus-visible:ring-neon-green/40 focus-visible:outline-none',
 				className
 			)}
 		>
-			#{pr.number}
-			<PrStateBadge state={pr.state} />
+			<Pill tone="live" size="xs" interactive>
+				#{pr.number}
+				<PrStateBadge state={pr.state} />
+			</Pill>
 		</a>
 	)
 }

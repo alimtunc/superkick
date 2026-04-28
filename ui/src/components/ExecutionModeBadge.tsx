@@ -1,13 +1,19 @@
+import { Pill, type PillTone } from '@/components/ui/pill'
 import type { ExecutionMode } from '@/types'
 
-const modeStyle: Record<ExecutionMode, string> = {
-	full_auto: 'bg-mineral-dim text-mineral',
-	semi_auto: 'bg-amber-500/10 text-amber-400'
+const modeTone: Record<ExecutionMode, PillTone> = {
+	full_auto: 'mineral',
+	semi_auto: 'gold'
 }
 
 const modeLabel: Record<ExecutionMode, string> = {
 	full_auto: 'AUTO',
 	semi_auto: 'SEMI'
+}
+
+const modeTitle: Record<ExecutionMode, string> = {
+	full_auto: 'Fully autonomous execution',
+	semi_auto: 'Semi-auto — pauses for operator review'
 }
 
 interface ExecutionModeBadgeProps {
@@ -16,13 +22,8 @@ interface ExecutionModeBadgeProps {
 
 export function ExecutionModeBadge({ mode }: ExecutionModeBadgeProps) {
 	return (
-		<span
-			className={`font-data inline-block rounded px-2 py-0.5 text-[10px] font-medium ${modeStyle[mode]}`}
-			title={
-				mode === 'full_auto' ? 'Fully autonomous execution' : 'Semi-auto — pauses for operator review'
-			}
-		>
+		<Pill tone={modeTone[mode]} size="xs" title={modeTitle[mode]}>
 			{modeLabel[mode]}
-		</span>
+		</Pill>
 	)
 }

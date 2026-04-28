@@ -25,7 +25,7 @@ export function InboxSection({ title, count, subtitle, tone = 'default', childre
 			<header className="flex items-center gap-3">
 				<span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
 				<h2 className={titleClass}>{title}</h2>
-				{count != null ? <span className="font-data text-[10px] text-dim">{count}</span> : null}
+				{count != null ? <span className="font-data text-[10px] text-ash">{count}</span> : null}
 				{subtitle ? <div className="ml-auto flex items-center">{subtitle}</div> : null}
 			</header>
 			{children}

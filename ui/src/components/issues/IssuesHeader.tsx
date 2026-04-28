@@ -23,7 +23,7 @@ export function IssuesHeader({
 					<span className="font-data text-[11px] font-medium tracking-wider text-fog uppercase">
 						ISSUES
 					</span>
-					<span className="font-data text-[10px] text-dim">{totalCount}</span>
+					<span className="font-data text-[10px] text-ash">{totalCount}</span>
 				</div>
 				<Tooltip label={refreshLabel}>
 					<Button
@@ -31,9 +31,14 @@ export function IssuesHeader({
 						size="icon-xs"
 						onClick={onRefresh}
 						disabled={loading}
-						className="text-dim hover:text-silver"
+						aria-label={refreshLabel ?? undefined}
 					>
-						<RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+						<RefreshCw
+							size={13}
+							strokeWidth={1.75}
+							aria-hidden="true"
+							className={loading ? 'animate-spin' : ''}
+						/>
 					</Button>
 				</Tooltip>
 			</div>

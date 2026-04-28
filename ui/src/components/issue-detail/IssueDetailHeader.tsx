@@ -1,5 +1,6 @@
 import { StatusChip } from '@/components/issue-detail/StatusChip'
 import { Button } from '@/components/ui/button'
+import { Pill } from '@/components/ui/pill'
 import { Tooltip } from '@/components/ui/tooltip'
 import { isActiveRun } from '@/lib/domain'
 import type { IssueDetailResponse } from '@/types'
@@ -24,23 +25,27 @@ export function IssueDetailHeader({
 						<button
 							type="button"
 							onClick={() => router.history.back()}
-							className="inline-flex items-center text-dim transition-colors hover:text-silver"
+							className="inline-flex items-center rounded-md text-ash transition-colors hover:text-silver focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
 							aria-label="Back"
 						>
-							<ArrowLeft size={14} />
+							<ArrowLeft size={14} strokeWidth={1.75} aria-hidden="true" />
 						</button>
 					</Tooltip>
-					<span className="text-edge">|</span>
+					<span className="text-edge" aria-hidden="true">
+						|
+					</span>
 					{issue.parent ? (
 						<>
 							<Link
 								to="/issues/$issueId"
 								params={{ issueId: issue.parent.id }}
-								className="font-data text-[11px] text-dim transition-colors hover:text-silver"
+								className="font-data rounded text-[11px] text-ash transition-colors hover:text-silver focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
 							>
 								{issue.parent.identifier}
 							</Link>
-							<span className="font-data text-[10px] text-dim">&rsaquo;</span>
+							<span className="font-data text-[10px] text-ash" aria-hidden="true">
+								&rsaquo;
+							</span>
 						</>
 					) : null}
 					<span className="font-data text-[11px] font-medium text-fog">{issue.identifier}</span>
@@ -53,10 +58,9 @@ export function IssueDetailHeader({
 							variant="outline"
 							size="icon-xs"
 							onClick={onRefresh}
-							className="text-dim hover:text-silver"
 							aria-label="Refresh issue data"
 						>
-							<RefreshCw size={13} />
+							<RefreshCw size={13} strokeWidth={1.75} aria-hidden="true" />
 						</Button>
 					</Tooltip>
 
@@ -65,23 +69,34 @@ export function IssueDetailHeader({
 							href={issue.url}
 							target="_blank"
 							rel="noopener noreferrer"
-							className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-edge text-dim transition-colors hover:border-edge-bright hover:text-silver"
+							className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-edge text-ash transition-colors hover:border-edge-bright hover:bg-slate-deep/40 hover:text-silver focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
 							aria-label="Open in Linear"
 						>
-							<ExternalLink size={13} />
+							<ExternalLink size={13} strokeWidth={1.75} aria-hidden="true" />
 						</a>
 					</Tooltip>
 
 					{activeRun ? (
 						<>
-							<span className="mx-1 h-5 w-px bg-edge" />
+							<span className="mx-1 h-5 w-px bg-edge" aria-hidden="true" />
 							<Link
 								to="/runs/$runId"
 								params={{ runId: activeRun.id }}
-								className="font-data inline-flex h-6 items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 text-[11px] text-amber-400 transition-colors hover:border-amber-500/60 hover:text-amber-300"
+								className="inline-flex shrink-0 rounded-md focus-visible:ring-2 focus-visible:ring-cyan/40 focus-visible:outline-none"
 							>
-								<span className="live-pulse inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
-								Active run
+								<Pill
+									tone="cyan"
+									size="sm"
+									interactive
+									leading={
+										<span
+											className="live-pulse inline-block h-1.5 w-1.5 rounded-full bg-cyan"
+											aria-hidden="true"
+										/>
+									}
+								>
+									Active run
+								</Pill>
 							</Link>
 						</>
 					) : null}

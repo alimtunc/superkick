@@ -25,24 +25,24 @@ export function RunDock() {
 	return (
 		<div className="shrink-0 border-t border-edge bg-carbon/90 backdrop-blur-md">
 			<div className="mx-auto flex max-w-360 items-center gap-3 px-5 py-2">
-				<span className="font-data shrink-0 text-[9px] tracking-widest text-dim uppercase">
+				<span className="font-data shrink-0 text-[9px] tracking-widest text-ash uppercase">
 					Focused
 				</span>
 				<Link
 					to="/runs/$runId"
 					params={{ runId: run.id }}
-					className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden"
+					className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden rounded-md focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
 				>
 					<span className="font-data shrink-0 text-[12px] font-medium text-fog hover:text-mineral">
 						{run.issue_identifier}
 					</span>
 					<RunStateBadge state={run.state} />
 					<span className="font-data truncate text-[11px] text-silver">{step}</span>
-					<span className="font-data shrink-0 text-[10px] text-dim">
+					<span className="font-data shrink-0 text-[10px] text-ash">
 						{fmtElapsed(run.started_at, refTime)}
 					</span>
 					{run.branch_name ? (
-						<span className="font-data hidden shrink-0 text-[10px] text-dim md:inline">
+						<span className="font-data hidden shrink-0 text-[10px] text-ash md:inline">
 							{run.branch_name}
 						</span>
 					) : null}
@@ -52,16 +52,16 @@ export function RunDock() {
 						to="/runs/$runId"
 						params={{ runId: run.id }}
 						hash="terminal"
-						className="font-data flex items-center gap-1.5 rounded border border-edge px-2 py-1 text-[11px] text-silver transition-colors hover:border-edge-bright hover:text-fog"
+						className="font-data flex h-7 items-center gap-1.5 rounded-md border border-edge bg-graphite px-2 text-[11px] text-silver transition-colors hover:border-edge-bright hover:bg-slate-deep/60 hover:text-fog focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
 						title="Open terminal takeover"
 					>
-						<TerminalSquare size={12} />
+						<TerminalSquare size={12} strokeWidth={1.75} aria-hidden="true" />
 						<span>Terminal</span>
 					</Link>
 					<Link
 						to="/runs/$runId"
 						params={{ runId: run.id }}
-						className="font-data rounded border border-edge px-2 py-1 text-[11px] text-silver transition-colors hover:border-edge-bright hover:text-fog"
+						className="font-data flex h-7 items-center rounded-md border border-edge bg-graphite px-2 text-[11px] text-silver transition-colors hover:border-edge-bright hover:bg-slate-deep/60 hover:text-fog focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
 					>
 						Detail
 					</Link>
@@ -69,10 +69,11 @@ export function RunDock() {
 						variant="ghost"
 						size="icon-xs"
 						onClick={clearFocus}
-						className="text-dim hover:text-silver"
+						className="text-ash hover:text-silver"
 						title="Unfocus"
+						aria-label="Unfocus"
 					>
-						<X size={12} />
+						<X size={12} strokeWidth={1.75} aria-hidden="true" />
 					</Button>
 				</div>
 			</div>

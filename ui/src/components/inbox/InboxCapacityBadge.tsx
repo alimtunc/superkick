@@ -1,3 +1,4 @@
+import { Pill } from '@/components/ui/pill'
 import type { LaunchQueueActiveCapacity } from '@/types'
 
 interface InboxCapacityBadgeProps {
@@ -12,10 +13,9 @@ interface InboxCapacityBadgeProps {
  */
 export function InboxCapacityBadge({ capacity }: InboxCapacityBadgeProps) {
 	const saturated = capacity.max > 0 && capacity.current >= capacity.max
-	const tone = saturated ? 'text-gold' : 'text-dim'
 	return (
-		<span className={`font-data text-[10px] tracking-wider uppercase ${tone}`}>
+		<Pill tone={saturated ? 'gold' : 'neutral'} size="xs" className="tracking-wider uppercase">
 			{capacity.current}/{capacity.max} active{saturated ? ' · capped' : ''}
-		</span>
+		</Pill>
 	)
 }

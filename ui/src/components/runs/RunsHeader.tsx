@@ -22,7 +22,7 @@ export function RunsHeader({ openCount, needsHumanCount, loading, lastRefresh, o
 					<span className="font-data text-[11px] font-medium tracking-wider text-fog uppercase">
 						RUNS
 					</span>
-					<span className="font-data text-[10px] text-dim">{openCount} open</span>
+					<span className="font-data text-[10px] text-ash">{openCount} open</span>
 					{needsHumanCount > 0 ? (
 						<span className="font-data text-[10px] text-oxide">{needsHumanCount} need human</span>
 					) : null}
@@ -33,9 +33,14 @@ export function RunsHeader({ openCount, needsHumanCount, loading, lastRefresh, o
 						size="icon-xs"
 						onClick={onRefresh}
 						disabled={loading}
-						className="text-dim hover:text-silver"
+						aria-label={refreshLabel ?? undefined}
 					>
-						<RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+						<RefreshCw
+							size={13}
+							strokeWidth={1.75}
+							aria-hidden="true"
+							className={loading ? 'animate-spin' : ''}
+						/>
 					</Button>
 				</Tooltip>
 			</div>

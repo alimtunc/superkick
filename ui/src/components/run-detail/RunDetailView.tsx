@@ -11,9 +11,13 @@ import { RunPauseBanner } from '@/components/run-detail/RunPauseBanner'
 import { SessionList } from '@/components/run-detail/SessionList'
 import { StepTimeline } from '@/components/run-detail/StepTimeline'
 import { TerminalTakeover } from '@/components/run-detail/TerminalTakeover'
+import { EmptyState } from '@/components/ui/state-empty'
+import { ErrorState } from '@/components/ui/state-error'
+import { LoadingState } from '@/components/ui/state-loading'
 import { useEventStream } from '@/hooks/useEventStream'
 import { useRunDetail } from '@/hooks/useRunDetail'
 import { useWatchedSessionsStore } from '@/stores/watchedSessions'
+import { FileSearch } from 'lucide-react'
 
 function attentionSectionTitle(hasPending: boolean, total: number): string {
 	if (hasPending) return 'Needs your decision'
@@ -27,9 +31,28 @@ export function RunDetailView({ runId, refTime = Date.now() }: { runId: string; 
 	const { isWatched, toggleWatch, maxReached } = useWatchedSessionsStore()
 	const watched = isWatched(runId)
 
-	if (detail.loading) return <p className="font-data p-6 text-dim">Loading...</p>
-	if (detail.error) return <p className="font-data p-6 text-oxide">{detail.error}</p>
-	if (!detail.run) return <p className="font-data p-6 text-dim">Run not found.</p>
+	if (detail.loading)
+		return (
+			<div className="mx-auto max-w-4xl px-5 py-6">
+				<LoadingState rows={5} />
+			</div>
+		)
+	if (detail.error)
+		return (
+			<div className="mx-auto max-w-4xl px-5 py-6">
+				<ErrorState title="Run load failed" message={detail.error} onRetry={detail.refresh} />
+			</div>
+		)
+	if (!detail.run)
+		return (
+			<div className="mx-auto max-w-4xl px-5 py-6">
+				<EmptyState
+					icon={FileSearch}
+					title="Run not found"
+					description="It may have been deleted or the identifier is wrong."
+				/>
+			</div>
+		)
 
 	const hasPendingAttention = detail.attentionRequests.some((r) => r.status === 'pending')
 	const showAttentionBlock = detail.attentionRequests.length > 0 || !detail.isTerminal
@@ -125,7 +148,7 @@ export function RunDetailView({ runId, refTime = Date.now() }: { runId: string; 
 
 				<section className="mb-6 space-y-3">
 					<SectionTitle title="Terminal inspection" />
-					<p className="font-data text-[11px] text-dim">
+					<p className="font-data text-[11px] text-ash">
 						Supporting evidence only. Use the orchestration ledger above for run understanding.
 					</p>
 					<TerminalTakeover runId={detail.run.id} isTerminal={detail.isTerminal} />

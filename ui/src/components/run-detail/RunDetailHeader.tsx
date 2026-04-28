@@ -3,6 +3,7 @@ import { PrStateBadge } from '@/components/PrStateBadge'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { Pill } from '@/components/ui/pill'
 import { Tooltip } from '@/components/ui/tooltip'
 import type { PullRequest, Run } from '@/types'
 import { Link } from '@tanstack/react-router'
@@ -25,7 +26,7 @@ interface RunDetailHeaderProps {
 
 function pinButtonClass(watched: boolean, maxReached: boolean): string {
 	if (watched) return 'border-mineral/30 bg-mineral-dim text-mineral hover:bg-mineral/20'
-	if (maxReached) return 'border-edge text-dim/30 cursor-not-allowed'
+	if (maxReached) return 'border-edge text-dim cursor-not-allowed'
 	return ''
 }
 
@@ -56,13 +57,15 @@ export function RunDetailHeader({
 					<Tooltip label="Back to control center">
 						<Link
 							to="/"
-							className="inline-flex items-center text-dim transition-colors hover:text-silver"
+							className="inline-flex items-center rounded-md text-ash transition-colors hover:text-silver focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
 							aria-label="Back to control center"
 						>
-							<ArrowLeft size={14} />
+							<ArrowLeft size={14} strokeWidth={1.75} aria-hidden="true" />
 						</Link>
 					</Tooltip>
-					<span className="text-edge">|</span>
+					<span className="text-edge" aria-hidden="true">
+						|
+					</span>
 					<span className="font-data text-[11px] font-medium text-fog">{run.issue_identifier}</span>
 					<RunStateBadge state={run.state} />
 					{run.execution_mode ? <ExecutionModeBadge mode={run.execution_mode} /> : null}
@@ -88,10 +91,9 @@ export function RunDetailHeader({
 							variant="outline"
 							size="icon-xs"
 							onClick={onRefresh}
-							className="text-dim hover:text-silver"
 							aria-label="Refresh run data"
 						>
-							<RefreshCw size={13} />
+							<RefreshCw size={13} strokeWidth={1.75} aria-hidden="true" />
 						</Button>
 					</Tooltip>
 
@@ -100,25 +102,32 @@ export function RunDetailHeader({
 							href={pr.url}
 							target="_blank"
 							rel="noopener noreferrer"
-							className="font-data inline-flex h-6 items-center gap-1.5 rounded-md border border-neon-green/30 bg-neon-green/10 px-2 text-[11px] text-neon-green transition-colors hover:border-neon-green/50 hover:text-neon-green/80"
+							className="inline-flex shrink-0 rounded-md focus-visible:ring-2 focus-visible:ring-neon-green/40 focus-visible:outline-none"
 						>
-							#{pr.number}
-							<PrStateBadge state={pr.state} />
+							<Pill tone="live" size="sm" interactive>
+								#{pr.number}
+								<PrStateBadge state={pr.state} />
+							</Pill>
 						</a>
 					) : null}
 
 					{!isTerminal ? (
 						<>
-							<span className="mx-1 h-5 w-px bg-edge" />
+							<span className="mx-1 h-5 w-px bg-edge" aria-hidden="true" />
 							<Tooltip label="Cancel run">
 								<Button
 									variant="outline"
 									size="icon-xs"
 									onClick={onCancelRequest}
-									className="text-dim hover:border-oxide/30 hover:text-oxide"
+									className="text-ash hover:border-oxide/30 hover:bg-oxide-dim hover:text-oxide"
 									aria-label="Cancel run"
 								>
-									<Square size={12} className="fill-current" />
+									<Square
+										size={12}
+										strokeWidth={1.75}
+										className="fill-current"
+										aria-hidden="true"
+									/>
 								</Button>
 							</Tooltip>
 						</>

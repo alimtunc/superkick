@@ -25,10 +25,16 @@ export function IssueGroupCard({ group, renderRow }: IssueGroupCardProps) {
 				<button
 					type="button"
 					onClick={() => setExpanded((v) => !v)}
-					className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded text-dim transition-colors hover:bg-white/5 hover:text-silver"
+					className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-ash transition-colors hover:bg-slate-deep/50 hover:text-silver focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
 					title={expanded ? 'Collapse sub-issues' : `Show ${childCount} sub-issues`}
+					aria-expanded={expanded}
+					aria-label={expanded ? 'Collapse sub-issues' : `Show ${childCount} sub-issues`}
 				>
-					{expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+					{expanded ? (
+						<ChevronDown size={14} strokeWidth={1.75} aria-hidden="true" />
+					) : (
+						<ChevronRight size={14} strokeWidth={1.75} aria-hidden="true" />
+					)}
 				</button>
 				<div className="min-w-0 flex-1">{renderIssue(group.parent, false)}</div>
 			</div>
@@ -43,7 +49,7 @@ export function IssueGroupCard({ group, renderRow }: IssueGroupCardProps) {
 				<button
 					type="button"
 					onClick={() => setExpanded(true)}
-					className="font-data ml-14 cursor-pointer py-1 text-[10px] text-dim transition-colors hover:text-silver"
+					className="font-data ml-14 cursor-pointer rounded py-1 text-[10px] text-ash transition-colors hover:text-silver focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
 				>
 					{childCount} sub-issue{childCount > 1 ? 's' : ''} hidden
 				</button>
