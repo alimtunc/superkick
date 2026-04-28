@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { runsQuery } from '@/lib/queries'
@@ -44,67 +44,63 @@ export function CommandBar() {
 		}
 	}, [open])
 
-	const navItems: CommandItem[] = useMemo(
-		() => [
-			{
-				id: 'nav:inbox',
-				label: 'Go to Inbox',
-				hint: 'Triage',
-				icon: Inbox,
-				run: () => router.navigate({ to: '/' })
-			},
-			{
-				id: 'nav:issues',
-				label: 'Go to Issues',
-				hint: 'Backlog',
-				icon: ListTodo,
-				run: () => router.navigate({ to: '/issues' })
-			},
-			{
-				id: 'nav:runs',
-				label: 'Go to Runs',
-				hint: 'All runs',
-				icon: Play,
-				run: () => router.navigate({ to: '/runs' })
-			},
-			{
-				id: 'nav:agents',
-				label: 'Go to Agents',
-				hint: 'Roles',
-				icon: Bot,
-				run: () => router.navigate({ to: '/agents' })
-			},
-			{
-				id: 'nav:settings',
-				label: 'Go to Settings',
-				icon: Settings,
-				run: () => router.navigate({ to: '/settings' })
-			}
-		],
-		[router]
-	)
-
-	const runItems: CommandItem[] = useMemo(() => {
-		if (!open) return []
-		return runs.slice(0, 20).map((r) => ({
-			id: `run:${r.id}`,
-			label: `Open run · ${r.issue_identifier ?? r.id.slice(0, 8)}`,
-			hint: r.state.replace(/_/g, ' '),
+	const navItems: CommandItem[] = [
+		{
+			id: 'nav:inbox',
+			label: 'Go to Inbox',
+			hint: 'Triage',
+			icon: Inbox,
+			run: () => router.navigate({ to: '/' })
+		},
+		{
+			id: 'nav:issues',
+			label: 'Go to Issues',
+			hint: 'Backlog',
+			icon: ListTodo,
+			run: () => router.navigate({ to: '/issues' })
+		},
+		{
+			id: 'nav:runs',
+			label: 'Go to Runs',
+			hint: 'All runs',
 			icon: Play,
-			run: () => router.navigate({ to: '/runs/$runId', params: { runId: r.id } })
-		}))
-	}, [runs, router, open])
+			run: () => router.navigate({ to: '/runs' })
+		},
+		{
+			id: 'nav:agents',
+			label: 'Go to Agents',
+			hint: 'Roles',
+			icon: Bot,
+			run: () => router.navigate({ to: '/agents' })
+		},
+		{
+			id: 'nav:settings',
+			label: 'Go to Settings',
+			icon: Settings,
+			run: () => router.navigate({ to: '/settings' })
+		}
+	]
 
-	const items = useMemo(() => [...navItems, ...runItems], [navItems, runItems])
+	const runItems: CommandItem[] = open
+		? runs.slice(0, 20).map((r) => ({
+				id: `run:${r.id}`,
+				label: `Open run · ${r.issue_identifier ?? r.id.slice(0, 8)}`,
+				hint: r.state.replace(/_/g, ' '),
+				icon: Play,
+				run: () => router.navigate({ to: '/runs/$runId', params: { runId: r.id } })
+			}))
+		: []
 
-	const filtered = useMemo(() => {
-		const q = query.trim().toLowerCase()
-		if (!q) return items
-		return items.filter(
-			(it) =>
-				it.label.toLowerCase().includes(q) || (it.hint ? it.hint.toLowerCase().includes(q) : false)
-		)
-	}, [items, query])
+	const items = [...navItems, ...runItems]
+
+	const q = query.trim().toLowerCase()
+	const filtered = q
+		? items.filter(
+				(it) =>
+					it.label.toLowerCase().includes(q) ||
+					(it.hint ? it.hint.toLowerCase().includes(q) : false)
+			)
+		: items
 
 	useEffect(() => {
 		if (activeIdx >= filtered.length) setActiveIdx(0)
@@ -147,24 +143,24 @@ export function CommandBar() {
 				className="absolute inset-0 bg-black/60 backdrop-blur-sm"
 				onClick={closeBar}
 			/>
-			<div className="panel relative z-10 w-full max-w-xl overflow-hidden">
+			<div className="relative z-10 w-full max-w-xl overflow-hidden rounded-md border border-edge bg-panel shadow-2xl">
 				<div className="flex items-center gap-2 border-b border-edge px-3 py-2.5">
-					<Search size={14} className="text-dim" />
+					<Search size={14} strokeWidth={1.75} className="text-ash" aria-hidden="true" />
 					<input
 						ref={inputRef}
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}
 						onKeyDown={onKeyDown}
 						placeholder="Navigate, open a run…"
-						className="font-data flex-1 bg-transparent text-[12px] text-fog placeholder:text-dim focus:outline-none"
+						className="font-data flex-1 bg-transparent text-[12px] text-fog placeholder:text-ash focus:outline-none"
 					/>
-					<kbd className="font-data rounded border border-edge px-1.5 py-0.5 text-[9px] tracking-wider text-dim uppercase">
+					<kbd className="font-data rounded border border-edge px-1.5 py-0.5 text-[9px] tracking-wider text-ash uppercase">
 						Esc
 					</kbd>
 				</div>
 				<ul className="max-h-80 overflow-y-auto py-1">
 					{filtered.length === 0 ? (
-						<li className="font-data px-3 py-4 text-center text-[11px] text-dim">No matches</li>
+						<li className="font-data px-3 py-4 text-center text-[11px] text-ash">No matches</li>
 					) : (
 						filtered.map((item, i) => {
 							const Icon = item.icon
@@ -176,14 +172,21 @@ export function CommandBar() {
 										onMouseEnter={() => setActiveIdx(i)}
 										onClick={() => run(item)}
 										className={[
-											'flex w-full items-center gap-3 px-3 py-2 text-left transition-colors',
-											active ? 'bg-slate-deep text-fog' : 'text-silver'
+											'flex h-8 w-full items-center gap-2.5 px-3 text-left transition-colors focus-visible:outline-none',
+											active
+												? 'bg-slate-deep text-fog'
+												: 'text-silver hover:bg-slate-deep/40'
 										].join(' ')}
 									>
-										<Icon size={14} className={active ? 'text-mineral' : 'text-dim'} />
+										<Icon
+											size={14}
+											strokeWidth={1.75}
+											aria-hidden="true"
+											className={active ? 'text-mineral' : 'text-ash'}
+										/>
 										<span className="font-data flex-1 text-[12px]">{item.label}</span>
 										{item.hint ? (
-											<span className="font-data text-[10px] tracking-wider text-dim uppercase">
+											<span className="font-data text-[10px] tracking-wider text-ash uppercase">
 												{item.hint}
 											</span>
 										) : null}

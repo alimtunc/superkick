@@ -7,16 +7,7 @@ export {
 	fmtRelativeTime,
 	fmtSecondsCompact
 } from './formatters'
-export {
-	providerLabel,
-	resolveProviderLabel,
-	stepLabel,
-	stateIcon,
-	stateBgColor,
-	stateTextColor,
-	stateBadgeStyle,
-	stateDistribution
-} from './labels'
+export { providerLabel, resolveProviderLabel, stepLabel, stateIcon, stateTone } from './labels'
 export { healthSignal, shouldShowInterrupts } from './health'
 export { extractFormError, parseAnswer } from './parsers'
 export { watchButtonClass, watchButtonTitle } from './watch'

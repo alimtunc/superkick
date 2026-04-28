@@ -1,4 +1,5 @@
-import { NEEDS_HUMAN_REASON_LABEL, NEEDS_HUMAN_REASON_TONE } from '@/lib/inbox/needsHuman'
+import { Pill } from '@/components/ui/pill'
+import { NEEDS_HUMAN_REASON_LABEL, NEEDS_HUMAN_REASON_PILL_TONE } from '@/lib/inbox/needsHuman'
 import type { NeedsHumanItem } from '@/types'
 import { Link } from '@tanstack/react-router'
 
@@ -13,11 +14,13 @@ interface NeedsHumanRowProps {
  */
 export function NeedsHumanRow({ item }: NeedsHumanRowProps) {
 	const tag = (
-		<span
-			className={`font-data inline-block rounded px-1.5 py-0.5 text-[9px] tracking-wider uppercase ${NEEDS_HUMAN_REASON_TONE[item.reasonKind]}`}
+		<Pill
+			tone={NEEDS_HUMAN_REASON_PILL_TONE[item.reasonKind]}
+			size="xs"
+			className="tracking-wider uppercase"
 		>
 			{NEEDS_HUMAN_REASON_LABEL[item.reasonKind]}
-		</span>
+		</Pill>
 	)
 
 	if (item.source.kind === 'launch-issue') {
@@ -26,7 +29,7 @@ export function NeedsHumanRow({ item }: NeedsHumanRowProps) {
 			<Link
 				to="/issues/$issueId"
 				params={{ issueId: issue.id }}
-				className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-slate-deep/50"
+				className="flex items-center gap-3 border-l-2 border-transparent px-3 py-2 transition-colors hover:border-l-oxide hover:bg-slate-deep/40 focus-visible:border-l-oxide focus-visible:bg-slate-deep/40 focus-visible:outline-none"
 			>
 				{tag}
 				<span className="font-data shrink-0 text-[11px] font-medium text-fog">

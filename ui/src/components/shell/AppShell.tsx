@@ -28,9 +28,9 @@ export function AppShell() {
 				duration={1500}
 				toastOptions={{
 					style: {
-						background: '#2a2a2e',
-						border: '1px solid #3a3a3e',
-						color: '#c8c8cc',
+						background: 'var(--color-panel)',
+						border: '1px solid var(--color-edge)',
+						color: 'var(--color-fog)',
 						fontSize: '12px'
 					}
 				}}

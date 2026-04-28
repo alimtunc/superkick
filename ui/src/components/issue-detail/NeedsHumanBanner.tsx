@@ -15,19 +15,19 @@ export function NeedsHumanBanner({ runs }: { runs: LinkedRunSummary[] }) {
 		<Link
 			to="/runs/$runId"
 			params={{ runId: waiting.id }}
-			className={`mb-6 flex items-center justify-between gap-3 rounded-md border px-4 py-3 transition-colors hover:border-gold ${toneAccentClass.attention}`}
+			className={`mb-6 flex items-center justify-between gap-3 rounded-md border px-4 py-3 transition-colors hover:border-gold focus-visible:ring-2 focus-visible:ring-gold/40 focus-visible:outline-none ${toneAccentClass.attention}`}
 		>
 			<div className="flex flex-col">
-				<span className={`font-data text-[12px] font-medium ${toneTextClass.attention}`}>
+				<span className={`text-[13px] font-medium ${toneTextClass.attention}`}>
 					{narrative.headline}
 				</span>
-				<span className="font-data text-[11px] text-silver/80">{narrative.nextHint}</span>
+				<span className="font-data text-[11px] text-silver">{narrative.nextHint}</span>
 			</div>
 			<span
 				className={`font-data inline-flex items-center gap-1 text-[11px] ${toneTextClass.attention}`}
 			>
 				Open run
-				<ArrowRight size={12} />
+				<ArrowRight size={12} strokeWidth={1.75} aria-hidden="true" />
 			</span>
 		</Link>
 	)

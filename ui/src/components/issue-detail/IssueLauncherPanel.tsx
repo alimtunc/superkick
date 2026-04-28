@@ -46,8 +46,8 @@ export function IssueLauncherPanel({ issue }: IssueLauncherPanelProps) {
 			<SectionTitle title="RUN" />
 			{latest ? <LatestRunCard run={latest} /> : null}
 			{!hasActiveRun ? (
-				<div className="panel flex items-center justify-between gap-4 px-4 py-3">
-					<span className="font-data text-[12px] text-dim">
+				<div className="flex items-center justify-between gap-4 rounded-md border border-edge bg-slate-deep px-4 py-3">
+					<span className="font-data text-[12px] text-silver">
 						{latest ? 'Start another run' : 'No run yet'}
 					</span>
 					<Button
@@ -56,7 +56,7 @@ export function IssueLauncherPanel({ issue }: IssueLauncherPanelProps) {
 						onClick={dialog.openDialog}
 						aria-label="Launch a run for this issue"
 					>
-						<Play size={11} className="fill-white text-white" />
+						<Play size={11} strokeWidth={1.75} className="fill-current" aria-hidden="true" />
 						Launch
 					</Button>
 				</div>

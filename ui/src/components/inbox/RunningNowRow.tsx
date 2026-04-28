@@ -1,5 +1,6 @@
 import { StalledBadge } from '@/components/dashboard/queue/StalledBadge'
 import { RunStateBadge } from '@/components/RunStateBadge'
+import { Pill } from '@/components/ui/pill'
 import { fmtElapsed, stepLabel } from '@/lib/domain'
 import type { QueueRunSummary } from '@/types'
 import { Link } from '@tanstack/react-router'
@@ -23,7 +24,7 @@ export function RunningNowRow({ run, refTime }: RunningNowRowProps) {
 		<Link
 			to="/runs/$runId"
 			params={{ runId: run.id }}
-			className="group flex flex-col gap-1 px-3 py-2 transition-colors hover:bg-slate-deep/50"
+			className="group flex flex-col gap-1 border-l-2 border-transparent px-3 py-2 transition-colors hover:border-l-edge-bright hover:bg-slate-deep/40 focus-visible:border-l-mineral focus-visible:bg-slate-deep/40 focus-visible:outline-none"
 		>
 			<div className="flex items-center gap-3">
 				<RunStateBadge state={run.state} />
@@ -36,21 +37,21 @@ export function RunningNowRow({ run, refTime }: RunningNowRowProps) {
 				) : null}
 				<span className="ml-auto flex shrink-0 items-center gap-2">
 					{run.pending_attention_count > 0 ? (
-						<span className="font-data rounded bg-oxide/15 px-1.5 py-0.5 text-[9px] tracking-wider text-oxide uppercase">
-							{run.pending_attention_count} attn
-						</span>
+						<Pill tone="oxide" size="xs" title="Pending attention">
+							{run.pending_attention_count} ATTN
+						</Pill>
 					) : null}
 					{run.pending_interrupt_count > 0 ? (
-						<span className="font-data rounded bg-gold-dim px-1.5 py-0.5 text-[9px] tracking-wider text-gold uppercase">
-							{run.pending_interrupt_count} intr
-						</span>
+						<Pill tone="gold" size="xs" title="Pending interrupts">
+							{run.pending_interrupt_count} INTR
+						</Pill>
 					) : null}
 					{run.pr ? (
-						<span className="font-data rounded bg-violet-500/15 px-1.5 py-0.5 text-[9px] tracking-wider text-violet-300 uppercase">
+						<Pill tone="violet" size="xs" title={`PR ${run.pr.state}`}>
 							PR #{run.pr.number}
-						</span>
+						</Pill>
 					) : null}
-					<span className="font-data text-[10px] text-dim">
+					<span className="font-data text-[10px] text-ash">
 						{fmtElapsed(run.started_at, refTime)}
 					</span>
 				</span>
@@ -63,7 +64,7 @@ export function RunningNowRow({ run, refTime }: RunningNowRowProps) {
 						</span>
 					) : null}
 					{run.branch_name ? (
-						<span className="font-data shrink-0 truncate text-[10px] text-dim">
+						<span className="font-data shrink-0 truncate text-[10px] text-ash">
 							{run.branch_name}
 						</span>
 					) : null}

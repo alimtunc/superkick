@@ -28,11 +28,11 @@ export function IssuesViewToggle({ value, onChange }: IssuesViewToggleProps) {
 						type="button"
 						aria-selected={active}
 						onClick={() => onChange(v)}
-						className={`font-data inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-[11px] transition-colors ${
-							active ? 'bg-white/10 text-silver' : 'text-dim hover:text-fog'
+						className={`font-data inline-flex h-6 items-center gap-1.5 rounded px-2.5 text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none ${
+							active ? 'bg-graphite text-fog shadow-sm' : 'text-ash hover:text-silver'
 						}`}
 					>
-						<Icon size={12} aria-hidden="true" />
+						<Icon size={12} strokeWidth={1.75} aria-hidden="true" />
 						{label}
 					</button>
 				)

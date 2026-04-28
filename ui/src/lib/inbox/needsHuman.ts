@@ -1,3 +1,4 @@
+import type { PillTone } from '@/components/ui/pill'
 import type { LaunchQueueItem, NeedsHumanItem, NeedsHumanReasonKind, QueueRunSummary, Run } from '@/types'
 
 interface DeriveInputs {
@@ -27,13 +28,13 @@ export const NEEDS_HUMAN_REASON_LABEL: Record<NeedsHumanReasonKind, string> = {
 	recently_failed: 'Failed'
 }
 
-export const NEEDS_HUMAN_REASON_TONE: Record<NeedsHumanReasonKind, string> = {
-	awaiting_approval: 'text-gold bg-gold-dim',
-	stalled: 'text-gold bg-gold-dim',
-	interrupt_pending: 'text-gold bg-gold-dim',
-	attention_pending: 'text-oxide bg-oxide/10',
-	budget_paused: 'text-gold bg-gold-dim',
-	recently_failed: 'text-oxide bg-oxide/10'
+export const NEEDS_HUMAN_REASON_PILL_TONE: Record<NeedsHumanReasonKind, PillTone> = {
+	awaiting_approval: 'gold',
+	stalled: 'gold',
+	interrupt_pending: 'gold',
+	attention_pending: 'oxide',
+	budget_paused: 'gold',
+	recently_failed: 'oxide'
 }
 
 /**

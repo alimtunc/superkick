@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { Pill } from '@/components/ui/pill'
 import type { LaunchQueueItem } from '@/types'
 import { CircleSlash, Gauge, Rocket } from 'lucide-react'
 
@@ -22,13 +23,14 @@ export function IssueExtraBadges({ item, dispatchPosition }: IssueExtraBadgesPro
 		badges.push({
 			key: 'launchable',
 			element: (
-				<span
-					className="font-data inline-flex items-center gap-1 rounded border border-neon-green/40 bg-neon-green/10 px-1.5 py-0.5 text-[10px] text-neon-green"
+				<Pill
+					tone="live"
+					size="xs"
 					title="Ready to dispatch"
+					leading={<Rocket size={10} aria-hidden="true" />}
 				>
-					<Rocket size={10} aria-hidden="true" />
 					{dispatchPosition !== undefined ? `Ready · #${dispatchPosition}` : 'Ready'}
-				</span>
+				</Pill>
 			)
 		})
 	}
@@ -37,13 +39,14 @@ export function IssueExtraBadges({ item, dispatchPosition }: IssueExtraBadgesPro
 		badges.push({
 			key: 'waiting',
 			element: (
-				<span
-					className="font-data inline-flex items-center gap-1 rounded border border-gold/40 bg-gold/10 px-1.5 py-0.5 text-[10px] text-gold"
+				<Pill
+					tone="gold"
+					size="xs"
 					title={item.reason}
+					leading={<Gauge size={10} aria-hidden="true" />}
 				>
-					<Gauge size={10} aria-hidden="true" />
 					Waiting
-				</span>
+				</Pill>
 			)
 		})
 	}
@@ -59,13 +62,14 @@ export function IssueExtraBadges({ item, dispatchPosition }: IssueExtraBadgesPro
 		badges.push({
 			key: 'blocked',
 			element: (
-				<span
-					className="font-data inline-flex items-center gap-1 rounded border border-oxide/40 bg-oxide/10 px-1.5 py-0.5 text-[10px] text-oxide"
+				<Pill
+					tone="oxide"
+					size="xs"
 					title={item.reason}
+					leading={<CircleSlash size={10} aria-hidden="true" />}
 				>
-					<CircleSlash size={10} aria-hidden="true" />
 					{label}
-				</span>
+				</Pill>
 			)
 		})
 	}

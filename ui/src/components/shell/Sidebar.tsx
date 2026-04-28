@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils'
 import { Link, useMatches } from '@tanstack/react-router'
 import { Bot, Inbox, ListTodo, Play, Settings } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -31,14 +32,22 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
 	return (
 		<Link
 			to={item.to}
-			className={[
-				'flex items-center gap-3 rounded-md px-3 py-2 text-[13px] font-medium transition-colors',
-				active ? 'bg-slate-deep text-fog' : 'text-ash hover:bg-slate-deep/50 hover:text-silver'
-			].join(' ')}
+			className={cn(
+				'group flex h-8 items-center gap-2.5 rounded-md border-l-2 px-2.5 text-[13px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none',
+				active
+					? 'border-l-mineral bg-slate-deep text-fog'
+					: 'border-l-transparent text-silver hover:bg-slate-deep/60 hover:text-fog'
+			)}
 		>
-			<span className={active ? 'text-mineral' : 'text-dim'}>
-				<Icon size={16} />
-			</span>
+			<Icon
+				size={16}
+				strokeWidth={1.75}
+				aria-hidden="true"
+				className={cn(
+					'shrink-0 transition-colors',
+					active ? 'text-mineral' : 'text-ash group-hover:text-silver'
+				)}
+			/>
 			{item.label}
 		</Link>
 	)

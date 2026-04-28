@@ -6,10 +6,8 @@ export function IssueDescription({ description }: { description: string }) {
 	return (
 		<section className="mb-6">
 			<SectionTitle title="DESCRIPTION" />
-			<div className="panel p-4">
-				<div className="font-data text-[12px] leading-relaxed whitespace-pre-wrap text-silver">
-					{description}
-				</div>
+			<div className="rounded-md border border-edge bg-graphite p-4">
+				<div className="text-sm leading-relaxed whitespace-pre-wrap text-silver">{description}</div>
 			</div>
 		</section>
 	)

@@ -11,11 +11,11 @@ export function CommentRow({ comment }: { comment: IssueComment }) {
 			<div className="min-w-0 flex-1">
 				<div className="flex items-baseline gap-2">
 					<span className="font-data text-[11px] font-medium text-silver">{name}</span>
-					<span className="font-data text-[10px] text-dim">
+					<span className="font-data text-[10px] text-ash">
 						{fmtRelativeTime(comment.created_at)}
 					</span>
 				</div>
-				<pre className="font-data mt-1 text-[12px] leading-relaxed whitespace-pre-wrap text-silver/80">
+				<pre className="mt-1 font-sans text-sm leading-relaxed whitespace-pre-wrap text-silver/80">
 					{comment.body}
 				</pre>
 			</div>

@@ -1,15 +1,16 @@
 import { InboxSection } from '@/components/inbox/InboxSection'
 import { InboxSectionBody } from '@/components/inbox/InboxSectionBody'
-import { InboxSectionError } from '@/components/inbox/InboxSectionError'
 import { NeedsHumanRow } from '@/components/inbox/NeedsHumanRow'
+import { ErrorState } from '@/components/ui/state-error'
 import { useNeedsHumanItems } from '@/hooks/useNeedsHumanItems'
 
 export function NeedsHumanSection() {
 	const { items, loading, error, linearWarning, refresh } = useNeedsHumanItems()
 
 	const linearBanner = linearWarning ? (
-		<InboxSectionError
+		<ErrorState
 			message={`Linear unavailable — approval requests may be missing. ${linearWarning}`}
+			density="compact"
 		/>
 	) : null
 

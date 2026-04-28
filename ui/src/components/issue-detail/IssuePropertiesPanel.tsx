@@ -9,7 +9,7 @@ export function IssuePropertiesPanel({ issue }: { issue: IssueDetailResponse }) 
 	const cycleLabel = issue.cycle ? (issue.cycle.name ?? `#${issue.cycle.number}`) : null
 
 	return (
-		<aside className="panel p-3">
+		<aside className="rounded-md border border-edge bg-graphite p-3">
 			<dl className="divide-y divide-edge/60">
 				<IssuePropertyRow label="Status">
 					<StatusChip status={issue.status} />

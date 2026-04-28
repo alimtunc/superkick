@@ -34,15 +34,21 @@ export function PtyTerminal({ runId, isTerminal }: PtyTerminalProps) {
 	const setupTerminal = useCallback(() => {
 		if (!containerRef.current) return null
 
+		const styles = getComputedStyle(document.documentElement)
+		const readToken = (name: string, fallback: string): string => {
+			const value = styles.getPropertyValue(name).trim()
+			return value || fallback
+		}
+
 		const terminal = new Terminal({
 			cursorBlink: true,
 			fontSize: 12,
 			fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
 			theme: {
-				background: '#0a0a0f',
-				foreground: '#c0c0cc',
-				cursor: '#c0c0cc',
-				selectionBackground: '#334'
+				background: readToken('--color-carbon', '#111214'),
+				foreground: readToken('--color-silver', '#b0ada6'),
+				cursor: readToken('--color-silver', '#b0ada6'),
+				selectionBackground: readToken('--color-slate-deep', '#1f2228')
 			},
 			scrollback: 10000,
 			convertEol: true
@@ -185,7 +191,7 @@ export function PtyTerminal({ runId, isTerminal }: PtyTerminalProps) {
 	}, [runId, isTerminal, setupTerminal, connectWebSocket, loadHistory])
 
 	return (
-		<div className="rounded-lg border border-edge bg-carbon">
+		<div className="rounded-md border border-edge bg-carbon">
 			<TerminalStatusBar status={status} capabilities={capabilities} />
 			<div ref={containerRef} className="min-h-80 px-1 py-1" />
 		</div>

@@ -1,5 +1,6 @@
 import { PriorityIcon } from '@/components/issues/PriorityIcon'
 import { Button } from '@/components/ui/button'
+import { Pill } from '@/components/ui/pill'
 import type { LaunchQueueItem } from '@/types'
 import { Link } from '@tanstack/react-router'
 
@@ -22,13 +23,10 @@ export function ReadyToLaunchRow({
 	dispatchPending
 }: ReadyToLaunchRowProps) {
 	return (
-		<div className="group flex items-center gap-3 px-3 py-2 transition-colors hover:bg-slate-deep/50">
-			<span
-				className="font-data shrink-0 rounded bg-neon-green/15 px-1.5 py-0.5 text-[10px] text-neon-green"
-				aria-label={`Position ${dispatchPosition} in dispatch order`}
-			>
+		<div className="group flex items-center gap-3 border-l-2 border-transparent px-3 py-2 transition-colors focus-within:border-l-mineral focus-within:bg-slate-deep/40 hover:border-l-mineral hover:bg-slate-deep/40">
+			<Pill tone="live" size="xs" aria-label={`Position ${dispatchPosition} in dispatch order`}>
 				#{dispatchPosition}
-			</span>
+			</Pill>
 			<span className="flex w-4 shrink-0 items-center justify-center">
 				<PriorityIcon value={item.issue.priority.value} />
 			</span>

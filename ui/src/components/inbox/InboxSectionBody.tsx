@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 
-import { InboxEmptyState } from '@/components/inbox/InboxEmptyState'
-import { InboxSectionError } from '@/components/inbox/InboxSectionError'
-import { InboxSectionSkeleton } from '@/components/inbox/InboxSectionSkeleton'
+import { EmptyState } from '@/components/ui/state-empty'
+import { ErrorState } from '@/components/ui/state-error'
+import { LoadingState } from '@/components/ui/state-loading'
 
 interface InboxSectionBodyProps {
 	loading: boolean
@@ -34,13 +34,13 @@ export function InboxSectionBody({
 	prepend,
 	children
 }: InboxSectionBodyProps) {
-	if (loading) return <InboxSectionSkeleton rows={skeletonRows} />
-	if (error) return <InboxSectionError message={error} onRetry={onRetry} />
+	if (loading) return <LoadingState rows={skeletonRows} density="compact" />
+	if (error) return <ErrorState message={error} onRetry={onRetry} density="compact" />
 	if (isEmpty) {
 		return (
 			<div className="flex flex-col gap-2">
 				{prepend ? prepend : null}
-				<InboxEmptyState message={emptyMessage} />
+				<EmptyState title={emptyMessage} density="compact" />
 			</div>
 		)
 	}

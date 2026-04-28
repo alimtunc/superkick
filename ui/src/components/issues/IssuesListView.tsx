@@ -1,8 +1,7 @@
-import { useMemo } from 'react'
-
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
 import { IssueGroupCard } from '@/components/issues/IssueGroupCard'
 import { IssueListRow } from '@/components/issues/IssueListRow'
+import { EmptyState } from '@/components/ui/state-empty'
 import type { IssueWithState } from '@/hooks/useIssues'
 import { useNow } from '@/hooks/useNow'
 import { issueStateAccent } from '@/lib/domain'
@@ -13,6 +12,7 @@ import type {
 	LaunchQueueItem,
 	LinearIssueListItem
 } from '@/types'
+import { Inbox } from 'lucide-react'
 
 interface IssuesListViewProps {
 	allIssues: readonly IssueWithState[]
@@ -31,20 +31,14 @@ export function IssuesListView({
 }: IssuesListViewProps) {
 	const refTime = useNow()
 
-	const queueItemByIdentifier = useMemo(() => {
-		const map = new Map<string, LaunchQueueItem>()
-		for (const item of queueItems) {
-			if (item.kind === 'issue') map.set(item.issue.identifier, item)
-			else if (item.linked_issue) map.set(item.linked_issue.identifier, item)
-		}
-		return map
-	}, [queueItems])
+	const queueItemByIdentifier = new Map<string, LaunchQueueItem>()
+	for (const item of queueItems) {
+		if (item.kind === 'issue') queueItemByIdentifier.set(item.issue.identifier, item)
+		else if (item.linked_issue) queueItemByIdentifier.set(item.linked_issue.identifier, item)
+	}
 
-	const stateByIssueId = useMemo(() => {
-		const map = new Map<string, IssueState>()
-		for (const item of allIssues) map.set(item.issue.id, item.state)
-		return map
-	}, [allIssues])
+	const stateByIssueId = new Map<string, IssueState>()
+	for (const item of allIssues) stateByIssueId.set(item.issue.id, item.state)
 
 	const sectionLabel = activeIssueState === 'all' ? 'All' : issueStateAccent[activeIssueState].label
 
@@ -74,9 +68,11 @@ export function IssuesListView({
 					))}
 				</div>
 			) : (
-				<p className="font-data py-6 text-center text-[11px] text-dim">
-					No {sectionLabel.toLowerCase()} issues.
-				</p>
+				<EmptyState
+					icon={Inbox}
+					title={`No ${sectionLabel.toLowerCase()} issues`}
+					description="Try a different filter or wait for Linear to sync."
+				/>
 			)}
 		</section>
 	)

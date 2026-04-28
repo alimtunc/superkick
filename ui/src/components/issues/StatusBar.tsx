@@ -32,8 +32,11 @@ export function StatusBar({ counts, total }: StatusBarProps) {
 			<div className="flex flex-wrap gap-x-4 gap-y-1">
 				{segments.map((s) => (
 					<span key={s.state} className="flex items-center gap-1.5">
-						<span className={`inline-block h-2 w-2 rounded-sm ${s.accent.dot}`} />
-						<span className="font-data text-[10px] text-dim">
+						<span
+							className={`inline-block h-2 w-2 rounded-sm ${s.accent.dot}`}
+							aria-hidden="true"
+						/>
+						<span className="font-data text-[10px] text-ash">
 							{s.accent.label} {s.count}
 						</span>
 					</span>
