@@ -117,6 +117,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "016_run_heartbeat_recovery",
             include_str!("../migrations/016_run_heartbeat_recovery.sql"),
         ),
+        (
+            "017_runtime_registry",
+            include_str!("../migrations/017_runtime_registry.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

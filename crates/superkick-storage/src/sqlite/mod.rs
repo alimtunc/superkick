@@ -11,6 +11,7 @@ mod issue_blockers;
 mod pull_requests;
 mod recovery;
 mod runs;
+mod runtimes;
 mod session_lifecycle;
 mod session_ownership;
 mod steps;
@@ -28,6 +29,7 @@ pub use recovery::{
     RecoveryEventKind, RecoveryEventRow, SqliteRecoveryEventRepo, list_recovery_candidates,
 };
 pub use runs::SqliteRunRepo;
+pub use runtimes::{ProviderUpsert, SqliteRuntimeRepo};
 pub use session_lifecycle::SqliteSessionLifecycleRepo;
 pub use session_ownership::SqliteSessionOwnershipRepo;
 pub use steps::SqliteRunStepRepo;

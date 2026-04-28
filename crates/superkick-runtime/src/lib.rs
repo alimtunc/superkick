@@ -2,6 +2,7 @@
 
 pub mod agent_supervisor;
 pub mod attention_service;
+pub mod detector;
 pub mod git;
 pub mod handoff_service;
 pub mod heartbeat;
@@ -20,6 +21,7 @@ pub use agent_supervisor::{
     AgentHandle, AgentLaunchConfig, AgentResult, AgentSupervisor, SessionLaunchInfo,
 };
 pub use attention_service::AttentionService;
+pub use detector::{RuntimeDetector, boot_refresh, capabilities_for};
 pub use handoff_service::HandoffService;
 pub use heartbeat::spawn_heartbeat_listener;
 pub use interrupt_service::InterruptService;

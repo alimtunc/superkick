@@ -28,6 +28,117 @@ async fn schema_created_from_scratch() -> Result<()> {
     assert!(tables.contains(&"session_ownership_events".to_string()));
     assert!(tables.contains(&"session_lifecycle_events".to_string()));
     assert!(tables.contains(&"issue_blockers".to_string()));
+    assert!(tables.contains(&"runtimes".to_string()));
+    assert!(tables.contains(&"runtime_providers".to_string()));
+    Ok(())
+}
+
+#[tokio::test]
+async fn runtime_registry_ensure_local_is_idempotent() -> Result<()> {
+    let pool = setup().await?;
+    let repo = SqliteRuntimeRepo::new(pool);
+
+    let first = repo
+        .ensure_local(Some("alimtunc-mbp"), Some("darwin"), Some("aarch64"))
+        .await?;
+    let second = repo
+        .ensure_local(Some("alimtunc-mbp"), Some("darwin"), Some("aarch64"))
+        .await?;
+
+    assert_eq!(first.id.0, second.id.0, "ensure_local must return same row");
+    let all = repo.list_all().await?;
+    assert_eq!(all.len(), 1, "exactly one local runtime expected");
+    assert_eq!(all[0].host_label.as_deref(), Some("alimtunc-mbp"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn runtime_registry_upsert_provider_replaces_in_place() -> Result<()> {
+    let pool = setup().await?;
+    let repo = SqliteRuntimeRepo::new(pool);
+
+    let runtime = repo
+        .ensure_local(None, Some("darwin"), Some("aarch64"))
+        .await?;
+
+    let caps_v1 = RuntimeCapabilities {
+        supports_pty: true,
+        supports_protocol: false,
+        supports_resume: true,
+        supports_mcp_config: true,
+        supports_structured_tools: true,
+        supports_usage: true,
+    };
+    let first = repo
+        .upsert_provider(
+            runtime.id,
+            ProviderUpsert {
+                kind: AgentProvider::Claude,
+                executable_path: Some("/usr/local/bin/claude"),
+                version: Some("1.2.3"),
+                status: ProviderStatus::Available,
+                capabilities: caps_v1,
+                seen_at: Some(Utc::now()),
+            },
+        )
+        .await?;
+
+    // Re-detect with a new version: same row, same id, but updated fields.
+    let second = repo
+        .upsert_provider(
+            runtime.id,
+            ProviderUpsert {
+                kind: AgentProvider::Claude,
+                executable_path: Some("/opt/homebrew/bin/claude"),
+                version: Some("1.2.4"),
+                status: ProviderStatus::Available,
+                capabilities: caps_v1,
+                seen_at: Some(Utc::now()),
+            },
+        )
+        .await?;
+
+    assert_eq!(first.id.0, second.id.0, "upsert must reuse provider row");
+    assert_eq!(second.version.as_deref(), Some("1.2.4"));
+    assert_eq!(
+        second.executable_path.as_deref(),
+        Some("/opt/homebrew/bin/claude")
+    );
+
+    let providers = repo.list_providers(runtime.id).await?;
+    assert_eq!(providers.len(), 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn runtime_registry_marks_provider_unavailable() -> Result<()> {
+    let pool = setup().await?;
+    let repo = SqliteRuntimeRepo::new(pool);
+
+    let runtime = repo.ensure_local(None, None, None).await?;
+    let caps = RuntimeCapabilities {
+        supports_pty: false,
+        supports_protocol: false,
+        supports_resume: false,
+        supports_mcp_config: false,
+        supports_structured_tools: false,
+        supports_usage: false,
+    };
+    let p = repo
+        .upsert_provider(
+            runtime.id,
+            ProviderUpsert {
+                kind: AgentProvider::Codex,
+                executable_path: None,
+                version: None,
+                status: ProviderStatus::Unavailable,
+                capabilities: caps,
+                seen_at: None,
+            },
+        )
+        .await?;
+    assert_eq!(p.status, ProviderStatus::Unavailable);
+    assert!(p.executable_path.is_none());
     Ok(())
 }
 

@@ -14,5 +14,9 @@ export const queryKeys = {
 	},
 	launchQueue: {
 		all: ['launch-queue'] as const
+	},
+	runtimes: {
+		all: ['runtimes'] as const,
+		list: ['runtimes', 'list'] as const
 	}
 }

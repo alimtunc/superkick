@@ -1,3 +1,4 @@
+import { RuntimesSection } from '@/components/settings/RuntimesSection'
 import { createRoute } from '@tanstack/react-router'
 
 import { Route as shellRoute } from './route'
@@ -10,11 +11,12 @@ export const Route = createRoute({
 
 function SettingsPage() {
 	return (
-		<div className="flex flex-1 items-center justify-center p-10">
-			<div className="text-center">
-				<h1 className="font-data mb-2 text-sm tracking-wider text-silver uppercase">Settings</h1>
+		<div className="flex flex-1 flex-col gap-6 overflow-y-auto p-8">
+			<header>
+				<h1 className="font-data text-sm tracking-wider text-silver uppercase">Settings</h1>
 				<p className="text-[13px] text-dim">Superkick configuration.</p>
-			</div>
+			</header>
+			<RuntimesSection />
 		</div>
 	)
 }

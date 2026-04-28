@@ -8,5 +8,6 @@ pub mod launch_queue;
 pub mod ownership;
 mod queue_common;
 pub mod runs;
+pub mod runtimes;
 pub mod sessions;
 pub mod terminal;
