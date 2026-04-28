@@ -13,6 +13,7 @@ pub mod interrupt;
 pub mod issue_event;
 pub mod launch_queue;
 pub mod linear_context;
+pub mod mcp_policy;
 pub mod ownership;
 pub mod pull_request;
 pub mod queue;
@@ -52,6 +53,7 @@ pub use linear_context::{
     ISSUE_COMMENT_CHAR_LIMIT, ISSUE_COMMENT_MAX_COUNT, ISSUE_DESCRIPTION_CHAR_LIMIT, IssueContext,
     IssueContextComment, IssueContextParent, LinearContextMode,
 };
+pub use mcp_policy::{McpMode, ResolvedMcpPolicy, ResolvedToolPolicy};
 pub use ownership::{
     OperatorId, OrchestrationOwner, OwnershipError, OwnershipEvent, OwnershipTransitionReason,
     SessionOwnership, SuspendReason, WriterLeaseInfo, transition_release, transition_resume,

@@ -8,6 +8,7 @@ pub mod handoff_service;
 pub mod heartbeat;
 pub mod interrupt_service;
 pub mod linear_context;
+pub mod mcp_policy;
 pub mod orchestrator;
 pub mod ownership_service;
 pub mod pty_session;

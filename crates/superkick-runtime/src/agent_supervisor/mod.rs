@@ -62,8 +62,29 @@ pub struct AgentLaunchConfig {
     /// How Linear context was delivered to this spawn. Recorded on the
     /// `AgentSession` so the run log makes the decision inspectable.
     pub linear_context_mode: LinearContextMode,
+    /// Audit fields for the role's MCP and tool policy at spawn time
+    /// (SUP-104). Persisted on the agent session so the run log answers
+    /// "what could this child reach?" without re-deriving from config.
+    pub policy_audit: PolicyAudit,
     /// Lineage + intent metadata (SUP-46).
     pub session_launch: SessionLaunchInfo,
+}
+
+/// Audit snapshot of the MCP + tool policy that was actually applied to
+/// one spawn. Captured *after* any degradation (e.g. failed MCP file
+/// write, Codex no-op) so the row reflects what the child actually saw.
+#[derive(Debug, Clone, Default)]
+pub struct PolicyAudit {
+    /// Names of MCP servers wired into the child's `--mcp-config` file,
+    /// or empty when no MCP file was generated.
+    pub mcp_servers_used: Vec<String>,
+    /// Snapshot of the role's tool allowlist; `None` when no allowlist was
+    /// declared (no restriction).
+    pub tools_allow_snapshot: Option<Vec<String>>,
+    /// Operator-approval-per-tool-call flag from the resolved tool policy.
+    pub tool_approval_required: bool,
+    /// Whether tool result payloads are stored on the audit row.
+    pub tool_results_persisted: bool,
 }
 
 /// Result of a completed agent session.
@@ -169,6 +190,10 @@ where
             finished_at: None,
             exit_code: None,
             linear_context_mode: Some(config.linear_context_mode),
+            mcp_servers_used: config.policy_audit.mcp_servers_used.clone(),
+            tools_allow_snapshot: config.policy_audit.tools_allow_snapshot.clone(),
+            tool_approval_required: config.policy_audit.tool_approval_required,
+            tool_results_persisted: config.policy_audit.tool_results_persisted,
             role: Some(config.session_launch.role.clone()),
             purpose: Some(config.session_launch.purpose.clone()),
             parent_session_id: config.session_launch.parent_session_id,
@@ -416,6 +441,10 @@ mod tests {
             finished_at: None,
             exit_code: None,
             linear_context_mode: None,
+            mcp_servers_used: Vec::new(),
+            tools_allow_snapshot: None,
+            tool_approval_required: false,
+            tool_results_persisted: true,
             role: Some("planner".into()),
             purpose: Some("draft plan".into()),
             parent_session_id: None,

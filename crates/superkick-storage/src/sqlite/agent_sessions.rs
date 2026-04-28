@@ -24,8 +24,10 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
             "INSERT INTO agent_sessions (\
                  id, run_id, run_step_id, provider, command, pid, status, started_at, \
                  finished_at, exit_code, linear_context_mode, role, purpose, \
-                 parent_session_id, launch_reason, handoff_id\
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+                 parent_session_id, launch_reason, handoff_id, mcp_servers_used, \
+                 tools_allow_snapshot, tool_approval_required, tool_results_persisted\
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, \
+                       ?17, ?18, ?19, ?20)",
         )
         .bind(session.id.0.to_string())
         .bind(session.run_id.0.to_string())
@@ -43,6 +45,16 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
         .bind(session.parent_session_id.map(|id| id.0.to_string()))
         .bind(session.launch_reason.as_ref().map(ToString::to_string))
         .bind(session.handoff_id.map(|id| id.0.to_string()))
+        .bind(serde_json::to_string(&session.mcp_servers_used)?)
+        .bind(
+            session
+                .tools_allow_snapshot
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()?,
+        )
+        .bind(i64::from(session.tool_approval_required))
+        .bind(i64::from(session.tool_results_persisted))
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -99,6 +111,10 @@ struct SessionRow {
     parent_session_id: Option<String>,
     launch_reason: Option<String>,
     handoff_id: Option<String>,
+    mcp_servers_used: Option<String>,
+    tools_allow_snapshot: Option<String>,
+    tool_approval_required: i64,
+    tool_results_persisted: i64,
 }
 
 impl SessionRow {
@@ -143,6 +159,19 @@ impl SessionRow {
                 .map(uuid::Uuid::parse_str)
                 .transpose()?
                 .map(HandoffId),
+            mcp_servers_used: self
+                .mcp_servers_used
+                .as_deref()
+                .map(serde_json::from_str)
+                .transpose()?
+                .unwrap_or_default(),
+            tools_allow_snapshot: self
+                .tools_allow_snapshot
+                .as_deref()
+                .map(serde_json::from_str)
+                .transpose()?,
+            tool_approval_required: self.tool_approval_required != 0,
+            tool_results_persisted: self.tool_results_persisted != 0,
         })
     }
 }

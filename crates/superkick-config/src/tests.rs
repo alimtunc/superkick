@@ -1,7 +1,7 @@
 use indoc::indoc;
 
-use crate::{load_str, model::*};
-use superkick_core::AgentProvider;
+use crate::{LINEAR_MCP_SERVER_NAME, LINEAR_MCP_URL, load_str, model::*};
+use superkick_core::{AgentProvider, LinearContextMode, McpMode};
 
 const FULL_YAML: &str = indoc! {"
     version: 1
@@ -395,4 +395,319 @@ fn load_example_file() {
     let config = crate::load_file(&path).expect("example config should parse successfully");
     assert_eq!(config.version, 1);
     assert_eq!(config.workflow.steps.len(), 5);
+}
+
+// ── SUP-104: MCP registry + per-agent policy ────────────────────────
+
+#[test]
+fn parse_mcp_servers_registry_and_per_agent_policy() {
+    let yaml = indoc! {r#"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        mcp_servers:
+          linear:
+            type: http
+            url: https://mcp.linear.app/mcp
+          fs:
+            type: stdio
+            command: mcp-fs
+            args: ["--root", "/tmp"]
+            env_passthrough: ["FS_AUTH"]
+        agents:
+          planner:
+            provider: claude
+            mcp:
+              mode: servers
+              servers: [linear, fs]
+            tool_policy:
+              allow: [read, grep]
+              deny: [bash]
+              require_approval: true
+              persist_results: false
+        workflow:
+          steps:
+            - type: plan
+              agent: planner
+    "#};
+    let config = load_str(yaml).unwrap();
+
+    assert_eq!(config.mcp_servers.len(), 2);
+    match &config.mcp_servers["linear"] {
+        McpServerSpec::Http { url, .. } => assert_eq!(url, "https://mcp.linear.app/mcp"),
+        other => panic!("expected http, got {other:?}"),
+    }
+    match &config.mcp_servers["fs"] {
+        McpServerSpec::Stdio {
+            command,
+            args,
+            env_passthrough,
+        } => {
+            assert_eq!(command, "mcp-fs");
+            assert_eq!(args, &vec!["--root".to_string(), "/tmp".to_string()]);
+            assert_eq!(env_passthrough, &vec!["FS_AUTH".to_string()]);
+        }
+        other => panic!("expected stdio, got {other:?}"),
+    }
+
+    let planner = &config.agents["planner"];
+    let mcp = planner.mcp.as_ref().expect("mcp block");
+    assert_eq!(mcp.mode, McpMode::Servers);
+    assert_eq!(mcp.servers, vec!["linear".to_string(), "fs".to_string()]);
+
+    let tools = planner.tool_policy.as_ref().expect("tool_policy block");
+    assert_eq!(
+        tools.allow.as_deref(),
+        Some(&["read".to_string(), "grep".to_string()][..])
+    );
+    assert_eq!(tools.deny.as_deref(), Some(&["bash".to_string()][..]));
+    assert!(tools.require_approval);
+    assert!(!tools.persist_results);
+}
+
+#[test]
+fn missing_mcp_block_resolves_to_none_in_catalog() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          coder:
+            provider: claude
+            linear_context: snapshot
+        workflow:
+          steps:
+            - type: plan
+              agent: coder
+    "};
+    let config = load_str(yaml).unwrap();
+    let catalog = config.agent_catalog();
+    let coder = catalog.get("coder").unwrap();
+    assert_eq!(coder.mcp_policy.mode, McpMode::None);
+    assert!(coder.mcp_policy.servers.is_empty());
+
+    // Tool policy defaults: no allowlist, no approval, results persisted.
+    assert!(coder.tool_policy.allow.is_none());
+    assert!(coder.tool_policy.deny.is_none());
+    assert!(!coder.tool_policy.require_approval);
+    assert!(coder.tool_policy.persist_results);
+}
+
+#[test]
+fn legacy_tools_field_becomes_allowlist_in_resolved_policy() {
+    // SUP-104: existing configs that listed `tools: [...]` for documentation
+    // now see those tools become the audit allowlist snapshot. No new YAML
+    // is required for backward compat.
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          coder:
+            provider: claude
+            tools: [read, grep]
+        workflow:
+          steps:
+            - type: plan
+              agent: coder
+    "};
+    let config = load_str(yaml).unwrap();
+    let catalog = config.agent_catalog();
+    let coder = catalog.get("coder").unwrap();
+    assert_eq!(
+        coder.tool_policy.allow.as_deref(),
+        Some(&["read".to_string(), "grep".to_string()][..])
+    );
+}
+
+#[test]
+fn legacy_tools_field_combines_with_explicit_tool_policy_deny() {
+    // SUP-104: when a role declares the legacy `tools:` field for the
+    // allowlist *and* an explicit `tool_policy.deny`, the resolver should
+    // honour both — the legacy field becomes `allow`, the explicit
+    // `deny` flows through unchanged.
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          coder:
+            provider: claude
+            tools: [read, grep]
+            tool_policy:
+              deny: [bash]
+        workflow:
+          steps:
+            - type: plan
+              agent: coder
+    "};
+    let config = load_str(yaml).unwrap();
+    let catalog = config.agent_catalog();
+    let coder = catalog.get("coder").unwrap();
+    assert_eq!(
+        coder.tool_policy.allow.as_deref(),
+        Some(&["read".to_string(), "grep".to_string()][..])
+    );
+    assert_eq!(
+        coder.tool_policy.deny.as_deref(),
+        Some(&["bash".to_string()][..])
+    );
+}
+
+#[test]
+fn explicit_tool_policy_allow_wins_over_legacy_tools_field() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          coder:
+            provider: claude
+            tools: [read, grep]
+            tool_policy:
+              allow: [read]
+        workflow:
+          steps:
+            - type: plan
+              agent: coder
+    "};
+    let config = load_str(yaml).unwrap();
+    let catalog = config.agent_catalog();
+    let coder = catalog.get("coder").unwrap();
+    assert_eq!(
+        coder.tool_policy.allow.as_deref(),
+        Some(&["read".to_string()][..])
+    );
+}
+
+#[test]
+fn snapshot_plus_mcp_sugar_desugars_into_linear_server_in_catalog() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          planner:
+            provider: claude
+            linear_context: snapshot_plus_mcp
+        workflow:
+          steps:
+            - type: plan
+              agent: planner
+    "};
+    let config = load_str(yaml).unwrap();
+
+    // Per-role catalog projection has the desugared policy.
+    let catalog = config.agent_catalog();
+    let planner = catalog.get("planner").unwrap();
+    assert_eq!(planner.mcp_policy.mode, McpMode::Servers);
+    assert_eq!(
+        planner.mcp_policy.servers,
+        vec![LINEAR_MCP_SERVER_NAME.to_string()]
+    );
+
+    // Effective registry auto-injects the Linear MCP entry.
+    let registry = config.effective_mcp_servers();
+    match registry
+        .get(LINEAR_MCP_SERVER_NAME)
+        .expect("linear injected")
+    {
+        McpServerSpec::Http {
+            url,
+            env_passthrough,
+        } => {
+            assert_eq!(url, LINEAR_MCP_URL);
+            assert!(env_passthrough.is_empty());
+        }
+        other => panic!("expected http, got {other:?}"),
+    }
+}
+
+#[test]
+fn explicit_linear_registry_entry_is_not_overridden_by_sugar() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        mcp_servers:
+          linear:
+            type: http
+            url: https://mcp.linear.app/custom-edge
+        agents:
+          planner:
+            provider: claude
+            linear_context: snapshot_plus_mcp
+        workflow:
+          steps:
+            - type: plan
+              agent: planner
+    "};
+    let config = load_str(yaml).unwrap();
+    let registry = config.effective_mcp_servers();
+    match registry.get(LINEAR_MCP_SERVER_NAME).unwrap() {
+        McpServerSpec::Http { url, .. } => assert_eq!(url, "https://mcp.linear.app/custom-edge"),
+        other => panic!("unexpected variant {other:?}"),
+    }
+}
+
+#[test]
+fn snapshot_plus_mcp_sugar_keeps_explicit_extra_servers() {
+    // Sugar adds `linear` to the allowlist but must not erase what the
+    // operator listed explicitly.
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        mcp_servers:
+          fs:
+            type: stdio
+            command: mcp-fs
+        agents:
+          planner:
+            provider: claude
+            linear_context: snapshot_plus_mcp
+            mcp:
+              mode: servers
+              servers: [fs]
+        workflow:
+          steps:
+            - type: plan
+              agent: planner
+    "};
+    let config = load_str(yaml).unwrap();
+    let catalog = config.agent_catalog();
+    let planner = catalog.get("planner").unwrap();
+    assert!(planner.mcp_policy.servers.contains(&"fs".to_string()));
+    assert!(
+        planner
+            .mcp_policy
+            .servers
+            .contains(&LINEAR_MCP_SERVER_NAME.to_string())
+    );
+    assert_eq!(planner.mcp_policy.mode, McpMode::Servers);
+}
+
+#[test]
+fn default_linear_context_does_not_inject_linear_server() {
+    // No agent uses `snapshot_plus_mcp` → no auto-injection. Backward-compat
+    // for configs that pre-date SUP-104.
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          coder:
+            provider: claude
+            linear_context: snapshot
+        workflow:
+          steps:
+            - type: code
+              agent: coder
+    "};
+    let config = load_str(yaml).unwrap();
+    assert!(config.effective_mcp_servers().is_empty());
+    let catalog = config.agent_catalog();
+    let coder = catalog.get("coder").unwrap();
+    assert_eq!(coder.linear_context, LinearContextMode::Snapshot);
+    assert_eq!(coder.mcp_policy.mode, McpMode::None);
 }

@@ -77,6 +77,22 @@ pub struct AgentSession {
     /// prompt snapshot. `None` for legacy rows written before this field
     /// existed.
     pub linear_context_mode: Option<LinearContextMode>,
+    /// MCP servers this session was actually wired with (post-degradation).
+    /// Empty vec when the role's MCP policy resolved to `none` or every
+    /// requested server was dropped at spawn time. Stored as a snapshot —
+    /// only server names from the registry, never resolved env values.
+    pub mcp_servers_used: Vec<String>,
+    /// Snapshot of the role's tool allowlist at spawn time. `None` means
+    /// "no allowlist" (no tool restriction was declared); `Some(vec![])`
+    /// means "deny everything". Provider-side enforcement is best-effort;
+    /// this column is the source of truth for what the operator authorised.
+    pub tools_allow_snapshot: Option<Vec<String>>,
+    /// `true` when the role required explicit operator approval per tool
+    /// call. Recorded for audit even though enforcement is provider-side.
+    pub tool_approval_required: bool,
+    /// `true` when tool result payloads are persisted in the audit trail.
+    /// Default-on; set to `false` when handling secrets.
+    pub tool_results_persisted: bool,
     /// Catalog role name this session is filling (`planner`, `coder`, ...).
     /// `None` for legacy rows written before SUP-46.
     pub role: Option<String>,

@@ -11,6 +11,7 @@ mod create_pr;
 mod prepare;
 mod review_swarm;
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -67,6 +68,10 @@ pub struct StepEngine<R, ST, E, A, AR, I, AT, T = ()> {
     catalog: AgentCatalog,
     policy: RunPolicy,
     linear_client: OptionalLinearClient,
+    /// Pre-computed at construction time. The desugaring of
+    /// `linear_context: snapshot_plus_mcp` into the implicit `linear` MCP
+    /// entry happens once instead of cloning the whole map per spawn.
+    mcp_registry: HashMap<String, superkick_config::McpServerSpec>,
 }
 
 pub struct StepEngineDeps<R, ST, E, A, AR, I, AT, T = ()> {
@@ -122,6 +127,7 @@ where
         );
         let catalog = deps.config.agent_catalog();
         let policy = deps.config.base_run_policy();
+        let mcp_registry = deps.config.effective_mcp_servers();
         Self {
             run_repo: deps.run_repo,
             step_repo: deps.step_repo,
@@ -136,7 +142,14 @@ where
             catalog,
             policy,
             linear_client: deps.linear_client,
+            mcp_registry,
         }
+    }
+
+    /// Pre-resolved MCP registry (with the implicit `linear` entry
+    /// folded in for any role still using `linear_context: snapshot_plus_mcp`).
+    pub(crate) fn mcp_registry(&self) -> &HashMap<String, superkick_config::McpServerSpec> {
+        &self.mcp_registry
     }
 
     /// Shared Linear client used for snapshot delivery. `None` when
@@ -1362,6 +1375,7 @@ mod gate_tests {
                 ..Default::default()
             },
             recovery: Default::default(),
+            mcp_servers: HashMap::new(),
         }
     }
 
