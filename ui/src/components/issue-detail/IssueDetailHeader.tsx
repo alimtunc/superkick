@@ -1,13 +1,10 @@
-import { DuplicateRunError } from '@/api'
-import { LaunchDialog } from '@/components/launch/LaunchDialog'
+import { StatusChip } from '@/components/issue-detail/StatusChip'
 import { Button } from '@/components/ui/button'
 import { Tooltip } from '@/components/ui/tooltip'
-import { useConfig } from '@/hooks/useConfig'
-import { useCreateRun } from '@/hooks/useCreateRun'
-import { useLaunchDialog } from '@/hooks/useLaunchDialog'
+import { isActiveRun } from '@/lib/domain'
 import type { IssueDetailResponse } from '@/types'
 import { Link, useRouter } from '@tanstack/react-router'
-import { ArrowLeft, ExternalLink, Play, RefreshCw } from 'lucide-react'
+import { ArrowLeft, ExternalLink, RefreshCw } from 'lucide-react'
 
 export function IssueDetailHeader({
 	issue,
@@ -16,35 +13,8 @@ export function IssueDetailHeader({
 	issue: IssueDetailResponse
 	onRefresh: () => void
 }) {
-	const { config } = useConfig()
 	const router = useRouter()
-	const createRun = useCreateRun({ issueId: issue.id })
-	const launchProfile = config?.launch_profile
-	const dialog = useLaunchDialog({
-		defaultInstructions: launchProfile?.default_instructions ?? '',
-		defaultUseWorktree: launchProfile?.use_worktree ?? true
-	})
-
-	const activeRun = issue.linked_runs.find((r) => !['completed', 'failed', 'cancelled'].includes(r.state))
-
-	const duplicateError = createRun.error instanceof DuplicateRunError ? createRun.error : null
-
-	const activeRunId = activeRun?.id ?? duplicateError?.activeRunId
-
-	function handleLaunch() {
-		if (!config) return
-		createRun.launch({
-			config,
-			issueId: issue.id,
-			issueIdentifier: issue.identifier,
-			useWorktree: dialog.useWorktree,
-			executionMode: dialog.executionMode,
-			operatorInstructions: dialog.instructions || undefined,
-			onSuccess: dialog.closeDialog
-		})
-	}
-
-	const canStart = !!config?.repo_slug && !!launchProfile && !activeRun && !createRun.isPending
+	const activeRun = issue.linked_runs.find(isActiveRun)
 
 	return (
 		<header className="sticky top-0 z-50 border-b border-edge bg-carbon/90 backdrop-blur-md">
@@ -74,22 +44,10 @@ export function IssueDetailHeader({
 						</>
 					) : null}
 					<span className="font-data text-[11px] font-medium text-fog">{issue.identifier}</span>
-					<span
-						className="inline-block rounded px-2 py-0.5 text-[10px] font-medium"
-						style={{
-							color: issue.status.color,
-							backgroundColor: `${issue.status.color}15`
-						}}
-					>
-						{issue.status.name}
-					</span>
+					<StatusChip status={issue.status} />
 				</div>
 
 				<div className="flex items-center gap-1.5">
-					{createRun.isError && !duplicateError ? (
-						<span className="font-data text-[10px] text-oxide">{createRun.error.message}</span>
-					) : null}
-
 					<Tooltip label="Refresh issue data">
 						<Button
 							variant="outline"
@@ -114,47 +72,21 @@ export function IssueDetailHeader({
 						</a>
 					</Tooltip>
 
-					<span className="mx-1 h-5 w-px bg-edge" />
-
-					{activeRunId ? (
-						<Link
-							to="/runs/$runId"
-							params={{ runId: activeRunId }}
-							className="font-data inline-flex h-6 items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 text-[11px] text-amber-400 transition-colors hover:border-amber-500/60 hover:text-amber-300"
-						>
-							<span className="live-pulse inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
-							Active run
-						</Link>
-					) : (
-						<Tooltip label="Start a new run">
-							<Button
-								size="icon-xs"
-								disabled={!canStart}
-								onClick={dialog.openDialog}
-								aria-label="Start a new run"
+					{activeRun ? (
+						<>
+							<span className="mx-1 h-5 w-px bg-edge" />
+							<Link
+								to="/runs/$runId"
+								params={{ runId: activeRun.id }}
+								className="font-data inline-flex h-6 items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 text-[11px] text-amber-400 transition-colors hover:border-amber-500/60 hover:text-amber-300"
 							>
-								<Play size={12} className="fill-white text-white" />
-							</Button>
-						</Tooltip>
-					)}
+								<span className="live-pulse inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
+								Active run
+							</Link>
+						</>
+					) : null}
 				</div>
 			</div>
-
-			{launchProfile ? (
-				<LaunchDialog
-					open={dialog.open}
-					profile={launchProfile}
-					instructions={dialog.instructions}
-					useWorktree={dialog.useWorktree}
-					executionMode={dialog.executionMode}
-					isPending={createRun.isPending}
-					onInstructionsChange={dialog.setInstructions}
-					onUseWorktreeChange={dialog.setUseWorktree}
-					onExecutionModeChange={dialog.setExecutionMode}
-					onLaunch={handleLaunch}
-					onClose={dialog.closeDialog}
-				/>
-			) : null}
 		</header>
 	)
 }

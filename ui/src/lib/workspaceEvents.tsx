@@ -94,8 +94,12 @@ export function WorkspaceEventsProvider({ children }: { children: ReactNode }) {
 				}
 				if (notice.kind === 'state_change') {
 					// A run transitioned — the runs list state (and any
-					// dashboard summary) needs a refresh.
+					// dashboard summary) needs a refresh. The linked-runs slice
+					// embedded in `issues.detail` also reflects this transition
+					// (e.g. NeedsHumanBanner flipping on `waiting_human`), so
+					// mark every cached issue stale.
 					queryClient.invalidateQueries({ queryKey: queryKeys.runs.all })
+					queryClient.invalidateQueries({ queryKey: queryKeys.issues.all })
 				}
 				return
 			}

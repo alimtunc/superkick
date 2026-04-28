@@ -1,9 +1,10 @@
-import { SectionTitle } from '@/components/dashboard/SectionTitle'
 import { ChildIssues } from '@/components/issue-detail/ChildIssues'
-import { IssueComments } from '@/components/issue-detail/IssueComments'
+import { IssueActivityTimeline } from '@/components/issue-detail/IssueActivityTimeline'
+import { IssueDescription } from '@/components/issue-detail/IssueDescription'
 import { IssueDetailHeader } from '@/components/issue-detail/IssueDetailHeader'
-import { IssueMetaGrid } from '@/components/issue-detail/IssueMetaGrid'
-import { IssueRunsPanel } from '@/components/issue-detail/IssueRunsPanel'
+import { IssueLauncherPanel } from '@/components/issue-detail/IssueLauncherPanel'
+import { IssuePropertiesPanel } from '@/components/issue-detail/IssuePropertiesPanel'
+import { NeedsHumanBanner } from '@/components/issue-detail/NeedsHumanBanner'
 import { useIssueDetail } from '@/hooks/useIssueDetail'
 
 export function IssueDetail({ issueId }: { issueId: string }) {
@@ -17,20 +18,19 @@ export function IssueDetail({ issueId }: { issueId: string }) {
 		<div>
 			<IssueDetailHeader issue={issue} onRefresh={refresh} />
 			<div className="mx-auto max-w-5xl px-5 py-6">
-				<IssueMetaGrid issue={issue} />
-				{issue.children.length > 0 ? <ChildIssues issues={issue.children} /> : null}
-				<IssueRunsPanel runs={issue.linked_runs} />
-				{issue.description ? (
-					<section className="mb-6">
-						<SectionTitle title="DESCRIPTION" />
-						<div className="panel p-4">
-							<pre className="font-data text-[12px] leading-relaxed whitespace-pre-wrap text-silver">
-								{issue.description}
-							</pre>
-						</div>
-					</section>
-				) : null}
-				<IssueComments comments={issue.comments} />
+				<NeedsHumanBanner runs={issue.linked_runs} />
+				<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
+					<main className="min-w-0">
+						<h1 className="font-data mb-5 text-[20px] leading-tight font-semibold text-fog">
+							{issue.title}
+						</h1>
+						<IssueDescription description={issue.description} />
+						{issue.children.length > 0 ? <ChildIssues issues={issue.children} /> : null}
+						<IssueLauncherPanel issue={issue} />
+						<IssueActivityTimeline comments={issue.comments} runs={issue.linked_runs} />
+					</main>
+					<IssuePropertiesPanel issue={issue} />
+				</div>
 			</div>
 		</div>
 	)
