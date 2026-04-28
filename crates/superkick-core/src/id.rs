@@ -39,3 +39,5 @@ define_id!(AttentionRequestId);
 define_id!(HandoffId);
 define_id!(OwnershipEventId);
 define_id!(SessionLifecycleEventId);
+define_id!(RuntimeId);
+define_id!(RuntimeProviderId);

@@ -4,7 +4,8 @@ import {
 	fetchIssues,
 	fetchLaunchQueue,
 	fetchRun,
-	fetchRuns
+	fetchRuns,
+	fetchRuntimes
 } from '@/api'
 import { queryOptions } from '@tanstack/react-query'
 
@@ -49,4 +50,11 @@ export const launchQueueQuery = () =>
 		queryKey: queryKeys.launchQueue.all,
 		queryFn: fetchLaunchQueue,
 		staleTime: 5_000
+	})
+
+export const runtimesQuery = () =>
+	queryOptions({
+		queryKey: queryKeys.runtimes.list,
+		queryFn: fetchRuntimes,
+		staleTime: 10_000
 	})

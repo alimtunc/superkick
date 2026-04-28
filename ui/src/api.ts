@@ -15,6 +15,7 @@ import type {
 	PullRequest,
 	Run,
 	RunStep,
+	RuntimesResponse,
 	ServerConfigResponse,
 	WorkspaceRunEvent
 } from '@/types'
@@ -59,6 +60,11 @@ async function throwApiError(res: Response, fallbackLabel: string): Promise<neve
 			body.active_run_state
 		)
 	}
+	throw new Error(body.error || `${fallbackLabel}: ${res.status}`)
+}
+
+async function throwGenericApiError(res: Response, fallbackLabel: string): Promise<never> {
+	const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
 	throw new Error(body.error || `${fallbackLabel}: ${res.status}`)
 }
 
@@ -146,10 +152,7 @@ export async function createAttentionRequest(
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(req)
 	})
-	if (!res.ok) {
-		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
-		throw new Error(body.error || `create attention request failed: ${res.status}`)
-	}
+	if (!res.ok) await throwGenericApiError(res, 'create attention request failed')
 	return res.json()
 }
 
@@ -164,10 +167,7 @@ export async function replyAttentionRequest(
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ ...reply, replied_by: repliedBy })
 	})
-	if (!res.ok) {
-		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
-		throw new Error(body.error || `reply attention request failed: ${res.status}`)
-	}
+	if (!res.ok) await throwGenericApiError(res, 'reply attention request failed')
 	return res.json()
 }
 
@@ -175,10 +175,7 @@ export async function cancelAttentionRequest(runId: string, requestId: string): 
 	const res = await fetch(`${BASE}/runs/${runId}/attention-requests/${requestId}/cancel`, {
 		method: 'POST'
 	})
-	if (!res.ok) {
-		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
-		throw new Error(body.error || `cancel attention request failed: ${res.status}`)
-	}
+	if (!res.ok) await throwGenericApiError(res, 'cancel attention request failed')
 	return res.json()
 }
 
@@ -192,18 +189,12 @@ export async function answerInterrupt(
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(action)
 	})
-	if (!res.ok) {
-		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
-		throw new Error(body.error || `answer interrupt failed: ${res.status}`)
-	}
+	if (!res.ok) await throwGenericApiError(res, 'answer interrupt failed')
 }
 
 export async function cancelRun(id: string): Promise<Run> {
 	const res = await fetch(`${BASE}/runs/${id}/cancel`, { method: 'POST' })
-	if (!res.ok) {
-		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
-		throw new Error(body.error || `cancel run failed: ${res.status}`)
-	}
+	if (!res.ok) await throwGenericApiError(res, 'cancel run failed')
 	return res.json()
 }
 
@@ -226,14 +217,25 @@ export async function fetchTerminalHistory(runId: string): Promise<ArrayBuffer> 
 
 // ── Session attach ───────────────────────────────────────────────────
 
+// ── Runtime registry ─────────────────────────────────────────────────
+
+export async function fetchRuntimes(): Promise<RuntimesResponse> {
+	const res = await fetch(`${BASE}/runtimes`)
+	if (!res.ok) throw new Error(`GET /runtimes failed: ${res.status}`)
+	return res.json()
+}
+
+export async function refreshRuntimes(): Promise<RuntimesResponse> {
+	const res = await fetch(`${BASE}/runtimes/refresh`, { method: 'POST' })
+	if (!res.ok) await throwGenericApiError(res, 'refresh runtimes failed')
+	return res.json()
+}
+
 export async function prepareSessionAttach(runId: string, sessionId: string): Promise<AttachPayload> {
 	const res = await fetch(`${BASE}/runs/${runId}/sessions/${sessionId}/attach`, {
 		method: 'POST'
 	})
-	if (!res.ok) {
-		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
-		throw new Error(body.error || `prepare attach failed: ${res.status}`)
-	}
+	if (!res.ok) await throwGenericApiError(res, 'prepare attach failed')
 	return res.json()
 }
 

@@ -20,6 +20,7 @@ pub mod recovery;
 pub mod review;
 pub mod role_router;
 pub mod run;
+pub mod runtime;
 pub mod session_lifecycle;
 pub mod step;
 pub mod transcript;
@@ -38,7 +39,8 @@ pub use handoff::{
 };
 pub use id::{
     AgentSessionId, ArtifactId, AttentionRequestId, EventId, HandoffId, InterruptId,
-    OwnershipEventId, PullRequestId, RunId, SessionLifecycleEventId, StepId, TranscriptChunkId,
+    OwnershipEventId, PullRequestId, RunId, RuntimeId, RuntimeProviderId, SessionLifecycleEventId,
+    StepId, TranscriptChunkId,
 };
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
 pub use issue_event::{DependencyResolvedPayload, IssueEvent};
@@ -72,6 +74,10 @@ pub use role_router::{
 pub use run::{
     ExecutionMode, LinkedRunSummary, PauseKind, Run, RunBudget, RunBudgetGrant, RunState,
     TriggerSource,
+};
+pub use runtime::{
+    LOCAL_RUNTIME_NAME, ProviderStatus, Runtime, RuntimeCapabilities, RuntimeMode, RuntimeProvider,
+    RuntimeStatus, RuntimeWithProviders,
 };
 pub use session_lifecycle::{SessionLifecycleEvent, SessionLifecyclePhase};
 pub use step::{RunStep, StepKey, StepStatus};

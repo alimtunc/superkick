@@ -13,13 +13,14 @@ use superkick_core::RunId;
 use superkick_integrations::linear::LinearClient;
 use superkick_runtime::{
     AttentionService, InterruptService, OwnershipService, PtySessionRegistry,
-    PublishingRunEventRepo, RepoCache, SessionBus, StepEngine, StepEngineDeps, WorkspaceEventBus,
-    spawn_heartbeat_listener,
+    PublishingRunEventRepo, RepoCache, RuntimeDetector, SessionBus, StepEngine, StepEngineDeps,
+    WorkspaceEventBus, boot_refresh as runtime_boot_refresh, spawn_heartbeat_listener,
 };
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteInterruptRepo,
     SqliteIssueBlockerRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo, SqliteRunEventRepo,
-    SqliteRunRepo, SqliteRunStepRepo, SqliteSessionOwnershipRepo, SqliteTranscriptRepo,
+    SqliteRunRepo, SqliteRunStepRepo, SqliteRuntimeRepo, SqliteSessionOwnershipRepo,
+    SqliteTranscriptRepo,
 };
 
 mod error;
@@ -63,6 +64,7 @@ pub(crate) struct AppState {
     pub transcript_repo: Arc<SqliteTranscriptRepo>,
     pub issue_blocker_repo: Arc<SqliteIssueBlockerRepo>,
     pub recovery_event_repo: Arc<SqliteRecoveryEventRepo>,
+    pub runtime_detector: Arc<RuntimeDetector>,
     /// Serialises `reconcile_blockers` so two concurrent `GET /launch-queue`
     /// calls cannot both publish the same `DependencyResolved` transition
     /// (SUP-81). Held only around the diff+persist+emit window.
@@ -134,6 +136,8 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let ownership_repo = Arc::new(SqliteSessionOwnershipRepo::new(pool.clone()));
     let issue_blocker_repo = Arc::new(SqliteIssueBlockerRepo::new(pool.clone()));
     let recovery_event_repo = Arc::new(SqliteRecoveryEventRepo::new(pool.clone()));
+    let runtime_repo = Arc::new(SqliteRuntimeRepo::new(pool.clone()));
+    let runtime_detector = Arc::new(RuntimeDetector::new(Arc::clone(&runtime_repo)));
 
     let transcript_repo = Arc::new(SqliteTranscriptRepo::new(pool));
     let pty_registry = Arc::new(PtySessionRegistry::new());
@@ -197,6 +201,17 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         recovery_config,
     );
 
+    // SUP-96 — populate the runtime registry once at boot in the background.
+    // Best-effort: if a CLI hangs or detection fails for any reason, the
+    // operator still gets a working API and can hit POST /runtimes/refresh
+    // later. Spawned detached so a slow probe never blocks server startup.
+    {
+        let detector = Arc::clone(&runtime_detector);
+        tokio::spawn(async move {
+            runtime_boot_refresh(&detector).await;
+        });
+    }
+
     let state = AppState {
         run_repo,
         step_repo,
@@ -209,6 +224,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         transcript_repo,
         issue_blocker_repo,
         recovery_event_repo,
+        runtime_detector,
         blocker_reconcile_lock: Arc::new(Mutex::new(())),
         engine,
         interrupt_service,
@@ -290,6 +306,11 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         .route(
             "/runs/{run_id}/sessions/{session_id}/ownership/release",
             post(handlers::ownership::release),
+        )
+        .route("/runtimes", get(handlers::runtimes::list_runtimes))
+        .route(
+            "/runtimes/refresh",
+            post(handlers::runtimes::refresh_runtimes),
         )
         .with_state(state);
 
