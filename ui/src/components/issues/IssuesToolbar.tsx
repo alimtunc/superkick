@@ -4,14 +4,14 @@ import { IssueFilters } from '@/components/issues/IssueFilters'
 import { SearchBar } from '@/components/issues/SearchBar'
 import { StatusBar } from '@/components/issues/StatusBar'
 import type { IssueFiltersState } from '@/hooks/useIssueFilters'
-import type { V1IssueState, V1StateFilter } from '@/types'
+import type { IssueState, IssueStateFilter } from '@/types'
 
 export interface IssuesToolbarStateFilter {
 	show: boolean
-	active: V1StateFilter
-	counts: Record<V1IssueState, number>
+	active: IssueStateFilter
+	counts: Record<IssueState, number>
 	total: number
-	onSelect: (next: V1StateFilter) => void
+	onSelect: (next: IssueStateFilter) => void
 }
 
 export interface IssuesToolbarDerivations {
@@ -47,7 +47,7 @@ export function IssuesToolbar({ stateFilter, filters, derivations }: IssuesToolb
 			<div className="flex flex-wrap items-center gap-3">
 				{stateFilter.show ? (
 					<IssueFilters
-						activeV1State={stateFilter.active}
+						activeIssueState={stateFilter.active}
 						counts={stateFilter.counts}
 						totalCount={stateFilter.total}
 						onSelect={stateFilter.onSelect}

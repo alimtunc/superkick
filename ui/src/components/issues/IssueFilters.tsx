@@ -1,15 +1,15 @@
-import { V1_STATE_ORDER, v1IssueStateAccent } from '@/lib/domain'
-import type { V1IssueState, V1StateFilter } from '@/types'
+import { ISSUE_STATE_ORDER, issueStateAccent } from '@/lib/domain'
+import type { IssueState, IssueStateFilter } from '@/types'
 
 interface IssueFiltersProps {
-	activeV1State: V1StateFilter
-	counts: Record<V1IssueState, number>
+	activeIssueState: IssueStateFilter
+	counts: Record<IssueState, number>
 	totalCount: number
-	onSelect: (state: V1StateFilter) => void
+	onSelect: (state: IssueStateFilter) => void
 }
 
-export function IssueFilters({ activeV1State, counts, totalCount, onSelect }: IssueFiltersProps) {
-	const isAllActive = activeV1State === 'all'
+export function IssueFilters({ activeIssueState, counts, totalCount, onSelect }: IssueFiltersProps) {
+	const isAllActive = activeIssueState === 'all'
 
 	return (
 		<div className="flex flex-wrap gap-1.5">
@@ -23,10 +23,10 @@ export function IssueFilters({ activeV1State, counts, totalCount, onSelect }: Is
 				All
 				<span className="text-dim">{totalCount}</span>
 			</button>
-			{V1_STATE_ORDER.map((state) => {
-				const accent = v1IssueStateAccent[state]
+			{ISSUE_STATE_ORDER.map((state) => {
+				const accent = issueStateAccent[state]
 				const count = counts[state]
-				const isActive = state === activeV1State
+				const isActive = state === activeIssueState
 
 				return (
 					<button

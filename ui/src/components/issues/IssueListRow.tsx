@@ -1,11 +1,11 @@
 import { HoverCard } from '@/components/issues/HoverCard'
+import { IssueExtraBadges } from '@/components/issues/IssueExtraBadges'
 import { IssuePreview } from '@/components/issues/IssuePreview'
+import { IssueStatePill } from '@/components/issues/IssueStatePill'
 import { PriorityIcon } from '@/components/issues/PriorityIcon'
+import { RunSummaryChip } from '@/components/issues/RunSummaryChip'
 import { StatusIcon } from '@/components/issues/StatusIcon'
-import { V1IssueBadges } from '@/components/issues/V1IssueBadges'
-import { V1StatePill } from '@/components/issues/V1StatePill'
-import { fmtElapsed, stepLabel } from '@/lib/domain'
-import type { LaunchQueueItem, LinearIssueListItem, V1IssueState } from '@/types'
+import type { IssueState, LaunchQueueItem, LinearIssueListItem } from '@/types'
 import { Link } from '@tanstack/react-router'
 
 function formatDate(iso: string): string {
@@ -22,15 +22,15 @@ function initials(name: string): string {
 		.slice(0, 2)
 }
 
-interface V1IssueRowProps {
+interface IssueListRowProps {
 	issue: LinearIssueListItem
-	state: V1IssueState
+	state: IssueState
 	queueItem: LaunchQueueItem | undefined
 	indent?: boolean
 	refTime: number
 }
 
-export function V1IssueRow({ issue, state, queueItem, indent = false, refTime }: V1IssueRowProps) {
+export function IssueListRow({ issue, state, queueItem, indent = false, refTime }: IssueListRowProps) {
 	const linkedRun =
 		queueItem?.kind === 'run' && queueItem.linked_issue?.identifier === issue.identifier
 			? queueItem
@@ -64,11 +64,11 @@ export function V1IssueRow({ issue, state, queueItem, indent = false, refTime }:
 					) : null}
 				</div>
 
-				<V1StatePill state={state} />
+				<IssueStatePill state={state} />
 
-				{linkedRun ? <RunSummaryChip run={linkedRun} refTime={refTime} /> : null}
+				{linkedRun ? <RunSummaryChip item={linkedRun} refTime={refTime} /> : null}
 
-				<V1IssueBadges item={queueItem} />
+				<IssueExtraBadges item={queueItem} />
 
 				{issue.labels.length > 0 ? (
 					<div className="flex shrink-0 items-center gap-1.5">
@@ -102,28 +102,5 @@ export function V1IssueRow({ issue, state, queueItem, indent = false, refTime }:
 				</span>
 			</Link>
 		</HoverCard>
-	)
-}
-
-interface RunSummaryChipProps {
-	run: Extract<LaunchQueueItem, { kind: 'run' }>
-	refTime: number
-}
-
-function RunSummaryChip({ run, refTime }: RunSummaryChipProps) {
-	const stepText = run.run.current_step_key
-		? (stepLabel[run.run.current_step_key] ?? run.run.current_step_key)
-		: null
-	const elapsed = fmtElapsed(run.run.started_at, refTime)
-	const label = stepText ? `${stepText} · ${elapsed}` : elapsed
-
-	return (
-		<span
-			className="font-data inline-flex shrink-0 items-center gap-1 rounded-full border border-cyan/30 bg-cyan/5 px-2 py-0.5 text-[10px] text-cyan"
-			title={run.reason}
-		>
-			<span className="h-1.5 w-1.5 rounded-full bg-cyan" aria-hidden="true" />
-			{label}
-		</span>
 	)
 }

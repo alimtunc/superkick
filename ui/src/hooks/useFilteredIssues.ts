@@ -7,19 +7,18 @@ import {
 	matchesSearch
 } from '@/lib/domain/filterIssues'
 import { groupIssuesByParent } from '@/lib/domain/groupIssues'
-import { V1_STATE_ORDER } from '@/lib/domain/issuesV1State'
 import type {
 	GroupedIssues,
+	IssueState,
+	IssueStateFilter,
 	LaunchQueueItem,
-	LinearIssueListItem,
-	V1IssueState,
-	V1StateFilter
+	LinearIssueListItem
 } from '@/types'
 
-import type { V1IssueWithState } from './useV1Issues'
+import type { IssueWithState } from './useIssues'
 
-interface IssueFilters {
-	activeV1State: V1StateFilter
+interface IssueFilterState {
+	activeIssueState: IssueStateFilter
 	search: string
 	activeLabels: Set<string>
 	activeProject: string | null
@@ -27,14 +26,14 @@ interface IssueFilters {
 }
 
 interface UseFilteredIssuesInput {
-	allIssues: readonly V1IssueWithState[]
+	allIssues: readonly IssueWithState[]
 	queueItems: readonly LaunchQueueItem[]
-	filters: IssueFilters
+	filters: IssueFilterState
 }
 
-export type V1Counts = Record<V1IssueState, number>
+export type IssueStateCounts = Record<IssueState, number>
 
-const EMPTY_COUNTS: V1Counts = {
+const EMPTY_COUNTS: IssueStateCounts = {
 	backlog: 0,
 	todo: 0,
 	in_progress: 0,
@@ -43,33 +42,32 @@ const EMPTY_COUNTS: V1Counts = {
 	done: 0
 }
 
-export interface FilteredV1Issues {
-	counts: V1Counts
+export interface FilteredIssues {
+	counts: IssueStateCounts
 	filteredIssues: LinearIssueListItem[]
 	grouped: GroupedIssues
 	filteredQueueItems: LaunchQueueItem[]
 }
 
 /**
- * Apply the same set of content filters (search / labels / project /
- * priority) to both the issue-first list view and the orchestration-first
- * kanban view (SUP-92). The V1 state filter is only applied to the list:
- * the kanban's columns are themselves the V1 state lanes, so an additional
- * filter on top would be redundant — the state filter pill stays hidden in
- * the kanban toolbar.
+ * Apply the same content filters (search / labels / project / priority) to
+ * both the issue-first list view and the orchestration-first kanban view
+ * (SUP-92). The issue-state filter is only applied to the list: the kanban's
+ * columns are themselves the state lanes, so an additional filter on top
+ * would be redundant.
  *
- * Counts reflect the content filters but ignore the V1 state filter, so
- * the state pills always display the overall distribution and let the
- * operator see "what would happen if I clicked X".
+ * Counts reflect the content filters but ignore the state filter, so the
+ * state pills always display the overall distribution and let the operator
+ * see "what would happen if I clicked X".
  */
 export function useFilteredIssues({
 	allIssues,
 	queueItems,
 	filters
-}: UseFilteredIssuesInput): FilteredV1Issues {
-	const { activeV1State, search, activeLabels, activeProject, activePriorities } = filters
+}: UseFilteredIssuesInput): FilteredIssues {
+	const { activeIssueState, search, activeLabels, activeProject, activePriorities } = filters
 
-	const contentFiltered: V1IssueWithState[] = useMemo(() => {
+	const contentFiltered: IssueWithState[] = useMemo(() => {
 		const trimmed = search.trim()
 		return allIssues.filter((wrapper) => {
 			const issue = wrapper.issue
@@ -81,8 +79,8 @@ export function useFilteredIssues({
 		})
 	}, [allIssues, search, activeLabels, activeProject, activePriorities])
 
-	const counts: V1Counts = useMemo(() => {
-		const next: V1Counts = { ...EMPTY_COUNTS }
+	const counts: IssueStateCounts = useMemo(() => {
+		const next: IssueStateCounts = { ...EMPTY_COUNTS }
 		for (const wrapper of contentFiltered) {
 			next[wrapper.state] += 1
 		}
@@ -91,11 +89,11 @@ export function useFilteredIssues({
 
 	const stateScopedIssues: LinearIssueListItem[] = useMemo(() => {
 		const scoped =
-			activeV1State === 'all'
+			activeIssueState === 'all'
 				? contentFiltered
-				: contentFiltered.filter((w) => w.state === activeV1State)
+				: contentFiltered.filter((w) => w.state === activeIssueState)
 		return scoped.map((w) => w.issue)
-	}, [contentFiltered, activeV1State])
+	}, [contentFiltered, activeIssueState])
 
 	const filteredIssues: LinearIssueListItem[] = useMemo(
 		() =>
@@ -132,5 +130,3 @@ export function useFilteredIssues({
 
 	return { counts, filteredIssues, grouped, filteredQueueItems }
 }
-
-export { V1_STATE_ORDER }

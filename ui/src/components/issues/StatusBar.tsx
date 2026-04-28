@@ -1,18 +1,18 @@
-import { V1_STATE_ORDER, v1IssueStateAccent } from '@/lib/domain'
-import type { V1IssueState } from '@/types'
+import { ISSUE_STATE_ORDER, issueStateAccent } from '@/lib/domain'
+import type { IssueState } from '@/types'
 
 interface StatusBarProps {
-	counts: Record<V1IssueState, number>
+	counts: Record<IssueState, number>
 	total: number
 }
 
 export function StatusBar({ counts, total }: StatusBarProps) {
 	if (total === 0) return null
 
-	const segments = V1_STATE_ORDER.map((state) => ({
+	const segments = ISSUE_STATE_ORDER.map((state) => ({
 		state,
 		count: counts[state],
-		accent: v1IssueStateAccent[state]
+		accent: issueStateAccent[state]
 	})).filter((s) => s.count > 0)
 
 	return (

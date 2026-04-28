@@ -2,25 +2,12 @@ import type { LaunchQueue, LaunchQueueItem, LinearIssueListItem } from '@/types'
 import { describe, expect, it } from 'vitest'
 
 import {
-	V1_STATE_ORDER,
-	extraBadgesForV1,
-	groupItemsByV1State,
-	mapLaunchQueueToV1State,
-	v1StateForIssue,
-	v1StateFromLinear
-} from './issuesV1State'
-
-const ALL_BUCKETS: LaunchQueue[] = [
-	'backlog',
-	'todo',
-	'launchable',
-	'waiting',
-	'blocked',
-	'active',
-	'needs-human',
-	'in-pr',
-	'done'
-]
+	ISSUE_STATE_ORDER,
+	groupItemsByIssueState,
+	issueStateFor,
+	issueStateFromLinear,
+	mapLaunchQueueToIssueState
+} from './issueState'
 
 function issueItem(bucket: LaunchQueue, identifier = 'SUP-1'): LaunchQueueItem {
 	return {
@@ -79,8 +66,8 @@ function runItem(
 	}
 }
 
-describe('mapLaunchQueueToV1State', () => {
-	const cases: ReadonlyArray<[LaunchQueue, ReturnType<typeof mapLaunchQueueToV1State>]> = [
+describe('mapLaunchQueueToIssueState', () => {
+	const cases: ReadonlyArray<[LaunchQueue, ReturnType<typeof mapLaunchQueueToIssueState>]> = [
 		['backlog', 'backlog'],
 		['todo', 'todo'],
 		['launchable', 'todo'],
@@ -94,64 +81,42 @@ describe('mapLaunchQueueToV1State', () => {
 
 	for (const [bucket, expected] of cases) {
 		it(`${bucket} → ${expected}`, () => {
-			expect(mapLaunchQueueToV1State(bucket)).toBe(expected)
+			expect(mapLaunchQueueToIssueState(bucket)).toBe(expected)
 		})
 	}
-
-	it('covers all 9 buckets exhaustively', () => {
-		for (const bucket of ALL_BUCKETS) {
-			expect(() => mapLaunchQueueToV1State(bucket)).not.toThrow()
-		}
-	})
 })
 
-describe('V1_STATE_ORDER', () => {
+describe('ISSUE_STATE_ORDER', () => {
 	it('lists exactly six states in canonical kanban order', () => {
-		expect(V1_STATE_ORDER).toEqual(['backlog', 'todo', 'in_progress', 'needs_human', 'in_review', 'done'])
+		expect(ISSUE_STATE_ORDER).toEqual([
+			'backlog',
+			'todo',
+			'in_progress',
+			'needs_human',
+			'in_review',
+			'done'
+		])
 	})
 })
 
-describe('extraBadgesForV1', () => {
-	it('marks waiting items with a waiting badge (no column for them)', () => {
-		expect(extraBadgesForV1(issueItem('waiting'))).toContain('waiting')
-	})
-
-	it('marks blocked items with a blocked badge (no column for them)', () => {
-		expect(extraBadgesForV1(issueItem('blocked'))).toContain('blocked')
-	})
-
-	it('marks launchable items with a launchable cue inside the Todo lane', () => {
-		expect(extraBadgesForV1(issueItem('launchable'))).toContain('launchable')
-	})
-
-	it('marks runs with pending attention as needs-human-attention', () => {
-		expect(extraBadgesForV1(runItem('active', { attention: 2 }))).toContain('needs-human-attention')
-	})
-
-	it('returns no badges for plain todo / backlog issues', () => {
-		expect(extraBadgesForV1(issueItem('todo'))).toEqual([])
-		expect(extraBadgesForV1(issueItem('backlog'))).toEqual([])
-	})
-})
-
-describe('groupItemsByV1State', () => {
-	it('returns every V1 state as a key, even when empty', () => {
-		const groups = groupItemsByV1State([])
-		for (const state of V1_STATE_ORDER) {
+describe('groupItemsByIssueState', () => {
+	it('returns every issue state as a key, even when empty', () => {
+		const groups = groupItemsByIssueState([])
+		for (const state of ISSUE_STATE_ORDER) {
 			expect(groups[state]).toEqual([])
 		}
 	})
 
 	it('routes waiting / blocked / launchable items into the todo lane', () => {
 		const items = [issueItem('waiting', 'A'), issueItem('blocked', 'B'), issueItem('launchable', 'C')]
-		const groups = groupItemsByV1State(items)
+		const groups = groupItemsByIssueState(items)
 		expect(groups.todo).toHaveLength(3)
 		expect(groups.in_progress).toHaveLength(0)
 	})
 
 	it('routes runs into in_progress / needs_human / in_review / done', () => {
 		const items = [runItem('active'), runItem('needs-human'), runItem('in-pr'), runItem('done')]
-		const groups = groupItemsByV1State(items)
+		const groups = groupItemsByIssueState(items)
 		expect(groups.in_progress).toHaveLength(1)
 		expect(groups.needs_human).toHaveLength(1)
 		expect(groups.in_review).toHaveLength(1)
@@ -159,17 +124,17 @@ describe('groupItemsByV1State', () => {
 	})
 })
 
-describe('v1StateFromLinear (fallback path)', () => {
-	it('maps every Linear state to a V1 state, collapsing canceled into done', () => {
-		expect(v1StateFromLinear('backlog')).toBe('backlog')
-		expect(v1StateFromLinear('unstarted')).toBe('todo')
-		expect(v1StateFromLinear('started')).toBe('in_progress')
-		expect(v1StateFromLinear('completed')).toBe('done')
-		expect(v1StateFromLinear('canceled')).toBe('done')
+describe('issueStateFromLinear (fallback path)', () => {
+	it('maps every Linear state to an issue state, collapsing canceled into done', () => {
+		expect(issueStateFromLinear('backlog')).toBe('backlog')
+		expect(issueStateFromLinear('unstarted')).toBe('todo')
+		expect(issueStateFromLinear('started')).toBe('in_progress')
+		expect(issueStateFromLinear('completed')).toBe('done')
+		expect(issueStateFromLinear('canceled')).toBe('done')
 	})
 })
 
-describe('v1StateForIssue', () => {
+describe('issueStateFor', () => {
 	const baseIssue: LinearIssueListItem = {
 		id: 'x',
 		identifier: 'SUP-99',
@@ -189,11 +154,11 @@ describe('v1StateForIssue', () => {
 
 	it('prefers the launch-queue bucket when present', () => {
 		const buckets = new Map<string, LaunchQueue>([['SUP-99', 'needs-human']])
-		expect(v1StateForIssue(baseIssue, buckets)).toBe('needs_human')
+		expect(issueStateFor(baseIssue, buckets)).toBe('needs_human')
 	})
 
 	it('falls back to the Linear state when the issue is absent from the queue snapshot', () => {
 		const buckets = new Map<string, LaunchQueue>()
-		expect(v1StateForIssue(baseIssue, buckets)).toBe('in_progress')
+		expect(issueStateFor(baseIssue, buckets)).toBe('in_progress')
 	})
 })

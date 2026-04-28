@@ -9,8 +9,8 @@ interface IssueGroupCardProps {
 	renderRow?: (issue: LinearIssueListItem, indent: boolean) => ReactNode
 }
 
-/** Defaults to the legacy `IssueRow`. The V1 list view (SUP-92) injects
- *  `V1IssueRow` so grouped sub-issues carry the V1 pill / run chip too. */
+/** Defaults to the legacy `IssueRow`. The list view (SUP-92) injects
+ *  `IssueListRow` so grouped sub-issues carry the state pill / run chip too. */
 export function IssueGroupCard({ group, renderRow }: IssueGroupCardProps) {
 	const [expanded, setExpanded] = useState(true)
 	const childCount = group.children.length

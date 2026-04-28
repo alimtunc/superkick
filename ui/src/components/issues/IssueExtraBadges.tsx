@@ -3,17 +3,17 @@ import type { ReactNode } from 'react'
 import type { LaunchQueueItem } from '@/types'
 import { CircleSlash, Gauge, Rocket } from 'lucide-react'
 
-interface V1IssueBadgesProps {
+interface IssueExtraBadgesProps {
 	item: LaunchQueueItem | undefined
 	dispatchPosition?: number | undefined
 }
 
 /**
- * Contextual badges that surface gating signals the V1 6-column kanban
+ * Contextual badges that surface gating signals the 6-column kanban
  * intentionally folds away (`waiting` / `blocked` / `launchable`). Run-side
  * attention badges live in `LaunchRunBadges` and are not duplicated here.
  */
-export function V1IssueBadges({ item, dispatchPosition }: V1IssueBadgesProps) {
+export function IssueExtraBadges({ item, dispatchPosition }: IssueExtraBadgesProps) {
 	if (!item) return null
 
 	const badges: { key: string; element: ReactNode }[] = []

@@ -1,15 +1,15 @@
 import { useMemo } from 'react'
 
 import { IssuesHeader } from '@/components/issues/IssuesHeader'
+import { IssuesKanbanView } from '@/components/issues/IssuesKanbanView'
+import { IssuesListView } from '@/components/issues/IssuesListView'
 import { IssuesToolbar } from '@/components/issues/IssuesToolbar'
 import { IssuesViewToggle } from '@/components/issues/IssuesViewToggle'
 import { buildLabelColorMap } from '@/components/issues/LabelFilter'
-import { V1IssueKanbanView } from '@/components/issues/V1IssueKanbanView'
-import { V1IssueListView } from '@/components/issues/V1IssueListView'
 import { useFilteredIssues } from '@/hooks/useFilteredIssues'
 import { useIssueAggregations } from '@/hooks/useIssueAggregations'
 import { useIssueFilters } from '@/hooks/useIssueFilters'
-import { useV1Issues } from '@/hooks/useV1Issues'
+import { useIssues } from '@/hooks/useIssues'
 import { issuesQuery, launchQueueQuery } from '@/lib/queries'
 import { createRoute, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
@@ -37,7 +37,7 @@ function IssuesPage() {
 	const navigate = useNavigate({ from: Route.fullPath })
 	const view = search.view ?? 'list'
 
-	const data = useV1Issues()
+	const data = useIssues()
 	const filters = useIssueFilters()
 	const aggregations = useIssueAggregations(data.allIssues)
 	const labelColors = useMemo(() => buildLabelColorMap(data.allIssues), [data.allIssues])
@@ -87,10 +87,10 @@ function IssuesPage() {
 						<IssuesToolbar
 							stateFilter={{
 								show: view === 'list',
-								active: filters.activeV1State,
+								active: filters.activeIssueState,
 								counts,
 								total: data.totalCount,
-								onSelect: filters.setActiveV1State
+								onSelect: filters.setActiveIssueState
 							}}
 							filters={filters}
 							derivations={{
@@ -102,19 +102,19 @@ function IssuesPage() {
 						/>
 
 						{view === 'kanban' ? (
-							<V1IssueKanbanView
+							<IssuesKanbanView
 								queueItems={filteredQueueItems}
 								activeCapacity={data.activeCapacity}
 								generatedAt={data.generatedAt}
 								recentUnblocks={data.recentUnblocks}
 							/>
 						) : (
-							<V1IssueListView
+							<IssuesListView
 								allIssues={data.issues}
 								queueItems={data.queueItems}
 								filteredIssues={filteredIssues}
 								grouped={grouped}
-								activeV1State={filters.activeV1State}
+								activeIssueState={filters.activeIssueState}
 							/>
 						)}
 					</>

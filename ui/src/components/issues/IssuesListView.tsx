@@ -2,33 +2,33 @@ import { useMemo } from 'react'
 
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
 import { IssueGroupCard } from '@/components/issues/IssueGroupCard'
-import { V1IssueRow } from '@/components/issues/V1IssueRow'
+import { IssueListRow } from '@/components/issues/IssueListRow'
+import type { IssueWithState } from '@/hooks/useIssues'
 import { useNow } from '@/hooks/useNow'
-import type { V1IssueWithState } from '@/hooks/useV1Issues'
-import { v1IssueStateAccent } from '@/lib/domain'
+import { issueStateAccent } from '@/lib/domain'
 import type {
 	GroupedIssues,
+	IssueState,
+	IssueStateFilter,
 	LaunchQueueItem,
-	LinearIssueListItem,
-	V1IssueState,
-	V1StateFilter
+	LinearIssueListItem
 } from '@/types'
 
-interface V1IssueListViewProps {
-	allIssues: readonly V1IssueWithState[]
+interface IssuesListViewProps {
+	allIssues: readonly IssueWithState[]
 	queueItems: readonly LaunchQueueItem[]
 	filteredIssues: readonly LinearIssueListItem[]
 	grouped: GroupedIssues
-	activeV1State: V1StateFilter
+	activeIssueState: IssueStateFilter
 }
 
-export function V1IssueListView({
+export function IssuesListView({
 	allIssues,
 	queueItems,
 	filteredIssues,
 	grouped,
-	activeV1State
-}: V1IssueListViewProps) {
+	activeIssueState
+}: IssuesListViewProps) {
 	const refTime = useNow()
 
 	const queueItemByIdentifier = useMemo(() => {
@@ -41,17 +41,17 @@ export function V1IssueListView({
 	}, [queueItems])
 
 	const stateByIssueId = useMemo(() => {
-		const map = new Map<string, V1IssueState>()
+		const map = new Map<string, IssueState>()
 		for (const item of allIssues) map.set(item.issue.id, item.state)
 		return map
 	}, [allIssues])
 
-	const sectionLabel = activeV1State === 'all' ? 'All' : v1IssueStateAccent[activeV1State].label
+	const sectionLabel = activeIssueState === 'all' ? 'All' : issueStateAccent[activeIssueState].label
 
 	function renderRow(issue: LinearIssueListItem, indent: boolean) {
 		const state = stateByIssueId.get(issue.id) ?? 'todo'
 		return (
-			<V1IssueRow
+			<IssueListRow
 				issue={issue}
 				state={state}
 				queueItem={queueItemByIdentifier.get(issue.identifier)}

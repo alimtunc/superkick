@@ -1,9 +1,11 @@
-import { V1IssueKanbanCard } from '@/components/issues/V1IssueKanbanCard'
-import { v1IssueStateAccent } from '@/lib/domain'
-import type { LaunchQueueItem, RecentUnblocks, V1IssueState } from '@/types'
+import { useMemo } from 'react'
 
-interface V1IssueKanbanColumnProps {
-	state: V1IssueState
+import { KanbanCard } from '@/components/issues/KanbanCard'
+import { issueStateAccent } from '@/lib/domain'
+import type { IssueState, LaunchQueueItem, RecentUnblocks } from '@/types'
+
+interface KanbanColumnProps {
+	state: IssueState
 	items: LaunchQueueItem[]
 	refTime: number
 	onDispatch: (issueIdentifier: string) => void
@@ -11,18 +13,26 @@ interface V1IssueKanbanColumnProps {
 	recentUnblocks: RecentUnblocks
 }
 
-export function V1IssueKanbanColumn({
+export function KanbanColumn({
 	state,
 	items,
 	refTime,
 	onDispatch,
 	dispatchPending,
 	recentUnblocks
-}: V1IssueKanbanColumnProps) {
-	const accent = v1IssueStateAccent[state]
+}: KanbanColumnProps) {
+	const accent = issueStateAccent[state]
 	const Icon = accent.icon
 
-	let dispatchPosition = 0
+	const dispatchPositions: readonly (number | undefined)[] = useMemo(() => {
+		let next = 0
+		return items.map((item) => {
+			if (item.bucket !== 'launchable') return undefined
+			next += 1
+			return next
+		})
+	}, [items])
+
 	return (
 		<div
 			className={`panel flex max-h-[70vh] min-w-72 flex-col overflow-hidden border-t-2 ${accent.border}`}
@@ -43,20 +53,17 @@ export function V1IssueKanbanColumn({
 				<p className="font-data px-3 py-4 text-[11px] text-dim">Empty</p>
 			) : (
 				<div className="flex-1 divide-y divide-edge/50 overflow-y-auto">
-					{items.map((item) => {
-						const position = item.bucket === 'launchable' ? (dispatchPosition += 1) : undefined
-						return (
-							<V1IssueKanbanCard
-								key={keyForItem(item)}
-								item={item}
-								refTime={refTime}
-								onDispatch={onDispatch}
-								dispatchPending={dispatchPending}
-								unblockedAt={unblockedAtFor(item, recentUnblocks)}
-								dispatchPosition={position}
-							/>
-						)
-					})}
+					{items.map((item, index) => (
+						<KanbanCard
+							key={keyForItem(item)}
+							item={item}
+							refTime={refTime}
+							onDispatch={onDispatch}
+							dispatchPending={dispatchPending}
+							unblockedAt={unblockedAtFor(item, recentUnblocks)}
+							dispatchPosition={dispatchPositions[index]}
+						/>
+					))}
 				</div>
 			)}
 		</div>

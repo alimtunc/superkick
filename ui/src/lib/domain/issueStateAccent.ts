@@ -1,8 +1,8 @@
-import type { V1IssueState } from '@/types'
+import type { IssueState } from '@/types'
 import type { LucideIcon } from 'lucide-react'
 import { AlertTriangle, CheckCircle2, Circle, CircleDashed, GitPullRequest, Play } from 'lucide-react'
 
-interface V1IssueStateAccent {
+interface IssueStateAccent {
 	border: string
 	text: string
 	dot: string
@@ -12,13 +12,13 @@ interface V1IssueStateAccent {
 }
 
 /**
- * Visual accent + short copy per V1 state (SUP-92). Aligned with
+ * Visual accent + short copy per operator-facing state. Aligned with
  * `launchQueueAccent` so the kanban-to-list visual language stays
- * consistent, but kept as a separate table because the V1 reduction
+ * consistent, but kept as a separate table because the reduction
  * deliberately drops three columns (`launchable` / `waiting` / `blocked`)
  * and relabels `in-pr` as "In review".
  */
-export const v1IssueStateAccent: Record<V1IssueState, V1IssueStateAccent> = {
+export const issueStateAccent: Record<IssueState, IssueStateAccent> = {
 	backlog: {
 		border: 'border-t-dim',
 		text: 'text-ash',

@@ -1,36 +1,36 @@
 import { useMemo } from 'react'
 
-import { V1IssueKanbanColumn } from '@/components/issues/V1IssueKanbanColumn'
+import { KanbanColumn } from '@/components/issues/KanbanColumn'
 import { CapacityBanner } from '@/components/launch-queue/CapacityBanner'
 import { useDispatchFromQueue } from '@/hooks/useDispatchFromQueue'
 import { useNow } from '@/hooks/useNow'
-import { V1_STATE_ORDER, groupItemsByV1State } from '@/lib/domain'
+import { ISSUE_STATE_ORDER, groupItemsByIssueState } from '@/lib/domain'
 import type { LaunchQueueActiveCapacity, LaunchQueueItem, RecentUnblocks } from '@/types'
 
-interface V1IssueKanbanViewProps {
+interface IssuesKanbanViewProps {
 	queueItems: readonly LaunchQueueItem[]
 	activeCapacity: LaunchQueueActiveCapacity
 	generatedAt: string | null
 	recentUnblocks: RecentUnblocks
 }
 
-export function V1IssueKanbanView({
+export function IssuesKanbanView({
 	queueItems,
 	activeCapacity,
 	generatedAt,
 	recentUnblocks
-}: V1IssueKanbanViewProps) {
+}: IssuesKanbanViewProps) {
 	const refTime = useNow()
 	const { dispatch, isPending } = useDispatchFromQueue()
 
-	const groups = useMemo(() => groupItemsByV1State(queueItems), [queueItems])
+	const groups = useMemo(() => groupItemsByIssueState(queueItems), [queueItems])
 
 	return (
 		<div className="flex flex-col gap-4">
 			<CapacityBanner capacity={activeCapacity} generatedAt={generatedAt} />
 			<div className="flex gap-3 overflow-x-auto pb-2">
-				{V1_STATE_ORDER.map((state) => (
-					<V1IssueKanbanColumn
+				{ISSUE_STATE_ORDER.map((state) => (
+					<KanbanColumn
 						key={state}
 						state={state}
 						items={groups[state]}
