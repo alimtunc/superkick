@@ -142,16 +142,16 @@ export interface IssueDetailResponse {
 // Superkick derivations — NOT Linear states. Linear remains the source of truth;
 // buckets exist to make the Issues surface actionable for launch and inspection.
 
-export type IssueBucket = 'ready' | 'active' | 'done' | 'dismissed'
+/**
+ * V1 operator-facing state model (SUP-92). Six values, derived from the
+ * 9-bucket launch queue via `mapLaunchQueueToV1State`. The reduction is
+ * deliberate: `waiting` and `blocked` collapse into the upstream lane (Todo)
+ * with badges rather than carrying their own column, so the kanban stays at
+ * a six-column glance.
+ */
+export type V1IssueState = 'backlog' | 'todo' | 'in_progress' | 'needs_human' | 'in_review' | 'done'
 
-export interface ClassifiedIssues {
-	ready: LinearIssueListItem[]
-	active: LinearIssueListItem[]
-	done: LinearIssueListItem[]
-	dismissed: LinearIssueListItem[]
-}
-
-export type BucketFilter = IssueBucket | 'all'
+export type V1StateFilter = V1IssueState | 'all'
 
 // ── Parent/child grouping ─────────────────────────────────────────────
 

@@ -1,21 +1,18 @@
-import { BUCKET_META, BUCKET_ORDER } from '@/lib/domain/classifyIssues'
-import type { BucketFilter, ClassifiedIssues } from '@/types'
+import { V1_STATE_ORDER, v1IssueStateAccent } from '@/lib/domain'
+import type { V1IssueState, V1StateFilter } from '@/types'
 
-export function IssueFilters({
-	activeBucket,
-	classified,
-	totalCount,
-	onSelect
-}: {
-	activeBucket: BucketFilter
-	classified: ClassifiedIssues
+interface IssueFiltersProps {
+	activeV1State: V1StateFilter
+	counts: Record<V1IssueState, number>
 	totalCount: number
-	onSelect: (bucket: BucketFilter) => void
-}) {
-	const isAllActive = activeBucket === 'all'
+	onSelect: (state: V1StateFilter) => void
+}
+
+export function IssueFilters({ activeV1State, counts, totalCount, onSelect }: IssueFiltersProps) {
+	const isAllActive = activeV1State === 'all'
 
 	return (
-		<div className="flex gap-1.5">
+		<div className="flex flex-wrap gap-1.5">
 			<button
 				type="button"
 				onClick={() => onSelect('all')}
@@ -26,25 +23,25 @@ export function IssueFilters({
 				All
 				<span className="text-dim">{totalCount}</span>
 			</button>
-			{BUCKET_ORDER.map((bucket) => {
-				const meta = BUCKET_META[bucket]
-				const count = classified[bucket].length
-				const isActive = bucket === activeBucket
+			{V1_STATE_ORDER.map((state) => {
+				const accent = v1IssueStateAccent[state]
+				const count = counts[state]
+				const isActive = state === activeV1State
 
 				return (
 					<button
-						key={bucket}
+						key={state}
 						type="button"
-						onClick={() => onSelect(bucket)}
+						onClick={() => onSelect(state)}
 						className={`font-data flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors ${
 							isActive ? 'bg-white/10 text-silver' : 'text-dim hover:bg-white/5 hover:text-fog'
 						}`}
 					>
 						<span
-							className="inline-block h-2 w-2 rounded-full"
-							style={{ backgroundColor: meta.color, opacity: isActive ? 1 : 0.5 }}
+							className={`inline-block h-2 w-2 rounded-full ${accent.dot}`}
+							style={{ opacity: isActive ? 1 : 0.5 }}
 						/>
-						{meta.label}
+						{accent.label}
 						<span className="text-dim">{count}</span>
 					</button>
 				)

@@ -1,12 +1,25 @@
 import { useMemo } from 'react'
 
-import { classifyIssues } from '@/lib/domain/classifyIssues'
-import { filterIssuesWithNesting } from '@/lib/domain/filterIssues'
+import {
+	filterIssuesWithNesting,
+	matchesLabels,
+	matchesProject,
+	matchesSearch
+} from '@/lib/domain/filterIssues'
 import { groupIssuesByParent } from '@/lib/domain/groupIssues'
-import type { BucketFilter, ClassifiedIssues, GroupedIssues, LinearIssueListItem } from '@/types'
+import { V1_STATE_ORDER } from '@/lib/domain/issuesV1State'
+import type {
+	GroupedIssues,
+	LaunchQueueItem,
+	LinearIssueListItem,
+	V1IssueState,
+	V1StateFilter
+} from '@/types'
+
+import type { V1IssueWithState } from './useV1Issues'
 
 interface IssueFilters {
-	activeBucket: BucketFilter
+	activeV1State: V1StateFilter
 	search: string
 	activeLabels: Set<string>
 	activeProject: string | null
@@ -14,26 +27,110 @@ interface IssueFilters {
 }
 
 interface UseFilteredIssuesInput {
-	allIssues: LinearIssueListItem[]
+	allIssues: readonly V1IssueWithState[]
+	queueItems: readonly LaunchQueueItem[]
 	filters: IssueFilters
 }
 
-export function useFilteredIssues({ allIssues, filters }: UseFilteredIssuesInput) {
-	const { activeBucket, search, activeLabels, activeProject, activePriorities } = filters
+export type V1Counts = Record<V1IssueState, number>
 
-	const classified: ClassifiedIssues = useMemo(() => classifyIssues(allIssues), [allIssues])
+const EMPTY_COUNTS: V1Counts = {
+	backlog: 0,
+	todo: 0,
+	in_progress: 0,
+	needs_human: 0,
+	in_review: 0,
+	done: 0
+}
 
-	const filteredIssues: LinearIssueListItem[] = useMemo(() => {
-		const bucketIssues = activeBucket === 'all' ? allIssues : classified[activeBucket]
-		return filterIssuesWithNesting(bucketIssues, {
-			search,
-			activeLabels,
-			activeProject,
-			activePriorities
+export interface FilteredV1Issues {
+	counts: V1Counts
+	filteredIssues: LinearIssueListItem[]
+	grouped: GroupedIssues
+	filteredQueueItems: LaunchQueueItem[]
+}
+
+/**
+ * Apply the same set of content filters (search / labels / project /
+ * priority) to both the issue-first list view and the orchestration-first
+ * kanban view (SUP-92). The V1 state filter is only applied to the list:
+ * the kanban's columns are themselves the V1 state lanes, so an additional
+ * filter on top would be redundant — the state filter pill stays hidden in
+ * the kanban toolbar.
+ *
+ * Counts reflect the content filters but ignore the V1 state filter, so
+ * the state pills always display the overall distribution and let the
+ * operator see "what would happen if I clicked X".
+ */
+export function useFilteredIssues({
+	allIssues,
+	queueItems,
+	filters
+}: UseFilteredIssuesInput): FilteredV1Issues {
+	const { activeV1State, search, activeLabels, activeProject, activePriorities } = filters
+
+	const contentFiltered: V1IssueWithState[] = useMemo(() => {
+		const trimmed = search.trim()
+		return allIssues.filter((wrapper) => {
+			const issue = wrapper.issue
+			const searchMatch = !trimmed || matchesSearch(issue, trimmed)
+			const labelMatch = matchesLabels(issue, activeLabels)
+			const projectMatch = matchesProject(issue, activeProject)
+			const priorityMatch = activePriorities.size === 0 || activePriorities.has(issue.priority.value)
+			return searchMatch && labelMatch && projectMatch && priorityMatch
 		})
-	}, [classified, allIssues, activeBucket, search, activeLabels, activeProject, activePriorities])
+	}, [allIssues, search, activeLabels, activeProject, activePriorities])
+
+	const counts: V1Counts = useMemo(() => {
+		const next: V1Counts = { ...EMPTY_COUNTS }
+		for (const wrapper of contentFiltered) {
+			next[wrapper.state] += 1
+		}
+		return next
+	}, [contentFiltered])
+
+	const stateScopedIssues: LinearIssueListItem[] = useMemo(() => {
+		const scoped =
+			activeV1State === 'all'
+				? contentFiltered
+				: contentFiltered.filter((w) => w.state === activeV1State)
+		return scoped.map((w) => w.issue)
+	}, [contentFiltered, activeV1State])
+
+	const filteredIssues: LinearIssueListItem[] = useMemo(
+		() =>
+			filterIssuesWithNesting(stateScopedIssues, {
+				search,
+				activeLabels,
+				activeProject,
+				activePriorities
+			}),
+		[stateScopedIssues, search, activeLabels, activeProject, activePriorities]
+	)
 
 	const grouped: GroupedIssues = useMemo(() => groupIssuesByParent(filteredIssues), [filteredIssues])
 
-	return { classified, filteredIssues, grouped }
+	const filteredQueueItems: LaunchQueueItem[] = useMemo(() => {
+		const passing = new Set(contentFiltered.map((w) => w.issue.identifier))
+		return queueItems.filter((item) => {
+			if (item.kind === 'issue') return passing.has(item.issue.identifier)
+			const linked = item.linked_issue?.identifier
+			// Run with no Linear-side issue (cross-team, beyond fetch cap): keep
+			// when no content filter is set; hide it once any filter narrows the
+			// view, since we have no labels/project/priority on the run itself.
+			if (!linked) {
+				return (
+					!search.trim() &&
+					activeLabels.size === 0 &&
+					activeProject === null &&
+					activePriorities.size === 0
+				)
+			}
+			return passing.has(linked)
+		})
+	}, [queueItems, contentFiltered, search, activeLabels, activeProject, activePriorities])
+
+	return { counts, filteredIssues, grouped, filteredQueueItems }
 }
+
+export { V1_STATE_ORDER }
