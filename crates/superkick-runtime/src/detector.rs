@@ -155,7 +155,7 @@ pub fn capabilities_for(provider: AgentProvider) -> RuntimeCapabilities {
     match provider {
         AgentProvider::Claude => RuntimeCapabilities {
             supports_pty: true,
-            supports_protocol: false,
+            supports_protocol: true,
             supports_resume: true,
             supports_mcp_config: true,
             supports_structured_tools: true,

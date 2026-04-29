@@ -11,6 +11,8 @@
 //! (`agent_supervisor::lifecycle`) is unchanged and stays the production path
 //! for terminal-takeover today.
 
+mod claude;
+mod claude_stream;
 mod stub;
 
 use std::future::Future;
@@ -21,6 +23,9 @@ use tokio_util::sync::CancellationToken;
 
 use superkick_core::{ProtocolEventEnvelope, ResumeKey, TurnOutcome, TurnRequest};
 
+#[doc(hidden)]
+pub use claude::spawn_pump_for_test;
+pub use claude::{ClaudeAdapterOptions, ClaudePermissionMode, ClaudeProtocolAdapter};
 pub use stub::{NoopProtocolAdapter, StubScript};
 
 /// Bounded channel capacity for adapter→consumer event flow. Matches the
@@ -37,6 +42,7 @@ pub type ProtocolEventSender = mpsc::Sender<ProtocolEventEnvelope>;
 /// Handle returned by `start_turn` / `resume_turn`. Bundles the event
 /// receiver, the cancellation token, and a finaliser that resolves with the
 /// `TurnOutcome` once the adapter terminates.
+#[must_use = "drive the stream to completion or call handle.cancel() — dropping mid-turn aborts the pump"]
 pub struct ProtocolStream {
     /// Stream of events for the turn. Closed by the adapter once a terminal
     /// event has been published.
@@ -48,9 +54,10 @@ pub struct ProtocolStream {
 /// Cancel + finalisation handle for an in-flight turn. Detached from the
 /// event receiver so consumers can hand it to a separate task (e.g. an
 /// observer that watches for operator-initiated cancellation).
+#[must_use = "call handle.finish().await or handle.cancel() — dropping aborts the pump task"]
 pub struct TurnHandle {
     cancel: CancellationToken,
-    outcome: tokio::task::JoinHandle<Result<TurnOutcome>>,
+    outcome: Option<tokio::task::JoinHandle<Result<TurnOutcome>>>,
 }
 
 impl TurnHandle {
@@ -58,7 +65,10 @@ impl TurnHandle {
         cancel: CancellationToken,
         outcome: tokio::task::JoinHandle<Result<TurnOutcome>>,
     ) -> Self {
-        Self { cancel, outcome }
+        Self {
+            cancel,
+            outcome: Some(outcome),
+        }
     }
 
     /// Request cancellation of the running turn. Idempotent; the adapter is
@@ -76,12 +86,28 @@ impl TurnHandle {
     /// Await the turn's terminal outcome. Resolves once the adapter task has
     /// exited (post-terminal-event flush). The inner `Result` carries
     /// adapter-side errors that prevented even reaching a `TurnOutcome`.
-    pub async fn finish(self) -> Result<TurnOutcome> {
-        match self.outcome.await {
+    pub async fn finish(mut self) -> Result<TurnOutcome> {
+        let outcome = self
+            .outcome
+            .take()
+            .expect("TurnHandle::finish called twice");
+        match outcome.await {
             Ok(res) => res,
             Err(join_err) => Err(anyhow::anyhow!(
                 "protocol adapter task panicked or was aborted: {join_err}"
             )),
+        }
+    }
+}
+
+impl Drop for TurnHandle {
+    fn drop(&mut self) {
+        // If the consumer dropped us without driving `finish()`, signal the
+        // pump to bail and abort the task so the child process is reaped via
+        // `kill_on_drop`. Both calls are idempotent if `finish()` already ran.
+        self.cancel.cancel();
+        if let Some(handle) = self.outcome.take() {
+            handle.abort();
         }
     }
 }
