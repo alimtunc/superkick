@@ -11,6 +11,7 @@ pub mod linear_context;
 pub mod mcp_policy;
 pub mod orchestrator;
 pub mod ownership_service;
+pub mod protocol_adapter;
 pub mod pty_session;
 pub mod repo_cache;
 pub mod session_bus;
@@ -30,6 +31,10 @@ pub use orchestrator::{
     OrchestratedSession, Orchestrator, SessionObservation, spawn_lifecycle_persistence_sink,
 };
 pub use ownership_service::{OwnershipService, ServiceError as OwnershipServiceError};
+pub use protocol_adapter::{
+    DEFAULT_EVENT_CHANNEL_CAPACITY, NoopProtocolAdapter, ProtocolAdapter, ProtocolEventReceiver,
+    ProtocolEventSender, ProtocolStream, StubScript, TurnHandle, protocol_event_channel,
+};
 pub use pty_session::{PtySession, PtySessionRegistry, WriterHolder};
 pub use repo_cache::RepoCache;
 pub use session_bus::SessionBus;

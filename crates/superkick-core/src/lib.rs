@@ -15,6 +15,7 @@ pub mod launch_queue;
 pub mod linear_context;
 pub mod mcp_policy;
 pub mod ownership;
+pub mod protocol;
 pub mod pull_request;
 pub mod queue;
 pub mod recovery;
@@ -58,6 +59,11 @@ pub use ownership::{
     OperatorId, OrchestrationOwner, OwnershipError, OwnershipEvent, OwnershipTransitionReason,
     SessionOwnership, SuspendReason, WriterLeaseInfo, transition_release, transition_resume,
     transition_suspend, transition_takeover,
+};
+pub use protocol::{
+    Cancelled, Completion, Failure, LogEntry, LogLevel, ProtocolEvent, ProtocolEventEnvelope,
+    ResumeKey, SessionMeta, TextBlock, TextDelta, Thinking, ToolCallResult, ToolCallStart,
+    TurnOptions, TurnOutcome, TurnRequest, UsageSnapshot,
 };
 pub use pull_request::{LinkedPrSummary, PrState, PullRequest, parse_pr_number};
 pub use queue::{
