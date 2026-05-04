@@ -13,6 +13,8 @@
 
 mod claude;
 mod claude_stream;
+mod codex;
+mod codex_stream;
 mod stub;
 
 use std::future::Future;
@@ -26,6 +28,9 @@ use superkick_core::{ProtocolEventEnvelope, ResumeKey, TurnOutcome, TurnRequest}
 #[doc(hidden)]
 pub use claude::spawn_pump_for_test;
 pub use claude::{ClaudeAdapterOptions, ClaudePermissionMode, ClaudeProtocolAdapter};
+#[doc(hidden)]
+pub use codex::spawn_pump_for_test as spawn_codex_pump_for_test;
+pub use codex::{CodexAdapterOptions, CodexProtocolAdapter, CodexSandboxMode};
 pub use stub::{NoopProtocolAdapter, StubScript};
 
 /// Bounded channel capacity for adapter→consumer event flow. Matches the

@@ -1,0 +1,15 @@
+-- SUP-99: durable provider session id for resumable structured turns.
+--
+-- The Claude/Codex protocol adapters (SUP-98 and SUP-99) emit a
+-- SessionMeta resume_key event on the first response of every turn.
+-- That key is what ProtocolAdapter::resume_turn consumes to continue
+-- the same conversation later. SUP-98 keeps the key in adapter memory.
+-- This column persists it so a follow-up turn from a different process
+-- can pick the right thread without re-running it from scratch.
+--
+-- provider_session_id  Opaque per-provider token (Claude session_id, Codex
+--                      thread_id). Stored as TEXT. The adapter owns its
+--                      semantics and the contract treats it as opaque.
+--                      NULL for legacy rows and for sessions that ran on
+--                      the PTY path (which has its own resume mechanics).
+ALTER TABLE agent_sessions ADD COLUMN provider_session_id TEXT NULL;

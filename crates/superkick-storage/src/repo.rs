@@ -63,6 +63,21 @@ pub trait AgentSessionRepo: Send + Sync {
     fn get(&self, id: AgentSessionId) -> impl Future<Output = Result<Option<AgentSession>>> + Send;
     fn list_by_run(&self, run_id: RunId) -> impl Future<Output = Result<Vec<AgentSession>>> + Send;
     fn update(&self, session: &AgentSession) -> impl Future<Output = Result<()>> + Send;
+    /// Persist the provider-side session/thread identifier (Claude
+    /// `session_id`, Codex `thread_id`) so a follow-up turn from a different
+    /// process can resume the conversation. Idempotent — overwrites the
+    /// existing value (Codex may emit a fresh thread id on resume).
+    fn set_provider_session_id(
+        &self,
+        id: AgentSessionId,
+        provider_session_id: &str,
+    ) -> impl Future<Output = Result<()>> + Send;
+    /// Read the persisted provider session id, if any. `Ok(None)` covers
+    /// both "row exists but column is NULL" and "no such session".
+    fn get_provider_session_id(
+        &self,
+        id: AgentSessionId,
+    ) -> impl Future<Output = Result<Option<String>>> + Send;
 }
 
 /// Repository for `Interrupt` entities.

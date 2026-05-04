@@ -32,9 +32,10 @@ pub use orchestrator::{
 };
 pub use ownership_service::{OwnershipService, ServiceError as OwnershipServiceError};
 pub use protocol_adapter::{
-    ClaudeAdapterOptions, ClaudePermissionMode, ClaudeProtocolAdapter,
-    DEFAULT_EVENT_CHANNEL_CAPACITY, NoopProtocolAdapter, ProtocolAdapter, ProtocolEventReceiver,
-    ProtocolEventSender, ProtocolStream, StubScript, TurnHandle, protocol_event_channel,
+    ClaudeAdapterOptions, ClaudePermissionMode, ClaudeProtocolAdapter, CodexAdapterOptions,
+    CodexProtocolAdapter, CodexSandboxMode, DEFAULT_EVENT_CHANNEL_CAPACITY, NoopProtocolAdapter,
+    ProtocolAdapter, ProtocolEventReceiver, ProtocolEventSender, ProtocolStream, StubScript,
+    TurnHandle, protocol_event_channel,
 };
 pub use pty_session::{PtySession, PtySessionRegistry, WriterHolder};
 pub use repo_cache::RepoCache;
