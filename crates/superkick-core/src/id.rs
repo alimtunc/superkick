@@ -43,3 +43,6 @@ define_id!(RuntimeId);
 define_id!(RuntimeProviderId);
 define_id!(OrchestratorSessionId);
 define_id!(OrchestratorCheckpointId);
+define_id!(ConversationId);
+define_id!(TurnId);
+define_id!(TurnEventId);

@@ -5,6 +5,7 @@ pub mod artifact;
 pub mod attach;
 pub mod attention;
 pub mod blocker;
+pub mod conversation;
 pub mod error;
 pub mod event;
 pub mod handoff;
@@ -35,15 +36,19 @@ pub use artifact::{Artifact, ArtifactKind};
 pub use attach::{AttachKind, AttachPayload};
 pub use attention::{AttentionKind, AttentionReply, AttentionRequest, AttentionStatus};
 pub use blocker::{IssueBlocker, TERMINAL_BLOCKER_STATES, is_terminal_blocker_state};
+pub use conversation::{
+    Conversation, ConversationStatus, ConversationSubject, Turn, TurnEvent, TurnFailure, TurnStatus,
+};
 pub use error::CoreError;
 pub use event::{EventKind, EventLevel, RunEvent};
 pub use handoff::{
     Handoff, HandoffFailure, HandoffKind, HandoffPayload, HandoffResult, HandoffStatus,
 };
 pub use id::{
-    AgentSessionId, ArtifactId, AttentionRequestId, EventId, HandoffId, InterruptId,
-    OrchestratorCheckpointId, OrchestratorSessionId, OwnershipEventId, PullRequestId, RunId,
-    RuntimeId, RuntimeProviderId, SessionLifecycleEventId, StepId, TranscriptChunkId,
+    AgentSessionId, ArtifactId, AttentionRequestId, ConversationId, EventId, HandoffId,
+    InterruptId, OrchestratorCheckpointId, OrchestratorSessionId, OwnershipEventId, PullRequestId,
+    RunId, RuntimeId, RuntimeProviderId, SessionLifecycleEventId, StepId, TranscriptChunkId,
+    TurnEventId, TurnId,
 };
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
 pub use issue_event::{DependencyResolvedPayload, IssueEvent};

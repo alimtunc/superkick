@@ -1,6 +1,7 @@
 export * from './agents'
 export * from './api'
 export * from './attention'
+export * from './conversations'
 export * from './dashboard'
 export * from './events'
 export * from './inbox'

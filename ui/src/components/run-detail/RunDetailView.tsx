@@ -1,3 +1,4 @@
+import { ChatPanel } from '@/components/chat/ChatPanel'
 import { SectionTitle } from '@/components/dashboard/SectionTitle'
 import { AttentionRequestPanel } from '@/components/run-detail/AttentionRequestPanel'
 import { InterruptPanel } from '@/components/run-detail/InterruptPanel'
@@ -146,10 +147,16 @@ export function RunDetailView({ runId, refTime = Date.now() }: { runId: string; 
 
 				<ReviewResults steps={detail.steps} />
 
+				<section className="mb-8">
+					<SectionTitle title="Chat" />
+					<ChatPanel subject={{ kind: 'run', run_id: detail.run.id }} />
+				</section>
+
 				<section className="mb-6 space-y-3">
 					<SectionTitle title="Terminal inspection" />
 					<p className="font-data text-[11px] text-ash">
-						Supporting evidence only. Use the orchestration ledger above for run understanding.
+						Fallback / takeover surface. Use the chat above for structured turns; this terminal
+						stays available for direct PTY access.
 					</p>
 					<TerminalTakeover runId={detail.run.id} isTerminal={detail.isTerminal} />
 				</section>

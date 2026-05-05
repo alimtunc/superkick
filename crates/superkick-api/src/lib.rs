@@ -12,15 +12,17 @@ use superkick_config::{IssueTrigger, LaunchProfileConfig, OrchestrationConfig};
 use superkick_core::RunId;
 use superkick_integrations::linear::LinearClient;
 use superkick_runtime::{
-    AttentionService, InterruptService, OwnershipService, PtySessionRegistry,
-    PublishingRunEventRepo, RepoCache, RuntimeDetector, SessionBus, StepEngine, StepEngineDeps,
-    WorkspaceEventBus, boot_refresh as runtime_boot_refresh, spawn_heartbeat_listener,
+    AttentionService, ConversationAdapters, ConversationRunner, InterruptService, OwnershipService,
+    PtySessionRegistry, PublishingRunEventRepo, RepoCache, RuntimeDetector, SessionBus, StepEngine,
+    StepEngineDeps, TurnEventBus, WorkspaceEventBus, boot_refresh as runtime_boot_refresh,
+    spawn_heartbeat_listener,
 };
 use superkick_storage::{
-    SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteInterruptRepo,
-    SqliteIssueBlockerRepo, SqliteOrchestratorSessionRepo, SqlitePullRequestRepo,
-    SqliteRecoveryEventRepo, SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
-    SqliteRuntimeRepo, SqliteSessionOwnershipRepo, SqliteTranscriptRepo,
+    SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo,
+    SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteOrchestratorSessionRepo,
+    SqlitePullRequestRepo, SqliteRecoveryEventRepo, SqliteRunEventRepo, SqliteRunRepo,
+    SqliteRunStepRepo, SqliteRuntimeRepo, SqliteSessionOwnershipRepo, SqliteTranscriptRepo,
+    SqliteTurnEventRepo, SqliteTurnRepo,
 };
 
 mod error;
@@ -79,6 +81,9 @@ type AttnService = AttentionService<SqliteAttentionRequestRepo, EventRepo, Sqlit
 
 type OwnService = OwnershipService<SqliteSessionOwnershipRepo, EventRepo>;
 
+type ChatRunner =
+    ConversationRunner<SqliteConversationRepo, SqliteTurnRepo, SqliteTurnEventRepo, SqliteRunRepo>;
+
 #[derive(Clone)]
 pub(crate) struct AppState {
     pub run_repo: Arc<SqliteRunRepo>,
@@ -106,6 +111,10 @@ pub(crate) struct AppState {
     pub ownership_service: Arc<OwnService>,
     pub pty_registry: Arc<PtySessionRegistry>,
     pub workspace_bus: Arc<WorkspaceEventBus>,
+    pub conversation_repo: Arc<SqliteConversationRepo>,
+    pub turn_repo: Arc<SqliteTurnRepo>,
+    pub turn_event_repo: Arc<SqliteTurnEventRepo>,
+    pub conversation_runner: Arc<ChatRunner>,
     pub linear_client: Option<Arc<LinearClient>>,
     pub run_tokens: Arc<Mutex<HashMap<RunId, CancellationToken>>>,
     pub repo_slug: String,
@@ -171,7 +180,10 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let runtime_repo = Arc::new(SqliteRuntimeRepo::new(pool.clone()));
     let runtime_detector = Arc::new(RuntimeDetector::new(Arc::clone(&runtime_repo)));
 
-    let transcript_repo = Arc::new(SqliteTranscriptRepo::new(pool));
+    let transcript_repo = Arc::new(SqliteTranscriptRepo::new(pool.clone()));
+    let conversation_repo = Arc::new(SqliteConversationRepo::new(pool.clone()));
+    let turn_repo = Arc::new(SqliteTurnRepo::new(pool.clone()));
+    let turn_event_repo = Arc::new(SqliteTurnEventRepo::new(pool));
     let pty_registry = Arc::new(PtySessionRegistry::new());
 
     let cache_root = PathBuf::from(&cfg.cache_dir);
@@ -223,6 +235,22 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         Arc::clone(&pty_registry),
     ));
 
+    let turn_event_bus = TurnEventBus::new();
+    // Default workdir for issue-scoped conversations (no run worktree to
+    // anchor to). The API server runs from the repo root today, so its CWD
+    // is the right anchor; we capture it once at boot.
+    let default_workdir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let conversation_runner = Arc::new(ConversationRunner::new(
+        Arc::clone(&conversation_repo),
+        Arc::clone(&turn_repo),
+        Arc::clone(&turn_event_repo),
+        Arc::clone(&run_repo),
+        turn_event_bus,
+        ConversationAdapters::default(),
+        default_workdir,
+        linear_client.clone(),
+    ));
+
     // SUP-73 — start the heartbeat listener (stamps `runs.last_heartbeat_at`
     // from `SessionBus` events) and the recovery scheduler (periodic
     // Healthy↔Stalled classification).
@@ -265,6 +293,10 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         ownership_service,
         pty_registry,
         workspace_bus,
+        conversation_repo,
+        turn_repo,
+        turn_event_repo,
+        conversation_runner,
         linear_client,
         run_tokens: Arc::new(Mutex::new(HashMap::new())),
         repo_slug,
@@ -359,6 +391,27 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
             "/orchestrator-sessions/{id}/checkpoints",
             post(handlers::orchestrator_sessions::create_checkpoint)
                 .get(handlers::orchestrator_sessions::list_checkpoints),
+        )
+        .route(
+            "/conversations",
+            post(handlers::conversations::create_or_get_conversation)
+                .get(handlers::conversations::list_conversations),
+        )
+        .route(
+            "/conversations/{id}",
+            get(handlers::conversations::get_conversation),
+        )
+        .route(
+            "/conversations/{id}/turns",
+            post(handlers::conversations::create_turn),
+        )
+        .route(
+            "/conversations/{conversation_id}/turns/{turn_id}/cancel",
+            post(handlers::conversations::cancel_turn),
+        )
+        .route(
+            "/turns/{turn_id}/events",
+            get(handlers::conversations::turn_events_stream),
         )
         .with_state(state);
 
