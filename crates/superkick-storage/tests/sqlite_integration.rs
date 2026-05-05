@@ -575,7 +575,6 @@ async fn agent_session_insert_and_list() -> Result<()> {
         parent_session_id: None,
         launch_reason: None,
         handoff_id: None,
-        provider_session_id: None,
     };
     let sid = session.id;
     session_repo.insert(&session).await?;
@@ -586,90 +585,6 @@ async fn agent_session_insert_and_list() -> Result<()> {
 
     let sessions = session_repo.list_by_run(run.id).await?;
     assert_eq!(sessions.len(), 1);
-    Ok(())
-}
-
-#[tokio::test]
-async fn agent_session_provider_session_id_round_trips() -> Result<()> {
-    let pool = setup().await?;
-    let run_repo = SqliteRunRepo::new(pool.clone());
-    let step_repo = SqliteRunStepRepo::new(pool.clone());
-    let session_repo = SqliteAgentSessionRepo::new(pool);
-
-    let run = Run::new(
-        "i".into(),
-        "SK-1".into(),
-        "o/r".into(),
-        TriggerSource::Manual,
-        ExecutionMode::FullAuto,
-        "main".into(),
-        true,
-        None,
-    );
-    run_repo.insert(&run).await?;
-    let step = RunStep::new(run.id, StepKey::Code, 1);
-    step_repo.insert(&step).await?;
-
-    let session = AgentSession {
-        id: AgentSessionId::new(),
-        run_id: run.id,
-        run_step_id: step.id,
-        provider: AgentProvider::Codex,
-        command: "codex exec --json -".into(),
-        pid: None,
-        status: AgentStatus::Running,
-        started_at: Utc::now(),
-        finished_at: None,
-        exit_code: None,
-        linear_context_mode: None,
-        mcp_servers_used: Vec::new(),
-        tools_allow_snapshot: None,
-        tool_approval_required: false,
-        tool_results_persisted: true,
-        role: None,
-        purpose: None,
-        parent_session_id: None,
-        launch_reason: None,
-        handoff_id: None,
-        provider_session_id: None,
-    };
-    let sid = session.id;
-    session_repo.insert(&session).await?;
-
-    // Default state: NULL.
-    assert!(session_repo.get_provider_session_id(sid).await?.is_none());
-
-    // First write — typical SessionMeta observation.
-    session_repo
-        .set_provider_session_id(sid, "019df324-cc9a-7e40-b2de-0bb1e1e701dd")
-        .await?;
-    assert_eq!(
-        session_repo.get_provider_session_id(sid).await?.as_deref(),
-        Some("019df324-cc9a-7e40-b2de-0bb1e1e701dd")
-    );
-    let fetched = session_repo.get(sid).await?.unwrap();
-    assert_eq!(
-        fetched.provider_session_id.as_deref(),
-        Some("019df324-cc9a-7e40-b2de-0bb1e1e701dd")
-    );
-
-    // Codex may emit a fresh thread id on resume — overwrite must work.
-    session_repo
-        .set_provider_session_id(sid, "019df325-fffe-7000-aaaa-bbbbbbbbbbbb")
-        .await?;
-    assert_eq!(
-        session_repo.get_provider_session_id(sid).await?.as_deref(),
-        Some("019df325-fffe-7000-aaaa-bbbbbbbbbbbb")
-    );
-
-    // Unknown session id → Ok(None) rather than an error.
-    assert!(
-        session_repo
-            .get_provider_session_id(AgentSessionId::new())
-            .await?
-            .is_none()
-    );
-
     Ok(())
 }
 
@@ -715,7 +630,6 @@ async fn agent_session_linear_context_mode_round_trips() -> Result<()> {
         parent_session_id: None,
         launch_reason: None,
         handoff_id: None,
-        provider_session_id: None,
     };
     session_repo.insert(&session).await?;
 
@@ -771,7 +685,6 @@ async fn agent_session_tool_policy_columns_round_trip() -> Result<()> {
         parent_session_id: None,
         launch_reason: None,
         handoff_id: None,
-        provider_session_id: None,
     };
     session_repo.insert(&session).await?;
 
@@ -831,7 +744,6 @@ async fn agent_session_tool_policy_defaults_when_absent() -> Result<()> {
         parent_session_id: None,
         launch_reason: None,
         handoff_id: None,
-        provider_session_id: None,
     };
     session_repo.insert(&session).await?;
 
@@ -952,7 +864,6 @@ async fn agent_session_update() -> Result<()> {
         parent_session_id: None,
         launch_reason: None,
         handoff_id: None,
-        provider_session_id: None,
     };
     session_repo.insert(&session).await?;
 
@@ -1194,7 +1105,6 @@ async fn handoff_lifecycle_round_trip() -> Result<()> {
         parent_session_id: None,
         launch_reason: Some(LaunchReason::Handoff),
         handoff_id: Some(handoff.id),
-        provider_session_id: None,
     };
     session_repo.insert(&sess).await?;
     let sess_id = sess.id;
@@ -1265,7 +1175,6 @@ async fn agent_session_lineage_round_trips() -> Result<()> {
         parent_session_id: None,
         launch_reason: Some(LaunchReason::InitialStep),
         handoff_id: None,
-        provider_session_id: None,
     };
     session_repo.insert(&parent).await?;
     let parent_id = parent.id;
@@ -1291,7 +1200,6 @@ async fn agent_session_lineage_round_trips() -> Result<()> {
         parent_session_id: Some(parent_id),
         launch_reason: Some(LaunchReason::Handoff),
         handoff_id: Some(handoff_id),
-        provider_session_id: None,
     };
     session_repo.insert(&session).await?;
 
@@ -1343,7 +1251,6 @@ async fn seed_session_for_ownership(pool: sqlx::SqlitePool) -> Result<AgentSessi
         parent_session_id: None,
         launch_reason: Some(LaunchReason::InitialStep),
         handoff_id: None,
-        provider_session_id: None,
     };
     session_repo.insert(&session).await?;
     Ok(session.id)
@@ -1468,7 +1375,6 @@ async fn seed_session(pool: &sqlx::SqlitePool) -> Result<AgentSession> {
         parent_session_id: None,
         launch_reason: Some(LaunchReason::InitialStep),
         handoff_id: None,
-        provider_session_id: None,
     };
     session_repo.insert(&sess).await?;
     Ok(sess)

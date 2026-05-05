@@ -25,10 +25,9 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
                  id, run_id, run_step_id, provider, command, pid, status, started_at, \
                  finished_at, exit_code, linear_context_mode, role, purpose, \
                  parent_session_id, launch_reason, handoff_id, mcp_servers_used, \
-                 tools_allow_snapshot, tool_approval_required, tool_results_persisted, \
-                 provider_session_id\
+                 tools_allow_snapshot, tool_approval_required, tool_results_persisted\
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, \
-                       ?17, ?18, ?19, ?20, ?21)",
+                       ?17, ?18, ?19, ?20)",
         )
         .bind(session.id.0.to_string())
         .bind(session.run_id.0.to_string())
@@ -56,7 +55,6 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
         )
         .bind(i64::from(session.tool_approval_required))
         .bind(i64::from(session.tool_results_persisted))
-        .bind(session.provider_session_id.as_ref())
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -93,28 +91,6 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
         .await?;
         Ok(())
     }
-
-    async fn set_provider_session_id(
-        &self,
-        id: AgentSessionId,
-        provider_session_id: &str,
-    ) -> Result<()> {
-        sqlx::query("UPDATE agent_sessions SET provider_session_id = ?1 WHERE id = ?2")
-            .bind(provider_session_id)
-            .bind(id.0.to_string())
-            .execute(&self.pool)
-            .await?;
-        Ok(())
-    }
-
-    async fn get_provider_session_id(&self, id: AgentSessionId) -> Result<Option<String>> {
-        let row: Option<(Option<String>,)> =
-            sqlx::query_as("SELECT provider_session_id FROM agent_sessions WHERE id = ?1")
-                .bind(id.0.to_string())
-                .fetch_optional(&self.pool)
-                .await?;
-        Ok(row.and_then(|(value,)| value))
-    }
 }
 
 #[derive(sqlx::FromRow)]
@@ -139,7 +115,6 @@ struct SessionRow {
     tools_allow_snapshot: Option<String>,
     tool_approval_required: i64,
     tool_results_persisted: i64,
-    provider_session_id: Option<String>,
 }
 
 impl SessionRow {
@@ -197,7 +172,6 @@ impl SessionRow {
                 .transpose()?,
             tool_approval_required: self.tool_approval_required != 0,
             tool_results_persisted: self.tool_results_persisted != 0,
-            provider_session_id: self.provider_session_id,
         })
     }
 }

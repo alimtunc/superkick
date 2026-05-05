@@ -125,10 +125,6 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "018_agent_session_tool_policy",
             include_str!("../migrations/018_agent_session_tool_policy.sql"),
         ),
-        (
-            "019_agent_session_provider_session_id",
-            include_str!("../migrations/019_agent_session_provider_session_id.sql"),
-        ),
     ];
 
     for (name, sql) in migrations {

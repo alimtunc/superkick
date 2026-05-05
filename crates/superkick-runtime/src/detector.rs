@@ -151,19 +151,6 @@ const KNOWN_PROVIDERS: &[AgentProvider] = &[AgentProvider::Claude, AgentProvider
 /// V1 capability table. Hard-coded because the upstream CLIs don't expose a
 /// machine-readable capability manifest yet — replace this with a real probe
 /// when they do, but keep the function signature stable.
-///
-/// Codex-side notes (CLI 0.128.0):
-/// - `supports_protocol`: SUP-99 wires `codex exec --json` JSONL as the
-///   structured backend. `codex app-server` exists but is experimental and
-///   intentionally not used.
-/// - `supports_resume`: `codex exec resume <UUID>` is the stable resume
-///   surface, paired with the `provider_session_id` column on
-///   `agent_sessions` for cross-process durability (migration 019).
-/// - `supports_mcp_config`: Codex reads MCP servers from
-///   `~/.codex/config.toml` and has no `--mcp-config` equivalent — the
-///   per-role MCP wiring done for Claude is a follow-up for Codex.
-/// - `supports_usage`: `turn.completed` carries `usage` on 0.128.0; the
-///   parser surfaces it on `ProtocolEvent::Usage`.
 pub fn capabilities_for(provider: AgentProvider) -> RuntimeCapabilities {
     match provider {
         AgentProvider::Claude => RuntimeCapabilities {
@@ -180,7 +167,7 @@ pub fn capabilities_for(provider: AgentProvider) -> RuntimeCapabilities {
             supports_resume: true,
             supports_mcp_config: false,
             supports_structured_tools: true,
-            supports_usage: true,
+            supports_usage: false,
         },
     }
 }

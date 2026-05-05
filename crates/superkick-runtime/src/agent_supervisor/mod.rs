@@ -199,7 +199,6 @@ where
             parent_session_id: config.session_launch.parent_session_id,
             launch_reason: Some(config.session_launch.launch_reason),
             handoff_id: config.session_launch.handoff_id,
-            provider_session_id: None,
         };
 
         self.session_repo.insert(&session).await?;
@@ -451,7 +450,6 @@ mod tests {
             parent_session_id: None,
             launch_reason: Some(superkick_core::LaunchReason::InitialStep),
             handoff_id: None,
-            provider_session_id: None,
         }
     }
 
