@@ -17,6 +17,10 @@ pub enum AppError {
         message: String,
         run: Option<ConflictRun>,
     },
+    /// Structured chat: another turn is already streaming on this conversation.
+    /// Maps to 409 with an explicit error code so the UI can render a clear
+    /// "wait for the current turn" hint without parsing the message string.
+    TurnAlreadyStreaming,
     ServiceUnavailable(&'static str),
 }
 
@@ -108,6 +112,14 @@ impl IntoResponse for AppError {
                 }
                 (StatusCode::CONFLICT, Json(body)).into_response()
             }
+            AppError::TurnAlreadyStreaming => (
+                StatusCode::CONFLICT,
+                Json(serde_json::json!({
+                    "error": "another turn is already streaming on this conversation",
+                    "code": "turn_already_streaming",
+                })),
+            )
+                .into_response(),
             AppError::ServiceUnavailable(msg) => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 Json(serde_json::json!({ "error": msg })),

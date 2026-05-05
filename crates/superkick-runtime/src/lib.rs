@@ -2,6 +2,7 @@
 
 pub mod agent_supervisor;
 pub mod attention_service;
+pub mod conversation_runner;
 pub mod detector;
 pub mod git;
 pub mod handoff_service;
@@ -16,6 +17,7 @@ pub mod pty_session;
 pub mod repo_cache;
 pub mod session_bus;
 pub mod step_engine;
+pub mod turn_event_bus;
 pub mod workspace_bus;
 pub mod worktree;
 
@@ -23,6 +25,10 @@ pub use agent_supervisor::{
     AgentHandle, AgentLaunchConfig, AgentResult, AgentSupervisor, SessionLaunchInfo,
 };
 pub use attention_service::AttentionService;
+pub use conversation_runner::{
+    ChatPermissionMode, ConversationAdapters, ConversationRunner, ConversationRunnerError,
+    TurnOverrides, TurnStreamItem,
+};
 pub use detector::{RuntimeDetector, boot_refresh, capabilities_for};
 pub use handoff_service::HandoffService;
 pub use heartbeat::spawn_heartbeat_listener;
@@ -41,5 +47,6 @@ pub use pty_session::{PtySession, PtySessionRegistry, WriterHolder};
 pub use repo_cache::RepoCache;
 pub use session_bus::SessionBus;
 pub use step_engine::{StepEngine, StepEngineDeps};
+pub use turn_event_bus::TurnEventBus;
 pub use workspace_bus::{PublishingRunEventRepo, WorkspaceEventBus};
 pub use worktree::{WorktreeInfo, WorktreeManager};

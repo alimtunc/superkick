@@ -18,5 +18,9 @@ export const queryKeys = {
 	runtimes: {
 		all: ['runtimes'] as const,
 		list: ['runtimes', 'list'] as const
+	},
+	conversations: {
+		all: ['conversations'] as const,
+		detail: (id: string) => ['conversations', 'detail', id] as const
 	}
 }

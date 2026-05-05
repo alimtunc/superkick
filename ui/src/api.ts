@@ -3,8 +3,13 @@ import type {
 	AttachPayload,
 	AttentionReply,
 	AttentionRequest,
+	Conversation,
+	ConversationDetail,
 	CreateAttentionRequest,
+	CreateConversationRequest,
 	CreateRunRequest,
+	CreateTurnRequest,
+	CreateTurnResponse,
 	DashboardQueueResponse,
 	DispatchFromQueueRequest,
 	Interrupt,
@@ -17,6 +22,7 @@ import type {
 	RunStep,
 	RuntimesResponse,
 	ServerConfigResponse,
+	TurnEventEnvelope,
 	WorkspaceRunEvent
 } from '@/types'
 
@@ -237,6 +243,120 @@ export async function prepareSessionAttach(runId: string, sessionId: string): Pr
 	})
 	if (!res.ok) await throwGenericApiError(res, 'prepare attach failed')
 	return res.json()
+}
+
+// ── Conversations (SUP-100 structured chat) ──────────────────────────
+
+/**
+ * Thrown by `createTurn` when the conversation already has a non-terminal
+ * turn streaming. Maps to the backend's 409 + `code: turn_already_streaming`.
+ */
+export class TurnAlreadyStreamingError extends Error {
+	constructor(message = 'another turn is already streaming on this conversation') {
+		super(message)
+		this.name = 'TurnAlreadyStreamingError'
+	}
+}
+
+export async function createOrGetConversation(req: CreateConversationRequest): Promise<Conversation> {
+	const res = await fetch(`${BASE}/conversations`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(req)
+	})
+	if (!res.ok) await throwGenericApiError(res, 'create conversation failed')
+	return res.json()
+}
+
+export async function fetchConversation(id: string): Promise<ConversationDetail> {
+	const res = await fetch(`${BASE}/conversations/${id}`)
+	if (!res.ok) throw new Error(`GET /conversations/${id} failed: ${res.status}`)
+	return res.json()
+}
+
+export async function listConversationsByIssue(issueId: string): Promise<Conversation[]> {
+	const res = await fetch(`${BASE}/conversations?issue_id=${encodeURIComponent(issueId)}`)
+	if (!res.ok) throw new Error(`GET /conversations?issue_id failed: ${res.status}`)
+	const body = (await res.json()) as { conversations: Conversation[] }
+	return body.conversations
+}
+
+export async function listConversationsByRun(runId: string): Promise<Conversation[]> {
+	const res = await fetch(`${BASE}/conversations?run_id=${encodeURIComponent(runId)}`)
+	if (!res.ok) throw new Error(`GET /conversations?run_id failed: ${res.status}`)
+	const body = (await res.json()) as { conversations: Conversation[] }
+	return body.conversations
+}
+
+export async function createTurn(
+	conversationId: string,
+	req: CreateTurnRequest
+): Promise<CreateTurnResponse> {
+	const res = await fetch(`${BASE}/conversations/${conversationId}/turns`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(req)
+	})
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
+		if (res.status === 409 && body.code === 'turn_already_streaming') {
+			throw new TurnAlreadyStreamingError(body.error)
+		}
+		throw new Error(body.error || `create turn failed: ${res.status}`)
+	}
+	return res.json()
+}
+
+export async function cancelTurn(conversationId: string, turnId: string): Promise<void> {
+	const res = await fetch(`${BASE}/conversations/${conversationId}/turns/${turnId}/cancel`, {
+		method: 'POST'
+	})
+	if (!res.ok && res.status !== 204) await throwGenericApiError(res, 'cancel turn failed')
+}
+
+/**
+ * Subscribe to the SSE event stream for a turn. Replays persisted events
+ * first (server-side) then live-streams until the turn terminates. The
+ * browser EventSource auto-reconnects with `Last-Event-ID`, which the server
+ * uses to skip events the client has already seen.
+ */
+export function subscribeToTurnEvents(
+	turnId: string,
+	handlers: {
+		onEvent: (envelope: TurnEventEnvelope) => void
+		onLagged?: (skipped: number) => void
+		onDone?: () => void
+		onError?: (err: Event) => void
+	}
+): () => void {
+	const es = new EventSource(`${BASE}/turns/${turnId}/events`)
+
+	es.addEventListener('turn_event', (e) => {
+		try {
+			const envelope = JSON.parse(e.data) as TurnEventEnvelope
+			handlers.onEvent(envelope)
+		} catch (err) {
+			handlers.onError?.(err as unknown as Event)
+		}
+	})
+
+	es.addEventListener('lagged', (e) => {
+		const skipped = Number.parseInt(e.data, 10) || 0
+		handlers.onLagged?.(skipped)
+	})
+
+	es.addEventListener('done', () => {
+		es.close()
+		handlers.onDone?.()
+	})
+
+	es.addEventListener('error', (err) => {
+		if (es.readyState === EventSource.CLOSED) {
+			handlers.onError?.(err)
+		}
+	})
+
+	return () => es.close()
 }
 
 /**

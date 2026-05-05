@@ -6,10 +6,11 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use superkick_core::{
     AgentSession, AgentSessionId, Artifact, ArtifactId, AttentionRequest, AttentionRequestId,
-    EventId, Handoff, HandoffId, Interrupt, InterruptId, IssueBlocker, OrchestratorCheckpoint,
+    Conversation, ConversationId, ConversationStatus, ConversationSubject, EventId, Handoff,
+    HandoffId, Interrupt, InterruptId, IssueBlocker, OrchestratorCheckpoint,
     OrchestratorCheckpointId, OrchestratorSession, OrchestratorSessionId, OrchestratorStatus,
-    OwnershipEvent, PullRequest, Run, RunEvent, RunId, RunStep, SessionLifecycleEvent, StepId,
-    TranscriptChunk,
+    OwnershipEvent, ProtocolEventEnvelope, PullRequest, Run, RunEvent, RunId, RunStep,
+    SessionLifecycleEvent, StepId, TranscriptChunk, Turn, TurnEvent, TurnId, UsageSnapshot,
 };
 
 /// Repository for `Run` entities.
@@ -208,6 +209,125 @@ pub trait InterruptTxRepo: Send + Sync {
         run: &Run,
         interrupt: &Interrupt,
     ) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// Repository for structured chat `Conversation` rows (SUP-100).
+///
+/// Idempotency: `create_or_get` on a `(subject, agent_id)` pair returns the
+/// existing row when one is present so the API can route repeat opens to the
+/// same conversation without conflict.
+pub trait ConversationRepo: Send + Sync {
+    fn create_or_get(
+        &self,
+        subject: &ConversationSubject,
+        agent_id: &str,
+        provider: superkick_core::AgentProvider,
+        now: DateTime<Utc>,
+    ) -> impl Future<Output = Result<Conversation>> + Send;
+
+    fn get(&self, id: ConversationId) -> impl Future<Output = Result<Option<Conversation>>> + Send;
+
+    fn list_by_subject(
+        &self,
+        subject: &ConversationSubject,
+    ) -> impl Future<Output = Result<Vec<Conversation>>> + Send;
+
+    fn set_provider_session_id(
+        &self,
+        id: ConversationId,
+        provider_session_id: &str,
+        now: DateTime<Utc>,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    fn set_status(
+        &self,
+        id: ConversationId,
+        status: ConversationStatus,
+        now: DateTime<Utc>,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    fn set_last_turn_at(
+        &self,
+        id: ConversationId,
+        at: DateTime<Utc>,
+    ) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// Repository for `Turn` rows. The runner allocates `seq` per conversation
+/// and updates the lifecycle status as the protocol stream advances.
+pub trait TurnRepo: Send + Sync {
+    fn create_pending(
+        &self,
+        conversation_id: ConversationId,
+        user_text: &str,
+        now: DateTime<Utc>,
+    ) -> impl Future<Output = Result<Turn>> + Send;
+
+    fn get(&self, id: TurnId) -> impl Future<Output = Result<Option<Turn>>> + Send;
+
+    fn list_by_conversation(
+        &self,
+        conversation_id: ConversationId,
+    ) -> impl Future<Output = Result<Vec<Turn>>> + Send;
+
+    /// Returns the active (non-terminal) turn for a conversation, if any.
+    /// Used to enforce the "one streaming turn per conversation" rule.
+    fn find_active_for_conversation(
+        &self,
+        conversation_id: ConversationId,
+    ) -> impl Future<Output = Result<Option<Turn>>> + Send;
+
+    fn mark_streaming(
+        &self,
+        id: TurnId,
+        now: DateTime<Utc>,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    fn mark_completed(
+        &self,
+        id: TurnId,
+        usage: Option<&UsageSnapshot>,
+        now: DateTime<Utc>,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    fn mark_failed(
+        &self,
+        id: TurnId,
+        code: &str,
+        message: &str,
+        usage: Option<&UsageSnapshot>,
+        now: DateTime<Utc>,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    fn mark_cancelled(
+        &self,
+        id: TurnId,
+        reason: &str,
+        now: DateTime<Utc>,
+    ) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// Repository for the append-only stream of `TurnEvent`s.
+pub trait TurnEventRepo: Send + Sync {
+    fn append(
+        &self,
+        turn_id: TurnId,
+        envelope: &ProtocolEventEnvelope,
+    ) -> impl Future<Output = Result<TurnEvent>> + Send;
+
+    fn list_by_turn(&self, turn_id: TurnId) -> impl Future<Output = Result<Vec<TurnEvent>>> + Send;
+
+    /// Replay events for a turn from a given seq (exclusive). Used by the
+    /// SSE handler to honour the `Last-Event-ID` reconnect header.
+    fn list_by_turn_after(
+        &self,
+        turn_id: TurnId,
+        after_seq: u64,
+    ) -> impl Future<Output = Result<Vec<TurnEvent>>> + Send;
+
+    /// Highest seq currently persisted for a turn. Used by the runner to
+    /// allocate the next envelope's seq when constructing them itself.
+    fn last_seq(&self, turn_id: TurnId) -> impl Future<Output = Result<Option<u64>>> + Send;
 }
 
 /// Repository for `issue_blockers` — Linear "blocks" relation snapshots

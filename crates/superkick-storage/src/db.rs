@@ -133,6 +133,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "020_orchestrator_sessions",
             include_str!("../migrations/020_orchestrator_sessions.sql"),
         ),
+        (
+            "021_conversations_turns_events",
+            include_str!("../migrations/021_conversations_turns_events.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

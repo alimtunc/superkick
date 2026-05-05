@@ -1,3 +1,4 @@
+import { ChatPanel } from '@/components/chat/ChatPanel'
 import { ChildIssues } from '@/components/issue-detail/ChildIssues'
 import { IssueActivityTimeline } from '@/components/issue-detail/IssueActivityTimeline'
 import { IssueDescription } from '@/components/issue-detail/IssueDescription'
@@ -50,6 +51,9 @@ export function IssueDetail({ issueId }: { issueId: string }) {
 						<IssueDescription description={issue.description} />
 						{issue.children.length > 0 ? <ChildIssues issues={issue.children} /> : null}
 						<IssueLauncherPanel issue={issue} />
+						<div className="mb-8">
+							<ChatPanel subject={{ kind: 'issue', identifier: issue.identifier }} />
+						</div>
 						<IssueActivityTimeline comments={issue.comments} runs={issue.linked_runs} />
 					</main>
 					<IssuePropertiesPanel issue={issue} />
