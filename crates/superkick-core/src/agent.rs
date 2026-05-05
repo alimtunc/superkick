@@ -105,4 +105,11 @@ pub struct AgentSession {
     pub launch_reason: Option<LaunchReason>,
     /// Handoff this spawn fulfils, if any.
     pub handoff_id: Option<HandoffId>,
+    /// Opaque provider-side session/thread identifier for resumable structured
+    /// turns (Claude `session_id`, Codex `thread_id`). Written when a
+    /// `ProtocolEvent::SessionMeta` is observed; consumed by
+    /// `ProtocolAdapter::resume_turn` so a follow-up turn from a different
+    /// process can pick the right thread. `None` for sessions that ran on the
+    /// PTY path (which has its own resume mechanics) and for legacy rows.
+    pub provider_session_id: Option<String>,
 }
