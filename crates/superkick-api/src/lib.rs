@@ -18,14 +18,42 @@ use superkick_runtime::{
 };
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteInterruptRepo,
-    SqliteIssueBlockerRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo, SqliteRunEventRepo,
-    SqliteRunRepo, SqliteRunStepRepo, SqliteRuntimeRepo, SqliteSessionOwnershipRepo,
-    SqliteTranscriptRepo,
+    SqliteIssueBlockerRepo, SqliteOrchestratorSessionRepo, SqlitePullRequestRepo,
+    SqliteRecoveryEventRepo, SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
+    SqliteRuntimeRepo, SqliteSessionOwnershipRepo, SqliteTranscriptRepo,
 };
 
 mod error;
 mod handlers;
 pub mod recovery_scheduler;
+
+/// Test-only router builder for the SUP-102 orchestrator session routes.
+///
+/// Production wires these routes onto the full `AppState` in `run_server`;
+/// this helper builds the same five routes against the `SqliteOrchestratorSessionRepo`
+/// alone so integration tests don't have to rebuild the entire app state.
+/// Gated behind the `test-support` feature so it never reaches production
+/// callers — only the integration tests in this crate enable it.
+#[cfg(feature = "test-support")]
+pub fn orchestrator_session_test_router(repo: Arc<SqliteOrchestratorSessionRepo>) -> Router {
+    Router::new()
+        .route(
+            "/orchestrator-sessions",
+            post(handlers::orchestrator_sessions::create_session)
+                .get(handlers::orchestrator_sessions::list_sessions),
+        )
+        .route(
+            "/orchestrator-sessions/{id}",
+            get(handlers::orchestrator_sessions::get_session)
+                .patch(handlers::orchestrator_sessions::patch_session),
+        )
+        .route(
+            "/orchestrator-sessions/{id}/checkpoints",
+            post(handlers::orchestrator_sessions::create_checkpoint)
+                .get(handlers::orchestrator_sessions::list_checkpoints),
+        )
+        .with_state(repo)
+}
 
 // ── App state ──────────────────────────────────────────────────────────
 
@@ -64,6 +92,9 @@ pub(crate) struct AppState {
     pub transcript_repo: Arc<SqliteTranscriptRepo>,
     pub issue_blocker_repo: Arc<SqliteIssueBlockerRepo>,
     pub recovery_event_repo: Arc<SqliteRecoveryEventRepo>,
+    /// SUP-102 — orchestrator session + checkpoint store. Independent of the
+    /// run pipeline; lives next to it as a parallel aggregate.
+    pub orchestrator_session_repo: Arc<SqliteOrchestratorSessionRepo>,
     pub runtime_detector: Arc<RuntimeDetector>,
     /// Serialises `reconcile_blockers` so two concurrent `GET /launch-queue`
     /// calls cannot both publish the same `DependencyResolved` transition
@@ -136,6 +167,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let ownership_repo = Arc::new(SqliteSessionOwnershipRepo::new(pool.clone()));
     let issue_blocker_repo = Arc::new(SqliteIssueBlockerRepo::new(pool.clone()));
     let recovery_event_repo = Arc::new(SqliteRecoveryEventRepo::new(pool.clone()));
+    let orchestrator_session_repo = Arc::new(SqliteOrchestratorSessionRepo::new(pool.clone()));
     let runtime_repo = Arc::new(SqliteRuntimeRepo::new(pool.clone()));
     let runtime_detector = Arc::new(RuntimeDetector::new(Arc::clone(&runtime_repo)));
 
@@ -224,6 +256,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         transcript_repo,
         issue_blocker_repo,
         recovery_event_repo,
+        orchestrator_session_repo,
         runtime_detector,
         blocker_reconcile_lock: Arc::new(Mutex::new(())),
         engine,
@@ -311,6 +344,21 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         .route(
             "/runtimes/refresh",
             post(handlers::runtimes::refresh_runtimes),
+        )
+        .route(
+            "/orchestrator-sessions",
+            post(handlers::orchestrator_sessions::create_session)
+                .get(handlers::orchestrator_sessions::list_sessions),
+        )
+        .route(
+            "/orchestrator-sessions/{id}",
+            get(handlers::orchestrator_sessions::get_session)
+                .patch(handlers::orchestrator_sessions::patch_session),
+        )
+        .route(
+            "/orchestrator-sessions/{id}/checkpoints",
+            post(handlers::orchestrator_sessions::create_checkpoint)
+                .get(handlers::orchestrator_sessions::list_checkpoints),
         )
         .with_state(state);
 

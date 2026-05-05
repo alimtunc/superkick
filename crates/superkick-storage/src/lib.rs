@@ -8,9 +8,10 @@ pub use db::{connect, connect_with_capacity};
 pub use sqlite::{
     ProviderUpsert, RecoveryEventKind, RecoveryEventRow, SqliteAgentSessionRepo,
     SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteHandoffRepo, SqliteInterruptRepo,
-    SqliteIssueBlockerRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo, SqliteRunEventRepo,
-    SqliteRunRepo, SqliteRunStepRepo, SqliteRuntimeRepo, SqliteSessionLifecycleRepo,
-    SqliteSessionOwnershipRepo, SqliteTranscriptRepo, list_recovery_candidates,
+    SqliteIssueBlockerRepo, SqliteOrchestratorSessionRepo, SqlitePullRequestRepo,
+    SqliteRecoveryEventRepo, SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
+    SqliteRuntimeRepo, SqliteSessionLifecycleRepo, SqliteSessionOwnershipRepo,
+    SqliteTranscriptRepo, list_recovery_candidates,
 };
 
 /// Check if an anyhow error chain contains a SQLite unique constraint violation.

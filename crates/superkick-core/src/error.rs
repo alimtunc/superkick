@@ -1,4 +1,5 @@
 use crate::id::RunId;
+use crate::orchestrator_session::OrchestratorStatus;
 use crate::run::RunState;
 
 /// Core domain errors for Superkick.
@@ -6,6 +7,15 @@ use crate::run::RunState;
 pub enum CoreError {
     #[error("invalid state transition: {from} -> {to}")]
     InvalidTransition { from: RunState, to: RunState },
+
+    /// Orchestrator-session state machine refused a transition. Carried as a
+    /// distinct variant so the API layer can map it to 409 Conflict in one
+    /// place — versus 400 for shape errors (`InvalidInput`).
+    #[error("invalid orchestrator session transition: {from} -> {to}")]
+    InvalidOrchestratorTransition {
+        from: OrchestratorStatus,
+        to: OrchestratorStatus,
+    },
 
     #[error("run is in terminal state: {0}")]
     TerminalState(RunState),
