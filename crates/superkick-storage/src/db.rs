@@ -15,7 +15,12 @@ pub async fn connect(database_url: &str) -> Result<SqlitePool> {
 /// (empty) in-memory database and hide writes from concurrent readers —
 /// forcing `max_connections = 1` serialises access and avoids the split.
 pub async fn connect_with_capacity(database_url: &str, max_connections: u32) -> Result<SqlitePool> {
-    let mut options = SqliteConnectOptions::from_str(database_url)?.create_if_missing(true);
+    // `foreign_keys` is per-connection in SQLite; setting it on the
+    // `SqliteConnectOptions` ensures every pooled connection has FK
+    // enforcement on, not just the first one drawn from the pool.
+    let mut options = SqliteConnectOptions::from_str(database_url)?
+        .create_if_missing(true)
+        .foreign_keys(true);
     // WAL journaling requires a real disk file — skip it for in-memory tests.
     if !database_url.contains(":memory:") {
         options = options.journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
@@ -24,11 +29,6 @@ pub async fn connect_with_capacity(database_url: &str, max_connections: u32) -> 
     let pool = SqlitePoolOptions::new()
         .max_connections(max_connections)
         .connect_with(options)
-        .await?;
-
-    // Enable foreign keys (off by default in SQLite).
-    sqlx::query("PRAGMA foreign_keys = ON")
-        .execute(&pool)
         .await?;
 
     run_migrations(&pool).await?;
@@ -128,6 +128,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
         (
             "019_agent_session_provider_session_id",
             include_str!("../migrations/019_agent_session_provider_session_id.sql"),
+        ),
+        (
+            "020_orchestrator_sessions",
+            include_str!("../migrations/020_orchestrator_sessions.sql"),
         ),
     ];
 

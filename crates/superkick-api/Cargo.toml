@@ -26,5 +26,14 @@ bytes = "1"
 dotenvy = "0.15"
 indexmap = { version = "2", features = ["serde"] }
 
+[features]
+# Exposes test-only helpers (e.g. router builders that wire isolated handler
+# slices). Off by default — enabled automatically by integration tests in this
+# crate so the public API surface stays minimal in production builds.
+test-support = []
+
 [dev-dependencies]
 sqlx.workspace = true
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+superkick-api = { path = ".", features = ["test-support"] }

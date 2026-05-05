@@ -14,6 +14,7 @@ pub mod issue_event;
 pub mod launch_queue;
 pub mod linear_context;
 pub mod mcp_policy;
+pub mod orchestrator_session;
 pub mod ownership;
 pub mod protocol;
 pub mod pull_request;
@@ -41,8 +42,8 @@ pub use handoff::{
 };
 pub use id::{
     AgentSessionId, ArtifactId, AttentionRequestId, EventId, HandoffId, InterruptId,
-    OwnershipEventId, PullRequestId, RunId, RuntimeId, RuntimeProviderId, SessionLifecycleEventId,
-    StepId, TranscriptChunkId,
+    OrchestratorCheckpointId, OrchestratorSessionId, OwnershipEventId, PullRequestId, RunId,
+    RuntimeId, RuntimeProviderId, SessionLifecycleEventId, StepId, TranscriptChunkId,
 };
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
 pub use issue_event::{DependencyResolvedPayload, IssueEvent};
@@ -55,6 +56,9 @@ pub use linear_context::{
     IssueContextComment, IssueContextParent, LinearContextMode,
 };
 pub use mcp_policy::{McpMode, ResolvedMcpPolicy, ResolvedToolPolicy};
+pub use orchestrator_session::{
+    OrchestratorCheckpoint, OrchestratorScope, OrchestratorSession, OrchestratorStatus,
+};
 pub use ownership::{
     OperatorId, OrchestrationOwner, OwnershipError, OwnershipEvent, OwnershipTransitionReason,
     SessionOwnership, SuspendReason, WriterLeaseInfo, transition_release, transition_resume,

@@ -6,8 +6,10 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use superkick_core::{
     AgentSession, AgentSessionId, Artifact, ArtifactId, AttentionRequest, AttentionRequestId,
-    EventId, Handoff, HandoffId, Interrupt, InterruptId, IssueBlocker, OwnershipEvent, PullRequest,
-    Run, RunEvent, RunId, RunStep, SessionLifecycleEvent, StepId, TranscriptChunk,
+    EventId, Handoff, HandoffId, Interrupt, InterruptId, IssueBlocker, OrchestratorCheckpoint,
+    OrchestratorCheckpointId, OrchestratorSession, OrchestratorSessionId, OrchestratorStatus,
+    OwnershipEvent, PullRequest, Run, RunEvent, RunId, RunStep, SessionLifecycleEvent, StepId,
+    TranscriptChunk,
 };
 
 /// Repository for `Run` entities.
@@ -238,4 +240,70 @@ pub trait IssueBlockerRepo: Send + Sync {
         &self,
         downstream_issue_id: &str,
     ) -> impl Future<Output = Result<Vec<IssueBlocker>>> + Send;
+}
+
+/// Repository for `OrchestratorSession` and `OrchestratorCheckpoint` (SUP-102).
+///
+/// Sessions are long-running orchestrator threads that span multiple runs;
+/// checkpoints are compacted summaries of the session's transcript / event
+/// stream. `insert_checkpoint` is atomic with the session pointer update so
+/// `latest_checkpoint_id` and `last_event_cursor` can never reference a
+/// checkpoint that didn't actually persist.
+pub trait OrchestratorSessionRepo: Send + Sync {
+    fn insert(&self, session: &OrchestratorSession) -> impl Future<Output = Result<()>> + Send;
+
+    fn get(
+        &self,
+        id: OrchestratorSessionId,
+    ) -> impl Future<Output = Result<Option<OrchestratorSession>>> + Send;
+
+    fn list_by_status(
+        &self,
+        status: OrchestratorStatus,
+    ) -> impl Future<Output = Result<Vec<OrchestratorSession>>> + Send;
+
+    /// Single-scan list of every session ordered by `created_at`. Mirrors
+    /// `RunRepo::list_all` so the API layer never has to issue one query
+    /// per status to enumerate sessions.
+    fn list_all(&self) -> impl Future<Output = Result<Vec<OrchestratorSession>>> + Send;
+
+    fn list_by_issue_identifier(
+        &self,
+        issue_identifier: &str,
+    ) -> impl Future<Output = Result<Vec<OrchestratorSession>>> + Send;
+
+    /// Whole-session update — replaces every mutable column. Used by the
+    /// PATCH handler.
+    fn update(&self, session: &OrchestratorSession) -> impl Future<Output = Result<()>> + Send;
+
+    /// Persist the provider-side session/thread identifier so a follow-up
+    /// turn can resume.
+    fn set_provider_session_id(
+        &self,
+        id: OrchestratorSessionId,
+        provider_session_id: &str,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    /// Insert a checkpoint and update the session's `latest_checkpoint_id` +
+    /// `last_event_cursor` in a single transaction. A crash between the two
+    /// writes would otherwise leave the denormalised pointer dangling.
+    fn insert_checkpoint(
+        &self,
+        checkpoint: &OrchestratorCheckpoint,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    fn list_checkpoints_by_session(
+        &self,
+        id: OrchestratorSessionId,
+    ) -> impl Future<Output = Result<Vec<OrchestratorCheckpoint>>> + Send;
+
+    fn latest_checkpoint(
+        &self,
+        id: OrchestratorSessionId,
+    ) -> impl Future<Output = Result<Option<OrchestratorCheckpoint>>> + Send;
+
+    fn get_checkpoint(
+        &self,
+        id: OrchestratorCheckpointId,
+    ) -> impl Future<Output = Result<Option<OrchestratorCheckpoint>>> + Send;
 }

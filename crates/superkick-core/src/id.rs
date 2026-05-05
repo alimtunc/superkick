@@ -41,3 +41,5 @@ define_id!(OwnershipEventId);
 define_id!(SessionLifecycleEventId);
 define_id!(RuntimeId);
 define_id!(RuntimeProviderId);
+define_id!(OrchestratorSessionId);
+define_id!(OrchestratorCheckpointId);

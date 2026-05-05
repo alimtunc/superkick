@@ -1559,3 +1559,212 @@ async fn session_lifecycle_phase_tag_is_indexable() -> Result<()> {
     assert_eq!(tag, "completed");
     Ok(())
 }
+
+// ── SUP-102: orchestrator session + checkpoint persistence ────────────────
+
+fn make_orchestrator_session() -> OrchestratorSession {
+    OrchestratorSession::new(
+        "drive SUP-95 epic",
+        AgentProvider::Claude,
+        Some(RuntimeProviderId::new()),
+        OperatorId("alice".into()),
+        OrchestratorScope {
+            linear_issue_ids: vec!["SUP-95".into(), "SUP-102".into()],
+            project_id: Some("proj-1".into()),
+            parent_feature_issue: Some("SUP-1".into()),
+            labels: vec!["epic".into()],
+        },
+    )
+    .expect("session ctor")
+}
+
+#[tokio::test]
+async fn orchestrator_session_round_trip() -> Result<()> {
+    let pool = setup().await?;
+    let repo = SqliteOrchestratorSessionRepo::new(pool);
+
+    let session = make_orchestrator_session();
+    repo.insert(&session).await?;
+
+    let fetched = repo.get(session.id).await?.expect("session round-trips");
+    assert_eq!(fetched.title, session.title);
+    assert_eq!(fetched.provider, session.provider);
+    assert_eq!(fetched.runtime_provider_id, session.runtime_provider_id);
+    assert_eq!(fetched.status, OrchestratorStatus::Idle);
+    assert_eq!(fetched.owner, session.owner);
+    assert_eq!(
+        fetched.scope.linear_issue_ids,
+        vec!["SUP-95".to_string(), "SUP-102".to_string()]
+    );
+    assert_eq!(fetched.scope.project_id.as_deref(), Some("proj-1"));
+    assert_eq!(fetched.scope.parent_feature_issue.as_deref(), Some("SUP-1"));
+    assert_eq!(fetched.scope.labels, vec!["epic".to_string()]);
+    assert!(fetched.latest_checkpoint_id.is_none());
+    Ok(())
+}
+
+#[tokio::test]
+async fn orchestrator_session_status_filter_returns_only_matching_rows() -> Result<()> {
+    let pool = setup().await?;
+    let repo = SqliteOrchestratorSessionRepo::new(pool);
+
+    let mut idle = make_orchestrator_session();
+    let mut blocked = make_orchestrator_session();
+    blocked
+        .transition_to(OrchestratorStatus::Thinking)
+        .expect("idle -> thinking");
+    blocked
+        .transition_to(OrchestratorStatus::Blocked)
+        .expect("thinking -> blocked");
+
+    repo.insert(&idle).await?;
+    repo.insert(&blocked).await?;
+
+    let idles = repo.list_by_status(OrchestratorStatus::Idle).await?;
+    assert_eq!(idles.len(), 1);
+    assert_eq!(idles[0].id, idle.id);
+
+    let blockeds = repo.list_by_status(OrchestratorStatus::Blocked).await?;
+    assert_eq!(blockeds.len(), 1);
+    assert_eq!(blockeds[0].id, blocked.id);
+
+    // Update the idle session's status via `update` and re-filter.
+    idle.transition_to(OrchestratorStatus::Thinking)
+        .expect("idle -> thinking");
+    repo.update(&idle).await?;
+    let idles_now = repo.list_by_status(OrchestratorStatus::Idle).await?;
+    assert!(idles_now.is_empty(), "session left Idle");
+    Ok(())
+}
+
+#[tokio::test]
+async fn orchestrator_session_list_by_issue_identifier_scans_scope_json() -> Result<()> {
+    let pool = setup().await?;
+    let repo = SqliteOrchestratorSessionRepo::new(pool);
+
+    let s_a = make_orchestrator_session();
+    let mut s_b = OrchestratorSession::new(
+        "session B",
+        AgentProvider::Codex,
+        None,
+        OperatorId("bob".into()),
+        OrchestratorScope {
+            linear_issue_ids: vec!["SUP-300".into()],
+            ..OrchestratorScope::default()
+        },
+    )
+    .expect("ctor");
+    s_b.transition_to(OrchestratorStatus::Thinking).unwrap();
+
+    repo.insert(&s_a).await?;
+    repo.insert(&s_b).await?;
+
+    let by_a = repo.list_by_issue_identifier("SUP-95").await?;
+    assert_eq!(by_a.len(), 1);
+    assert_eq!(by_a[0].id, s_a.id);
+
+    let by_b = repo.list_by_issue_identifier("SUP-300").await?;
+    assert_eq!(by_b.len(), 1);
+    assert_eq!(by_b[0].id, s_b.id);
+
+    let by_unknown = repo.list_by_issue_identifier("SUP-999").await?;
+    assert!(by_unknown.is_empty());
+    Ok(())
+}
+
+#[tokio::test]
+async fn orchestrator_checkpoint_atomic_with_session() -> Result<()> {
+    // Insert a checkpoint and verify the session pointer + cursor advance in
+    // the same transaction. This is the SUP-102 atomicity invariant — without
+    // it, a crash between the two writes leaves the session pointing at a
+    // checkpoint that doesn't exist.
+    let pool = setup().await?;
+    let repo = SqliteOrchestratorSessionRepo::new(pool);
+
+    let session = make_orchestrator_session();
+    repo.insert(&session).await?;
+
+    let cursor = EventId::new();
+    let checkpoint = OrchestratorCheckpoint::new(
+        session.id,
+        "first compaction summary",
+        None,
+        Some(cursor),
+        vec!["picked claude provider".into()],
+        vec!["mcp policy?".into()],
+        vec![RunId::new()],
+        vec![HandoffId::new()],
+    )
+    .expect("checkpoint ctor");
+
+    repo.insert_checkpoint(&checkpoint).await?;
+
+    let reloaded = repo.get(session.id).await?.expect("session still there");
+    assert_eq!(reloaded.latest_checkpoint_id, Some(checkpoint.id));
+    assert_eq!(reloaded.last_event_cursor, Some(cursor));
+
+    let latest = repo
+        .latest_checkpoint(session.id)
+        .await?
+        .expect("checkpoint persisted");
+    assert_eq!(latest.id, checkpoint.id);
+    assert_eq!(latest.summary, "first compaction summary");
+    assert_eq!(latest.decisions, vec!["picked claude provider".to_string()]);
+    Ok(())
+}
+
+#[tokio::test]
+async fn orchestrator_checkpoint_for_unknown_session_rejected() -> Result<()> {
+    // The FK on `orchestrator_checkpoints.session_id` rejects the INSERT
+    // before we even reach the session pointer update — that's the expected
+    // protection. The transaction is rolled back so no checkpoint row leaks.
+    let pool = setup().await?;
+    let repo = SqliteOrchestratorSessionRepo::new(pool.clone());
+
+    let unknown_session = OrchestratorSessionId::new();
+    let checkpoint = OrchestratorCheckpoint::new(
+        unknown_session,
+        "summary",
+        None,
+        None,
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    )
+    .expect("checkpoint ctor");
+
+    let err = repo.insert_checkpoint(&checkpoint).await.unwrap_err();
+    let msg = err.to_string();
+    assert!(
+        msg.contains("FOREIGN KEY") || msg.contains("orchestrator_session"),
+        "error indicates the missing session, got: {msg}"
+    );
+
+    // Rollback invariant: no checkpoint row exists for the unknown session.
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM orchestrator_checkpoints")
+        .fetch_one(&pool)
+        .await?;
+    assert_eq!(count, 0, "checkpoint insert must be rolled back");
+    Ok(())
+}
+
+#[tokio::test]
+async fn orchestrator_session_set_provider_session_id_persists() -> Result<()> {
+    let pool = setup().await?;
+    let repo = SqliteOrchestratorSessionRepo::new(pool);
+
+    let session = make_orchestrator_session();
+    repo.insert(&session).await?;
+    assert!(session.provider_session_id.is_none());
+
+    repo.set_provider_session_id(session.id, "claude-thread-xyz")
+        .await?;
+
+    let reloaded = repo.get(session.id).await?.expect("session still there");
+    assert_eq!(
+        reloaded.provider_session_id.as_deref(),
+        Some("claude-thread-xyz")
+    );
+    Ok(())
+}
