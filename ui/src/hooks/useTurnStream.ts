@@ -158,6 +158,13 @@ export interface UseTurnStreamArgs {
 	 * runner has already updated the row to `completed`.
 	 */
 	onTerminal?: () => void
+	/**
+	 * Called for each live envelope as it arrives on the SSE stream (not for
+	 * the historical replay). The parent uses this to bump a tick counter
+	 * for effects that need to react mid-stream — e.g. auto-scrolling the
+	 * transcript as tokens stream in.
+	 */
+	onLiveEvent?: () => void
 }
 
 export interface UseTurnStreamResult extends RenderedTurn {
@@ -168,15 +175,19 @@ export interface UseTurnStreamResult extends RenderedTurn {
 }
 
 export function useTurnStream(args: UseTurnStreamArgs): UseTurnStreamResult {
-	const { turnId, historicalEvents = [], live = true, onTerminal } = args
+	const { turnId, historicalEvents = [], live = true, onTerminal, onLiveEvent } = args
 	const [state, dispatch] = useReducer(reducer, undefined, initialState)
 
-	// Latest callback in a ref so we can fire it from effects without
+	// Latest callbacks in refs so we can fire them from effects without
 	// re-subscribing on every parent render.
 	const onTerminalRef = useRef(onTerminal)
 	useEffect(() => {
 		onTerminalRef.current = onTerminal
 	}, [onTerminal])
+	const onLiveEventRef = useRef(onLiveEvent)
+	useEffect(() => {
+		onLiveEventRef.current = onLiveEvent
+	}, [onLiveEvent])
 
 	// One-shot guard: fire `onTerminal` exactly once per (turnId) lifecycle.
 	const terminalFiredFor = useRef<string | null>(null)
@@ -200,7 +211,10 @@ export function useTurnStream(args: UseTurnStreamArgs): UseTurnStreamResult {
 	useEffect(() => {
 		if (!turnId || !live) return undefined
 		const close = subscribeToTurnEvents(turnId, {
-			onEvent: (envelope) => dispatch({ type: 'apply', envelope }),
+			onEvent: (envelope) => {
+				dispatch({ type: 'apply', envelope })
+				onLiveEventRef.current?.()
+			},
 			onDone: () => {
 				if (terminalFiredFor.current !== turnId) {
 					terminalFiredFor.current = turnId

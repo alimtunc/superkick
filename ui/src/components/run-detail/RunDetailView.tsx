@@ -146,12 +146,17 @@ export function RunDetailView({ runId, refTime = Date.now() }: { runId: string; 
 				) : null}
 
 				<ReviewResults steps={detail.steps} />
+			</div>
 
-				<section className="mb-8">
-					<SectionTitle title="Chat" />
-					<ChatPanel subject={{ kind: 'run', run_id: detail.run.id }} />
-				</section>
+			{/* Chat breaks out of max-w-4xl so it can use the full viewport
+			    width — the central column is too narrow for a sidebar +
+			    transcript layout. */}
+			<div className="mx-auto mb-8 w-full max-w-7xl px-5">
+				<SectionTitle title="Chat" />
+				<ChatPanel subject={{ kind: 'run', run_id: detail.run.id }} />
+			</div>
 
+			<div className="mx-auto max-w-4xl px-5 pb-6">
 				<section className="mb-6 space-y-3">
 					<SectionTitle title="Terminal inspection" />
 					<p className="font-data text-[11px] text-ash">

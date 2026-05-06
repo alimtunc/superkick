@@ -211,13 +211,13 @@ pub trait InterruptTxRepo: Send + Sync {
     ) -> impl Future<Output = Result<()>> + Send;
 }
 
-/// Repository for structured chat `Conversation` rows (SUP-100).
+/// Repository for structured chat `Conversation` rows (SUP-100, SUP-107).
 ///
-/// Idempotency: `create_or_get` on a `(subject, agent_id)` pair returns the
-/// existing row when one is present so the API can route repeat opens to the
-/// same conversation without conflict.
+/// `create` always inserts a new row — multiple conversations can share the
+/// same `(subject, agent_id)` pair (SUP-107). `list_by_subject` is the
+/// source of truth for the sidebar; the API never collapses sessions.
 pub trait ConversationRepo: Send + Sync {
-    fn create_or_get(
+    fn create(
         &self,
         subject: &ConversationSubject,
         agent_id: &str,
@@ -231,6 +231,15 @@ pub trait ConversationRepo: Send + Sync {
         &self,
         subject: &ConversationSubject,
     ) -> impl Future<Output = Result<Vec<Conversation>>> + Send;
+
+    /// List conversations for a subject alongside the first turn's
+    /// `user_text` for each row, in a single query. The sidebar uses the
+    /// first prompt as the conversation title — fetching it per-row would
+    /// issue M+1 round-trips against an unbounded M.
+    fn list_by_subject_with_first_text(
+        &self,
+        subject: &ConversationSubject,
+    ) -> impl Future<Output = Result<Vec<(Conversation, Option<String>)>>> + Send;
 
     fn set_provider_session_id(
         &self,
@@ -305,6 +314,15 @@ pub trait TurnRepo: Send + Sync {
         reason: &str,
         now: DateTime<Utc>,
     ) -> impl Future<Output = Result<()>> + Send;
+
+    /// Returns the user_text of the first turn (lowest `seq`) for a given
+    /// conversation. Used by the sidebar to derive a human-readable title
+    /// from the operator's opening prompt without round-tripping the full
+    /// transcript.
+    fn first_user_text(
+        &self,
+        conversation_id: ConversationId,
+    ) -> impl Future<Output = Result<Option<String>>> + Send;
 }
 
 /// Repository for the append-only stream of `TurnEvent`s.
