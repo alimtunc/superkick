@@ -6,6 +6,14 @@ export type ConversationStatus = 'active' | 'archived'
 
 export type TurnStatus = 'pending' | 'streaming' | 'completed' | 'failed' | 'cancelled'
 
+/**
+ * SUP-110 — operator-facing conversation status surfaced in the chat sidebar
+ * (and reusable elsewhere). Six discrete buckets derived in
+ * `lib/domain/conversationState.ts` from the data already cached on the
+ * client (conversation, turns, optional run, optional active takeovers).
+ */
+export type ConversationUxState = 'draft' | 'running' | 'needs_human' | 'completed' | 'failed' | 'taken_over'
+
 export type ConversationSubject = { kind: 'issue'; identifier: string } | { kind: 'run'; run_id: string }
 
 export interface Conversation {

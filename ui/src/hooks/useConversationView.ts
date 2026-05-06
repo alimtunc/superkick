@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react'
 
-import { cancelTurn, createTurn, fetchConversation } from '@/api'
+import { cancelTurn, createTurn } from '@/api'
+import { conversationDetailQuery } from '@/lib/queries'
 import { queryKeys } from '@/lib/queryKeys'
 import type { ChatPermissionMode, Conversation, ConversationDetail, Turn } from '@/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -45,17 +46,7 @@ export function useConversationView(args: UseConversationViewArgs): UseConversat
 	const { conversationId, listKey } = args
 	const queryClient = useQueryClient()
 
-	const detailQuery = useQuery({
-		queryKey: conversationId
-			? queryKeys.conversations.detail(conversationId)
-			: ['conversations', 'detail', 'pending'],
-		queryFn: () => {
-			if (!conversationId) throw new Error('conversation id missing')
-			return fetchConversation(conversationId)
-		},
-		enabled: conversationId !== null,
-		staleTime: 5_000
-	})
+	const detailQuery = useQuery(conversationDetailQuery(conversationId))
 
 	const turns = useMemo(() => detailQuery.data?.turns ?? [], [detailQuery.data?.turns])
 	const conversation = detailQuery.data?.conversation ?? null
