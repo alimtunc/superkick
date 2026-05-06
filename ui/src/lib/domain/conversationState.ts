@@ -1,9 +1,8 @@
 import type {
 	ActiveTakeover,
 	AttentionSummary,
-	Conversation,
-	ConversationSummary,
 	ConversationUxState,
+	ConversationUxStateInput,
 	Run,
 	Turn
 } from '@/types'
@@ -29,14 +28,6 @@ import type {
  *   terminal state that doesn't merit a failure tone.
  */
 
-export interface ConversationUxStateInput {
-	conversation: ConversationSummary | Conversation
-	turns?: readonly Turn[] | null
-	run?: Run | null
-	takeovers?: readonly ActiveTakeover[] | null
-	attention?: AttentionSummary | null
-}
-
 const NEEDS_HUMAN_RUN_STATES: ReadonlySet<Run['state']> = new Set(['waiting_human'])
 
 // `Turn[]` from the API and the React Query cache is sorted by `seq`
@@ -51,7 +42,7 @@ function pickLatestTurn(turns: readonly Turn[] | null | undefined): Turn | null 
 
 function hasForceTakeover(takeovers: readonly ActiveTakeover[] | null | undefined): boolean {
 	if (!takeovers || takeovers.length === 0) return false
-	return takeovers.some((t) => t.mode === 'force_takeover')
+	return takeovers.some((takeover) => takeover.mode === 'force_takeover')
 }
 
 function runNeedsHuman(run: Run | null | undefined, attention: AttentionSummary | null | undefined): boolean {

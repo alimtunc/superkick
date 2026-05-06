@@ -1,6 +1,9 @@
 // Mirrors `superkick_core::conversation` and `superkick_core::protocol`.
 // Hand-maintained because the backend does not emit a TS schema today.
 import type { AgentProvider } from './agents'
+import type { AttentionSummary } from './attention'
+import type { Run } from './runs'
+import type { ActiveTakeover } from './terminal-takeover'
 
 export type ConversationStatus = 'active' | 'archived'
 
@@ -13,6 +16,19 @@ export type TurnStatus = 'pending' | 'streaming' | 'completed' | 'failed' | 'can
  * client (conversation, turns, optional run, optional active takeovers).
  */
 export type ConversationUxState = 'draft' | 'running' | 'needs_human' | 'completed' | 'failed' | 'taken_over'
+
+/**
+ * Input shape for `deriveConversationUxState`. Lives here (not next to the
+ * helper) because shared/exported domain types belong in `src/types/**` —
+ * see `docs/conventions/frontend.md` §Types.
+ */
+export interface ConversationUxStateInput {
+	conversation: ConversationSummary | Conversation
+	turns?: readonly Turn[] | null
+	run?: Run | null
+	takeovers?: readonly ActiveTakeover[] | null
+	attention?: AttentionSummary | null
+}
 
 export type ConversationSubject = { kind: 'issue'; identifier: string } | { kind: 'run'; run_id: string }
 

@@ -21,6 +21,9 @@ export interface ChatPrefs {
 	model?: string | null
 }
 
+export const DEFAULT_CHAT_MODE: ChatPermissionMode = 'edit_automatically'
+export const DEFAULT_CHAT_MODEL: string | null = null
+
 const PREFS_PREFIX = 'superkick.chat.prefs.'
 const SELECTED_ID_PREFIX = 'superkick.chat.selectedId.'
 

@@ -1,10 +1,7 @@
 import { useCallback, useState } from 'react'
 
-import { readChatPrefs, writeChatPrefs } from '@/lib/chatPrefs'
+import { DEFAULT_CHAT_MODE, DEFAULT_CHAT_MODEL, readChatPrefs, writeChatPrefs } from '@/lib/chatPrefs'
 import type { ChatPermissionMode } from '@/types'
-
-export const DEFAULT_CHAT_MODE: ChatPermissionMode = 'edit_automatically'
-export const DEFAULT_CHAT_MODEL: string | null = null
 
 interface UseChatSubjectPrefsResult {
 	mode: ChatPermissionMode
@@ -46,19 +43,24 @@ export function useChatSubjectPrefs(subjectKey: string): UseChatSubjectPrefsResu
 
 	if (tracked.key !== subjectKey) setTracked(hydrate(subjectKey))
 
-	const setMode = useCallback((next: ChatPermissionMode) => {
-		setTracked((prev) => {
-			writeChatPrefs(prev.key, { mode: next })
-			return { ...prev, mode: next }
-		})
-	}, [])
+	// Side effects must live outside the setState updater — StrictMode
+	// invokes updaters twice in development, which would double-write to
+	// localStorage on every click.
+	const setMode = useCallback(
+		(next: ChatPermissionMode) => {
+			writeChatPrefs(subjectKey, { mode: next })
+			setTracked((prev) => ({ ...prev, mode: next }))
+		},
+		[subjectKey]
+	)
 
-	const setModel = useCallback((next: string | null) => {
-		setTracked((prev) => {
-			writeChatPrefs(prev.key, { model: next })
-			return { ...prev, model: next }
-		})
-	}, [])
+	const setModel = useCallback(
+		(next: string | null) => {
+			writeChatPrefs(subjectKey, { model: next })
+			setTracked((prev) => ({ ...prev, model: next }))
+		},
+		[subjectKey]
+	)
 
 	return { mode: tracked.mode, setMode, model: tracked.model, setModel }
 }

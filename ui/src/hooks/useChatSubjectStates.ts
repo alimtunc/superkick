@@ -26,13 +26,13 @@ export function useChatSubjectStates(
 	selectedConversationId: string | null
 ): Record<string, ConversationUxState> | undefined {
 	const isRun = subject.kind === 'run'
-	// All non-run subjects share the same `['runs', 'detail', '']` cache
-	// entry — intentional: `enabled: !isRun ? false : ...` keeps the query
-	// dormant, the sentinel just satisfies `runDetailQuery`'s string param.
-	const runId = subject.kind === 'run' ? subject.run_id : ''
+	const runId = isRun ? subject.run_id : null
 
-	const runDetail = useQuery({ ...runDetailQuery(runId), enabled: isRun })
-	const activeTakeovers = useActiveTakeovers(runId, isRun)
+	// `runDetailQuery(null)` returns a `skipToken`-backed query; non-run
+	// subjects park on a dedicated `['runs','detail','pending']` key rather
+	// than collide with a real run's cache entry.
+	const runDetail = useQuery(runDetailQuery(runId))
+	const activeTakeovers = useActiveTakeovers(runId ?? '', isRun)
 
 	// Same query options as `useConversationView`, so the sidebar reads the
 	// same cache entry — no duplicate fetch.

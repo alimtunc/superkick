@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { readSelectedConversationId, writeSelectedConversationId } from '@/lib/chatPrefs'
 import type { ConversationSummary } from '@/types'
@@ -48,13 +48,23 @@ export function useChatSubjectSelection(args: UseChatSubjectSelectionArgs): UseC
 		setTracked({ key: subjectKey, selectedId: null, hydrated: false })
 	}
 
+	// `conversations` is a fresh array reference on every TanStack Query
+	// revalidation, so depending on it would re-fire the effect even when
+	// the row set is identical. The hydration only needs to read the latest
+	// list at the moment it runs (transition to `loading: false`, or subject
+	// switch), so route the access through a ref and gate the effect on
+	// `loading` + `tracked.*` only.
+	const conversationsRef = useRef(conversations)
+	conversationsRef.current = conversations
+
 	useEffect(() => {
 		if (tracked.key !== subjectKey || tracked.hydrated || loading) return
+		const list = conversationsRef.current
 		const persisted = readSelectedConversationId(subjectKey)
-		const present = persisted !== null && conversations.some((c) => c.id === persisted)
-		const next = present ? persisted : (conversations[0]?.id ?? null)
+		const present = persisted !== null && list.some((conversation) => conversation.id === persisted)
+		const next = present ? persisted : (list[0]?.id ?? null)
 		setTracked({ key: subjectKey, selectedId: next, hydrated: true })
-	}, [tracked.key, tracked.hydrated, subjectKey, loading, conversations])
+	}, [tracked.key, tracked.hydrated, subjectKey, loading])
 
 	useEffect(() => {
 		if (!tracked.hydrated || tracked.key !== subjectKey) return

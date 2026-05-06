@@ -36,6 +36,10 @@ interface UseConversationViewArgs {
 	listKey?: readonly unknown[]
 }
 
+// Stable empty-turns reference so downstream `useMemo([turns])` consumers
+// don't re-run on every render while the detail query is loading.
+const EMPTY_TURNS: Turn[] = []
+
 /**
  * View a single conversation by id. Distinct from `useConversationsList`
  * (which feeds the sidebar) and from the old `useConversation` hook (which
@@ -48,11 +52,11 @@ export function useConversationView(args: UseConversationViewArgs): UseConversat
 
 	const detailQuery = useQuery(conversationDetailQuery(conversationId))
 
-	const turns = useMemo(() => detailQuery.data?.turns ?? [], [detailQuery.data?.turns])
+	const turns = detailQuery.data?.turns ?? EMPTY_TURNS
 	const conversation = detailQuery.data?.conversation ?? null
 
 	const activeTurnId = useMemo(() => {
-		const active = turns.find((t) => t.status === 'pending' || t.status === 'streaming')
+		const active = turns.find((turn) => turn.status === 'pending' || turn.status === 'streaming')
 		return active?.id ?? null
 	}, [turns])
 
