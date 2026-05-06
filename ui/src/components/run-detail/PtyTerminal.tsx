@@ -10,15 +10,63 @@ import { Terminal } from '@xterm/xterm'
 import { TerminalStatusBar } from './TerminalStatusBar'
 import type { Capabilities, TerminalStatus } from './TerminalStatusBar'
 
+/**
+ * Live PTY surface. Two callers:
+ * - The run-primary terminal (no `wsUrl` prop → derives from `runId`, uses
+ *   `terminal-history` for the cleaned-up case).
+ * - SUP-101 takeover PTYs (`wsUrl` provided directly, no historyUrl —
+ *   takeovers do not persist a transcript).
+ */
 interface PtyTerminalProps {
 	runId: string
 	isTerminal: boolean
+	/**
+	 * Optional explicit WebSocket URL. When omitted, the component derives
+	 * the URL from `runId` (legacy primary PTY behaviour). Passed by
+	 * `TerminalTakeover` for the SUP-101 takeover PTY.
+	 */
+	wsUrl?: string
+	/**
+	 * Whether to load durable history when `isTerminal` is true. Defaults to
+	 * `true`. Set to `false` for takeover PTYs since SUP-101 explicitly does
+	 * not persist a transcript.
+	 */
+	loadHistoryOnTerminal?: boolean
 }
 
 const RECONNECT_BASE_MS = 1000
 const RECONNECT_MAX_MS = 10000
 
-export function PtyTerminal({ runId, isTerminal }: PtyTerminalProps) {
+interface CapabilitiesEnvelope {
+	type: 'capabilities'
+	writable: boolean
+	reason: string
+}
+
+function parseCapabilitiesEnvelope(raw: string): CapabilitiesEnvelope | null {
+	let parsed: unknown
+	try {
+		parsed = JSON.parse(raw)
+	} catch {
+		return null
+	}
+	if (
+		typeof parsed !== 'object' ||
+		parsed === null ||
+		(parsed as { type?: unknown }).type !== 'capabilities' ||
+		typeof (parsed as { writable?: unknown }).writable !== 'boolean'
+	) {
+		return null
+	}
+	const obj = parsed as { writable: boolean; reason?: unknown }
+	return {
+		type: 'capabilities',
+		writable: obj.writable,
+		reason: typeof obj.reason === 'string' ? obj.reason : ''
+	}
+}
+
+export function PtyTerminal({ runId, isTerminal, wsUrl, loadHistoryOnTerminal = true }: PtyTerminalProps) {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const termRef = useRef<Terminal | null>(null)
 	const wsRef = useRef<WebSocket | null>(null)
@@ -71,7 +119,7 @@ export function PtyTerminal({ runId, isTerminal }: PtyTerminalProps) {
 		(terminal: Terminal) => {
 			if (!mountedRef.current) return
 
-			const url = terminalWsUrl(runId)
+			const url = wsUrl ?? terminalWsUrl(runId)
 			const ws = new WebSocket(url)
 			ws.binaryType = 'arraybuffer'
 			wsRef.current = ws
@@ -86,19 +134,15 @@ export function PtyTerminal({ runId, isTerminal }: PtyTerminalProps) {
 				if (event.data instanceof ArrayBuffer) {
 					terminal.write(new Uint8Array(event.data))
 				} else if (typeof event.data === 'string') {
-					try {
-						const msg = JSON.parse(event.data)
-						if (msg.type === 'capabilities') {
-							const caps: Capabilities = {
-								writable: msg.writable,
-								reason: msg.reason
-							}
-							writableRef.current = caps.writable
-							setCapabilities(caps)
-							setStatus(caps.writable ? 'live' : 'readonly')
+					const envelope = parseCapabilitiesEnvelope(event.data)
+					if (envelope) {
+						const caps: Capabilities = {
+							writable: envelope.writable,
+							reason: envelope.reason
 						}
-					} catch {
-						// Ignore non-JSON text messages.
+						writableRef.current = caps.writable
+						setCapabilities(caps)
+						setStatus(caps.writable ? 'live' : 'readonly')
 					}
 				}
 			})
@@ -129,7 +173,7 @@ export function PtyTerminal({ runId, isTerminal }: PtyTerminalProps) {
 				}
 			})
 		},
-		[runId]
+		[runId, wsUrl]
 	)
 
 	const loadHistory = useCallback(
@@ -155,7 +199,7 @@ export function PtyTerminal({ runId, isTerminal }: PtyTerminalProps) {
 		const terminal = setupTerminal()
 		if (!terminal) return
 
-		if (isTerminal) {
+		if (isTerminal && loadHistoryOnTerminal) {
 			loadHistory(terminal)
 		} else {
 			connectWebSocket(terminal)
@@ -188,7 +232,7 @@ export function PtyTerminal({ runId, isTerminal }: PtyTerminalProps) {
 			wsRef.current = null
 			fitRef.current = null
 		}
-	}, [runId, isTerminal, setupTerminal, connectWebSocket, loadHistory])
+	}, [runId, isTerminal, loadHistoryOnTerminal, setupTerminal, connectWebSocket, loadHistory])
 
 	return (
 		<div className="rounded-md border border-edge bg-carbon">

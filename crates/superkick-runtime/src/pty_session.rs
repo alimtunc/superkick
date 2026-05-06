@@ -6,12 +6,14 @@
 
 use std::collections::HashMap;
 use std::io::Write;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
+use chrono::{DateTime, Utc};
 use tokio::sync::broadcast;
 use tracing::warn;
 
-use superkick_core::RunId;
+use superkick_core::{RunId, TakeoverModeKind, TakeoverSessionId};
 
 /// Capacity of the broadcast channel (number of pending messages before lag).
 const BROADCAST_CAPACITY: usize = 4096;
@@ -208,10 +210,38 @@ impl PtySession {
 
 // ── PtySessionRegistry ───────────────────────────────────────────────
 
-/// Thread-safe registry of live PTY sessions, keyed by `RunId`.
+/// Snapshot of a registered takeover session — the data the API layer needs
+/// to render `GET /takeovers` without leaking the underlying `PtySession`.
+#[derive(Clone)]
+pub struct TakeoverEntry {
+    pub takeover_session_id: TakeoverSessionId,
+    pub run_id: RunId,
+    pub mode: TakeoverModeKind,
+    pub opened_at: DateTime<Utc>,
+    pub operator_id: Option<String>,
+    pub session: Arc<PtySession>,
+    /// Set by the takeover service when an operator-driven `close()` runs, so
+    /// the watchdog task waiting on `child.wait()` knows to skip its own
+    /// `TerminalTakeoverClosed` emission (the operator path already wrote
+    /// one). Shared between the registry entry and the watchdog handle.
+    pub operator_closed: Arc<AtomicBool>,
+}
+
+/// Thread-safe registry of live PTY sessions.
+///
+/// Two indices coexist:
+/// - The original `RunId → Arc<PtySession>` map for the run's primary PTY
+///   (legacy supervisor path, terminal-history etc.).
+/// - A `TakeoverSessionId → TakeoverEntry` map for SUP-101 takeover PTYs,
+///   spawned out-of-band by `TerminalTakeoverService`. Each takeover has its
+///   own `WriterHolder` lease, distinct from the primary session, so two
+///   browsers can drive two terminals at once on the same run.
+///
+/// Existing callers keep using `register` / `get` / `remove` unchanged.
 #[derive(Default)]
 pub struct PtySessionRegistry {
     sessions: Mutex<HashMap<RunId, Arc<PtySession>>>,
+    takeovers: Mutex<HashMap<TakeoverSessionId, TakeoverEntry>>,
 }
 
 impl PtySessionRegistry {
@@ -239,5 +269,41 @@ impl PtySessionRegistry {
     /// Remove a session (called after deferred cleanup).
     pub fn remove(&self, run_id: RunId) {
         self.sessions.lock().expect("registry lock").remove(&run_id);
+    }
+
+    /// Register a takeover PTY session against a run.
+    pub fn register_takeover(&self, entry: TakeoverEntry) {
+        self.takeovers
+            .lock()
+            .expect("takeover lock")
+            .insert(entry.takeover_session_id, entry);
+    }
+
+    /// Look up a takeover by its dedicated id.
+    pub fn get_takeover(&self, takeover_id: TakeoverSessionId) -> Option<TakeoverEntry> {
+        self.takeovers
+            .lock()
+            .expect("takeover lock")
+            .get(&takeover_id)
+            .cloned()
+    }
+
+    /// Drop a takeover from the registry. Idempotent.
+    pub fn unregister_takeover(&self, takeover_id: TakeoverSessionId) -> Option<TakeoverEntry> {
+        self.takeovers
+            .lock()
+            .expect("takeover lock")
+            .remove(&takeover_id)
+    }
+
+    /// All active takeovers attached to a run, in insertion order.
+    pub fn list_takeovers_for_run(&self, run_id: RunId) -> Vec<TakeoverEntry> {
+        self.takeovers
+            .lock()
+            .expect("takeover lock")
+            .values()
+            .filter(|entry| entry.run_id == run_id)
+            .cloned()
+            .collect()
     }
 }

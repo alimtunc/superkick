@@ -27,6 +27,7 @@ pub mod run;
 pub mod runtime;
 pub mod session_lifecycle;
 pub mod step;
+pub mod terminal_takeover;
 pub mod transcript;
 pub mod workspace_event;
 
@@ -47,8 +48,8 @@ pub use handoff::{
 pub use id::{
     AgentSessionId, ArtifactId, AttentionRequestId, ConversationId, EventId, HandoffId,
     InterruptId, OrchestratorCheckpointId, OrchestratorSessionId, OwnershipEventId, PullRequestId,
-    RunId, RuntimeId, RuntimeProviderId, SessionLifecycleEventId, StepId, TranscriptChunkId,
-    TurnEventId, TurnId,
+    RunId, RuntimeId, RuntimeProviderId, SessionLifecycleEventId, StepId, TakeoverSessionId,
+    TranscriptChunkId, TurnEventId, TurnId,
 };
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
 pub use issue_event::{DependencyResolvedPayload, IssueEvent};
@@ -98,5 +99,9 @@ pub use runtime::{
 };
 pub use session_lifecycle::{SessionLifecycleEvent, SessionLifecyclePhase};
 pub use step::{RunStep, StepKey, StepStatus};
+pub use terminal_takeover::{
+    ActiveTakeover, ForceTakeoverSubMode, OpenedTakeover, TakeoverMode, TakeoverModeAvailability,
+    TakeoverModeKind,
+};
 pub use transcript::TranscriptChunk;
 pub use workspace_event::{RunRecoveredPayload, RunStalledPayload, WorkspaceRunEvent};

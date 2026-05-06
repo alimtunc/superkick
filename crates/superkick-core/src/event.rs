@@ -49,6 +49,14 @@ pub enum EventKind {
     /// and emitted an `AttentionRequest` of kind `approval`. `payload_json`
     /// carries `{ step_key, attention_request_id }`.
     ApprovalGateEntered,
+    /// SUP-101 — operator opened a terminal takeover (`inspect`,
+    /// `interactive_continuation`, or `force_takeover`). `payload_json`
+    /// carries `{ mode, takeover_session_id, operator_id?, reason? }`.
+    TerminalTakeoverOpened,
+    /// SUP-101 — a previously opened takeover was closed, either by the
+    /// operator or because the spawned process exited. `payload_json` mirrors
+    /// `TerminalTakeoverOpened` plus an optional `reason` string.
+    TerminalTakeoverClosed,
 }
 
 /// Severity level for run events.

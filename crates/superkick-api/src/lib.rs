@@ -14,8 +14,8 @@ use superkick_integrations::linear::LinearClient;
 use superkick_runtime::{
     AttentionService, ConversationAdapters, ConversationRunner, InterruptService, OwnershipService,
     PtySessionRegistry, PublishingRunEventRepo, RepoCache, RuntimeDetector, SessionBus, StepEngine,
-    StepEngineDeps, TurnEventBus, WorkspaceEventBus, boot_refresh as runtime_boot_refresh,
-    spawn_heartbeat_listener,
+    StepEngineDeps, TerminalTakeoverService, TurnEventBus, WorkspaceEventBus,
+    boot_refresh as runtime_boot_refresh, spawn_heartbeat_listener,
 };
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo,
@@ -84,6 +84,8 @@ type OwnService = OwnershipService<SqliteSessionOwnershipRepo, EventRepo>;
 type ChatRunner =
     ConversationRunner<SqliteConversationRepo, SqliteTurnRepo, SqliteTurnEventRepo, SqliteRunRepo>;
 
+type TakeoverService = TerminalTakeoverService<EventRepo>;
+
 #[derive(Clone)]
 pub(crate) struct AppState {
     pub run_repo: Arc<SqliteRunRepo>,
@@ -115,6 +117,7 @@ pub(crate) struct AppState {
     pub turn_repo: Arc<SqliteTurnRepo>,
     pub turn_event_repo: Arc<SqliteTurnEventRepo>,
     pub conversation_runner: Arc<ChatRunner>,
+    pub terminal_takeover_service: Arc<TakeoverService>,
     pub linear_client: Option<Arc<LinearClient>>,
     pub run_tokens: Arc<Mutex<HashMap<RunId, CancellationToken>>>,
     pub repo_slug: String,
@@ -251,6 +254,11 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         linear_client.clone(),
     ));
 
+    let terminal_takeover_service = Arc::new(TerminalTakeoverService::new(
+        Arc::clone(&pty_registry),
+        Arc::clone(&event_repo),
+    ));
+
     // SUP-73 — start the heartbeat listener (stamps `runs.last_heartbeat_at`
     // from `SessionBus` events) and the recovery scheduler (periodic
     // Healthy↔Stalled classification).
@@ -297,6 +305,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         turn_repo,
         turn_event_repo,
         conversation_runner,
+        terminal_takeover_service,
         linear_client,
         run_tokens: Arc::new(Mutex::new(HashMap::new())),
         repo_slug,
@@ -353,8 +362,28 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
             get(handlers::terminal::attach_terminal),
         )
         .route(
+            "/runs/{id}/terminal/{takeover_id}",
+            get(handlers::terminal::attach_takeover_terminal),
+        )
+        .route(
             "/runs/{id}/terminal-history",
             get(handlers::terminal::get_terminal_history),
+        )
+        .route(
+            "/runs/{id}/terminal-takeover/modes",
+            get(handlers::terminal_takeover::list_modes),
+        )
+        .route(
+            "/runs/{id}/terminal-takeover/open",
+            post(handlers::terminal_takeover::open_takeover),
+        )
+        .route(
+            "/runs/{id}/terminal-takeover/{takeover_id}/close",
+            post(handlers::terminal_takeover::close_takeover),
+        )
+        .route(
+            "/runs/{id}/takeovers",
+            get(handlers::terminal_takeover::list_active),
         )
         .route(
             "/runs/{run_id}/sessions/{session_id}/attach",

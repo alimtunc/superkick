@@ -1,8 +1,9 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json};
 
-use superkick_core::CoreError;
+use superkick_core::{AgentProvider, CoreError};
 use superkick_integrations::linear::LinearError;
+use superkick_runtime::ConversationRunnerError;
 
 #[derive(Debug)]
 pub enum AppError {
@@ -52,6 +53,30 @@ impl From<LinearError> for AppError {
             AppError::ServiceUnavailable("Linear API unavailable")
         } else {
             AppError::Internal(anyhow::Error::from(err))
+        }
+    }
+}
+
+impl From<ConversationRunnerError> for AppError {
+    fn from(err: ConversationRunnerError) -> Self {
+        match err {
+            ConversationRunnerError::ConversationNotFound(_) => {
+                AppError::NotFound("conversation not found")
+            }
+            ConversationRunnerError::RunNotFound(_) => AppError::NotFound("run not found"),
+            ConversationRunnerError::TurnNotFound(_) => AppError::NotFound("turn not found"),
+            ConversationRunnerError::TurnAlreadyStreaming(_) => AppError::TurnAlreadyStreaming,
+            ConversationRunnerError::NoActiveTurn(_) => AppError::Conflict {
+                message: "no active protocol turn to force-takeover".to_string(),
+                run: None,
+            },
+            ConversationRunnerError::ProviderUnavailable(provider) => {
+                AppError::ServiceUnavailable(match provider {
+                    AgentProvider::Claude => "claude provider unavailable",
+                    AgentProvider::Codex => "codex provider unavailable",
+                })
+            }
+            ConversationRunnerError::Storage(inner) => AppError::Internal(inner),
         }
     }
 }

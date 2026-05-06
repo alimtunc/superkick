@@ -25,9 +25,7 @@ use serde::{Deserialize, Serialize};
 use superkick_core::{
     AgentProvider, ConversationId, ConversationSubject, RunId, TurnEvent, TurnId,
 };
-use superkick_runtime::{
-    ChatPermissionMode, ConversationRunnerError, TurnOverrides, TurnStreamItem,
-};
+use superkick_runtime::{ChatPermissionMode, TurnOverrides, TurnStreamItem};
 use superkick_storage::repo::{ConversationRepo, RunRepo, TurnEventRepo, TurnRepo};
 
 use crate::AppState;
@@ -187,8 +185,7 @@ pub async fn create_turn(
     let turn = state
         .conversation_runner
         .start_turn(conv_id, user_text, TurnOverrides { mode, model })
-        .await
-        .map_err(map_runner_error)?;
+        .await?;
     Ok((
         StatusCode::ACCEPTED,
         Json(CreateTurnResponse {
@@ -206,8 +203,7 @@ pub async fn cancel_turn(
     state
         .conversation_runner
         .cancel_turn(TurnId(turn_id))
-        .await
-        .map_err(map_runner_error)?;
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -232,8 +228,7 @@ pub async fn turn_events_stream(
     let inner = state
         .conversation_runner
         .stream_turn(turn_id, last_event_id)
-        .await
-        .map_err(map_runner_error)?;
+        .await?;
 
     let stream = inner.map(|item| Ok::<Event, std::convert::Infallible>(turn_item_to_event(item)));
 
@@ -264,23 +259,5 @@ fn turn_item_to_event(item: TurnStreamItem) -> Event {
         TurnStreamItem::Error => Event::default()
             .event("error")
             .data("failed to read turn events"),
-    }
-}
-
-fn map_runner_error(err: ConversationRunnerError) -> AppError {
-    match err {
-        ConversationRunnerError::ConversationNotFound(_) => {
-            AppError::NotFound("conversation not found")
-        }
-        ConversationRunnerError::RunNotFound(_) => AppError::NotFound("run not found"),
-        ConversationRunnerError::TurnNotFound(_) => AppError::NotFound("turn not found"),
-        ConversationRunnerError::TurnAlreadyStreaming(_) => AppError::TurnAlreadyStreaming,
-        ConversationRunnerError::ProviderUnavailable(provider) => {
-            AppError::ServiceUnavailable(match provider {
-                AgentProvider::Claude => "claude provider unavailable",
-                AgentProvider::Codex => "codex provider unavailable",
-            })
-        }
-        ConversationRunnerError::Storage(inner) => AppError::Internal(inner),
     }
 }

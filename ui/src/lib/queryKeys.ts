@@ -22,5 +22,9 @@ export const queryKeys = {
 	conversations: {
 		all: ['conversations'] as const,
 		detail: (id: string) => ['conversations', 'detail', id] as const
+	},
+	terminalTakeover: {
+		modes: (runId: string) => ['terminal-takeover', 'modes', runId] as const,
+		active: (runId: string) => ['terminal-takeover', 'active', runId] as const
 	}
 }

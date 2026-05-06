@@ -13,3 +13,4 @@ pub mod runs;
 pub mod runtimes;
 pub mod sessions;
 pub mod terminal;
+pub mod terminal_takeover;
