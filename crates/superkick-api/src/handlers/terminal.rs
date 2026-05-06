@@ -1,4 +1,11 @@
 //! WebSocket terminal handler — attaches the browser to a live PTY session.
+//!
+//! Two callers go through `attach_session` here:
+//! - The legacy run-primary PTY (`GET /runs/{id}/terminal`) for runs that
+//!   were spawned via the agent supervisor.
+//! - SUP-101 takeover PTYs (`GET /runs/{id}/terminal/{takeover_id}`), each
+//!   with their own `WriterHolder` lease so two browsers can drive two
+//!   terminals at once on the same run without trampling each other.
 
 use std::sync::Arc;
 
@@ -9,7 +16,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
-use superkick_core::RunId;
+use superkick_core::{RunId, TakeoverSessionId};
 use superkick_runtime::{PtySession, WriterHolder};
 use superkick_storage::repo::{RunRepo, TranscriptRepo};
 
@@ -57,16 +64,28 @@ pub async fn attach_terminal(
         return Err(AppError::NotFound("no live PTY session for this run"));
     };
 
-    let holder_id = uuid::Uuid::new_v4().to_string();
-    let holder = WriterHolder::Browser(holder_id);
+    Ok(ws.on_upgrade(move |socket| attach_session(session, socket)))
+}
 
-    let writable = session.acquire_writer(holder.clone());
-    let broadcast_rx = session.subscribe();
-    let scrollback = session.scrollback_snapshot();
+/// Upgrade to WebSocket and attach to a SUP-101 takeover PTY session.
+pub async fn attach_takeover_terminal(
+    State(state): State<AppState>,
+    Path((run_id, takeover_id)): Path<(uuid::Uuid, uuid::Uuid)>,
+    ws: WebSocketUpgrade,
+) -> Result<impl IntoResponse, AppError> {
+    let run_id = RunId(run_id);
+    let takeover_id = TakeoverSessionId(takeover_id);
 
-    Ok(ws.on_upgrade(move |socket| {
-        handle_terminal_socket(socket, session, broadcast_rx, scrollback, writable, holder)
-    }))
+    let Some(entry) = state.pty_registry.get_takeover(takeover_id) else {
+        return Err(AppError::NotFound("no live takeover session"));
+    };
+
+    if entry.run_id != run_id {
+        return Err(AppError::NotFound("takeover does not belong to this run"));
+    }
+
+    let session = entry.session;
+    Ok(ws.on_upgrade(move |socket| attach_session(session, socket)))
 }
 
 // ── Internal types ───────────────────────────────────────────────────
@@ -87,6 +106,22 @@ enum ClientControl {
 }
 
 // ── Socket handler ───────────────────────────────────────────────────
+
+/// Drive the WebSocket lifecycle against a live `PtySession`. Acquires a
+/// fresh writer lease for the connection, replays the scrollback, then fans
+/// broadcast bytes out and pumps client input/control back. Shared by the
+/// run-primary WS and SUP-101 takeover WS so the writer-lease semantics stay
+/// identical across both surfaces.
+async fn attach_session(session: Arc<PtySession>, socket: WebSocket) {
+    let holder_id = uuid::Uuid::new_v4().to_string();
+    let holder = WriterHolder::Browser(holder_id);
+
+    let writable = session.acquire_writer(holder.clone());
+    let broadcast_rx = session.subscribe();
+    let scrollback = session.scrollback_snapshot();
+
+    handle_terminal_socket(socket, session, broadcast_rx, scrollback, writable, holder).await;
+}
 
 async fn handle_terminal_socket(
     socket: WebSocket,

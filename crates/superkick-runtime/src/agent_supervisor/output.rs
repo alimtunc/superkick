@@ -4,7 +4,6 @@
 //! and persists chunks to durable transcript storage. Structured events (steps, state changes)
 //! continue through the StepEngine; raw terminal bytes no longer go through SSE.
 
-use std::io::Read as _;
 use std::sync::Arc;
 
 use tokio::sync::{broadcast, mpsc};
@@ -13,6 +12,7 @@ use tracing::warn;
 use superkick_core::{EventKind, EventLevel, RunEvent, RunId, StepId, TranscriptChunk};
 use superkick_storage::repo::{RunEventRepo, TranscriptRepo};
 
+use crate::pty_io::read_pty_raw;
 use crate::pty_session::PtySession;
 
 /// Spawn a PTY output reader that broadcasts raw bytes and persists transcript chunks.
@@ -35,7 +35,7 @@ where
 
     // Blocking task: read PTY master and broadcast + send for persistence.
     tokio::task::spawn_blocking(move || {
-        read_pty_raw(reader, &session, &broadcast_tx, &tx);
+        read_pty_raw(reader, &session, &broadcast_tx, Some(&tx));
         drop(tx);
     });
 
@@ -71,43 +71,5 @@ async fn persist_chunks<T: TranscriptRepo>(
             warn!("failed to persist transcript chunk: {err}");
         }
         sequence += 1;
-    }
-}
-
-/// Blocking loop that reads raw PTY output, broadcasts to subscribers, feeds scrollback,
-/// and sends chunks for durable persistence.
-fn read_pty_raw(
-    mut reader: Box<dyn std::io::Read + Send>,
-    session: &PtySession,
-    broadcast_tx: &broadcast::Sender<Vec<u8>>,
-    persist_tx: &mpsc::Sender<Vec<u8>>,
-) {
-    let mut buf = [0u8; 4096];
-
-    loop {
-        match reader.read(&mut buf) {
-            Ok(0) => break,
-            Ok(n) => {
-                let chunk = buf[..n].to_vec();
-
-                // Feed scrollback ring buffer.
-                session.append_scrollback(&chunk);
-
-                // Broadcast to connected terminals (ignore lag errors).
-                let _ = broadcast_tx.send(chunk.clone());
-
-                // Send for durable persistence.
-                if persist_tx.blocking_send(chunk).is_err() {
-                    return;
-                }
-            }
-            Err(err) => {
-                // EIO is expected when the child exits and the PTY slave closes.
-                if err.kind() != std::io::ErrorKind::Other {
-                    warn!("PTY read error: {err}");
-                }
-                break;
-            }
-        }
     }
 }

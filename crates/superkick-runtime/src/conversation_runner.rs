@@ -13,14 +13,16 @@
 //! terminal-takeover UX continues to drive the same agent through the existing
 //! `agent_supervisor::lifecycle`.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
 use chrono::Utc;
 use superkick_integrations::linear::LinearClient;
 use thiserror::Error;
 use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
 use superkick_core::{
@@ -101,11 +103,33 @@ pub enum ConversationRunnerError {
     #[error("conversation {0} already has a non-terminal turn streaming")]
     TurnAlreadyStreaming(ConversationId),
 
+    #[error("run {0} has no active protocol turn to cancel")]
+    NoActiveTurn(RunId),
+
     #[error("provider {0} is not yet supported by the structured chat runner")]
     ProviderUnavailable(AgentProvider),
 
     #[error("storage error: {0}")]
     Storage(#[source] anyhow::Error),
+}
+
+/// Snapshot of a run's chat state, used by the SUP-101 terminal-takeover
+/// handler to decide which modes are available without re-implementing the
+/// "find the active conversation/turn for a run" lookup.
+///
+/// Produced by [`ConversationRunner::run_chat_snapshot`].
+#[derive(Debug, Clone)]
+pub struct RunChatSnapshot {
+    /// Provider for the most recent run-scoped conversation. Defaults to
+    /// `Claude` when no conversation exists yet (the UI will see no resume
+    /// key and surface "Resume not supported" until a turn lands).
+    pub provider: AgentProvider,
+    /// Resume key from the most recent conversation, when one is on file.
+    pub provider_session_id: Option<String>,
+    /// `true` when one of the run's conversations has a non-terminal turn.
+    pub has_active_turn: bool,
+    /// `true` when at least one run-scoped conversation exists.
+    pub has_conversation: bool,
 }
 
 /// Transport-agnostic items yielded by `ConversationRunner::stream_turn`.
@@ -144,6 +168,12 @@ pub struct ConversationRunner<C, T, E, R> {
     /// asked to converse blind. `None` when `LINEAR_API_KEY` isn't set —
     /// the runner falls back to a minimal identifier-only header.
     linear_client: Option<Arc<LinearClient>>,
+    /// Cancellation tokens for in-flight turns, keyed by `TurnId`. Populated
+    /// when `spawn_turn_task` starts a turn and cleared when the runner task
+    /// exits. Used by `cancel_turn` (and SUP-101 force-takeover) so the
+    /// adapter pump observes the cancellation immediately, not just the DB
+    /// row flip.
+    active_turns: Arc<Mutex<HashMap<TurnId, CancellationToken>>>,
 }
 
 impl<C, T, E, R> ConversationRunner<C, T, E, R>
@@ -173,7 +203,99 @@ where
             adapters,
             default_workdir,
             linear_client,
+            active_turns: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    /// Look up the active (non-terminal) turn for a run, if any. SUP-101
+    /// force-takeover uses this to find what to cancel before opening a
+    /// takeover PTY. Returns `None` when no run-scoped conversation has a
+    /// streaming turn.
+    pub async fn find_active_turn_for_run(
+        &self,
+        run_id: RunId,
+    ) -> Result<Option<Turn>, ConversationRunnerError> {
+        Ok(self.run_chat_snapshot_internal(run_id).await?.active_turn)
+    }
+
+    /// Aggregated chat snapshot used by the SUP-101 takeover handler. Single
+    /// source of truth for "find the active conversation+turn for a run" so
+    /// the HTTP layer can render mode availability without re-implementing
+    /// the lookup.
+    pub async fn run_chat_snapshot(
+        &self,
+        run_id: RunId,
+    ) -> Result<RunChatSnapshot, ConversationRunnerError> {
+        let internal = self.run_chat_snapshot_internal(run_id).await?;
+        Ok(RunChatSnapshot {
+            provider: internal.provider,
+            provider_session_id: internal.provider_session_id,
+            has_active_turn: internal.active_turn.is_some(),
+            has_conversation: internal.has_conversation,
+        })
+    }
+
+    async fn run_chat_snapshot_internal(
+        &self,
+        run_id: RunId,
+    ) -> Result<RunChatSnapshotInternal, ConversationRunnerError> {
+        let conversations = self
+            .conversations
+            .list_by_subject(&ConversationSubject::Run { run_id })
+            .await
+            .map_err(ConversationRunnerError::Storage)?;
+
+        let has_conversation = !conversations.is_empty();
+        // `list_by_subject` is ordered created_at DESC; pick the head as the
+        // canonical run conversation but still iterate all to find an active
+        // turn (a stale conversation may have been superseded but still hold
+        // a non-terminal row from a crash).
+        let head = conversations.first().cloned();
+        let provider = head
+            .as_ref()
+            .map(|c| c.provider)
+            .unwrap_or(AgentProvider::Claude);
+        let provider_session_id = head.as_ref().and_then(|c| c.provider_session_id.clone());
+
+        let mut active_turn = None;
+        for conversation in conversations {
+            if let Some(turn) = self
+                .turns
+                .find_active_for_conversation(conversation.id)
+                .await
+                .map_err(ConversationRunnerError::Storage)?
+            {
+                active_turn = Some(turn);
+                break;
+            }
+        }
+
+        Ok(RunChatSnapshotInternal {
+            provider,
+            provider_session_id,
+            active_turn,
+            has_conversation,
+        })
+    }
+
+    /// Cancel whatever protocol turn is currently active for `run_id`. Used by
+    /// the SUP-101 force-takeover path so the HTTP handler stays a thin
+    /// adapter — the lookup, the cancel, and the synchronous "row is
+    /// terminal" guarantee all live here.
+    ///
+    /// `cancel_turn` already calls `mark_cancelled` synchronously, so once
+    /// this returns the row reflects the cancellation; no polling required.
+    pub async fn force_cancel_active_turn(
+        &self,
+        run_id: RunId,
+    ) -> Result<TurnId, ConversationRunnerError> {
+        let turn = self
+            .find_active_turn_for_run(run_id)
+            .await?
+            .ok_or(ConversationRunnerError::NoActiveTurn(run_id))?;
+        let turn_id = turn.id;
+        self.cancel_turn(turn_id).await?;
+        Ok(turn_id)
     }
 
     pub fn bus(&self) -> Arc<TurnEventBus> {
@@ -309,11 +431,10 @@ where
         preface
     }
 
-    /// Cancel an in-flight turn. The adapter's cancellation token is held by
-    /// the spawned task; we update the row and drop the bus channel so the
-    /// runner task observes the close on its next event boundary. The
-    /// adapter itself terminates via `kill_on_drop` when its `TurnHandle` is
-    /// dropped.
+    /// Cancel an in-flight turn. We trip the registered cancellation token
+    /// first so the adapter pump observes the cancel and emits its own
+    /// `Cancelled` envelope, then mark the row cancelled defensively (in case
+    /// the adapter never gets there) and close the bus.
     pub async fn cancel_turn(&self, turn_id: TurnId) -> Result<(), ConversationRunnerError> {
         let turn = self
             .turns
@@ -324,6 +445,17 @@ where
 
         if turn.status.is_terminal() {
             return Ok(());
+        }
+
+        // Signal the adapter pump. Cloning is fine — `cancel()` is idempotent.
+        if let Some(token) = self
+            .active_turns
+            .lock()
+            .expect("active turns lock")
+            .get(&turn_id)
+            .cloned()
+        {
+            token.cancel();
         }
 
         let now = Utc::now();
@@ -471,6 +603,17 @@ where
         let turn_events = Arc::clone(&self.turn_events);
         let bus = Arc::clone(&self.bus);
         let adapters = self.adapters.clone();
+        let active_turns = Arc::clone(&self.active_turns);
+
+        // External cancel handle for SUP-101 force-takeover (and any caller
+        // of `cancel_turn`). Registered before the task is spawned so a
+        // racing `cancel_turn` between `start_turn` and the adapter spawn
+        // still cancels the in-flight turn, not a phantom future one.
+        let outer_cancel = CancellationToken::new();
+        active_turns
+            .lock()
+            .expect("active turns lock")
+            .insert(turn.id, outer_cancel.clone());
 
         tokio::spawn(async move {
             let request = TurnRequest {
@@ -500,6 +643,7 @@ where
                         Arc::clone(&turns),
                         Arc::clone(&turn_events),
                         Arc::clone(&bus),
+                        outer_cancel.clone(),
                     )
                     .await
                 }
@@ -519,6 +663,7 @@ where
                         Arc::clone(&turns),
                         Arc::clone(&turn_events),
                         Arc::clone(&bus),
+                        outer_cancel.clone(),
                     )
                     .await
                 }
@@ -544,6 +689,13 @@ where
                 }
                 bus.close(turn.id).await;
             }
+
+            // Always deregister, even on error — leaving a stale token would
+            // make the next `cancel_turn` for a fresh turn no-op.
+            active_turns
+                .lock()
+                .expect("active turns lock")
+                .remove(&turn.id);
         })
     }
 }
@@ -559,6 +711,7 @@ async fn drive_turn<A, C, T, E>(
     turns: Arc<T>,
     turn_events: Arc<E>,
     bus: Arc<TurnEventBus>,
+    outer_cancel: CancellationToken,
 ) -> Result<()>
 where
     A: ProtocolAdapter,
@@ -579,6 +732,22 @@ where
         None => adapter.start_turn(request).await,
     };
     let mut stream = stream_result.context("adapter start/resume failed")?;
+
+    // Bridge the runner-level cancel token into the adapter's. Wrapped in
+    // `AbortOnDrop` so any early `?` return from this function aborts the
+    // bridge — `CancellationToken::cancelled()` does NOT complete on drop, so
+    // a bare `tokio::spawn` would leak the task until the adapter cancels its
+    // inner token on its own shutdown path.
+    let inner_cancel = stream.handle.cancel_token();
+    let _bridge = AbortOnDrop(tokio::spawn({
+        let inner = inner_cancel.clone();
+        async move {
+            tokio::select! {
+                _ = outer_cancel.cancelled() => inner.cancel(),
+                _ = inner.cancelled() => {}
+            }
+        }
+    }));
 
     let started_at = Utc::now();
     turns
@@ -698,6 +867,29 @@ enum TerminalKind {
     Completed,
     Failed { code: String, message: String },
     Cancelled { reason: String },
+}
+
+/// Internal projection that owns the active `Turn` value alongside the public
+/// snapshot fields, so [`ConversationRunner::find_active_turn_for_run`] and
+/// [`ConversationRunner::run_chat_snapshot`] share one query path without
+/// double-fetching the active row.
+struct RunChatSnapshotInternal {
+    provider: AgentProvider,
+    provider_session_id: Option<String>,
+    active_turn: Option<Turn>,
+    has_conversation: bool,
+}
+
+/// Aborts a tokio task on drop. Used to make sure the cancellation-bridge
+/// task in `drive_turn` never outlives its parent — early returns from `?`
+/// would otherwise leak the bridge until the adapter's inner cancel token
+/// fires on its own (which only happens if the adapter cancels it).
+struct AbortOnDrop(JoinHandle<()>);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
 }
 
 #[cfg(test)]

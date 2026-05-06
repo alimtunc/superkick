@@ -46,3 +46,4 @@ define_id!(OrchestratorCheckpointId);
 define_id!(ConversationId);
 define_id!(TurnId);
 define_id!(TurnEventId);
+define_id!(TakeoverSessionId);
