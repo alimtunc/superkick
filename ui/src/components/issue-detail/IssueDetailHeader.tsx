@@ -1,5 +1,6 @@
 import { StatusChip } from '@/components/issue-detail/StatusChip'
 import { Button } from '@/components/ui/button'
+import { HeaderDivider } from '@/components/ui/header-divider'
 import { Pill } from '@/components/ui/pill'
 import { Tooltip } from '@/components/ui/tooltip'
 import { ChatToggleButton } from '@/components/workspace/ChatToggleButton'
@@ -55,7 +56,7 @@ export function IssueDetailHeader({
 
 				<div className="flex items-center gap-1.5">
 					<ChatToggleButton />
-					<span className="mx-1 h-5 w-px bg-edge" aria-hidden="true" />
+					<HeaderDivider />
 					<Tooltip label="Refresh issue data">
 						<Button
 							variant="outline"
@@ -81,7 +82,7 @@ export function IssueDetailHeader({
 
 					{activeRun ? (
 						<>
-							<span className="mx-1 h-5 w-px bg-edge" aria-hidden="true" />
+							<HeaderDivider />
 							<Link
 								to="/runs/$runId"
 								params={{ runId: activeRun.id }}

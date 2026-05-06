@@ -8,6 +8,7 @@ import { RunPauseBanner } from '@/components/run-detail/RunPauseBanner'
 import { SessionList } from '@/components/run-detail/SessionList'
 import { StepTimeline } from '@/components/run-detail/StepTimeline'
 import { TerminalTakeover } from '@/components/run-detail/TerminalTakeover'
+import { DetailShell } from '@/components/ui/detail-shell'
 import { EmptyState } from '@/components/ui/state-empty'
 import { ErrorState } from '@/components/ui/state-error'
 import { LoadingState } from '@/components/ui/state-loading'
@@ -26,25 +27,25 @@ export function RunDetailView({ runId, refTime = Date.now() }: { runId: string; 
 
 	if (detail.loading)
 		return (
-			<div className="mx-auto max-w-7xl px-5 py-6">
+			<DetailShell>
 				<LoadingState rows={5} />
-			</div>
+			</DetailShell>
 		)
 	if (detail.error)
 		return (
-			<div className="mx-auto max-w-7xl px-5 py-6">
+			<DetailShell>
 				<ErrorState title="Run load failed" message={detail.error} onRetry={detail.refresh} />
-			</div>
+			</DetailShell>
 		)
 	if (!detail.run)
 		return (
-			<div className="mx-auto max-w-7xl px-5 py-6">
+			<DetailShell>
 				<EmptyState
 					icon={FileSearch}
 					title="Run not found"
 					description="It may have been deleted or the identifier is wrong."
 				/>
-			</div>
+			</DetailShell>
 		)
 
 	const ledgerOpen = !detail.isTerminal
@@ -67,7 +68,7 @@ export function RunDetailView({ runId, refTime = Date.now() }: { runId: string; 
 				cancelling={detail.cancelling}
 			/>
 
-			<div className="mx-auto max-w-7xl px-5 py-6">
+			<DetailShell>
 				<RunPauseBanner run={detail.run} />
 				<RunDecisionBanner
 					runId={detail.run.id}
@@ -123,7 +124,7 @@ export function RunDetailView({ runId, refTime = Date.now() }: { runId: string; 
 						</EvidenceSection>
 					</div>
 				</div>
-			</div>
+			</DetailShell>
 			<ChatDrawer subject={{ kind: 'run', run_id: detail.run.id }} />
 		</>
 	)

@@ -8,10 +8,6 @@ interface EvidenceSectionProps {
 	children: ReactNode
 }
 
-const accentClass: Record<NonNullable<EvidenceSectionProps['accent']>, string> = {
-	gold: 'text-gold'
-}
-
 export function EvidenceSection({
 	title,
 	count,
@@ -19,7 +15,7 @@ export function EvidenceSection({
 	accent,
 	children
 }: EvidenceSectionProps) {
-	const titleColor = accent ? accentClass[accent] : 'text-silver'
+	const titleColor = accent === 'gold' ? 'text-gold' : 'text-silver'
 	return (
 		<details
 			className="group rounded-md border border-edge bg-graphite/40 open:bg-graphite"

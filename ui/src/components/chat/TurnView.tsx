@@ -1,6 +1,5 @@
-import { useState } from 'react'
-
 import { ToolCallBlock } from '@/components/chat/ToolCallBlock'
+import { Disclosure } from '@/components/ui/disclosure'
 import { useTurnStream } from '@/hooks/useTurnStream'
 import type { Turn, TurnEvent } from '@/types'
 
@@ -66,7 +65,6 @@ export function TurnView({ turn, events, live, onTerminal, onLiveEvent }: TurnVi
 		onLiveEvent
 	})
 	const usage = formatUsage(turn)
-	const [thinkingOpen, setThinkingOpen] = useState(false)
 
 	return (
 		<article className="space-y-3">
@@ -105,30 +103,18 @@ export function TurnView({ turn, events, live, onTerminal, onLiveEvent }: TurnVi
 				) : null}
 
 				{stream.thinking.length > 0 ? (
-					<div className="font-data bg-carbon-dim rounded-md border border-edge text-[11px] text-fog">
-						<button
-							type="button"
-							onClick={() => setThinkingOpen((v) => !v)}
-							className="flex w-full items-center gap-2 px-2 py-1.5 text-left transition-colors hover:bg-carbon"
-							aria-expanded={thinkingOpen}
-						>
-							<span
-								aria-hidden="true"
-								className={`inline-block text-dim transition-transform ${thinkingOpen ? 'rotate-90' : ''}`}
-							>
-								›
-							</span>
-							<span className="text-mineral uppercase">thinking</span>
-							<span className="ml-auto text-[10px] text-dim">
-								{stream.thinking.length} chars
-							</span>
-						</button>
-						{thinkingOpen ? (
-							<pre className="border-t border-edge px-2 py-2 wrap-break-word whitespace-pre-wrap text-dim">
-								{stream.thinking}
-							</pre>
-						) : null}
-					</div>
+					<Disclosure
+						header={() => (
+							<>
+								<span className="text-mineral uppercase">thinking</span>
+								<span className="ml-auto text-[10px] text-dim">
+									{stream.thinking.length} chars
+								</span>
+							</>
+						)}
+					>
+						<pre className="wrap-break-word whitespace-pre-wrap text-dim">{stream.thinking}</pre>
+					</Disclosure>
 				) : null}
 
 				{turn.error ? (
