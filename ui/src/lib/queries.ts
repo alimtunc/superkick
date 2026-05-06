@@ -33,10 +33,10 @@ export const runsQuery = () =>
 		staleTime: 10_000
 	})
 
-export const runDetailQuery = (id: string) =>
+export const runDetailQuery = (id: string | null) =>
 	queryOptions({
-		queryKey: queryKeys.runs.detail(id),
-		queryFn: () => fetchRun(id)
+		queryKey: id ? queryKeys.runs.detail(id) : ['runs', 'detail', 'pending'],
+		queryFn: id ? () => fetchRun(id) : skipToken
 	})
 
 export const conversationDetailQuery = (id: string | null) =>

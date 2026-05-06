@@ -50,12 +50,12 @@ function relativeTimeLabel(now: number, stamp: string): string {
 	return new Date(t).toISOString().slice(0, 10)
 }
 
-function conversationTimestamp(c: ConversationSummary): string {
-	return c.last_turn_at ?? c.updated_at ?? c.created_at
+function conversationTimestamp(conversation: ConversationSummary): string {
+	return conversation.last_turn_at ?? conversation.updated_at ?? conversation.created_at
 }
 
-function conversationTitle(c: ConversationSummary): string {
-	const opener = c.first_user_text?.trim()
+function conversationTitle(conversation: ConversationSummary): string {
+	const opener = conversation.first_user_text?.trim()
 	return opener && opener.length > 0 ? truncate(opener) : 'Untitled chat'
 }
 
@@ -69,10 +69,10 @@ export function ChatSidebar({
 }: ChatSidebarProps) {
 	const now = useNow()
 
-	function rowState(c: ConversationSummary): ConversationUxState {
-		const precomputed = statesById?.[c.id]
+	function rowState(conversation: ConversationSummary): ConversationUxState {
+		const precomputed = statesById?.[conversation.id]
 		if (precomputed) return precomputed
-		return deriveConversationUxState({ conversation: c })
+		return deriveConversationUxState({ conversation })
 	}
 
 	function listBody(): ReactNode {
@@ -89,28 +89,28 @@ export function ChatSidebar({
 		}
 		return (
 			<ul className="divide-y divide-edge">
-				{conversations.map((c) => (
-					<li key={c.id}>
+				{conversations.map((conversation) => (
+					<li key={conversation.id}>
 						<button
 							type="button"
-							onClick={() => onSelect(c.id)}
+							onClick={() => onSelect(conversation.id)}
 							className={cn(
 								'flex w-full flex-col gap-1 px-3 py-2 text-left transition-colors hover:bg-carbon',
-								selectedId === c.id ? 'bg-carbon' : 'bg-transparent'
+								selectedId === conversation.id ? 'bg-carbon' : 'bg-transparent'
 							)}
 						>
 							<div className="flex items-start justify-between gap-2">
 								<span className="font-data line-clamp-2 text-[11px] text-fog">
-									{conversationTitle(c)}
+									{conversationTitle(conversation)}
 								</span>
 								<span className="font-data shrink-0 text-[10px] text-dim">
-									{relativeTimeLabel(now, conversationTimestamp(c))}
+									{relativeTimeLabel(now, conversationTimestamp(conversation))}
 								</span>
 							</div>
 							<div className="flex items-center justify-between gap-2">
-								<ConversationStateBadge state={rowState(c)} />
+								<ConversationStateBadge state={rowState(conversation)} />
 								<span className="font-data text-[10px] text-dim capitalize">
-									{c.provider}
+									{conversation.provider}
 								</span>
 							</div>
 						</button>
