@@ -1,4 +1,5 @@
 import {
+	fetchConversation,
 	fetchDashboardQueue,
 	fetchIssueDetail,
 	fetchIssues,
@@ -7,7 +8,7 @@ import {
 	fetchRuns,
 	fetchRuntimes
 } from '@/api'
-import { queryOptions } from '@tanstack/react-query'
+import { queryOptions, skipToken } from '@tanstack/react-query'
 
 import { queryKeys } from './queryKeys'
 
@@ -36,6 +37,13 @@ export const runDetailQuery = (id: string) =>
 	queryOptions({
 		queryKey: queryKeys.runs.detail(id),
 		queryFn: () => fetchRun(id)
+	})
+
+export const conversationDetailQuery = (id: string | null) =>
+	queryOptions({
+		queryKey: id ? queryKeys.conversations.detail(id) : ['conversations', 'detail', 'pending'],
+		queryFn: id ? () => fetchConversation(id) : skipToken,
+		staleTime: 5_000
 	})
 
 export const dashboardQueueQuery = () =>

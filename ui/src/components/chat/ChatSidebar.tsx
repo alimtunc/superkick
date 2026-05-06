@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react'
 
+import { ConversationStateBadge } from '@/components/chat/ConversationStateBadge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/state-empty'
 import { LoadingState } from '@/components/ui/state-loading'
 import { useNow } from '@/hooks/useNow'
+import { deriveConversationUxState } from '@/lib/domain'
 import { cn } from '@/lib/utils'
-import type { ConversationSummary } from '@/types'
+import type { ConversationSummary, ConversationUxState } from '@/types'
 import { MessagesSquare, Plus } from 'lucide-react'
 
 interface ChatSidebarProps {
@@ -14,6 +16,13 @@ interface ChatSidebarProps {
 	loading: boolean
 	onSelect: (id: string) => void
 	onNewChat: () => void
+	/**
+	 * Optional precomputed state per conversation id. ChatPanel populates
+	 * this for run subjects (run + active takeovers); when absent (or a
+	 * given id is missing) the sidebar falls back to deriving from the
+	 * `ConversationSummary` alone.
+	 */
+	statesById?: Record<string, ConversationUxState>
 }
 
 const MAX_TITLE_CHARS = 48
@@ -50,8 +59,21 @@ function conversationTitle(c: ConversationSummary): string {
 	return opener && opener.length > 0 ? truncate(opener) : 'Untitled chat'
 }
 
-export function ChatSidebar({ conversations, selectedId, loading, onSelect, onNewChat }: ChatSidebarProps) {
+export function ChatSidebar({
+	conversations,
+	selectedId,
+	loading,
+	onSelect,
+	onNewChat,
+	statesById
+}: ChatSidebarProps) {
 	const now = useNow()
+
+	function rowState(c: ConversationSummary): ConversationUxState {
+		const precomputed = statesById?.[c.id]
+		if (precomputed) return precomputed
+		return deriveConversationUxState({ conversation: c })
+	}
 
 	function listBody(): ReactNode {
 		if (loading) return <LoadingState density="compact" rows={3} className="m-2" />
@@ -85,7 +107,12 @@ export function ChatSidebar({ conversations, selectedId, loading, onSelect, onNe
 									{relativeTimeLabel(now, conversationTimestamp(c))}
 								</span>
 							</div>
-							<span className="font-data text-[10px] text-dim capitalize">{c.provider}</span>
+							<div className="flex items-center justify-between gap-2">
+								<ConversationStateBadge state={rowState(c)} />
+								<span className="font-data text-[10px] text-dim capitalize">
+									{c.provider}
+								</span>
+							</div>
 						</button>
 					</li>
 				))}

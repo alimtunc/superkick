@@ -15,6 +15,11 @@ export { classifyRuns } from './classify'
 export { toRunGroups } from './runGroups'
 export { pickRunReason, fmtRunElapsed } from './runCard'
 export { isTerminalRunState, isActiveRun, pickLatestRun } from './runState'
+export {
+	deriveConversationUxState,
+	conversationStateTone,
+	type ConversationUxStateInput
+} from './conversationState'
 export { buildIssueActivity, type IssueActivityItem } from './issueActivity'
 export { launchQueueAccent } from './launchQueueAccent'
 export {
