@@ -124,7 +124,10 @@ function applyEnvelope(state: ReducerState, envelope: TurnEventEnvelope): Reduce
 	}
 
 	const text = next.textOrder.map((id) => next.textBlocks.get(id) ?? '').join('\n\n')
-	const thinking = next.thinkingOrder.map((id) => next.thinkingBlocks.get(id) ?? '').join('\n\n')
+	const thinking = next.thinkingOrder
+		.map((id) => next.thinkingBlocks.get(id) ?? '')
+		.filter((block) => block.trim().length > 0)
+		.join('\n\n')
 	const toolCalls = next.toolOrder
 		.map((id) => next.toolCalls.get(id))
 		.filter((c): c is ToolCallEntry => c !== undefined)

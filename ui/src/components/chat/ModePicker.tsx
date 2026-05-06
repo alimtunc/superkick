@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { ChatPermissionMode } from '@/types'
 import { Menu } from '@base-ui/react/menu'
@@ -55,16 +56,18 @@ export function ModePicker({ value, onChange, disabled }: ModePickerProps) {
 
 	return (
 		<Menu.Root>
-			<Menu.Trigger
-				disabled={disabled}
-				className="font-data hover:bg-carbon-dim inline-flex h-7 items-center gap-1.5 rounded-md border border-edge bg-carbon px-2 text-[11px] text-fog focus:border-edge-bright focus:outline-none disabled:opacity-60"
-			>
-				<span aria-hidden="true" className="text-dim">
-					{current?.icon}
-				</span>
-				<span>{current?.label}</span>
-				<ChevronDown size={12} strokeWidth={1.75} aria-hidden="true" className="text-dim" />
-			</Menu.Trigger>
+			<Tooltip label={current?.label ?? null}>
+				<Menu.Trigger
+					disabled={disabled}
+					aria-label={current ? `Mode: ${current.label}` : 'Mode'}
+					className="font-data hover:bg-carbon-dim inline-flex h-7 items-center gap-1 rounded-md border border-edge bg-carbon px-2 text-[11px] text-fog focus:border-edge-bright focus:outline-none disabled:opacity-60"
+				>
+					<span aria-hidden="true" className="text-fog">
+						{current?.icon}
+					</span>
+					<ChevronDown size={12} strokeWidth={1.75} aria-hidden="true" className="text-dim" />
+				</Menu.Trigger>
+			</Tooltip>
 			<Menu.Portal>
 				<Menu.Positioner sideOffset={6} align="start" className="z-50">
 					<Menu.Popup className="font-data w-72 overflow-hidden rounded-md border border-edge bg-carbon shadow-lg">

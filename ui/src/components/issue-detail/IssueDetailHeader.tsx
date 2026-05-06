@@ -2,6 +2,7 @@ import { StatusChip } from '@/components/issue-detail/StatusChip'
 import { Button } from '@/components/ui/button'
 import { Pill } from '@/components/ui/pill'
 import { Tooltip } from '@/components/ui/tooltip'
+import { ChatToggleButton } from '@/components/workspace/ChatToggleButton'
 import { isActiveRun } from '@/lib/domain'
 import type { IssueDetailResponse } from '@/types'
 import { Link, useRouter } from '@tanstack/react-router'
@@ -19,7 +20,7 @@ export function IssueDetailHeader({
 
 	return (
 		<header className="sticky top-0 z-50 border-b border-edge bg-carbon/90 backdrop-blur-md">
-			<div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-5">
+			<div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-5">
 				<div className="flex items-center gap-3">
 					<Tooltip label="Back">
 						<button
@@ -53,6 +54,8 @@ export function IssueDetailHeader({
 				</div>
 
 				<div className="flex items-center gap-1.5">
+					<ChatToggleButton />
+					<span className="mx-1 h-5 w-px bg-edge" aria-hidden="true" />
 					<Tooltip label="Refresh issue data">
 						<Button
 							variant="outline"

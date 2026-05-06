@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Pill } from '@/components/ui/pill'
 import { Tooltip } from '@/components/ui/tooltip'
+import { ChatToggleButton } from '@/components/workspace/ChatToggleButton'
 import type { PullRequest, Run } from '@/types'
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft, Pin, RefreshCw, Square } from 'lucide-react'
@@ -52,7 +53,7 @@ export function RunDetailHeader({
 }: RunDetailHeaderProps) {
 	return (
 		<header className="sticky top-0 z-50 border-b border-edge bg-carbon/90 backdrop-blur-md">
-			<div className="mx-auto flex h-12 max-w-4xl items-center justify-between px-5">
+			<div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-5">
 				<div className="flex items-center gap-3">
 					<Tooltip label="Back to control center">
 						<Link
@@ -72,6 +73,8 @@ export function RunDetailHeader({
 				</div>
 
 				<div className="flex items-center gap-1.5">
+					<ChatToggleButton />
+					<span className="mx-1 h-5 w-px bg-edge" aria-hidden="true" />
 					<Tooltip label={pinButtonTitle(watched, maxReached)}>
 						<Button
 							variant="outline"
