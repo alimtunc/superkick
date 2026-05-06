@@ -124,6 +124,9 @@ function applyEnvelope(state: ReducerState, envelope: TurnEventEnvelope): Reduce
 	}
 
 	const text = next.textOrder.map((id) => next.textBlocks.get(id) ?? '').join('\n\n')
+	// Skip empty thinking blocks: a thinking envelope with empty text registers
+	// the block in `thinkingOrder` (see reducer above) before any text arrives,
+	// which would otherwise render a stray empty disclosure.
 	const thinking = next.thinkingOrder
 		.map((id) => next.thinkingBlocks.get(id) ?? '')
 		.filter((block) => block.trim().length > 0)

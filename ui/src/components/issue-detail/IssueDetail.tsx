@@ -6,6 +6,7 @@ import { IssueLauncherPanel } from '@/components/issue-detail/IssueLauncherPanel
 import { IssuePropertiesPanel } from '@/components/issue-detail/IssuePropertiesPanel'
 import { IssueTerminalEntry } from '@/components/issue-detail/IssueTerminalEntry'
 import { NeedsHumanBanner } from '@/components/issue-detail/NeedsHumanBanner'
+import { DetailShell } from '@/components/ui/detail-shell'
 import { EmptyState } from '@/components/ui/state-empty'
 import { ErrorState } from '@/components/ui/state-error'
 import { LoadingState } from '@/components/ui/state-loading'
@@ -19,25 +20,25 @@ export function IssueDetail({ issueId }: { issueId: string }) {
 
 	if (loading)
 		return (
-			<div className="mx-auto max-w-7xl px-5 py-6">
+			<DetailShell>
 				<LoadingState rows={4} />
-			</div>
+			</DetailShell>
 		)
 	if (error)
 		return (
-			<div className="mx-auto max-w-7xl px-5 py-6">
+			<DetailShell>
 				<ErrorState title="Issue load failed" message={error} onRetry={refresh} />
-			</div>
+			</DetailShell>
 		)
 	if (!issue)
 		return (
-			<div className="mx-auto max-w-7xl px-5 py-6">
+			<DetailShell>
 				<EmptyState
 					icon={FileSearch}
 					title="Issue not found"
 					description="It may have been deleted in Linear or the identifier is wrong."
 				/>
-			</div>
+			</DetailShell>
 		)
 
 	const latestRun = pickLatestRun(issue.linked_runs)
@@ -45,7 +46,7 @@ export function IssueDetail({ issueId }: { issueId: string }) {
 	return (
 		<div>
 			<IssueDetailHeader issue={issue} onRefresh={refresh} />
-			<div className="mx-auto max-w-7xl px-5 py-6">
+			<DetailShell>
 				<NeedsHumanBanner runs={issue.linked_runs} />
 				<h1 className="font-data mb-5 text-[20px] leading-tight font-semibold text-fog">
 					{issue.title}
@@ -62,7 +63,7 @@ export function IssueDetail({ issueId }: { issueId: string }) {
 						<IssueTerminalEntry latestRun={latestRun} />
 					</aside>
 				</div>
-			</div>
+			</DetailShell>
 			<ChatDrawer subject={{ kind: 'issue', identifier: issue.identifier }} />
 		</div>
 	)

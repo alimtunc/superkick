@@ -3,6 +3,7 @@ import { PrStateBadge } from '@/components/PrStateBadge'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { HeaderDivider } from '@/components/ui/header-divider'
 import { Pill } from '@/components/ui/pill'
 import { Tooltip } from '@/components/ui/tooltip'
 import { ChatToggleButton } from '@/components/workspace/ChatToggleButton'
@@ -74,7 +75,7 @@ export function RunDetailHeader({
 
 				<div className="flex items-center gap-1.5">
 					<ChatToggleButton />
-					<span className="mx-1 h-5 w-px bg-edge" aria-hidden="true" />
+					<HeaderDivider />
 					<Tooltip label={pinButtonTitle(watched, maxReached)}>
 						<Button
 							variant="outline"
@@ -116,7 +117,7 @@ export function RunDetailHeader({
 
 					{!isTerminal ? (
 						<>
-							<span className="mx-1 h-5 w-px bg-edge" aria-hidden="true" />
+							<HeaderDivider />
 							<Tooltip label="Cancel run">
 								<Button
 									variant="outline"

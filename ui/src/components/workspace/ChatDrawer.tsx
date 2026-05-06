@@ -13,7 +13,12 @@ export function ChatDrawer({ subject }: ChatDrawerProps) {
 	const closeChat = useWorkspaceChatStore((s) => s.closeChat)
 
 	return (
-		<Dialog.Root open={open} onOpenChange={(value) => (value ? null : closeChat())}>
+		<Dialog.Root
+			open={open}
+			onOpenChange={(value) => {
+				if (!value) closeChat()
+			}}
+		>
 			<Dialog.Portal>
 				<Dialog.Backdrop className="fixed inset-0 z-40 bg-carbon/60 backdrop-blur-sm transition-opacity duration-200 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
 				<Dialog.Popup className="fixed top-0 right-0 z-50 flex h-dvh w-1/2 min-w-md flex-col border-l border-edge bg-carbon shadow-2xl transition-transform duration-200 outline-none data-ending-style:translate-x-full data-starting-style:translate-x-full">
