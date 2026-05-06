@@ -6,6 +6,7 @@ import type {
 	AttentionRequest,
 	Conversation,
 	ConversationDetail,
+	ConversationSummary,
 	CreateAttentionRequest,
 	CreateConversationRequest,
 	CreateRunRequest,
@@ -299,7 +300,7 @@ export class TurnAlreadyStreamingError extends Error {
 	}
 }
 
-export async function createOrGetConversation(req: CreateConversationRequest): Promise<Conversation> {
+export async function createConversation(req: CreateConversationRequest): Promise<Conversation> {
 	const res = await fetch(`${BASE}/conversations`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
@@ -315,17 +316,17 @@ export async function fetchConversation(id: string): Promise<ConversationDetail>
 	return res.json()
 }
 
-export async function listConversationsByIssue(issueId: string): Promise<Conversation[]> {
+export async function listConversationsByIssue(issueId: string): Promise<ConversationSummary[]> {
 	const res = await fetch(`${BASE}/conversations?issue_id=${encodeURIComponent(issueId)}`)
 	if (!res.ok) throw new Error(`GET /conversations?issue_id failed: ${res.status}`)
-	const body = (await res.json()) as { conversations: Conversation[] }
+	const body = (await res.json()) as { conversations: ConversationSummary[] }
 	return body.conversations
 }
 
-export async function listConversationsByRun(runId: string): Promise<Conversation[]> {
+export async function listConversationsByRun(runId: string): Promise<ConversationSummary[]> {
 	const res = await fetch(`${BASE}/conversations?run_id=${encodeURIComponent(runId)}`)
 	if (!res.ok) throw new Error(`GET /conversations?run_id failed: ${res.status}`)
-	const body = (await res.json()) as { conversations: Conversation[] }
+	const body = (await res.json()) as { conversations: ConversationSummary[] }
 	return body.conversations
 }
 
@@ -352,7 +353,7 @@ export async function cancelTurn(conversationId: string, turnId: string): Promis
 	const res = await fetch(`${BASE}/conversations/${conversationId}/turns/${turnId}/cancel`, {
 		method: 'POST'
 	})
-	if (!res.ok && res.status !== 204) await throwGenericApiError(res, 'cancel turn failed')
+	if (!res.ok) await throwGenericApiError(res, 'cancel turn failed')
 }
 
 /**

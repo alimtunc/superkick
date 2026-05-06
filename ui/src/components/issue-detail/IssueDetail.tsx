@@ -51,13 +51,18 @@ export function IssueDetail({ issueId }: { issueId: string }) {
 						<IssueDescription description={issue.description} />
 						{issue.children.length > 0 ? <ChildIssues issues={issue.children} /> : null}
 						<IssueLauncherPanel issue={issue} />
-						<div className="mb-8">
-							<ChatPanel subject={{ kind: 'issue', identifier: issue.identifier }} />
-						</div>
-						<IssueActivityTimeline comments={issue.comments} runs={issue.linked_runs} />
 					</main>
 					<IssuePropertiesPanel issue={issue} />
 				</div>
+			</div>
+			{/* Chat breaks out of the page's max-w-5xl wrapper so it can use
+			    the full viewport width — the central column is too narrow to
+			    accommodate a sidebar + transcript comfortably. */}
+			<div className="mx-auto mb-8 w-full max-w-7xl px-5">
+				<ChatPanel subject={{ kind: 'issue', identifier: issue.identifier }} />
+			</div>
+			<div className="mx-auto max-w-5xl px-5 pb-6">
+				<IssueActivityTimeline comments={issue.comments} runs={issue.linked_runs} />
 			</div>
 		</div>
 	)

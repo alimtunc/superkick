@@ -1,6 +1,6 @@
 //! SQLite repositories for structured chat conversations (SUP-100).
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use sqlx::SqlitePool;
 use superkick_core::{
@@ -23,66 +23,54 @@ impl SqliteConversationRepo {
 }
 
 impl ConversationRepo for SqliteConversationRepo {
-    async fn create_or_get(
+    async fn create(
         &self,
         subject: &ConversationSubject,
         agent_id: &str,
         provider: AgentProvider,
         now: DateTime<Utc>,
     ) -> Result<Conversation> {
-        // Idempotent on (subject, agent_id). We insert with ON CONFLICT DO
-        // NOTHING; if a row already exists the SELECT below picks it up.
-        // SQLite's ON CONFLICT can target a unique index — we have a partial
-        // unique index per subject kind, so the conflict target depends on
-        // the subject variant.
+        // SUP-107: always insert. Migration 022 dropped the (subject,
+        // agent_id) unique indexes so multiple chats can coexist; the
+        // sidebar in `ChatPanel` lists them via `list_by_subject`.
         let id = ConversationId::new();
-        let (issue_identifier, run_id) = match subject {
-            ConversationSubject::Issue { identifier } => (Some(identifier.clone()), None),
-            ConversationSubject::Run { run_id } => (None, Some(run_id.0.to_string())),
-        };
-
-        let mut tx = self.pool.begin().await?;
 
         sqlx::query(
             "INSERT INTO conversations (\
                  id, issue_identifier, run_id, agent_id, provider, status, \
                  provider_session_id, created_at, updated_at, last_turn_at\
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?7, NULL) \
-             ON CONFLICT DO NOTHING",
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?7, NULL)",
         )
         .bind(id.0.to_string())
-        .bind(&issue_identifier)
-        .bind(&run_id)
+        .bind(match subject {
+            ConversationSubject::Issue { identifier } => Some(identifier.as_str()),
+            ConversationSubject::Run { .. } => None,
+        })
+        .bind(match subject {
+            ConversationSubject::Run { run_id } => Some(run_id.0.to_string()),
+            ConversationSubject::Issue { .. } => None,
+        })
         .bind(agent_id)
         .bind(serialize_enum(&provider)?)
         .bind(ConversationStatus::Active.to_string())
         .bind(now.to_rfc3339())
-        .execute(&mut *tx)
+        .execute(&self.pool)
         .await
         .context("insert conversation")?;
 
-        let row = match (issue_identifier.as_deref(), run_id.as_deref()) {
-            (Some(identifier), None) => sqlx::query_as::<_, ConversationRow>(
-                "SELECT * FROM conversations WHERE issue_identifier = ?1 AND agent_id = ?2 LIMIT 1",
-            )
-            .bind(identifier)
-            .bind(agent_id)
-            .fetch_one(&mut *tx)
-            .await
-            .context("fetch conversation after upsert")?,
-            (None, Some(rid)) => sqlx::query_as::<_, ConversationRow>(
-                "SELECT * FROM conversations WHERE run_id = ?1 AND agent_id = ?2 LIMIT 1",
-            )
-            .bind(rid)
-            .bind(agent_id)
-            .fetch_one(&mut *tx)
-            .await
-            .context("fetch conversation after upsert")?,
-            _ => return Err(anyhow!("conversation subject must be issue or run")),
-        };
-
-        tx.commit().await?;
-        row.into_domain()
+        // The bound values fully determine the row — round-tripping it
+        // through a SELECT just to repackage the same fields is wasteful.
+        Ok(Conversation {
+            id,
+            subject: subject.clone(),
+            agent_id: agent_id.to_string(),
+            provider,
+            status: ConversationStatus::Active,
+            provider_session_id: None,
+            created_at: now,
+            updated_at: now,
+            last_turn_at: None,
+        })
     }
 
     async fn get(&self, id: ConversationId) -> Result<Option<Conversation>> {
@@ -113,6 +101,53 @@ impl ConversationRepo for SqliteConversationRepo {
             }
         };
         rows.into_iter().map(|r| r.into_domain()).collect()
+    }
+
+    async fn list_by_subject_with_first_text(
+        &self,
+        subject: &ConversationSubject,
+    ) -> Result<Vec<(Conversation, Option<String>)>> {
+        // Correlated subquery collapses what used to be M+1 round-trips
+        // (`list_by_subject` then one `first_user_text` per row) into a
+        // single statement. The composite index added in migration 022
+        // covers both the predicate and the `ORDER BY` so the planner
+        // does not filesort.
+        const SQL_ISSUE: &str = "\
+            SELECT c.id, c.issue_identifier, c.run_id, c.agent_id, c.provider, c.status, \
+                   c.provider_session_id, c.created_at, c.updated_at, c.last_turn_at, \
+                   (SELECT t.user_text FROM conversation_turns t \
+                    WHERE t.conversation_id = c.id ORDER BY t.seq ASC LIMIT 1) \
+                   AS first_user_text \
+              FROM conversations c \
+             WHERE c.issue_identifier = ?1 \
+             ORDER BY c.created_at ASC";
+        const SQL_RUN: &str = "\
+            SELECT c.id, c.issue_identifier, c.run_id, c.agent_id, c.provider, c.status, \
+                   c.provider_session_id, c.created_at, c.updated_at, c.last_turn_at, \
+                   (SELECT t.user_text FROM conversation_turns t \
+                    WHERE t.conversation_id = c.id ORDER BY t.seq ASC LIMIT 1) \
+                   AS first_user_text \
+              FROM conversations c \
+             WHERE c.run_id = ?1 \
+             ORDER BY c.created_at ASC";
+
+        let rows = match subject {
+            ConversationSubject::Issue { identifier } => {
+                sqlx::query_as::<_, ConversationWithFirstTextRow>(SQL_ISSUE)
+                    .bind(identifier)
+                    .fetch_all(&self.pool)
+                    .await?
+            }
+            ConversationSubject::Run { run_id } => {
+                sqlx::query_as::<_, ConversationWithFirstTextRow>(SQL_RUN)
+                    .bind(run_id.0.to_string())
+                    .fetch_all(&self.pool)
+                    .await?
+            }
+        };
+        rows.into_iter()
+            .map(|r| Ok((r.conv.into_domain()?, r.first_user_text)))
+            .collect()
     }
 
     async fn set_provider_session_id(
@@ -155,6 +190,13 @@ impl ConversationRepo for SqliteConversationRepo {
             .await?;
         Ok(())
     }
+}
+
+#[derive(sqlx::FromRow)]
+struct ConversationWithFirstTextRow {
+    #[sqlx(flatten)]
+    conv: ConversationRow,
+    first_user_text: Option<String>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -366,6 +408,17 @@ impl TurnRepo for SqliteTurnRepo {
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    async fn first_user_text(&self, conversation_id: ConversationId) -> Result<Option<String>> {
+        let row: Option<(String,)> = sqlx::query_as(
+            "SELECT user_text FROM conversation_turns \
+             WHERE conversation_id = ?1 ORDER BY seq ASC LIMIT 1",
+        )
+        .bind(conversation_id.0.to_string())
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|(t,)| t))
     }
 }
 

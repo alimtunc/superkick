@@ -1768,3 +1768,115 @@ async fn orchestrator_session_set_provider_session_id_persists() -> Result<()> {
     );
     Ok(())
 }
+
+#[tokio::test]
+async fn turn_first_user_text_returns_first_seq() -> Result<()> {
+    // SUP-107: the sidebar derives the conversation title from the
+    // operator's opening prompt. Verify the storage layer returns the
+    // earliest turn's user_text and None when no turns exist yet.
+    let pool = setup().await?;
+    let conv_repo = SqliteConversationRepo::new(pool.clone());
+    let turn_repo = SqliteTurnRepo::new(pool);
+
+    let subject = ConversationSubject::Issue {
+        identifier: "SUP-107".into(),
+    };
+    let conv = conv_repo
+        .create(&subject, "default", AgentProvider::Claude, Utc::now())
+        .await?;
+
+    assert!(
+        turn_repo.first_user_text(conv.id).await?.is_none(),
+        "no turns yet → None"
+    );
+
+    turn_repo
+        .create_pending(conv.id, "first message", Utc::now())
+        .await?;
+    turn_repo
+        .create_pending(conv.id, "second message", Utc::now())
+        .await?;
+
+    assert_eq!(
+        turn_repo.first_user_text(conv.id).await?.as_deref(),
+        Some("first message"),
+        "earliest seq wins"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn conversation_create_allows_multiple_per_subject_agent() -> Result<()> {
+    // SUP-107: dropping the (subject, agent_id) unique indexes lets the
+    // multi-conversation sidebar host more than one chat per subject. Two
+    // back-to-back creates with identical subject/agent must persist as
+    // distinct rows that both surface through `list_by_subject` in
+    // created_at order — pinning the order here so a future change to the
+    // sort cannot silently regress the sidebar.
+    let pool = setup().await?;
+    let repo = SqliteConversationRepo::new(pool);
+
+    let subject = ConversationSubject::Issue {
+        identifier: "SUP-107".into(),
+    };
+    let first_now = Utc::now();
+    let second_now = first_now + chrono::Duration::seconds(1);
+
+    let first = repo
+        .create(&subject, "planner", AgentProvider::Claude, first_now)
+        .await?;
+    let second = repo
+        .create(&subject, "planner", AgentProvider::Claude, second_now)
+        .await?;
+
+    assert_ne!(first.id, second.id, "each create must mint a fresh id");
+
+    let listed = repo.list_by_subject(&subject).await?;
+    assert_eq!(listed.len(), 2);
+    assert_eq!(
+        listed[0].id, first.id,
+        "ORDER BY created_at ASC: oldest first"
+    );
+    assert_eq!(listed[1].id, second.id);
+    Ok(())
+}
+
+#[tokio::test]
+async fn conversation_list_by_subject_with_first_text_collapses_n_plus_one() -> Result<()> {
+    // SUP-107: the sidebar derives titles from the first turn's user_text.
+    // The repo exposes a single-query variant so the API does not issue
+    // M+1 round-trips. Verify it returns the same set as `list_by_subject`
+    // and pairs each conversation with its earliest turn (or None when no
+    // turn has landed yet).
+    let pool = setup().await?;
+    let conv_repo = SqliteConversationRepo::new(pool.clone());
+    let turn_repo = SqliteTurnRepo::new(pool);
+
+    let subject = ConversationSubject::Issue {
+        identifier: "SUP-107".into(),
+    };
+    let first_now = Utc::now();
+    let second_now = first_now + chrono::Duration::seconds(1);
+
+    let with_turn = conv_repo
+        .create(&subject, "planner", AgentProvider::Claude, first_now)
+        .await?;
+    let empty = conv_repo
+        .create(&subject, "planner", AgentProvider::Claude, second_now)
+        .await?;
+
+    turn_repo
+        .create_pending(with_turn.id, "first message", first_now)
+        .await?;
+    turn_repo
+        .create_pending(with_turn.id, "second message", second_now)
+        .await?;
+
+    let listed = conv_repo.list_by_subject_with_first_text(&subject).await?;
+    assert_eq!(listed.len(), 2);
+    assert_eq!(listed[0].0.id, with_turn.id);
+    assert_eq!(listed[0].1.as_deref(), Some("first message"));
+    assert_eq!(listed[1].0.id, empty.id);
+    assert!(listed[1].1.is_none(), "no turns yet → None");
+    Ok(())
+}

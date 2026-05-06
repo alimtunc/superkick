@@ -10,6 +10,9 @@ interface TurnViewProps {
 	 * to refetch the persisted conversation detail so the badge / usage
 	 * counts stop reflecting the in-flight state. */
 	onTerminal?: () => void
+	/** Called for each live envelope on the active turn — used by the
+	 * transcript to keep the latest tokens scrolled into view. */
+	onLiveEvent?: () => void
 }
 
 interface UsageDisplay {
@@ -52,12 +55,13 @@ function statusBadgeClass(status: Turn['status']): string {
 	}
 }
 
-export function TurnView({ turn, events, live, onTerminal }: TurnViewProps) {
+export function TurnView({ turn, events, live, onTerminal, onLiveEvent }: TurnViewProps) {
 	const stream = useTurnStream({
 		turnId: turn.id,
 		historicalEvents: events,
 		live: live && (turn.status === 'pending' || turn.status === 'streaming'),
-		onTerminal
+		onTerminal,
+		onLiveEvent
 	})
 	const usage = formatUsage(turn)
 

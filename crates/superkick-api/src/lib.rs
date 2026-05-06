@@ -423,7 +423,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         )
         .route(
             "/conversations",
-            post(handlers::conversations::create_or_get_conversation)
+            post(handlers::conversations::create_conversation)
                 .get(handlers::conversations::list_conversations),
         )
         .route(

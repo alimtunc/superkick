@@ -1,37 +1,16 @@
 import { useCallback, useMemo } from 'react'
 
-import { cancelTurn, createOrGetConversation, createTurn, fetchConversation } from '@/api'
+import { cancelTurn, createTurn, fetchConversation } from '@/api'
 import { queryKeys } from '@/lib/queryKeys'
-import type {
-	AgentProvider,
-	ChatPermissionMode,
-	Conversation,
-	ConversationDetail,
-	ConversationSubject,
-	Turn
-} from '@/types'
+import type { ChatPermissionMode, Conversation, ConversationDetail, Turn } from '@/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-
-function firstErrorMessage(...errors: Array<unknown>): string | null {
-	for (const err of errors) {
-		if (err) return String(err)
-	}
-	return null
-}
-
-interface OpenedConversationArgs {
-	subject: ConversationSubject
-	agentId: string
-	provider: AgentProvider
-	enabled?: boolean
-}
 
 export interface SendTurnOptions {
 	mode?: ChatPermissionMode
 	model?: string
 }
 
-export interface UseConversationResult {
+export interface UseConversationViewResult {
 	conversation: Conversation | null
 	turns: Turn[]
 	detail: ConversationDetail | null
@@ -47,24 +26,24 @@ export interface UseConversationResult {
 	syncDetail: () => void
 }
 
+interface UseConversationViewArgs {
+	conversationId: string | null
+	/**
+	 * Sidebar list cache key to invalidate after sending a turn so the
+	 * "recent activity" sort updates without a manual refetch.
+	 */
+	listKey?: readonly unknown[]
+}
+
 /**
- * Open (or fetch) the conversation for a `(subject, agent_id)` pair, then
- * load its full transcript. Mutations (`send`, `cancelActiveTurn`)
- * invalidate the detail query so persisted state stays the source of truth
- * — live deltas come through `useTurnStream` once a turn is in flight.
+ * View a single conversation by id. Distinct from `useConversationsList`
+ * (which feeds the sidebar) and from the old `useConversation` hook (which
+ * also created on demand — SUP-107 split that responsibility into a
+ * dedicated `+ New chat` flow).
  */
-export function useConversation(args: OpenedConversationArgs): UseConversationResult {
-	const { subject, agentId, provider, enabled = true } = args
+export function useConversationView(args: UseConversationViewArgs): UseConversationViewResult {
+	const { conversationId, listKey } = args
 	const queryClient = useQueryClient()
-
-	const openQuery = useQuery({
-		queryKey: ['conversations', 'open', subjectKey(subject), agentId, provider] as const,
-		queryFn: () => createOrGetConversation({ subject, agent_id: agentId, provider }),
-		enabled,
-		staleTime: 60_000
-	})
-
-	const conversationId = openQuery.data?.id ?? null
 
 	const detailQuery = useQuery({
 		queryKey: conversationId
@@ -74,12 +53,12 @@ export function useConversation(args: OpenedConversationArgs): UseConversationRe
 			if (!conversationId) throw new Error('conversation id missing')
 			return fetchConversation(conversationId)
 		},
-		enabled: enabled && conversationId !== null,
+		enabled: conversationId !== null,
 		staleTime: 5_000
 	})
 
 	const turns = useMemo(() => detailQuery.data?.turns ?? [], [detailQuery.data?.turns])
-	const conversation = detailQuery.data?.conversation ?? openQuery.data ?? null
+	const conversation = detailQuery.data?.conversation ?? null
 
 	const activeTurnId = useMemo(() => {
 		const active = turns.find((t) => t.status === 'pending' || t.status === 'streaming')
@@ -89,11 +68,12 @@ export function useConversation(args: OpenedConversationArgs): UseConversationRe
 	const syncDetail = useCallback(() => {
 		if (!conversationId) return
 		queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) })
-	}, [conversationId, queryClient])
+		if (listKey) queryClient.invalidateQueries({ queryKey: listKey })
+	}, [conversationId, listKey, queryClient])
 
 	const sendMutation = useMutation({
 		mutationFn: async (params: { userText: string; options?: SendTurnOptions }) => {
-			if (!conversationId) throw new Error('conversation not opened yet')
+			if (!conversationId) throw new Error('no conversation selected')
 			return createTurn(conversationId, {
 				user_text: params.userText,
 				permission_mode: params.options?.mode,
@@ -126,8 +106,8 @@ export function useConversation(args: OpenedConversationArgs): UseConversationRe
 		conversation,
 		turns,
 		detail: detailQuery.data ?? null,
-		loading: openQuery.isLoading || detailQuery.isLoading,
-		error: firstErrorMessage(openQuery.error, detailQuery.error),
+		loading: detailQuery.isLoading,
+		error: detailQuery.error ? String(detailQuery.error) : null,
 		activeTurnId,
 		send,
 		sending: sendMutation.isPending,
@@ -135,14 +115,8 @@ export function useConversation(args: OpenedConversationArgs): UseConversationRe
 		cancelActiveTurn,
 		cancelling: cancelMutation.isPending,
 		refetch: () => {
-			openQuery.refetch()
 			detailQuery.refetch()
 		},
 		syncDetail
 	}
-}
-
-function subjectKey(subject: ConversationSubject): string {
-	if (subject.kind === 'issue') return `issue:${subject.identifier}`
-	return `run:${subject.run_id}`
 }

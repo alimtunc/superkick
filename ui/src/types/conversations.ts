@@ -20,6 +20,15 @@ export interface Conversation {
 	last_turn_at: string | null
 }
 
+/**
+ * Sidebar-shaped conversation: the base row plus a denormalised first user
+ * prompt the server fetches alongside the list. Only returned by
+ * `GET /conversations?issue_id|run_id=…`.
+ */
+export interface ConversationSummary extends Conversation {
+	first_user_text: string | null
+}
+
 export interface UsageSnapshot {
 	input_tokens: number | null
 	output_tokens: number | null

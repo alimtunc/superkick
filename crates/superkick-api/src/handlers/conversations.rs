@@ -5,7 +5,7 @@
 //! registered at the bare paths.
 //!
 //! Endpoints:
-//!   POST /conversations                       create or fetch
+//!   POST /conversations                       create (201, never idempotent — SUP-107)
 //!   GET  /conversations/{id}                  detail (turns + events)
 //!   GET  /conversations?issue_id|run_id=...   list by subject
 //!   POST /conversations/{id}/turns            send a turn (202)
@@ -38,7 +38,7 @@ pub struct CreateConversationRequest {
     pub provider: AgentProvider,
 }
 
-pub async fn create_or_get_conversation(
+pub async fn create_conversation(
     State(state): State<AppState>,
     Json(body): Json<CreateConversationRequest>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -46,25 +46,36 @@ pub async fn create_or_get_conversation(
     if agent_id.is_empty() {
         return Err(AppError::BadRequest("agent_id must not be empty".into()));
     }
-    if let ConversationSubject::Issue { identifier } = &body.subject
-        && identifier.trim().is_empty()
-    {
-        return Err(AppError::BadRequest(
-            "issue identifier must not be empty".into(),
-        ));
-    }
-    if let ConversationSubject::Run { run_id } = &body.subject {
-        if state.run_repo.get(*run_id).await?.is_none() {
-            return Err(AppError::NotFound("run not found"));
+    // Normalise the issue identifier once at the API edge so persisted
+    // values match what `list_conversations` queries with — `list_by_subject`
+    // trims its query param, so a `" SUP-107 "` create followed by a
+    // `SUP-107` list would otherwise miss its own row.
+    let subject = match body.subject {
+        ConversationSubject::Issue { identifier } => {
+            let trimmed = identifier.trim();
+            if trimmed.is_empty() {
+                return Err(AppError::BadRequest(
+                    "issue identifier must not be empty".into(),
+                ));
+            }
+            ConversationSubject::Issue {
+                identifier: trimmed.to_string(),
+            }
         }
-    }
+        ConversationSubject::Run { run_id } => {
+            if state.run_repo.get(run_id).await?.is_none() {
+                return Err(AppError::NotFound("run not found"));
+            }
+            ConversationSubject::Run { run_id }
+        }
+    };
 
     let now = chrono::Utc::now();
     let conversation = state
         .conversation_repo
-        .create_or_get(&body.subject, &agent_id, body.provider, now)
+        .create(&subject, &agent_id, body.provider, now)
         .await?;
-    Ok(Json(conversation))
+    Ok((StatusCode::CREATED, Json(conversation)))
 }
 
 #[derive(Debug, Serialize)]
@@ -102,8 +113,18 @@ pub struct ListConversationsParams {
 }
 
 #[derive(Debug, Serialize)]
+pub struct ConversationListEntry {
+    #[serde(flatten)]
+    pub conversation: superkick_core::Conversation,
+    /// First operator prompt for this conversation, if any. The sidebar
+    /// renders it (truncated) as the conversation title — much more useful
+    /// than a static "Conversation 3" placeholder.
+    pub first_user_text: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
 pub struct ListConversationsResponse {
-    pub conversations: Vec<superkick_core::Conversation>,
+    pub conversations: Vec<ConversationListEntry>,
 }
 
 pub async fn list_conversations(
@@ -136,8 +157,20 @@ pub async fn list_conversations(
             ));
         }
     };
-    let conversations = state.conversation_repo.list_by_subject(&subject).await?;
-    Ok(Json(ListConversationsResponse { conversations }))
+    let rows = state
+        .conversation_repo
+        .list_by_subject_with_first_text(&subject)
+        .await?;
+    let entries = rows
+        .into_iter()
+        .map(|(conversation, first_user_text)| ConversationListEntry {
+            conversation,
+            first_user_text,
+        })
+        .collect();
+    Ok(Json(ListConversationsResponse {
+        conversations: entries,
+    }))
 }
 
 #[derive(Debug, Deserialize)]
