@@ -42,7 +42,7 @@ export function NewChatLauncher({
 	onCreated
 }: NewChatLauncherProps) {
 	const queryClient = useQueryClient()
-	const [provider, setProvider] = useState<AgentProvider | null>(null)
+	const [provider, setProvider] = useState<AgentProvider>('claude')
 	const [busy, setBusy] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 

@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
 
+import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { AgentProvider } from '@/types'
 import { Menu } from '@base-ui/react/menu'
-import { Bot, Check, ChevronDown, Sparkles } from 'lucide-react'
+import { Bot, Check, ChevronDown, CircleDashed, Sparkles } from 'lucide-react'
 
 interface ProviderOption {
 	value: AgentProvider
@@ -32,18 +33,18 @@ export function ProviderPicker({ value, onChange, disabled }: ProviderPickerProp
 
 	return (
 		<Menu.Root>
-			<Menu.Trigger
-				disabled={disabled}
-				className="font-data hover:bg-carbon-dim inline-flex h-7 items-center gap-1.5 rounded-md border border-edge bg-carbon px-2 text-[11px] text-fog focus:border-edge-bright focus:outline-none disabled:opacity-60"
-			>
-				{current ? (
-					<span aria-hidden="true" className="text-dim">
-						{current.icon}
+			<Tooltip label={current?.label ?? 'Choose provider'}>
+				<Menu.Trigger
+					disabled={disabled}
+					aria-label={current ? `Provider: ${current.label}` : 'Choose provider'}
+					className="font-data hover:bg-carbon-dim inline-flex h-7 items-center gap-1 rounded-md border border-edge bg-carbon px-2 text-[11px] text-fog focus:border-edge-bright focus:outline-none disabled:opacity-60"
+				>
+					<span aria-hidden="true" className="text-fog">
+						{current?.icon ?? <CircleDashed size={14} strokeWidth={1.75} />}
 					</span>
-				) : null}
-				<span>{current?.label ?? 'Choose provider'}</span>
-				<ChevronDown size={12} strokeWidth={1.75} aria-hidden="true" className="text-dim" />
-			</Menu.Trigger>
+					<ChevronDown size={12} strokeWidth={1.75} aria-hidden="true" className="text-dim" />
+				</Menu.Trigger>
+			</Tooltip>
 			<Menu.Portal>
 				<Menu.Positioner sideOffset={6} align="start" className="z-50">
 					<Menu.Popup className="font-data w-44 overflow-hidden rounded-md border border-edge bg-carbon shadow-lg">

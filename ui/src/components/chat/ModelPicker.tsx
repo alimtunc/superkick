@@ -1,3 +1,4 @@
+import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { AgentProvider } from '@/types'
 import { Menu } from '@base-ui/react/menu'
@@ -49,14 +50,16 @@ export function ModelPicker({ provider, value, onChange, disabled }: ModelPicker
 
 	return (
 		<Menu.Root>
-			<Menu.Trigger
-				disabled={disabled}
-				className="font-data hover:bg-carbon-dim inline-flex h-7 items-center gap-1.5 rounded-md border border-edge bg-carbon px-2 text-[11px] text-fog focus:border-edge-bright focus:outline-none disabled:opacity-60"
-			>
-				<Cpu size={14} strokeWidth={1.75} aria-hidden="true" className="text-dim" />
-				<span>{label}</span>
-				<ChevronDown size={12} strokeWidth={1.75} aria-hidden="true" className="text-dim" />
-			</Menu.Trigger>
+			<Tooltip label={`Model: ${label}`}>
+				<Menu.Trigger
+					disabled={disabled}
+					aria-label={`Model: ${label}`}
+					className="font-data hover:bg-carbon-dim inline-flex h-7 items-center gap-1 rounded-md border border-edge bg-carbon px-2 text-[11px] text-fog focus:border-edge-bright focus:outline-none disabled:opacity-60"
+				>
+					<Cpu size={14} strokeWidth={1.75} aria-hidden="true" className="text-fog" />
+					<ChevronDown size={12} strokeWidth={1.75} aria-hidden="true" className="text-dim" />
+				</Menu.Trigger>
+			</Tooltip>
 			<Menu.Portal>
 				<Menu.Positioner sideOffset={6} align="start" className="z-50">
 					<Menu.Popup className="font-data w-44 overflow-hidden rounded-md border border-edge bg-carbon shadow-lg">

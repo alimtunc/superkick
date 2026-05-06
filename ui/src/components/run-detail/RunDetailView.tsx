@@ -1,10 +1,6 @@
-import { ChatPanel } from '@/components/chat/ChatPanel'
-import { SectionTitle } from '@/components/dashboard/SectionTitle'
-import { AttentionRequestPanel } from '@/components/run-detail/AttentionRequestPanel'
-import { InterruptPanel } from '@/components/run-detail/InterruptPanel'
-import { RaiseAttentionRequestForm } from '@/components/run-detail/RaiseAttentionRequestForm'
 import { ReviewResults } from '@/components/run-detail/ReviewResults'
 import { RunBudgetCard } from '@/components/run-detail/RunBudgetCard'
+import { RunDecisionBanner } from '@/components/run-detail/RunDecisionBanner'
 import { RunDetailHeader } from '@/components/run-detail/RunDetailHeader'
 import { RunHero } from '@/components/run-detail/RunHero'
 import { RunLedger } from '@/components/run-detail/RunLedger'
@@ -15,16 +11,12 @@ import { TerminalTakeover } from '@/components/run-detail/TerminalTakeover'
 import { EmptyState } from '@/components/ui/state-empty'
 import { ErrorState } from '@/components/ui/state-error'
 import { LoadingState } from '@/components/ui/state-loading'
+import { ChatDrawer } from '@/components/workspace/ChatDrawer'
+import { EvidenceSection } from '@/components/workspace/EvidenceSection'
 import { useEventStream } from '@/hooks/useEventStream'
 import { useRunDetail } from '@/hooks/useRunDetail'
 import { useWatchedSessionsStore } from '@/stores/watchedSessions'
 import { FileSearch } from 'lucide-react'
-
-function attentionSectionTitle(hasPending: boolean, total: number): string {
-	if (hasPending) return 'Needs your decision'
-	if (total > 0) return 'Attention history'
-	return 'Raise an attention request'
-}
 
 export function RunDetailView({ runId, refTime = Date.now() }: { runId: string; refTime?: number }) {
 	const detail = useRunDetail(runId)
@@ -34,19 +26,19 @@ export function RunDetailView({ runId, refTime = Date.now() }: { runId: string; 
 
 	if (detail.loading)
 		return (
-			<div className="mx-auto max-w-4xl px-5 py-6">
+			<div className="mx-auto max-w-7xl px-5 py-6">
 				<LoadingState rows={5} />
 			</div>
 		)
 	if (detail.error)
 		return (
-			<div className="mx-auto max-w-4xl px-5 py-6">
+			<div className="mx-auto max-w-7xl px-5 py-6">
 				<ErrorState title="Run load failed" message={detail.error} onRetry={detail.refresh} />
 			</div>
 		)
 	if (!detail.run)
 		return (
-			<div className="mx-auto max-w-4xl px-5 py-6">
+			<div className="mx-auto max-w-7xl px-5 py-6">
 				<EmptyState
 					icon={FileSearch}
 					title="Run not found"
@@ -55,10 +47,8 @@ export function RunDetailView({ runId, refTime = Date.now() }: { runId: string; 
 			</div>
 		)
 
-	const hasPendingAttention = detail.attentionRequests.some((r) => r.status === 'pending')
-	const showAttentionBlock = detail.attentionRequests.length > 0 || !detail.isTerminal
-	const attentionAccent = hasPendingAttention ? 'gold' : undefined
-	const attentionTitle = attentionSectionTitle(hasPendingAttention, detail.attentionRequests.length)
+	const ledgerOpen = !detail.isTerminal
+	const hasReviews = detail.steps.some((s) => s.step_key === 'review_swarm')
 
 	return (
 		<>
@@ -77,95 +67,64 @@ export function RunDetailView({ runId, refTime = Date.now() }: { runId: string; 
 				cancelling={detail.cancelling}
 			/>
 
-			<div className="mx-auto max-w-4xl px-5 py-6">
+			<div className="mx-auto max-w-7xl px-5 py-6">
 				<RunPauseBanner run={detail.run} />
-
-				<RunHero
-					run={detail.run}
-					pr={detail.pr}
-					sessions={detail.sessions}
+				<RunDecisionBanner
+					runId={detail.run.id}
 					attentionRequests={detail.attentionRequests}
 					interrupts={detail.interrupts}
-					refTime={refTime}
+					showInterrupts={detail.showInterrupts}
+					isTerminal={detail.isTerminal}
+					onSync={detail.syncRun}
 				/>
-
-				<RunBudgetCard run={detail.run} steps={detail.steps} refTime={refTime} />
-
-				{detail.showInterrupts ? (
-					<section className="mb-8">
-						<SectionTitle title="Interrupts" accent="gold" />
-						<InterruptPanel
-							runId={detail.run.id}
-							interrupts={detail.interrupts}
-							onAnswered={detail.syncRun}
-						/>
-					</section>
-				) : null}
-
-				{showAttentionBlock ? (
-					<section className="mb-8">
-						<SectionTitle title={attentionTitle} accent={attentionAccent} />
-						{detail.attentionRequests.length > 0 ? (
-							<AttentionRequestPanel
-								runId={detail.run.id}
-								requests={detail.attentionRequests}
-								onUpdated={detail.syncRun}
-							/>
-						) : null}
-						{!detail.isTerminal ? (
-							<div className="mt-3">
-								<RaiseAttentionRequestForm runId={detail.run.id} onCreated={detail.syncRun} />
-							</div>
-						) : null}
-					</section>
-				) : null}
-
-				<section className="mb-8">
-					<SectionTitle title="Orchestration ledger" />
-					<RunLedger
-						events={stream.events}
-						sessions={detail.sessions}
-						attentionRequests={detail.attentionRequests}
-					/>
-				</section>
-
-				<section className="mb-8">
-					<SectionTitle title="Run progress" />
-					<StepTimeline steps={detail.steps} />
-				</section>
-
-				{detail.sessions.length > 0 ? (
-					<section className="mb-8">
-						<SectionTitle title="Active work" />
-						<SessionList
-							sessions={detail.sessions}
+				<div className="mt-5 grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
+					<aside className="space-y-5">
+						<RunHero
 							run={detail.run}
-							isTerminal={detail.isTerminal}
+							pr={detail.pr}
+							sessions={detail.sessions}
+							attentionRequests={detail.attentionRequests}
+							interrupts={detail.interrupts}
+							refTime={refTime}
 						/>
-					</section>
-				) : null}
-
-				<ReviewResults steps={detail.steps} />
+						<RunBudgetCard run={detail.run} steps={detail.steps} refTime={refTime} />
+					</aside>
+					<div className="min-w-0 space-y-3">
+						<EvidenceSection title="Orchestration ledger" defaultOpen={ledgerOpen}>
+							<RunLedger
+								events={stream.events}
+								sessions={detail.sessions}
+								attentionRequests={detail.attentionRequests}
+							/>
+						</EvidenceSection>
+						<EvidenceSection title="Run progress" defaultOpen={ledgerOpen}>
+							<StepTimeline steps={detail.steps} />
+						</EvidenceSection>
+						{detail.sessions.length > 0 ? (
+							<EvidenceSection
+								title="Active work"
+								count={detail.sessions.length}
+								defaultOpen={!detail.isTerminal}
+							>
+								<SessionList
+									sessions={detail.sessions}
+									run={detail.run}
+									isTerminal={detail.isTerminal}
+								/>
+							</EvidenceSection>
+						) : null}
+						{hasReviews ? (
+							<EvidenceSection title="Review results" defaultOpen>
+								<ReviewResults steps={detail.steps} />
+							</EvidenceSection>
+						) : null}
+						<EvidenceSection title="Terminal inspection">
+							<TerminalTakeover runId={detail.run.id} isTerminal={detail.isTerminal} />
+						</EvidenceSection>
+					</div>
+				</div>
 			</div>
-
-			{/* Chat breaks out of max-w-4xl so it can use the full viewport
-			    width — the central column is too narrow for a sidebar +
-			    transcript layout. */}
-			<div className="mx-auto mb-8 w-full max-w-7xl px-5">
-				<SectionTitle title="Chat" />
-				<ChatPanel subject={{ kind: 'run', run_id: detail.run.id }} />
-			</div>
-
-			<div className="mx-auto max-w-4xl px-5 pb-6">
-				<section className="mb-6 space-y-3">
-					<SectionTitle title="Terminal inspection" />
-					<p className="font-data text-[11px] text-ash">
-						Fallback / takeover surface. Use the chat above for structured turns; this terminal
-						stays available for direct PTY access.
-					</p>
-					<TerminalTakeover runId={detail.run.id} isTerminal={detail.isTerminal} />
-				</section>
-			</div>
+			<ChatDrawer subject={{ kind: 'run', run_id: detail.run.id }} />
 		</>
 	)
 }

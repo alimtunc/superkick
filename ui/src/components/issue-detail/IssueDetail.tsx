@@ -1,15 +1,17 @@
-import { ChatPanel } from '@/components/chat/ChatPanel'
 import { ChildIssues } from '@/components/issue-detail/ChildIssues'
 import { IssueActivityTimeline } from '@/components/issue-detail/IssueActivityTimeline'
 import { IssueDescription } from '@/components/issue-detail/IssueDescription'
 import { IssueDetailHeader } from '@/components/issue-detail/IssueDetailHeader'
 import { IssueLauncherPanel } from '@/components/issue-detail/IssueLauncherPanel'
 import { IssuePropertiesPanel } from '@/components/issue-detail/IssuePropertiesPanel'
+import { IssueTerminalEntry } from '@/components/issue-detail/IssueTerminalEntry'
 import { NeedsHumanBanner } from '@/components/issue-detail/NeedsHumanBanner'
 import { EmptyState } from '@/components/ui/state-empty'
 import { ErrorState } from '@/components/ui/state-error'
 import { LoadingState } from '@/components/ui/state-loading'
+import { ChatDrawer } from '@/components/workspace/ChatDrawer'
 import { useIssueDetail } from '@/hooks/useIssueDetail'
+import { pickLatestRun } from '@/lib/domain'
 import { FileSearch } from 'lucide-react'
 
 export function IssueDetail({ issueId }: { issueId: string }) {
@@ -17,19 +19,19 @@ export function IssueDetail({ issueId }: { issueId: string }) {
 
 	if (loading)
 		return (
-			<div className="mx-auto max-w-5xl px-5 py-6">
+			<div className="mx-auto max-w-7xl px-5 py-6">
 				<LoadingState rows={4} />
 			</div>
 		)
 	if (error)
 		return (
-			<div className="mx-auto max-w-5xl px-5 py-6">
+			<div className="mx-auto max-w-7xl px-5 py-6">
 				<ErrorState title="Issue load failed" message={error} onRetry={refresh} />
 			</div>
 		)
 	if (!issue)
 		return (
-			<div className="mx-auto max-w-5xl px-5 py-6">
+			<div className="mx-auto max-w-7xl px-5 py-6">
 				<EmptyState
 					icon={FileSearch}
 					title="Issue not found"
@@ -38,32 +40,30 @@ export function IssueDetail({ issueId }: { issueId: string }) {
 			</div>
 		)
 
+	const latestRun = pickLatestRun(issue.linked_runs)
+
 	return (
 		<div>
 			<IssueDetailHeader issue={issue} onRefresh={refresh} />
-			<div className="mx-auto max-w-5xl px-5 py-6">
+			<div className="mx-auto max-w-7xl px-5 py-6">
 				<NeedsHumanBanner runs={issue.linked_runs} />
-				<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
-					<main className="min-w-0">
-						<h1 className="font-data mb-5 text-[20px] leading-tight font-semibold text-fog">
-							{issue.title}
-						</h1>
+				<h1 className="font-data mb-5 text-[20px] leading-tight font-semibold text-fog">
+					{issue.title}
+				</h1>
+				<div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+					<div className="min-w-0 space-y-6">
 						<IssueDescription description={issue.description} />
 						{issue.children.length > 0 ? <ChildIssues issues={issue.children} /> : null}
+						<IssueActivityTimeline comments={issue.comments} runs={issue.linked_runs} />
+					</div>
+					<aside className="space-y-5">
+						<IssuePropertiesPanel issue={issue} />
 						<IssueLauncherPanel issue={issue} />
-					</main>
-					<IssuePropertiesPanel issue={issue} />
+						<IssueTerminalEntry latestRun={latestRun} />
+					</aside>
 				</div>
 			</div>
-			{/* Chat breaks out of the page's max-w-5xl wrapper so it can use
-			    the full viewport width — the central column is too narrow to
-			    accommodate a sidebar + transcript comfortably. */}
-			<div className="mx-auto mb-8 w-full max-w-7xl px-5">
-				<ChatPanel subject={{ kind: 'issue', identifier: issue.identifier }} />
-			</div>
-			<div className="mx-auto max-w-5xl px-5 pb-6">
-				<IssueActivityTimeline comments={issue.comments} runs={issue.linked_runs} />
-			</div>
+			<ChatDrawer subject={{ kind: 'issue', identifier: issue.identifier }} />
 		</div>
 	)
 }
