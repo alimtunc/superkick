@@ -27,6 +27,11 @@ export interface LaunchParams {
 	onSuccess?: () => void
 }
 
+// ── Launch tasks (SUP-116 wire format) ───────────────────────────────
+//
+// Mirror the snake_case JSON emitted by the Rust API verbatim — the rest
+// of the TS codebase (runs.ts, issues.ts) follows the same convention.
+
 export type LaunchRecipe = 'plan_implement_review'
 
 export type LaunchStepKind = 'plan' | 'implement' | 'review'
