@@ -5,6 +5,7 @@ import { IssueDetailHeader } from '@/components/issue-detail/IssueDetailHeader'
 import { IssueLauncherPanel } from '@/components/issue-detail/IssueLauncherPanel'
 import { IssuePropertiesPanel } from '@/components/issue-detail/IssuePropertiesPanel'
 import { IssueTerminalEntry } from '@/components/issue-detail/IssueTerminalEntry'
+import { LaunchTaskFeed } from '@/components/issue-detail/launch-task-feed'
 import { NeedsHumanBanner } from '@/components/issue-detail/NeedsHumanBanner'
 import { DetailShell } from '@/components/ui/detail-shell'
 import { EmptyState } from '@/components/ui/state-empty'
@@ -53,6 +54,7 @@ export function IssueDetail({ issueId }: { issueId: string }) {
 				</h1>
 				<div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
 					<div className="min-w-0 space-y-6">
+						<LaunchTaskFeed issueIdentifier={issue.identifier} />
 						<IssueDescription description={issue.description} />
 						{issue.children.length > 0 ? <ChildIssues issues={issue.children} /> : null}
 						<IssueActivityTimeline comments={issue.comments} runs={issue.linked_runs} />

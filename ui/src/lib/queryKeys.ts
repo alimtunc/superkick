@@ -32,6 +32,7 @@ export const queryKeys = {
 		all: ['agents'] as const
 	},
 	launchTasks: {
+		all: ['launch-tasks'] as const,
 		forIssue: (issueId: string) => ['issues', issueId, 'launch-tasks'] as const,
 		steps: (taskId: string) => ['launch-tasks', taskId, 'steps'] as const
 	}
