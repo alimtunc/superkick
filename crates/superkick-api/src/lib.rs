@@ -9,7 +9,7 @@ use axum::Router;
 use axum::routing::{get, post};
 
 use superkick_config::{IssueTrigger, LaunchProfileConfig, OrchestrationConfig};
-use superkick_core::RunId;
+use superkick_core::{AgentCatalog, RunId};
 use superkick_integrations::linear::LinearClient;
 use superkick_runtime::{
     AttentionService, ConversationAdapters, ConversationRunner, InterruptService, OwnershipService,
@@ -19,15 +19,31 @@ use superkick_runtime::{
 };
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo,
-    SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteOrchestratorSessionRepo,
-    SqlitePullRequestRepo, SqliteRecoveryEventRepo, SqliteRunEventRepo, SqliteRunRepo,
-    SqliteRunStepRepo, SqliteRuntimeRepo, SqliteSessionOwnershipRepo, SqliteTranscriptRepo,
-    SqliteTurnEventRepo, SqliteTurnRepo,
+    SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteLaunchTaskRepo,
+    SqliteOrchestratorSessionRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo,
+    SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo, SqliteRuntimeRepo,
+    SqliteSessionOwnershipRepo, SqliteTranscriptRepo, SqliteTurnEventRepo, SqliteTurnRepo,
 };
 
 mod error;
 mod handlers;
 pub mod recovery_scheduler;
+
+/// Test-only helpers. Hidden behind the `test-support` feature so the public
+/// API surface stays clean in production builds.
+#[cfg(feature = "test-support")]
+pub mod tests_only {
+    use superkick_core::CoreError;
+
+    use crate::error::AppError;
+
+    /// Run the `CoreError → AppError` mapping that handlers rely on, for
+    /// integration tests that need to assert HTTP status pinning without
+    /// going through a full handler invocation.
+    pub fn map_core_error(err: CoreError) -> AppError {
+        AppError::from(err)
+    }
+}
 
 /// Test-only router builder for the SUP-102 orchestrator session routes.
 ///
@@ -55,6 +71,32 @@ pub fn orchestrator_session_test_router(repo: Arc<SqliteOrchestratorSessionRepo>
                 .get(handlers::orchestrator_sessions::list_checkpoints),
         )
         .with_state(repo)
+}
+
+/// Test-only router builder for the SUP-116 launch-task routes. Wires the
+/// four `/launch-tasks` endpoints against a freshly-built `LaunchTaskState`
+/// so integration tests don't have to materialise the full `AppState`.
+#[cfg(feature = "test-support")]
+pub fn launch_task_test_router(
+    repo: Arc<SqliteLaunchTaskRepo>,
+    catalog: Arc<AgentCatalog>,
+) -> Router {
+    let state = handlers::launch_tasks::LaunchTaskState { repo, catalog };
+    Router::new()
+        .route(
+            "/launch-tasks",
+            post(handlers::launch_tasks::create_launch_task)
+                .get(handlers::launch_tasks::list_launch_tasks),
+        )
+        .route(
+            "/launch-tasks/{id}",
+            get(handlers::launch_tasks::get_launch_task),
+        )
+        .route(
+            "/launch-tasks/{id}/steps",
+            get(handlers::launch_tasks::list_launch_task_steps),
+        )
+        .with_state(state)
 }
 
 // ── App state ──────────────────────────────────────────────────────────
@@ -102,6 +144,14 @@ pub(crate) struct AppState {
     /// SUP-102 — orchestrator session + checkpoint store. Independent of the
     /// run pipeline; lives next to it as a parallel aggregate.
     pub orchestrator_session_repo: Arc<SqliteOrchestratorSessionRepo>,
+    /// SUP-116 — launch task aggregate (parent + ordered steps). Read-and-
+    /// create from the API today; the execution loop in SUP-118 will mutate
+    /// step state through this same repo.
+    pub launch_task_repo: Arc<SqliteLaunchTaskRepo>,
+    /// Project agent catalog used at create time to validate `agent_name`
+    /// references. Built once from `SuperkickConfig` at boot — mutating the
+    /// catalog mid-flight is out of scope for SUP-116.
+    pub agent_catalog: Arc<AgentCatalog>,
     pub runtime_detector: Arc<RuntimeDetector>,
     /// Serialises `reconcile_blockers` so two concurrent `GET /launch-queue`
     /// calls cannot both publish the same `DependencyResolved` transition
@@ -180,6 +230,8 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let issue_blocker_repo = Arc::new(SqliteIssueBlockerRepo::new(pool.clone()));
     let recovery_event_repo = Arc::new(SqliteRecoveryEventRepo::new(pool.clone()));
     let orchestrator_session_repo = Arc::new(SqliteOrchestratorSessionRepo::new(pool.clone()));
+    let launch_task_repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
+    let agent_catalog = Arc::new(config.agent_catalog());
     let runtime_repo = Arc::new(SqliteRuntimeRepo::new(pool.clone()));
     let runtime_detector = Arc::new(RuntimeDetector::new(Arc::clone(&runtime_repo)));
 
@@ -293,6 +345,8 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         issue_blocker_repo,
         recovery_event_repo,
         orchestrator_session_repo,
+        launch_task_repo,
+        agent_catalog,
         runtime_detector,
         blocker_reconcile_lock: Arc::new(Mutex::new(())),
         engine,
@@ -420,6 +474,19 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
             "/orchestrator-sessions/{id}/checkpoints",
             post(handlers::orchestrator_sessions::create_checkpoint)
                 .get(handlers::orchestrator_sessions::list_checkpoints),
+        )
+        .route(
+            "/launch-tasks",
+            post(handlers::launch_tasks::create_launch_task)
+                .get(handlers::launch_tasks::list_launch_tasks),
+        )
+        .route(
+            "/launch-tasks/{id}",
+            get(handlers::launch_tasks::get_launch_task),
+        )
+        .route(
+            "/launch-tasks/{id}/steps",
+            get(handlers::launch_tasks::list_launch_task_steps),
         )
         .route(
             "/conversations",

@@ -1,4 +1,5 @@
 use crate::id::RunId;
+use crate::launch_task::{LaunchTaskStatus, LaunchTaskStepStatus};
 use crate::orchestrator_session::OrchestratorStatus;
 use crate::run::RunState;
 
@@ -15,6 +16,24 @@ pub enum CoreError {
     InvalidOrchestratorTransition {
         from: OrchestratorStatus,
         to: OrchestratorStatus,
+    },
+
+    /// Launch-task aggregate refused a status transition. Same 409 mapping
+    /// rationale as `InvalidOrchestratorTransition` — kept as its own variant
+    /// so the API layer's error message can name the aggregate.
+    #[error("invalid launch task transition: {from} -> {to}")]
+    InvalidLaunchTaskTransition {
+        from: LaunchTaskStatus,
+        to: LaunchTaskStatus,
+    },
+
+    /// Launch-task step refused a status transition. Distinct from the
+    /// aggregate transition so the operator can tell whether the rejection
+    /// came from the parent or a single step.
+    #[error("invalid launch task step transition: {from} -> {to}")]
+    InvalidLaunchTaskStepTransition {
+        from: LaunchTaskStepStatus,
+        to: LaunchTaskStepStatus,
     },
 
     #[error("run is in terminal state: {0}")]

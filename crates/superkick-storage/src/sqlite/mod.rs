@@ -9,6 +9,7 @@ mod events;
 mod handoffs;
 mod interrupts;
 mod issue_blockers;
+mod launch_tasks;
 mod orchestrator_sessions;
 mod pull_requests;
 mod recovery;
@@ -27,6 +28,7 @@ pub use events::SqliteRunEventRepo;
 pub use handoffs::SqliteHandoffRepo;
 pub use interrupts::SqliteInterruptRepo;
 pub use issue_blockers::SqliteIssueBlockerRepo;
+pub use launch_tasks::SqliteLaunchTaskRepo;
 pub use orchestrator_sessions::SqliteOrchestratorSessionRepo;
 pub use pull_requests::SqlitePullRequestRepo;
 pub use recovery::{

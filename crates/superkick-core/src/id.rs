@@ -47,3 +47,5 @@ define_id!(ConversationId);
 define_id!(TurnId);
 define_id!(TurnEventId);
 define_id!(TakeoverSessionId);
+define_id!(LaunchTaskId);
+define_id!(LaunchTaskStepId);

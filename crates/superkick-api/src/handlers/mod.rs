@@ -6,6 +6,7 @@ pub mod health;
 pub mod interrupts;
 pub mod issues;
 pub mod launch_queue;
+pub mod launch_tasks;
 pub mod orchestrator_sessions;
 pub mod ownership;
 mod queue_common;
