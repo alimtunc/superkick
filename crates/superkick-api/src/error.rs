@@ -103,6 +103,14 @@ impl From<CoreError> for AppError {
                 message: format!("invalid orchestrator session transition: {from} -> {to}"),
                 run: None,
             },
+            CoreError::InvalidLaunchTaskTransition { from, to } => AppError::Conflict {
+                message: format!("invalid launch task transition: {from} -> {to}"),
+                run: None,
+            },
+            CoreError::InvalidLaunchTaskStepTransition { from, to } => AppError::Conflict {
+                message: format!("invalid launch task step transition: {from} -> {to}"),
+                run: None,
+            },
             other => AppError::Internal(other.into()),
         }
     }

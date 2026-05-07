@@ -141,6 +141,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "022_conversations_drop_unique_subject_agent",
             include_str!("../migrations/022_conversations_drop_unique_subject_agent.sql"),
         ),
+        (
+            "023_launch_tasks",
+            include_str!("../migrations/023_launch_tasks.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

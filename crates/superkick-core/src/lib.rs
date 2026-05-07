@@ -13,6 +13,7 @@ pub mod id;
 pub mod interrupt;
 pub mod issue_event;
 pub mod launch_queue;
+pub mod launch_task;
 pub mod linear_context;
 pub mod mcp_policy;
 pub mod orchestrator_session;
@@ -47,15 +48,19 @@ pub use handoff::{
 };
 pub use id::{
     AgentSessionId, ArtifactId, AttentionRequestId, ConversationId, EventId, HandoffId,
-    InterruptId, OrchestratorCheckpointId, OrchestratorSessionId, OwnershipEventId, PullRequestId,
-    RunId, RuntimeId, RuntimeProviderId, SessionLifecycleEventId, StepId, TakeoverSessionId,
-    TranscriptChunkId, TurnEventId, TurnId,
+    InterruptId, LaunchTaskId, LaunchTaskStepId, OrchestratorCheckpointId, OrchestratorSessionId,
+    OwnershipEventId, PullRequestId, RunId, RuntimeId, RuntimeProviderId, SessionLifecycleEventId,
+    StepId, TakeoverSessionId, TranscriptChunkId, TurnEventId, TurnId,
 };
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
 pub use issue_event::{DependencyResolvedPayload, IssueEvent};
 pub use launch_queue::{
     ClassifiedIssue, ClassifiedRun, LaunchQueue, LaunchQueueClassification, OrchestrationInputs,
     QueueIssueBlocker, QueueIssueInput, QueueRunInput, classify_launch_queue,
+};
+pub use launch_task::{
+    LaunchRecipe, LaunchStepKind, LaunchTask, LaunchTaskStatus, LaunchTaskStep,
+    LaunchTaskStepStatus, PlanImplementReviewAgents,
 };
 pub use linear_context::{
     ISSUE_COMMENT_CHAR_LIMIT, ISSUE_COMMENT_MAX_COUNT, ISSUE_DESCRIPTION_CHAR_LIMIT, IssueContext,

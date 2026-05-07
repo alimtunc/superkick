@@ -7,7 +7,8 @@ use chrono::{DateTime, Utc};
 use superkick_core::{
     AgentSession, AgentSessionId, Artifact, ArtifactId, AttentionRequest, AttentionRequestId,
     Conversation, ConversationId, ConversationStatus, ConversationSubject, EventId, Handoff,
-    HandoffId, Interrupt, InterruptId, IssueBlocker, OrchestratorCheckpoint,
+    HandoffId, Interrupt, InterruptId, IssueBlocker, LaunchTask, LaunchTaskId, LaunchTaskStatus,
+    LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus, OrchestratorCheckpoint,
     OrchestratorCheckpointId, OrchestratorSession, OrchestratorSessionId, OrchestratorStatus,
     OwnershipEvent, ProtocolEventEnvelope, PullRequest, Run, RunEvent, RunId, RunStep,
     SessionLifecycleEvent, StepId, TranscriptChunk, Turn, TurnEvent, TurnId, UsageSnapshot,
@@ -444,4 +445,82 @@ pub trait OrchestratorSessionRepo: Send + Sync {
         &self,
         id: OrchestratorCheckpointId,
     ) -> impl Future<Output = Result<Option<OrchestratorCheckpoint>>> + Send;
+}
+
+/// Repository for `LaunchTask` aggregates (SUP-116).
+///
+/// The parent + steps are always inserted in a single transaction so a
+/// half-written task can never appear in `list`. The status updaters call
+/// into the domain transition validators (`LaunchTaskStatus` /
+/// `LaunchTaskStepStatus`) before persisting — invalid transitions raise
+/// `CoreError::InvalidLaunchTask*Transition`, surfaced as 409 by the API.
+pub trait LaunchTaskRepo: Send + Sync {
+    fn insert_with_steps(
+        &self,
+        task: &LaunchTask,
+        steps: &[LaunchTaskStep],
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    fn get(&self, id: LaunchTaskId) -> impl Future<Output = Result<Option<LaunchTask>>> + Send;
+
+    /// Most recent (`created_at` desc) launch task for a Linear issue, or
+    /// `None`. The launcher UI uses this to surface "the current attempt"
+    /// without paging through history.
+    fn get_by_linear_issue(
+        &self,
+        linear_issue_id: &str,
+    ) -> impl Future<Output = Result<Option<LaunchTask>>> + Send;
+
+    /// Combined list with optional filters. `None`/`None` returns every
+    /// task. Filters AND together. Pushes the filter into SQL so the
+    /// indexes on `status` and `linear_issue_id` actually do something.
+    fn list(
+        &self,
+        status: Option<LaunchTaskStatus>,
+        linear_issue_id: Option<&str>,
+    ) -> impl Future<Output = Result<Vec<LaunchTask>>> + Send;
+
+    fn list_steps(
+        &self,
+        task_id: LaunchTaskId,
+    ) -> impl Future<Output = Result<Vec<LaunchTaskStep>>> + Send;
+
+    /// Validate the transition via the domain, then persist the new status
+    /// inside a single transaction with a `WHERE status = <old>` guard.
+    /// A concurrent writer that already moved the row out from under us
+    /// surfaces as an anyhow error containing "concurrent state change", not
+    /// a domain `InvalidLaunchTask*Transition` (the original transition was
+    /// valid against a now-stale snapshot).
+    fn update_task_status(
+        &self,
+        id: LaunchTaskId,
+        new_status: LaunchTaskStatus,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    fn update_step_status(
+        &self,
+        id: LaunchTaskStepId,
+        new_status: LaunchTaskStepStatus,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    /// Append-only link assignment. Each `Some` overwrites the matching
+    /// column; each `None` leaves the existing value alone. There is
+    /// deliberately no way to clear a link — see `LaunchTaskStep::add_links`.
+    fn add_step_links(
+        &self,
+        id: LaunchTaskStepId,
+        run_id: Option<RunId>,
+        conversation_id: Option<ConversationId>,
+        orchestrator_session_id: Option<OrchestratorSessionId>,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    /// Move the parent's `current_step_id` pointer. The supplied `step_id`
+    /// (when `Some`) must already belong to `task_id` — the implementation
+    /// validates ownership before writing so a typo in the execution loop
+    /// cannot cross-link two aggregates.
+    fn set_current_step(
+        &self,
+        task_id: LaunchTaskId,
+        step_id: Option<LaunchTaskStepId>,
+    ) -> impl Future<Output = Result<()>> + Send;
 }
