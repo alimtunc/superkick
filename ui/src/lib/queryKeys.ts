@@ -27,5 +27,12 @@ export const queryKeys = {
 	terminalTakeover: {
 		modes: (runId: string) => ['terminal-takeover', 'modes', runId] as const,
 		active: (runId: string) => ['terminal-takeover', 'active', runId] as const
+	},
+	agents: {
+		all: ['agents'] as const
+	},
+	launchTasks: {
+		forIssue: (issueId: string) => ['issues', issueId, 'launch-tasks'] as const,
+		steps: (taskId: string) => ['launch-tasks', taskId, 'steps'] as const
 	}
 }

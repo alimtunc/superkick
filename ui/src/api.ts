@@ -1,5 +1,6 @@
 import type {
 	ActiveTakeoversResponse,
+	Agent,
 	AgentSession,
 	AttachPayload,
 	AttentionReply,
@@ -9,6 +10,7 @@ import type {
 	ConversationSummary,
 	CreateAttentionRequest,
 	CreateConversationRequest,
+	CreateLaunchTaskRequest,
 	CreateRunRequest,
 	CreateTurnRequest,
 	CreateTurnResponse,
@@ -19,6 +21,9 @@ import type {
 	IssueDetailResponse,
 	IssueListResponse,
 	LaunchQueueResponse,
+	LaunchTask,
+	LaunchTaskStep,
+	LaunchTaskWithSteps,
 	OpenTakeoverRequest,
 	OpenedTakeover,
 	PullRequest,
@@ -284,6 +289,44 @@ export async function prepareSessionAttach(runId: string, sessionId: string): Pr
 		method: 'POST'
 	})
 	if (!res.ok) await throwGenericApiError(res, 'prepare attach failed')
+	return res.json()
+}
+
+// ── Agents catalog (SUP-117) ─────────────────────────────────────────
+
+/**
+ * Project agent catalog projection. The launcher reads this to populate
+ * per-step pickers; the catalog rarely changes so callers can use a long
+ * staleTime safely.
+ */
+export async function listAgents(): Promise<Agent[]> {
+	const res = await fetch(`${BASE}/agents`)
+	if (!res.ok) await throwGenericApiError(res, 'list agents failed')
+	const body = (await res.json()) as { agents: Agent[] }
+	return body.agents
+}
+
+// ── Launch Tasks (SUP-116/117) ───────────────────────────────────────
+
+export async function createLaunchTask(req: CreateLaunchTaskRequest): Promise<LaunchTaskWithSteps> {
+	const res = await fetch(`${BASE}/launch-tasks`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(req)
+	})
+	if (!res.ok) await throwGenericApiError(res, 'create launch task failed')
+	return res.json()
+}
+
+export async function listLaunchTasksForIssue(linearIssueId: string): Promise<LaunchTask[]> {
+	const res = await fetch(`${BASE}/launch-tasks?linear_issue_id=${encodeURIComponent(linearIssueId)}`)
+	if (!res.ok) await throwGenericApiError(res, 'list launch tasks failed')
+	return res.json()
+}
+
+export async function fetchLaunchTaskSteps(taskId: string): Promise<LaunchTaskStep[]> {
+	const res = await fetch(`${BASE}/launch-tasks/${encodeURIComponent(taskId)}/steps`)
+	if (!res.ok) await throwGenericApiError(res, 'list launch task steps failed')
 	return res.json()
 }
 

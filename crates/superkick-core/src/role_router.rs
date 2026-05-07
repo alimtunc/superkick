@@ -89,6 +89,12 @@ impl AgentCatalog {
         self.roles.keys().map(String::as_str)
     }
 
+    /// Iterate every role definition in the catalog. Order is unspecified
+    /// (HashMap-backed); callers that need a stable order must sort.
+    pub fn definitions(&self) -> impl Iterator<Item = &AgentDefinition> {
+        self.roles.values()
+    }
+
     #[must_use]
     pub fn len(&self) -> usize {
         self.roles.len()

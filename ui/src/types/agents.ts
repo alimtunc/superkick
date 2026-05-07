@@ -23,6 +23,19 @@ export interface AgentSession {
 	handoff_id: string | null
 }
 
+/**
+ * SUP-117 — projection of `superkick_core::AgentDefinition` returned by
+ * `GET /api/agents`. Hand-maintained mirror; the launcher UI uses it to
+ * populate per-step pickers without leaking internal fields like prompts or
+ * MCP policy.
+ */
+export interface Agent {
+	name: string
+	provider: AgentProvider
+	role: string | null
+	model: string | null
+}
+
 export interface AttachPayload {
 	attach_kind: 'recovery_shell' | 'workspace_attach'
 	title: string
