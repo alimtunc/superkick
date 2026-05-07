@@ -6,7 +6,10 @@ import {
 	fetchLaunchQueue,
 	fetchRun,
 	fetchRuns,
-	fetchRuntimes
+	fetchRuntimes,
+	fetchLaunchTaskSteps,
+	listAgents,
+	listLaunchTasksForIssue
 } from '@/api'
 import { queryOptions, skipToken } from '@tanstack/react-query'
 
@@ -65,4 +68,28 @@ export const runtimesQuery = () =>
 		queryKey: queryKeys.runtimes.list,
 		queryFn: fetchRuntimes,
 		staleTime: 10_000
+	})
+
+export const agentsQuery = () =>
+	queryOptions({
+		queryKey: queryKeys.agents.all,
+		queryFn: listAgents,
+		// Catalog rarely changes mid-session — refetch on focus/mount only.
+		staleTime: 5 * 60_000
+	})
+
+export const launchTasksForIssueQuery = (linearIssueId: string | null) =>
+	queryOptions({
+		queryKey: linearIssueId
+			? queryKeys.launchTasks.forIssue(linearIssueId)
+			: ['issues', 'pending', 'launch-tasks'],
+		queryFn: linearIssueId ? () => listLaunchTasksForIssue(linearIssueId) : skipToken,
+		staleTime: 5_000
+	})
+
+export const launchTaskStepsQuery = (taskId: string | null) =>
+	queryOptions({
+		queryKey: taskId ? queryKeys.launchTasks.steps(taskId) : ['launch-tasks', 'pending', 'steps'],
+		queryFn: taskId ? () => fetchLaunchTaskSteps(taskId) : skipToken,
+		staleTime: 3_000
 	})

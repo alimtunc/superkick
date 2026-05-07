@@ -73,6 +73,18 @@ pub fn orchestrator_session_test_router(repo: Arc<SqliteOrchestratorSessionRepo>
         .with_state(repo)
 }
 
+/// Test-only router builder for the SUP-117 `GET /agents` route. Wires the
+/// single endpoint against an `AgentsState` built directly from the supplied
+/// catalog so integration tests don't have to materialise the full
+/// `AppState`.
+#[cfg(feature = "test-support")]
+pub fn agents_test_router(catalog: Arc<AgentCatalog>) -> Router {
+    let state = handlers::agents::AgentsState { catalog };
+    Router::new()
+        .route("/agents", get(handlers::agents::list_agents))
+        .with_state(state)
+}
+
 /// Test-only router builder for the SUP-116 launch-task routes. Wires the
 /// four `/launch-tasks` endpoints against a freshly-built `LaunchTaskState`
 /// so integration tests don't have to materialise the full `AppState`.
@@ -455,6 +467,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
             "/runs/{run_id}/sessions/{session_id}/ownership/release",
             post(handlers::ownership::release),
         )
+        .route("/agents", get(handlers::agents::list_agents))
         .route("/runtimes", get(handlers::runtimes::list_runtimes))
         .route(
             "/runtimes/refresh",
