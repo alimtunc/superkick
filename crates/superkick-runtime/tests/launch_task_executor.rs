@@ -90,11 +90,8 @@ async fn drain_events(
     rx: &mut tokio::sync::broadcast::Receiver<LaunchTaskEvent>,
 ) -> Vec<LaunchTaskEvent> {
     let mut out = Vec::new();
-    loop {
-        match tokio::time::timeout(Duration::from_millis(50), rx.recv()).await {
-            Ok(Ok(event)) => out.push(event),
-            Ok(Err(_)) | Err(_) => break,
-        }
+    while let Ok(Ok(event)) = tokio::time::timeout(Duration::from_millis(50), rx.recv()).await {
+        out.push(event);
     }
     out
 }
