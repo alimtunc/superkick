@@ -12,9 +12,10 @@ use superkick_config::{IssueTrigger, LaunchProfileConfig, OrchestrationConfig};
 use superkick_core::{AgentCatalog, RunId};
 use superkick_integrations::linear::LinearClient;
 use superkick_runtime::{
-    AttentionService, ConversationAdapters, ConversationRunner, InterruptService, OwnershipService,
+    AttentionService, ConversationAdapters, ConversationRunner, InterruptService,
+    LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry, OwnershipService,
     PtySessionRegistry, PublishingRunEventRepo, RepoCache, RuntimeDetector, SessionBus, StepEngine,
-    StepEngineDeps, TerminalTakeoverService, TurnEventBus, WorkspaceEventBus,
+    StepEngineDeps, StubStepRunner, TerminalTakeoverService, TurnEventBus, WorkspaceEventBus,
     boot_refresh as runtime_boot_refresh, spawn_heartbeat_listener,
 };
 use superkick_storage::{
@@ -85,15 +86,36 @@ pub fn agents_test_router(catalog: Arc<AgentCatalog>) -> Router {
         .with_state(state)
 }
 
-/// Test-only router builder for the SUP-116 launch-task routes. Wires the
-/// four `/launch-tasks` endpoints against a freshly-built `LaunchTaskState`
-/// so integration tests don't have to materialise the full `AppState`.
+/// Test-only router builder for the SUP-116 + SUP-118 launch-task routes.
+/// Wires the read/create endpoints plus the SUP-118 cancel + SSE endpoints
+/// against a freshly-built `LaunchTaskState` so integration tests don't have
+/// to materialise the full `AppState`. The bus, registry, and executor are
+/// constructed in-memory with the production stub runner — sufficient for
+/// HTTP-shape tests; behavioural tests of the executor live in
+/// `superkick-runtime/tests`.
 #[cfg(feature = "test-support")]
 pub fn launch_task_test_router(
     repo: Arc<SqliteLaunchTaskRepo>,
     catalog: Arc<AgentCatalog>,
 ) -> Router {
-    let state = handlers::launch_tasks::LaunchTaskState { repo, catalog };
+    let bus = LaunchTaskEventBus::new();
+    let registry = Arc::new(LaunchTaskRegistry::new());
+    let executor = LaunchTaskExecutor::new(
+        Arc::clone(&repo),
+        Arc::clone(&bus),
+        Arc::clone(&registry),
+        Arc::new(StubStepRunner::new()),
+    );
+    let state = handlers::launch_tasks::LaunchTaskState {
+        repo,
+        catalog,
+        bus,
+        registry,
+        executor,
+        // Tests assert against synchronous create-time state; the executor
+        // itself is covered at the runtime layer.
+        auto_trigger_executor: false,
+    };
     Router::new()
         .route(
             "/launch-tasks",
@@ -107,6 +129,14 @@ pub fn launch_task_test_router(
         .route(
             "/launch-tasks/{id}/steps",
             get(handlers::launch_tasks::list_launch_task_steps),
+        )
+        .route(
+            "/launch-tasks/{id}/cancel",
+            post(handlers::launch_tasks::cancel_launch_task),
+        )
+        .route(
+            "/launch-tasks/events",
+            get(handlers::launch_tasks::launch_task_events_sse),
         )
         .with_state(state)
 }
@@ -160,6 +190,15 @@ pub(crate) struct AppState {
     /// create from the API today; the execution loop in SUP-118 will mutate
     /// step state through this same repo.
     pub launch_task_repo: Arc<SqliteLaunchTaskRepo>,
+    /// SUP-118 — process-scope broadcast bus for launch-task transitions.
+    /// SSE consumers subscribe through `/launch-tasks/events`.
+    pub launch_task_event_bus: Arc<LaunchTaskEventBus>,
+    /// SUP-118 — registry of in-flight executor cancellation tokens.
+    /// Used by `POST /launch-tasks/{id}/cancel` to signal the detached task.
+    pub launch_task_registry: Arc<LaunchTaskRegistry>,
+    /// SUP-118 — production launch-task executor wired with the V1 stub
+    /// step runner (real `Orchestrator::spawn` integration is a follow-up).
+    pub launch_task_executor: Arc<handlers::launch_tasks::ProdLaunchTaskExecutor>,
     /// Project agent catalog used at create time to validate `agent_name`
     /// references. Built once from `SuperkickConfig` at boot — mutating the
     /// catalog mid-flight is out of scope for SUP-116.
@@ -243,6 +282,14 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let recovery_event_repo = Arc::new(SqliteRecoveryEventRepo::new(pool.clone()));
     let orchestrator_session_repo = Arc::new(SqliteOrchestratorSessionRepo::new(pool.clone()));
     let launch_task_repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
+    let launch_task_event_bus = LaunchTaskEventBus::new();
+    let launch_task_registry = Arc::new(LaunchTaskRegistry::new());
+    let launch_task_executor = LaunchTaskExecutor::new(
+        Arc::clone(&launch_task_repo),
+        Arc::clone(&launch_task_event_bus),
+        Arc::clone(&launch_task_registry),
+        Arc::new(StubStepRunner::new()),
+    );
     let agent_catalog = Arc::new(config.agent_catalog());
     let runtime_repo = Arc::new(SqliteRuntimeRepo::new(pool.clone()));
     let runtime_detector = Arc::new(RuntimeDetector::new(Arc::clone(&runtime_repo)));
@@ -358,6 +405,9 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         recovery_event_repo,
         orchestrator_session_repo,
         launch_task_repo,
+        launch_task_event_bus,
+        launch_task_registry,
+        launch_task_executor,
         agent_catalog,
         runtime_detector,
         blocker_reconcile_lock: Arc::new(Mutex::new(())),
@@ -494,12 +544,20 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
                 .get(handlers::launch_tasks::list_launch_tasks),
         )
         .route(
+            "/launch-tasks/events",
+            get(handlers::launch_tasks::launch_task_events_sse),
+        )
+        .route(
             "/launch-tasks/{id}",
             get(handlers::launch_tasks::get_launch_task),
         )
         .route(
             "/launch-tasks/{id}/steps",
             get(handlers::launch_tasks::list_launch_task_steps),
+        )
+        .route(
+            "/launch-tasks/{id}/cancel",
+            post(handlers::launch_tasks::cancel_launch_task),
         )
         .route(
             "/conversations",
