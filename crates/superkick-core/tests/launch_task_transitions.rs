@@ -112,6 +112,77 @@ fn task_needs_human_can_resume_into_running() {
     assert_eq!(status, LaunchTaskStatus::Running);
 }
 
+// ── SUP-120 retry validation ──────────────────────────────────────────
+
+#[test]
+fn can_retry_accepts_needs_human() {
+    let (mut task, _) =
+        LaunchTask::new_with_v1_recipe("SUP-120", agents(), &catalog()).expect("task");
+    task.transition_to(LaunchTaskStatus::Running).unwrap();
+    task.transition_to(LaunchTaskStatus::NeedsHuman).unwrap();
+    task.can_retry().expect("NeedsHuman task can retry");
+}
+
+#[test]
+fn can_retry_rejects_pending_with_invalid_transition() {
+    let (task, _) = LaunchTask::new_with_v1_recipe("SUP-120", agents(), &catalog()).expect("task");
+    let err = task.can_retry().unwrap_err();
+    assert!(matches!(
+        err,
+        CoreError::InvalidLaunchTaskTransition {
+            from: LaunchTaskStatus::Pending,
+            to: LaunchTaskStatus::Running,
+        }
+    ));
+}
+
+#[test]
+fn can_retry_rejects_running() {
+    let (mut task, _) =
+        LaunchTask::new_with_v1_recipe("SUP-120", agents(), &catalog()).expect("task");
+    task.transition_to(LaunchTaskStatus::Running).unwrap();
+    let err = task.can_retry().unwrap_err();
+    assert!(matches!(
+        err,
+        CoreError::InvalidLaunchTaskTransition {
+            from: LaunchTaskStatus::Running,
+            to: LaunchTaskStatus::Running,
+        }
+    ));
+}
+
+#[test]
+fn can_retry_rejects_terminal_states() {
+    for terminal in [
+        LaunchTaskStatus::Completed,
+        LaunchTaskStatus::Failed,
+        LaunchTaskStatus::Cancelled,
+    ] {
+        let (mut task, _) =
+            LaunchTask::new_with_v1_recipe("SUP-120", agents(), &catalog()).expect("task");
+        // Force the task into the terminal state by reaching it through valid
+        // edges so `task.status` matches `terminal` for the assertion.
+        match terminal {
+            LaunchTaskStatus::Completed => {
+                task.transition_to(LaunchTaskStatus::Running).unwrap();
+                task.transition_to(LaunchTaskStatus::Completed).unwrap();
+            }
+            LaunchTaskStatus::Failed => {
+                task.transition_to(LaunchTaskStatus::Failed).unwrap();
+            }
+            LaunchTaskStatus::Cancelled => {
+                task.transition_to(LaunchTaskStatus::Cancelled).unwrap();
+            }
+            _ => unreachable!(),
+        }
+        let err = task.can_retry().unwrap_err();
+        assert!(
+            matches!(err, CoreError::InvalidLaunchTaskTransition { from, to: LaunchTaskStatus::Running } if from == terminal),
+            "expected reject from {terminal:?}, got {err:?}"
+        );
+    }
+}
+
 // ── Step transitions ───────────────────────────────────────────────────
 
 #[test]

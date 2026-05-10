@@ -87,3 +87,19 @@ export interface CreateLaunchTaskRequest {
 	coder_agent: string
 	reviewer_agent: string
 }
+
+// SUP-120 — operator action responses. Mirror the Rust structs exactly; only
+// fields the UI consumes are typed.
+
+export interface CancelLaunchTaskResponse {
+	task_id: string
+	status: LaunchTaskStatus
+	signalled: boolean
+}
+
+export interface RetryLaunchTaskResponse {
+	task_id: string
+	status: LaunchTaskStatus
+	step_id: string
+	new_linked_run_id: string | null
+}

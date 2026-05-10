@@ -19,11 +19,12 @@ use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use superkick_api::launch_task_test_router;
 use superkick_core::{
-    AgentCatalog, AgentProvider, CoreAgentDefinition, CoreError, LaunchTaskStatus,
+    AgentCatalog, AgentProvider, CoreAgentDefinition, CoreError, LaunchTaskId, LaunchTaskStatus,
     LaunchTaskStepStatus, LinearContextMode, ResolvedMcpPolicy, ResolvedToolPolicy,
 };
 use superkick_storage::SqliteLaunchTaskRepo;
 use superkick_storage::connect;
+use superkick_storage::repo::LaunchTaskRepo;
 use tower::ServiceExt;
 
 fn agent(name: &str, provider: AgentProvider, model: Option<&str>) -> CoreAgentDefinition {
@@ -63,6 +64,32 @@ async fn router() -> axum::Router {
     let pool = connect("sqlite::memory:").await.expect("pool");
     let repo = Arc::new(SqliteLaunchTaskRepo::new(pool));
     launch_task_test_router(repo, Arc::new(catalog()))
+}
+
+/// Variant of `router()` that returns the repo handle alongside the router so
+/// retry tests can seed state directly (move a task into `NeedsHuman` etc.)
+/// without a real executor loop.
+async fn router_with_repo() -> (axum::Router, Arc<SqliteLaunchTaskRepo>) {
+    let pool = connect("sqlite::memory:").await.expect("pool");
+    let repo = Arc::new(SqliteLaunchTaskRepo::new(pool));
+    let router = launch_task_test_router(Arc::clone(&repo), Arc::new(catalog()));
+    (router, repo)
+}
+
+async fn post_no_body(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(uri)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("send");
+    let status = response.status();
+    (status, read_json(response.into_body()).await)
 }
 
 async fn read_json(body: Body) -> Value {
@@ -243,6 +270,99 @@ async fn list_filters_by_linear_issue_id_and_status() {
     // Combined filter that does not match returns empty.
     let (_, body) = get_json(&app, "/launch-tasks?status=running&linear_issue_id=SUP-1").await;
     assert!(body.as_array().unwrap().is_empty());
+}
+
+// ── SUP-120 retry endpoint ────────────────────────────────────────────
+
+/// Helper — POST a fresh task and seed it into `NeedsHuman` with a single
+/// `NeedsHuman` step pinned as `current_step_id`. The task ends up in the
+/// shape the operator-facing retry button targets.
+async fn seed_needs_human_task(app: &axum::Router, repo: &SqliteLaunchTaskRepo) -> LaunchTaskId {
+    let (_, created) = create_request(
+        app,
+        json!({
+            "linear_issue_id": "SUP-120",
+            "planner_agent": "planner",
+            "coder_agent": "coder",
+            "reviewer_agent": "reviewer"
+        }),
+    )
+    .await;
+    let task_id_str = created["task"]["id"].as_str().unwrap();
+    let task_id = LaunchTaskId(uuid::Uuid::parse_str(task_id_str).unwrap());
+    let steps = repo.list_steps(task_id).await.unwrap();
+    let plan_step = steps
+        .iter()
+        .find(|s| s.sequence == 1)
+        .expect("plan step exists");
+    repo.update_task_status(task_id, LaunchTaskStatus::Running)
+        .await
+        .unwrap();
+    repo.update_step_status(plan_step.id, LaunchTaskStepStatus::Running)
+        .await
+        .unwrap();
+    repo.update_step_status(plan_step.id, LaunchTaskStepStatus::NeedsHuman)
+        .await
+        .unwrap();
+    repo.update_task_status(task_id, LaunchTaskStatus::NeedsHuman)
+        .await
+        .unwrap();
+    repo.set_current_step(task_id, Some(plan_step.id))
+        .await
+        .unwrap();
+    task_id
+}
+
+#[tokio::test]
+async fn retry_returns_200_when_task_is_needs_human() {
+    let (app, repo) = router_with_repo().await;
+    let task_id = seed_needs_human_task(&app, &repo).await;
+
+    let (status, body) = post_no_body(&app, &format!("/launch-tasks/{}/retry", task_id.0)).await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["task_id"], task_id.0.to_string());
+    // The router uses `StubStepRunner`, which always Completes the step. The
+    // retry drives the rest of the recipe to Completed.
+    assert_eq!(body["status"], "completed", "body: {body}");
+    assert!(body["step_id"].is_string());
+}
+
+#[tokio::test]
+async fn retry_returns_409_when_task_is_not_needs_human() {
+    let (app, repo) = router_with_repo().await;
+    let (_, created) = create_request(
+        &app,
+        json!({
+            "linear_issue_id": "SUP-120",
+            "planner_agent": "planner",
+            "coder_agent": "coder",
+            "reviewer_agent": "reviewer"
+        }),
+    )
+    .await;
+    let task_id =
+        LaunchTaskId(uuid::Uuid::parse_str(created["task"]["id"].as_str().unwrap()).unwrap());
+    repo.update_task_status(task_id, LaunchTaskStatus::Failed)
+        .await
+        .unwrap();
+
+    let (status, body) = post_no_body(&app, &format!("/launch-tasks/{}/retry", task_id.0)).await;
+    assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
+    assert!(
+        body["error"]
+            .as_str()
+            .unwrap()
+            .contains("invalid launch task transition"),
+        "expected 409 message, got {body}"
+    );
+}
+
+#[tokio::test]
+async fn retry_on_unknown_task_returns_404() {
+    let (app, _) = router_with_repo().await;
+    let unknown = uuid::Uuid::new_v4();
+    let (status, _) = post_no_body(&app, &format!("/launch-tasks/{unknown}/retry")).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 /// Verifies the `CoreError → AppError` mapping for the two new variants. No

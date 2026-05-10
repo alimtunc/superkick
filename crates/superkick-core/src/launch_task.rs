@@ -362,6 +362,21 @@ impl LaunchTask {
         self.current_step_id = step_id;
         self.updated_at = Utc::now();
     }
+
+    /// SUP-120 — retry of a `NeedsHuman` task is only allowed from
+    /// `NeedsHuman`. The runtime calls this before issuing any writes so
+    /// that the API surfaces a 409 with the same `InvalidLaunchTaskTransition`
+    /// shape the rest of the state machine uses.
+    pub fn can_retry(&self) -> Result<(), CoreError> {
+        if matches!(self.status, LaunchTaskStatus::NeedsHuman) {
+            Ok(())
+        } else {
+            Err(CoreError::InvalidLaunchTaskTransition {
+                from: self.status,
+                to: LaunchTaskStatus::Running,
+            })
+        }
+    }
 }
 
 fn build_step(

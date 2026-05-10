@@ -5,6 +5,7 @@ import type {
 	AttachPayload,
 	AttentionReply,
 	AttentionRequest,
+	CancelLaunchTaskResponse,
 	Conversation,
 	ConversationDetail,
 	ConversationSummary,
@@ -27,6 +28,7 @@ import type {
 	OpenTakeoverRequest,
 	OpenedTakeover,
 	PullRequest,
+	RetryLaunchTaskResponse,
 	Run,
 	RunStep,
 	RuntimesResponse,
@@ -327,6 +329,24 @@ export async function listLaunchTasksForIssue(linearIssueId: string): Promise<La
 export async function fetchLaunchTaskSteps(taskId: string): Promise<LaunchTaskStep[]> {
 	const res = await fetch(`${BASE}/launch-tasks/${encodeURIComponent(taskId)}/steps`)
 	if (!res.ok) await throwGenericApiError(res, 'list launch task steps failed')
+	return res.json()
+}
+
+// SUP-120 — operator-facing actions on a running launch task.
+
+export async function cancelLaunchTask(taskId: string): Promise<CancelLaunchTaskResponse> {
+	const res = await fetch(`${BASE}/launch-tasks/${encodeURIComponent(taskId)}/cancel`, {
+		method: 'POST'
+	})
+	if (!res.ok) await throwGenericApiError(res, 'cancel launch task failed')
+	return res.json()
+}
+
+export async function retryLaunchTask(taskId: string): Promise<RetryLaunchTaskResponse> {
+	const res = await fetch(`${BASE}/launch-tasks/${encodeURIComponent(taskId)}/retry`, {
+		method: 'POST'
+	})
+	if (!res.ok) await throwGenericApiError(res, 'retry launch task failed')
 	return res.json()
 }
 

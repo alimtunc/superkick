@@ -3,7 +3,7 @@ use axum::response::{IntoResponse, Json};
 
 use superkick_core::{AgentProvider, CoreError};
 use superkick_integrations::linear::LinearError;
-use superkick_runtime::ConversationRunnerError;
+use superkick_runtime::{ConversationRunnerError, RetryError};
 
 #[derive(Debug)]
 pub enum AppError {
@@ -53,6 +53,16 @@ impl From<LinearError> for AppError {
             AppError::ServiceUnavailable("Linear API unavailable")
         } else {
             AppError::Internal(anyhow::Error::from(err))
+        }
+    }
+}
+
+impl From<RetryError> for AppError {
+    fn from(err: RetryError) -> Self {
+        match err {
+            RetryError::NotFound(_) => AppError::NotFound("launch task not found"),
+            RetryError::Core(e) => AppError::from(e),
+            RetryError::Other(e) => AppError::Internal(e),
         }
     }
 }

@@ -289,6 +289,85 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         tx.commit().await?;
         Ok(())
     }
+
+    async fn begin_retry(&self, task_id: LaunchTaskId, step_id: LaunchTaskStepId) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
+        let step_row =
+            sqlx::query_as::<_, LaunchTaskStepRow>("SELECT * FROM launch_task_steps WHERE id = ?1")
+                .bind(step_id.0.to_string())
+                .fetch_optional(&mut *tx)
+                .await?
+                .ok_or_else(|| anyhow!("launch_task_step {} not found", step_id.0))?;
+        let mut step = step_row.into_domain()?;
+        if step.launch_task_id != task_id {
+            return Err(anyhow!(
+                "launch_task_step {} does not belong to launch_task {}",
+                step_id.0,
+                task_id.0
+            ));
+        }
+        let old_step_status = serialize_enum(&step.status)?;
+        step.transition_to(LaunchTaskStepStatus::Running)
+            .with_context(|| format!("launch_task_step {} (begin_retry)", step_id.0))?;
+
+        let task_row =
+            sqlx::query_as::<_, LaunchTaskRow>("SELECT * FROM launch_tasks WHERE id = ?1")
+                .bind(task_id.0.to_string())
+                .fetch_optional(&mut *tx)
+                .await?
+                .ok_or_else(|| anyhow!("launch_task {} not found", task_id.0))?;
+        let mut task = task_row.into_domain()?;
+        let old_task_status = serialize_enum(&task.status)?;
+        task.transition_to(LaunchTaskStatus::Running)
+            .with_context(|| format!("launch_task {} (begin_retry)", task_id.0))?;
+
+        let step_result = sqlx::query(
+            "UPDATE launch_task_steps SET status = ?1, updated_at = ?2 \
+             WHERE id = ?3 AND status = ?4",
+        )
+        .bind(serialize_enum(&step.status)?)
+        .bind(step.updated_at.to_rfc3339())
+        .bind(step_id.0.to_string())
+        .bind(&old_step_status)
+        .execute(&mut *tx)
+        .await?;
+        if step_result.rows_affected() == 0 {
+            return Err(anyhow!(
+                "launch_task_step {} concurrent state change (no longer at {})",
+                step_id.0,
+                old_step_status
+            ));
+        }
+
+        let task_result = sqlx::query(
+            "UPDATE launch_tasks SET status = ?1, updated_at = ?2 \
+             WHERE id = ?3 AND status = ?4",
+        )
+        .bind(serialize_enum(&task.status)?)
+        .bind(task.updated_at.to_rfc3339())
+        .bind(task_id.0.to_string())
+        .bind(&old_task_status)
+        .execute(&mut *tx)
+        .await?;
+        if task_result.rows_affected() == 0 {
+            return Err(anyhow!(
+                "launch_task {} concurrent state change (no longer at {})",
+                task_id.0,
+                old_task_status
+            ));
+        }
+
+        sqlx::query("UPDATE launch_tasks SET current_step_id = ?1, updated_at = ?2 WHERE id = ?3")
+            .bind(step_id.0.to_string())
+            .bind(chrono::Utc::now().to_rfc3339())
+            .bind(task_id.0.to_string())
+            .execute(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
+        Ok(())
+    }
 }
 
 #[derive(sqlx::FromRow)]

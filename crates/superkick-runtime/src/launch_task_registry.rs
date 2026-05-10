@@ -22,6 +22,22 @@ pub struct LaunchTaskRegistry {
     inner: Mutex<HashMap<LaunchTaskId, CancellationToken>>,
 }
 
+pub enum CancelDecision<'a> {
+    Signalled,
+    Reserved(ReservedSlot<'a>),
+}
+
+pub struct ReservedSlot<'a> {
+    registry: &'a LaunchTaskRegistry,
+    task_id: LaunchTaskId,
+}
+
+impl Drop for ReservedSlot<'_> {
+    fn drop(&mut self) {
+        self.registry.unregister(self.task_id);
+    }
+}
+
 impl LaunchTaskRegistry {
     pub fn new() -> Self {
         Self::default()
@@ -37,6 +53,46 @@ impl LaunchTaskRegistry {
         token: CancellationToken,
     ) -> Option<CancellationToken> {
         self.lock().insert(task_id, token)
+    }
+
+    /// Insert-if-absent: on conflict the new token is NOT stored, so the
+    /// existing executor remains the one a subsequent `cancel` signals.
+    pub fn try_register(
+        &self,
+        task_id: LaunchTaskId,
+        token: CancellationToken,
+    ) -> Result<(), CancellationToken> {
+        use std::collections::hash_map::Entry;
+        match self.lock().entry(task_id) {
+            Entry::Occupied(occ) => Err(occ.get().clone()),
+            Entry::Vacant(vac) => {
+                vac.insert(token);
+                Ok(())
+            }
+        }
+    }
+
+    /// Signal a live executor, or reserve the slot with a pre-cancelled
+    /// sentinel so concurrent `try_register` calls fail until the returned
+    /// guard drops.
+    pub fn cancel_or_reserve(&self, task_id: LaunchTaskId) -> CancelDecision<'_> {
+        use std::collections::hash_map::Entry;
+        let mut guard = self.lock();
+        match guard.entry(task_id) {
+            Entry::Occupied(occ) => {
+                occ.get().cancel();
+                CancelDecision::Signalled
+            }
+            Entry::Vacant(vac) => {
+                let sentinel = CancellationToken::new();
+                sentinel.cancel();
+                vac.insert(sentinel);
+                CancelDecision::Reserved(ReservedSlot {
+                    registry: self,
+                    task_id,
+                })
+            }
+        }
     }
 
     /// Cancel the active execution if any. Returns `true` if a token was
@@ -102,5 +158,61 @@ mod tests {
         reg.register(id, CancellationToken::new());
         reg.unregister(id);
         assert!(!reg.contains(id));
+    }
+
+    #[test]
+    fn try_register_rejects_when_occupied_without_overwriting() {
+        let reg = LaunchTaskRegistry::new();
+        let id = LaunchTaskId::new();
+        let original = CancellationToken::new();
+        reg.try_register(id, original.clone()).expect("first wins");
+
+        let intruder = CancellationToken::new();
+        let err = reg
+            .try_register(id, intruder.clone())
+            .expect_err("second registration must fail");
+        // The returned token is the pre-existing one, and `intruder` was NOT
+        // stored — cancelling via the registry signals `original`, not the
+        // discarded `intruder`.
+        assert!(err.is_cancelled() == original.is_cancelled());
+        assert!(reg.cancel(id));
+        assert!(original.is_cancelled());
+        assert!(!intruder.is_cancelled());
+    }
+
+    #[test]
+    fn cancel_or_reserve_signals_when_live() {
+        let reg = LaunchTaskRegistry::new();
+        let id = LaunchTaskId::new();
+        let token = CancellationToken::new();
+        reg.try_register(id, token.clone()).unwrap();
+        assert!(matches!(
+            reg.cancel_or_reserve(id),
+            CancelDecision::Signalled
+        ));
+        assert!(token.is_cancelled());
+    }
+
+    #[test]
+    fn cancel_or_reserve_blocks_concurrent_register() {
+        let reg = LaunchTaskRegistry::new();
+        let id = LaunchTaskId::new();
+        let CancelDecision::Reserved(_guard) = reg.cancel_or_reserve(id) else {
+            panic!("expected Reserved on empty registry");
+        };
+        // While the guard is held, no executor can claim the slot.
+        let blocked = reg.try_register(id, CancellationToken::new());
+        assert!(blocked.is_err());
+    }
+
+    #[test]
+    fn cancel_or_reserve_releases_slot_on_drop() {
+        let reg = LaunchTaskRegistry::new();
+        let id = LaunchTaskId::new();
+        {
+            let _guard = reg.cancel_or_reserve(id);
+        }
+        // Guard dropped — slot is free again.
+        assert!(reg.try_register(id, CancellationToken::new()).is_ok());
     }
 }

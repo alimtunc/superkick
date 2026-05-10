@@ -30,13 +30,13 @@ use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 use superkick_core::{
-    ConversationId, LaunchTask, LaunchTaskId, LaunchTaskStatus, LaunchTaskStep,
-    LaunchTaskStepStatus, OrchestratorSessionId, RunId,
+    ConversationId, CoreError, LaunchTask, LaunchTaskId, LaunchTaskStatus, LaunchTaskStep,
+    LaunchTaskStepId, LaunchTaskStepStatus, OrchestratorSessionId, RunId,
 };
 use superkick_storage::repo::LaunchTaskRepo;
 
 use crate::launch_task_event_bus::{LaunchTaskEvent, LaunchTaskEventBus};
-use crate::launch_task_registry::LaunchTaskRegistry;
+use crate::launch_task_registry::{CancelDecision, LaunchTaskRegistry};
 
 /// Substrate links recorded on a step once the runner has spawned (or
 /// attached to) the underlying execution. Each `Some` is appended via
@@ -46,6 +46,43 @@ pub struct StepLinks {
     pub run_id: Option<RunId>,
     pub conversation_id: Option<ConversationId>,
     pub orchestrator_session_id: Option<OrchestratorSessionId>,
+}
+
+/// API layer maps `Core` → 409, `NotFound` → 404, `Other` → 500.
+#[derive(Debug, thiserror::Error)]
+pub enum RetryError {
+    #[error("launch task {0} not found")]
+    NotFound(LaunchTaskId),
+    #[error(transparent)]
+    Core(#[from] CoreError),
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
+}
+
+#[derive(Debug)]
+pub struct CancelOutcome {
+    pub status: LaunchTaskStatus,
+    /// `true` when a live executor was signalled; `false` for orphan / terminal.
+    pub signalled: bool,
+}
+
+/// SUP-120 — observable result of `retry_needs_human_step`. The HTTP layer
+/// projects this onto a JSON response so the operator sees the new run/conv
+/// link without having to refetch the step list.
+#[derive(Debug)]
+pub struct RetryOutcome {
+    /// Status of the launch task after the retry has finished driving the
+    /// recipe — `Running` (a later step is still in flight is impossible
+    /// because we await each step), `Completed`, `NeedsHuman`, `Failed`, or
+    /// `Cancelled`.
+    pub task_status: LaunchTaskStatus,
+    /// The step the operator asked us to retry (whatever was in
+    /// `current_step_id` when the retry began).
+    pub retried_step_id: LaunchTaskStepId,
+    /// New run id linked to the retried step by the runner, when one was
+    /// produced. The V1 `StubStepRunner` never produces a link, so this is
+    /// always `None` until the real `Orchestrator::spawn` integration lands.
+    pub new_linked_run_id: Option<RunId>,
 }
 
 /// Outcome of a single step from the runner's point of view. The executor
@@ -186,27 +223,36 @@ where
         })
     }
 
-    /// Cancel a launch task whose execution does not live in this process —
-    /// either an orphan after a server restart, or a task that was never
-    /// auto-started. Persists the `Cancelled` status and publishes the
-    /// matching `TaskStatusChanged` event through the same code path the
-    /// in-process loop uses, so SSE consumers see the transition.
-    ///
-    /// Returns:
-    /// - `Ok(None)` if the task does not exist.
-    /// - `Ok(Some(status))` with the row's actual current status. For tasks
-    ///   that were already terminal, no row write or event is emitted and
-    ///   the existing status is returned (idempotent). For non-terminal
-    ///   tasks, the status is `Cancelled` after a successful write.
-    pub async fn cancel_orphan(&self, task_id: LaunchTaskId) -> Result<Option<LaunchTaskStatus>> {
-        let Some(task) = self.repo.get(task_id).await? else {
-            return Ok(None);
-        };
-        if task.status.is_terminal() {
-            return Ok(Some(task.status));
+    /// Signal-or-reserve under a single registry lock so a concurrent
+    /// `run`/`retry` cannot slip a fresh executor between probe and write.
+    pub async fn cancel(&self, task_id: LaunchTaskId) -> Result<Option<CancelOutcome>> {
+        match self.registry.cancel_or_reserve(task_id) {
+            CancelDecision::Signalled => {
+                let Some(task) = self.repo.get(task_id).await? else {
+                    return Ok(None);
+                };
+                Ok(Some(CancelOutcome {
+                    status: task.status,
+                    signalled: true,
+                }))
+            }
+            CancelDecision::Reserved(_guard) => {
+                let Some(task) = self.repo.get(task_id).await? else {
+                    return Ok(None);
+                };
+                if task.status.is_terminal() {
+                    return Ok(Some(CancelOutcome {
+                        status: task.status,
+                        signalled: false,
+                    }));
+                }
+                self.move_task_to_cancelled(&task, None).await?;
+                Ok(Some(CancelOutcome {
+                    status: LaunchTaskStatus::Cancelled,
+                    signalled: false,
+                }))
+            }
         }
-        self.move_task_to_cancelled(&task, None).await?;
-        Ok(Some(LaunchTaskStatus::Cancelled))
     }
 
     /// Execute a launch task to a terminal state. Idempotent for already-
@@ -221,7 +267,7 @@ where
     /// `signalled: true` while no executor is alive.
     pub async fn run(&self, task_id: LaunchTaskId) -> Result<()> {
         let cancel = CancellationToken::new();
-        if self.registry.register(task_id, cancel.clone()).is_some() {
+        if self.registry.try_register(task_id, cancel.clone()).is_err() {
             return Err(anyhow!(
                 "launch task {task_id} already has a live executor in this process"
             ));
@@ -247,30 +293,42 @@ where
         let mut steps = self.repo.list_steps(task_id).await?;
         steps.sort_by_key(|s| s.sequence);
 
-        // Pending → Running. This is the only valid entry transition; if
-        // somebody else moved the task out of Pending while we were loading,
-        // surface the conflict and bail.
-        if matches!(task.status, LaunchTaskStatus::Pending) {
-            self.repo
-                .update_task_status(task.id, LaunchTaskStatus::Running)
-                .await
-                .with_context(|| format!("launch_task {task_id} → Running"))?;
-            self.publish(LaunchTaskEvent::TaskStatusChanged {
-                task_id: task.id,
-                linear_issue_id: task.linear_issue_id.clone(),
-                status: LaunchTaskStatus::Running,
-                current_step_id: None,
-                reason: None,
-            });
-        } else if !matches!(task.status, LaunchTaskStatus::Running) {
-            // NeedsHuman/etc. resume is out of V1 scope — refuse cleanly.
-            return Err(anyhow!(
-                "launch task {task_id} is in {} — only Pending tasks can be executed",
-                task.status
-            ));
+        // NeedsHuman resume goes through `retry_needs_human_step`; Running
+        // re-entry is rejected at the registry guard upstream.
+        if !matches!(task.status, LaunchTaskStatus::Pending) {
+            return Err(CoreError::InvalidLaunchTaskTransition {
+                from: task.status,
+                to: LaunchTaskStatus::Running,
+            }
+            .into());
         }
+        self.repo
+            .update_task_status(task.id, LaunchTaskStatus::Running)
+            .await
+            .with_context(|| format!("launch_task {task_id} → Running"))?;
+        self.publish(LaunchTaskEvent::TaskStatusChanged {
+            task_id: task.id,
+            linear_issue_id: task.linear_issue_id.clone(),
+            status: LaunchTaskStatus::Running,
+            current_step_id: None,
+            reason: None,
+        });
 
-        for step in &steps {
+        self.drive_pending_steps(&task, &steps, 0, &cancel).await
+    }
+
+    /// Iterate steps starting at `start_idx`, run each Pending step, and
+    /// finalise the task as `Completed` when the loop exhausts. Shared
+    /// between the cold-start `run_inner` path and the SUP-120 retry path so
+    /// the failure-policy handling lives in one place.
+    async fn drive_pending_steps(
+        &self,
+        task: &LaunchTask,
+        steps: &[LaunchTaskStep],
+        start_idx: usize,
+        cancel: &CancellationToken,
+    ) -> Result<()> {
+        for step in &steps[start_idx..] {
             if step.status.is_terminal() {
                 continue;
             }
@@ -283,74 +341,25 @@ where
                      crash recovery is not implemented in V1",
                     step.id, step.status
                 );
-                self.move_task_to_needs_human(&task, Some(step.id), reason)
+                self.move_task_to_needs_human(task, Some(step.id), reason)
                     .await?;
                 return Ok(());
             }
 
             if cancel.is_cancelled() {
-                self.move_task_to_cancelled(&task, None).await?;
+                self.move_task_to_cancelled(task, None).await?;
                 return Ok(());
             }
 
-            self.repo.set_current_step(task.id, Some(step.id)).await?;
-            self.repo
-                .update_step_status(step.id, LaunchTaskStepStatus::Running)
-                .await
-                .with_context(|| format!("step {} → Running", step.id))?;
-            self.publish(LaunchTaskEvent::StepStarted {
-                task_id: task.id,
-                linear_issue_id: task.linear_issue_id.clone(),
-                step_id: step.id,
-                step_kind: step.step_kind,
-                agent_name: step.agent_name.clone(),
-                sequence: step.sequence,
-            });
+            self.start_pending_step(task, step).await?;
 
-            let runner_result = self.step_runner.run_step(&task, step, cancel.clone()).await;
+            let runner_result = self.step_runner.run_step(task, step, cancel.clone()).await;
 
-            match runner_result {
-                Ok(StepOutcome::Completed { summary, links }) => {
-                    self.repo
-                        .add_step_links(
-                            step.id,
-                            links.run_id,
-                            links.conversation_id,
-                            links.orchestrator_session_id,
-                        )
-                        .await
-                        .with_context(|| format!("step {} link recording", step.id))?;
-                    self.repo
-                        .update_step_status(step.id, LaunchTaskStepStatus::Completed)
-                        .await
-                        .with_context(|| format!("step {} → Completed", step.id))?;
-                    self.publish(LaunchTaskEvent::StepFinished {
-                        task_id: task.id,
-                        linear_issue_id: task.linear_issue_id.clone(),
-                        step_id: step.id,
-                        step_kind: step.step_kind,
-                        status: LaunchTaskStepStatus::Completed,
-                        summary,
-                    });
-                }
-                Ok(StepOutcome::Failed { reason }) => {
-                    self.fail_step(&task, step, reason.clone()).await?;
-                    self.move_task_to_needs_human(&task, Some(step.id), reason)
-                        .await?;
-                    return Ok(());
-                }
-                Ok(StepOutcome::Cancelled) => {
-                    self.cancel_step(&task, step).await?;
-                    self.move_task_to_cancelled(&task, Some(step.id)).await?;
-                    return Ok(());
-                }
-                Err(e) => {
-                    let reason = format!("step runner error: {e:#}");
-                    self.fail_step(&task, step, reason.clone()).await?;
-                    self.move_task_to_needs_human(&task, Some(step.id), reason)
-                        .await?;
-                    return Ok(());
-                }
+            if !self
+                .handle_step_outcome(task, step, runner_result, cancel)
+                .await?
+            {
+                return Ok(());
             }
         }
 
@@ -359,7 +368,7 @@ where
         self.repo
             .update_task_status(task.id, LaunchTaskStatus::Completed)
             .await
-            .with_context(|| format!("launch_task {task_id} → Completed"))?;
+            .with_context(|| format!("launch_task {} → Completed", task.id))?;
         self.publish(LaunchTaskEvent::TaskStatusChanged {
             task_id: task.id,
             linear_issue_id: task.linear_issue_id.clone(),
@@ -371,22 +380,241 @@ where
         Ok(())
     }
 
-    async fn fail_step(
+    /// Move a Pending step to Running, update the parent's `current_step_id`,
+    /// and publish `StepStarted`. Used by both the cold-start loop and the
+    /// retry path's tail (after the resumed step has already been processed).
+    async fn start_pending_step(&self, task: &LaunchTask, step: &LaunchTaskStep) -> Result<()> {
+        self.repo.set_current_step(task.id, Some(step.id)).await?;
+        self.repo
+            .update_step_status(step.id, LaunchTaskStepStatus::Running)
+            .await
+            .with_context(|| format!("step {} → Running", step.id))?;
+        self.publish(LaunchTaskEvent::StepStarted {
+            task_id: task.id,
+            linear_issue_id: task.linear_issue_id.clone(),
+            step_id: step.id,
+            step_kind: step.step_kind,
+            agent_name: step.agent_name.clone(),
+            sequence: step.sequence,
+        });
+        Ok(())
+    }
+
+    /// Fold a runner result into persisted state + bus events. Returns
+    /// `Ok(true)` to continue, `Ok(false)` on halt (NeedsHuman / Cancelled).
+    async fn handle_step_outcome(
+        &self,
+        task: &LaunchTask,
+        step: &LaunchTaskStep,
+        runner_result: Result<StepOutcome>,
+        cancel: &CancellationToken,
+    ) -> Result<bool> {
+        match runner_result {
+            Ok(StepOutcome::Completed { summary, links }) => {
+                self.repo
+                    .add_step_links(
+                        step.id,
+                        links.run_id,
+                        links.conversation_id,
+                        links.orchestrator_session_id,
+                    )
+                    .await
+                    .with_context(|| format!("step {} link recording", step.id))?;
+                self.repo
+                    .update_step_status(step.id, LaunchTaskStepStatus::Completed)
+                    .await
+                    .with_context(|| format!("step {} → Completed", step.id))?;
+                self.publish(LaunchTaskEvent::StepFinished {
+                    task_id: task.id,
+                    linear_issue_id: task.linear_issue_id.clone(),
+                    step_id: step.id,
+                    step_kind: step.step_kind,
+                    status: LaunchTaskStepStatus::Completed,
+                    summary,
+                });
+                Ok(true)
+            }
+            Ok(StepOutcome::Cancelled) => {
+                self.halt_step_cancelled(task, step).await?;
+                Ok(false)
+            }
+            Ok(StepOutcome::Failed { reason }) => {
+                self.halt_step_failed_or_cancelled(task, step, reason, cancel)
+                    .await?;
+                Ok(false)
+            }
+            Err(e) => {
+                let reason = format!("step runner error: {e:#}");
+                self.halt_step_failed_or_cancelled(task, step, reason, cancel)
+                    .await?;
+                Ok(false)
+            }
+        }
+    }
+
+    /// Park a step as `NeedsHuman` for operator review, unless cancellation
+    /// was already signalled — in that case route through the cancel
+    /// terminal path so operator intent wins over the runner's protest.
+    async fn halt_step_failed_or_cancelled(
+        &self,
+        task: &LaunchTask,
+        step: &LaunchTaskStep,
+        reason: String,
+        cancel: &CancellationToken,
+    ) -> Result<()> {
+        if cancel.is_cancelled() {
+            self.halt_step_cancelled(task, step).await
+        } else {
+            self.block_step_for_human(task, step, reason.clone())
+                .await?;
+            self.move_task_to_needs_human(task, Some(step.id), reason)
+                .await
+        }
+    }
+
+    async fn halt_step_cancelled(&self, task: &LaunchTask, step: &LaunchTaskStep) -> Result<()> {
+        self.cancel_step(task, step).await?;
+        self.move_task_to_cancelled(task, Some(step.id)).await
+    }
+
+    /// SUP-120 — operator-triggered retry of the step that put a task in
+    /// `NeedsHuman`. Re-runs the blocking step with a fresh runner invocation
+    /// (which produces a new `RunId` via `add_step_links`), then resumes the
+    /// rest of the recipe via the same loop the cold-start path uses.
+    ///
+    /// Refuses cleanly when the task is not in `NeedsHuman` (`CoreError`
+    /// surfaces as 409 in the API), when no `current_step_id` is recorded, or
+    /// when the blocking step itself isn't in `NeedsHuman`. Re-entrancy is
+    /// gated by the same registry mechanism `run` uses, so a retry races
+    /// safely against a concurrent cancel.
+    pub async fn retry_needs_human_step(
+        &self,
+        task_id: LaunchTaskId,
+    ) -> Result<RetryOutcome, RetryError> {
+        let cancel = CancellationToken::new();
+        if self.registry.try_register(task_id, cancel.clone()).is_err() {
+            return Err(RetryError::Other(anyhow!(
+                "launch task {task_id} already has a live executor in this process"
+            )));
+        }
+        let _guard = RegistryGuard {
+            registry: Arc::clone(&self.registry),
+            task_id,
+        };
+
+        let task = self
+            .repo
+            .get(task_id)
+            .await?
+            .ok_or(RetryError::NotFound(task_id))?;
+
+        task.can_retry()?;
+
+        // Data-integrity invariant, not a state-machine rejection — surface
+        // as `Other` (→ 500), not `Core` (→ 409).
+        let current_step_id = task.current_step_id.ok_or_else(|| {
+            anyhow!("launch task {task_id} in NeedsHuman without a current_step_id")
+        })?;
+
+        let mut steps = self.repo.list_steps(task.id).await?;
+        steps.sort_by_key(|s| s.sequence);
+
+        let idx = steps
+            .iter()
+            .position(|s| s.id == current_step_id)
+            .ok_or_else(|| anyhow!("current step {current_step_id} not found on task {task_id}"))?;
+
+        if !matches!(steps[idx].status, LaunchTaskStepStatus::NeedsHuman) {
+            return Err(RetryError::Core(
+                CoreError::InvalidLaunchTaskStepTransition {
+                    from: steps[idx].status,
+                    to: LaunchTaskStepStatus::Running,
+                },
+            ));
+        }
+
+        let retried_step_id = steps[idx].id;
+
+        self.repo
+            .begin_retry(task.id, retried_step_id)
+            .await
+            .with_context(|| format!("launch_task {task_id} begin_retry"))?;
+
+        self.publish(LaunchTaskEvent::TaskStatusChanged {
+            task_id: task.id,
+            linear_issue_id: task.linear_issue_id.clone(),
+            status: LaunchTaskStatus::Running,
+            current_step_id: Some(retried_step_id),
+            reason: None,
+        });
+        self.publish(LaunchTaskEvent::StepStarted {
+            task_id: task.id,
+            linear_issue_id: task.linear_issue_id.clone(),
+            step_id: retried_step_id,
+            step_kind: steps[idx].step_kind,
+            agent_name: steps[idx].agent_name.clone(),
+            sequence: steps[idx].sequence,
+        });
+
+        let runner_result = self
+            .step_runner
+            .run_step(&task, &steps[idx], cancel.clone())
+            .await;
+
+        let should_continue = self
+            .handle_step_outcome(&task, &steps[idx], runner_result, &cancel)
+            .await?;
+
+        if should_continue {
+            self.drive_pending_steps(&task, &steps, idx + 1, &cancel)
+                .await?;
+        }
+
+        // Reload to capture the post-retry state and the new linked run id
+        // recorded by `add_step_links`. The previous `linked_run_id` is
+        // overwritten by design (see SUP-120 plan, "append-only des liens").
+        let reloaded_task = self
+            .repo
+            .get(task.id)
+            .await?
+            .ok_or_else(|| anyhow!("launch task {task_id} disappeared mid-retry"))?;
+        let new_linked_run_id = self
+            .repo
+            .list_steps(task.id)
+            .await?
+            .into_iter()
+            .find(|s| s.id == retried_step_id)
+            .and_then(|s| s.linked_run_id);
+
+        Ok(RetryOutcome {
+            task_status: reloaded_task.status,
+            retried_step_id,
+            new_linked_run_id,
+        })
+    }
+
+    /// Park a step that the runner reported as `Failed` so it can be picked
+    /// up by the SUP-120 retry path. Putting the step in `NeedsHuman` (rather
+    /// than the terminal `Failed`) means `retry_needs_human_step` has a
+    /// non-terminal source state to transition back to `Running`. Truly
+    /// unrecoverable failures (storage I/O, programming bugs) bypass this
+    /// and propagate up as `Result::Err` from the executor.
+    async fn block_step_for_human(
         &self,
         task: &LaunchTask,
         step: &LaunchTaskStep,
         reason: String,
     ) -> Result<()> {
         self.repo
-            .update_step_status(step.id, LaunchTaskStepStatus::Failed)
+            .update_step_status(step.id, LaunchTaskStepStatus::NeedsHuman)
             .await
-            .with_context(|| format!("step {} → Failed", step.id))?;
+            .with_context(|| format!("step {} → NeedsHuman", step.id))?;
         self.publish(LaunchTaskEvent::StepFinished {
             task_id: task.id,
             linear_issue_id: task.linear_issue_id.clone(),
             step_id: step.id,
             step_kind: step.step_kind,
-            status: LaunchTaskStepStatus::Failed,
+            status: LaunchTaskStepStatus::NeedsHuman,
             summary: Some(reason),
         });
         Ok(())

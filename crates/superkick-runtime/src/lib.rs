@@ -41,9 +41,10 @@ pub use heartbeat::spawn_heartbeat_listener;
 pub use interrupt_service::InterruptService;
 pub use launch_task_event_bus::{LaunchTaskEvent, LaunchTaskEventBus};
 pub use launch_task_executor::{
-    LaunchTaskExecutor, StepLinks, StepOutcome, StepRunner, StubStepRunner,
+    CancelOutcome, LaunchTaskExecutor, RetryError, RetryOutcome, StepLinks, StepOutcome,
+    StepRunner, StubStepRunner,
 };
-pub use launch_task_registry::LaunchTaskRegistry;
+pub use launch_task_registry::{CancelDecision, LaunchTaskRegistry, ReservedSlot};
 pub use orchestrator::{
     OrchestratedSession, Orchestrator, SessionObservation, spawn_lifecycle_persistence_sink,
 };
