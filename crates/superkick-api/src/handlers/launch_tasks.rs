@@ -20,12 +20,10 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::error::RecvError;
 
 use superkick_core::{
-    AgentCatalog, LaunchTask, LaunchTaskId, LaunchTaskStatus, LaunchTaskStep,
-    PlanImplementReviewAgents,
+    AgentCatalog, LaunchTask, LaunchTaskId, LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId,
+    PlanImplementReviewAgents, RunId,
 };
-use superkick_runtime::{
-    LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry, StubStepRunner,
-};
+use superkick_runtime::{LaunchTaskEventBus, LaunchTaskExecutor, StubStepRunner};
 use superkick_storage::SqliteLaunchTaskRepo;
 use superkick_storage::repo::LaunchTaskRepo;
 
@@ -50,7 +48,6 @@ pub struct LaunchTaskState {
     pub repo: Arc<SqliteLaunchTaskRepo>,
     pub catalog: Arc<AgentCatalog>,
     pub bus: Arc<LaunchTaskEventBus>,
-    pub registry: Arc<LaunchTaskRegistry>,
     pub executor: Arc<ProdLaunchTaskExecutor>,
     /// Whether `create_launch_task` should auto-spawn the executor in the
     /// background. Always `true` in production wiring; the test router opts
@@ -67,7 +64,6 @@ impl FromRef<AppState> for LaunchTaskState {
             repo: Arc::clone(&state.launch_task_repo),
             catalog: Arc::clone(&state.agent_catalog),
             bus: Arc::clone(&state.launch_task_event_bus),
-            registry: Arc::clone(&state.launch_task_registry),
             executor: Arc::clone(&state.launch_task_executor),
             auto_trigger_executor: true,
         }
@@ -173,52 +169,54 @@ pub struct CancelLaunchTaskResponse {
     pub signalled: bool,
 }
 
-/// Cancel a launch task. Behaviour:
-///
-/// * Live executor in this process → signal via the registry. The executor
-///   transitions the in-flight step to `Cancelled` and the task to
-///   `Cancelled` on the next step boundary. Returns `signalled: true` with
-///   the row's current (pre-cancel) status as a hint; SSE / polling pick up
-///   the terminal state.
-/// * No live executor (already terminal, orphan after restart, or task
-///   never auto-started) → delegate to
-///   `LaunchTaskExecutor::cancel_orphan`, which re-reads the row, leaves
-///   already-terminal tasks alone, and otherwise persists `Cancelled` and
-///   publishes the matching `TaskStatusChanged` event through the same
-///   code path the in-process loop uses (so SSE stays in sync with the
-///   DB). Returns `signalled: false` with the row's actual current status.
-///
-/// The registry probe runs before any DB read, which avoids a race where
-/// the executor finalises and unregisters between the read and the cancel
-/// signal.
 pub async fn cancel_launch_task(
     State(state): State<LaunchTaskState>,
     Path(id): Path<uuid::Uuid>,
 ) -> Result<Json<CancelLaunchTaskResponse>, AppError> {
     let task_id = LaunchTaskId(id);
-
-    if state.registry.cancel(task_id) {
-        let task = state
-            .repo
-            .get(task_id)
-            .await?
-            .ok_or(AppError::NotFound(TASK_NOT_FOUND))?;
-        return Ok(Json(CancelLaunchTaskResponse {
-            task_id,
-            status: task.status,
-            signalled: true,
-        }));
-    }
-
-    let status = state
+    let outcome = state
         .executor
-        .cancel_orphan(task_id)
+        .cancel(task_id)
         .await?
         .ok_or(AppError::NotFound(TASK_NOT_FOUND))?;
     Ok(Json(CancelLaunchTaskResponse {
         task_id,
-        status,
-        signalled: false,
+        status: outcome.status,
+        signalled: outcome.signalled,
+    }))
+}
+
+#[derive(Serialize)]
+pub struct RetryLaunchTaskResponse {
+    pub task_id: LaunchTaskId,
+    pub status: LaunchTaskStatus,
+    pub step_id: LaunchTaskStepId,
+    /// New run id linked to the retried step by the runner. `None` while V1
+    /// uses `StubStepRunner` — populated once the real `Orchestrator::spawn`
+    /// integration lands.
+    pub new_linked_run_id: Option<RunId>,
+}
+
+/// Retry the step that put a launch task into `NeedsHuman`. Validates the
+/// task is in `NeedsHuman` and that its `current_step_id` is itself in
+/// `NeedsHuman`; both checks raise `CoreError::InvalidLaunchTask*Transition`,
+/// which the shared mapping in `error.rs` renders as 409.
+///
+/// On success the retried step is re-run via the same runner the cold-start
+/// loop uses, producing a new run id (and overwriting the step's
+/// `linked_run_id`; the previous run remains queryable via `linear_issue_id`
+/// — see SUP-120 plan, "append-only des liens").
+pub async fn retry_launch_task(
+    State(state): State<LaunchTaskState>,
+    Path(id): Path<uuid::Uuid>,
+) -> Result<Json<RetryLaunchTaskResponse>, AppError> {
+    let task_id = LaunchTaskId(id);
+    let outcome = state.executor.retry_needs_human_step(task_id).await?;
+    Ok(Json(RetryLaunchTaskResponse {
+        task_id,
+        status: outcome.task_status,
+        step_id: outcome.retried_step_id,
+        new_linked_run_id: outcome.new_linked_run_id,
     }))
 }
 

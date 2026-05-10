@@ -1,8 +1,10 @@
+import { ErrorState } from '@/components/ui/state-error'
+import { LoadingState } from '@/components/ui/state-loading'
 import { useIssueLaunchTasks } from '@/hooks/useIssueLaunchTasks'
-import { fmtRelativeTime } from '@/lib/domain'
-import type { LaunchTask, LaunchTaskStep } from '@/types'
+import { TERMINAL_LAUNCH_TASK_STATUSES, findBlockingContext, fmtRelativeTime } from '@/lib/domain'
 
 import { LaunchStepRow } from './LaunchStepRow'
+import { LaunchTaskCancelButton } from './LaunchTaskCancelButton'
 import { LaunchTaskEmptyState } from './LaunchTaskEmptyState'
 import { LaunchTaskNeedsHumanCallout } from './LaunchTaskNeedsHumanCallout'
 import { LaunchTaskShell } from './LaunchTaskShell'
@@ -12,43 +14,13 @@ interface LaunchTaskFeedProps {
 	issueIdentifier: string
 }
 
-interface BlockingContext {
-	step: LaunchTaskStep | null
-	headline: string
-	hint: string
-}
-
-function findBlockingContext(task: LaunchTask, steps: LaunchTaskStep[]): BlockingContext | null {
-	const stepNeedsHuman = steps.find((s) => s.status === 'needs_human') ?? null
-	if (stepNeedsHuman) {
-		return {
-			step: stepNeedsHuman,
-			headline: 'Step waiting on you',
-			hint: stepNeedsHuman.summary?.trim() || 'Open the linked run or chat to unblock the agent.'
-		}
-	}
-	if (task.status === 'needs_human') {
-		const current = task.current_step_id
-			? (steps.find((s) => s.id === task.current_step_id) ?? null)
-			: null
-		return {
-			step: current,
-			headline: 'Launch task waiting on you',
-			hint: task.summary?.trim() || 'Reply in the chat to keep the task moving.'
-		}
-	}
-	return null
-}
-
 export function LaunchTaskFeed({ issueIdentifier }: LaunchTaskFeedProps) {
 	const { view, loading, error } = useIssueLaunchTasks(issueIdentifier)
 
 	if (loading && !view) {
 		return (
 			<LaunchTaskShell>
-				<div className="rounded-md border border-edge bg-graphite/40 px-4 py-3">
-					<p className="font-data text-[11px] text-dim">Loading…</p>
-				</div>
+				<LoadingState rows={3} density="compact" />
 			</LaunchTaskShell>
 		)
 	}
@@ -56,9 +28,7 @@ export function LaunchTaskFeed({ issueIdentifier }: LaunchTaskFeedProps) {
 	if (error && !view) {
 		return (
 			<LaunchTaskShell>
-				<div className="rounded-md border border-oxide/30 bg-oxide-dim px-4 py-3">
-					<p className="font-data text-[11px] text-oxide">Failed to load launch task: {error}</p>
-				</div>
+				<ErrorState density="compact" title="Failed to load launch task" message={error} />
 			</LaunchTaskShell>
 		)
 	}
@@ -74,14 +44,19 @@ export function LaunchTaskFeed({ issueIdentifier }: LaunchTaskFeedProps) {
 	const { task, steps } = view
 	const blocking = findBlockingContext(task, steps)
 	const summary = task.summary?.trim() || null
+	const isTerminal = TERMINAL_LAUNCH_TASK_STATUSES.has(task.status)
+	const canRetry = task.status === 'needs_human'
 
 	return (
 		<LaunchTaskShell>
 			{blocking ? (
 				<LaunchTaskNeedsHumanCallout
+					linearIssueId={task.linear_issue_id}
+					taskId={task.id}
 					headline={blocking.headline}
 					hint={blocking.hint}
 					blockingStep={blocking.step}
+					canRetry={canRetry}
 				/>
 			) : null}
 			<div className="space-y-3 rounded-md border border-edge bg-graphite/40 px-4 py-4">
@@ -92,6 +67,9 @@ export function LaunchTaskFeed({ issueIdentifier }: LaunchTaskFeedProps) {
 							updated {fmtRelativeTime(task.updated_at)}
 						</span>
 					</div>
+					{isTerminal ? null : (
+						<LaunchTaskCancelButton linearIssueId={task.linear_issue_id} taskId={task.id} />
+					)}
 				</header>
 				<p className="text-[12px] text-silver">
 					{summary ?? <span className="text-dim italic">No summary yet.</span>}

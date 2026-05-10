@@ -99,18 +99,16 @@ pub fn launch_task_test_router(
     catalog: Arc<AgentCatalog>,
 ) -> Router {
     let bus = LaunchTaskEventBus::new();
-    let registry = Arc::new(LaunchTaskRegistry::new());
     let executor = LaunchTaskExecutor::new(
         Arc::clone(&repo),
         Arc::clone(&bus),
-        Arc::clone(&registry),
+        Arc::new(LaunchTaskRegistry::new()),
         Arc::new(StubStepRunner::new()),
     );
     let state = handlers::launch_tasks::LaunchTaskState {
         repo,
         catalog,
         bus,
-        registry,
         executor,
         // Tests assert against synchronous create-time state; the executor
         // itself is covered at the runtime layer.
@@ -133,6 +131,10 @@ pub fn launch_task_test_router(
         .route(
             "/launch-tasks/{id}/cancel",
             post(handlers::launch_tasks::cancel_launch_task),
+        )
+        .route(
+            "/launch-tasks/{id}/retry",
+            post(handlers::launch_tasks::retry_launch_task),
         )
         .route(
             "/launch-tasks/events",
@@ -193,11 +195,8 @@ pub(crate) struct AppState {
     /// SUP-118 — process-scope broadcast bus for launch-task transitions.
     /// SSE consumers subscribe through `/launch-tasks/events`.
     pub launch_task_event_bus: Arc<LaunchTaskEventBus>,
-    /// SUP-118 — registry of in-flight executor cancellation tokens.
-    /// Used by `POST /launch-tasks/{id}/cancel` to signal the detached task.
-    pub launch_task_registry: Arc<LaunchTaskRegistry>,
-    /// SUP-118 — production launch-task executor wired with the V1 stub
-    /// step runner (real `Orchestrator::spawn` integration is a follow-up).
+    /// SUP-118 — production launch-task executor (V1 stub step runner).
+    /// Owns the in-flight cancellation registry internally.
     pub launch_task_executor: Arc<handlers::launch_tasks::ProdLaunchTaskExecutor>,
     /// Project agent catalog used at create time to validate `agent_name`
     /// references. Built once from `SuperkickConfig` at boot — mutating the
@@ -283,11 +282,10 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let orchestrator_session_repo = Arc::new(SqliteOrchestratorSessionRepo::new(pool.clone()));
     let launch_task_repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
     let launch_task_event_bus = LaunchTaskEventBus::new();
-    let launch_task_registry = Arc::new(LaunchTaskRegistry::new());
     let launch_task_executor = LaunchTaskExecutor::new(
         Arc::clone(&launch_task_repo),
         Arc::clone(&launch_task_event_bus),
-        Arc::clone(&launch_task_registry),
+        Arc::new(LaunchTaskRegistry::new()),
         Arc::new(StubStepRunner::new()),
     );
     let agent_catalog = Arc::new(config.agent_catalog());
@@ -406,7 +404,6 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         orchestrator_session_repo,
         launch_task_repo,
         launch_task_event_bus,
-        launch_task_registry,
         launch_task_executor,
         agent_catalog,
         runtime_detector,
@@ -558,6 +555,10 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         .route(
             "/launch-tasks/{id}/cancel",
             post(handlers::launch_tasks::cancel_launch_task),
+        )
+        .route(
+            "/launch-tasks/{id}/retry",
+            post(handlers::launch_tasks::retry_launch_task),
         )
         .route(
             "/conversations",

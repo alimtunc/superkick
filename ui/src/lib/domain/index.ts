@@ -28,6 +28,11 @@ export {
 export { issueStateAccent } from './issueStateAccent'
 export { UNBLOCK_BADGE_WINDOW_MS, isWithinUnblockWindow } from './unblockBadge'
 export {
+	TERMINAL_LAUNCH_TASK_STATUSES,
+	findBlockingContext,
+	type BlockingContext
+} from './launchTaskBlocking'
+export {
 	runNarrative,
 	summarizeAttention,
 	attentionHint,

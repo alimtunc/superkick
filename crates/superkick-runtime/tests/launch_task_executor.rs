@@ -15,13 +15,13 @@ use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
-    AgentCatalog, AgentProvider, CoreAgentDefinition, LaunchStepKind, LaunchTask, LaunchTaskId,
-    LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepStatus, LinearContextMode,
-    PlanImplementReviewAgents, ResolvedMcpPolicy, ResolvedToolPolicy,
+    AgentCatalog, AgentProvider, CoreAgentDefinition, CoreError, LaunchStepKind, LaunchTask,
+    LaunchTaskId, LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepStatus, LinearContextMode,
+    PlanImplementReviewAgents, ResolvedMcpPolicy, ResolvedToolPolicy, RunId,
 };
 use superkick_runtime::{
-    LaunchTaskEvent, LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry, StepLinks,
-    StepOutcome, StepRunner,
+    LaunchTaskEvent, LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry, RetryError,
+    StepLinks, StepOutcome, StepRunner,
 };
 use superkick_storage::repo::LaunchTaskRepo;
 use superkick_storage::{SqliteLaunchTaskRepo, connect};
@@ -106,6 +106,12 @@ enum ScriptedAction {
     Complete {
         summary: Option<String>,
     },
+    /// SUP-120 — script a Completed outcome that also publishes a `linked_run_id`.
+    /// Tests use this to verify retry produces a *new* `RunId` distinct from
+    /// the link recorded on the previous attempt.
+    CompleteWithRun {
+        run_id: RunId,
+    },
     Fail {
         reason: String,
     },
@@ -167,15 +173,27 @@ impl StepRunner for FakeStepRunner {
                 LaunchStepKind::Implement => &mut g.implement,
                 LaunchStepKind::Review => &mut g.review,
             };
-            queue
-                .pop()
-                .unwrap_or(ScriptedAction::Complete { summary: None })
+            // FIFO — `script` pushes in invocation order, so retry tests that
+            // re-run the same step kind get the actions back in the order
+            // they were scripted.
+            if queue.is_empty() {
+                ScriptedAction::Complete { summary: None }
+            } else {
+                queue.remove(0)
+            }
         };
 
         match action {
             ScriptedAction::Complete { summary } => Ok(StepOutcome::Completed {
                 summary,
                 links: StepLinks::default(),
+            }),
+            ScriptedAction::CompleteWithRun { run_id } => Ok(StepOutcome::Completed {
+                summary: None,
+                links: StepLinks {
+                    run_id: Some(run_id),
+                    ..StepLinks::default()
+                },
             }),
             ScriptedAction::Fail { reason } => Ok(StepOutcome::Failed { reason }),
             ScriptedAction::WaitThenCheck { release } => {
@@ -320,7 +338,8 @@ async fn planner_failure_drives_task_to_needs_human_with_pending_implement_and_r
 
     assert_eq!(
         step_status(&repo, task.id, LaunchStepKind::Plan).await,
-        LaunchTaskStepStatus::Failed
+        LaunchTaskStepStatus::NeedsHuman,
+        "blocking step parks in NeedsHuman so SUP-120 retry has a non-terminal source state"
     );
     assert_eq!(
         step_status(&repo, task.id, LaunchStepKind::Implement).await,
@@ -365,7 +384,7 @@ async fn coder_failure_drives_task_to_needs_human_with_completed_plan_and_pendin
     );
     assert_eq!(
         step_status(&repo, task.id, LaunchStepKind::Implement).await,
-        LaunchTaskStepStatus::Failed
+        LaunchTaskStepStatus::NeedsHuman
     );
     assert_eq!(
         step_status(&repo, task.id, LaunchStepKind::Review).await,
@@ -410,7 +429,7 @@ async fn reviewer_failure_drives_task_to_needs_human() -> Result<()> {
     );
     assert_eq!(
         step_status(&repo, task.id, LaunchStepKind::Review).await,
-        LaunchTaskStepStatus::Failed
+        LaunchTaskStepStatus::NeedsHuman
     );
     Ok(())
 }
@@ -488,6 +507,227 @@ async fn cancel_mid_step_marks_task_and_current_step_cancelled() -> Result<()> {
     // Sanity: the released notify is never used in this test path; bind so
     // clippy doesn't warn about unused.
     let _ = release;
+    Ok(())
+}
+
+// ── SUP-120 retry ────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn retry_from_running_is_rejected_with_invalid_transition() -> Result<()> {
+    let repo = fresh_repo().await?;
+    let (task, _) = create_task(&repo, "TEAM-RETRY-1").await?;
+    repo.update_task_status(task.id, LaunchTaskStatus::Running)
+        .await?;
+
+    let runner = Arc::new(FakeStepRunner::new());
+    let (exec, _, _) = build_executor(Arc::clone(&repo), Arc::clone(&runner));
+
+    let err = exec.retry_needs_human_step(task.id).await.unwrap_err();
+    match err {
+        RetryError::Core(CoreError::InvalidLaunchTaskTransition {
+            from: LaunchTaskStatus::Running,
+            to: LaunchTaskStatus::Running,
+        }) => {}
+        other => panic!("expected InvalidLaunchTaskTransition, got {other:?}"),
+    }
+    assert!(
+        runner.observed().is_empty(),
+        "rejected retry must not invoke the runner"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn retry_from_pending_is_rejected_with_invalid_transition() -> Result<()> {
+    let repo = fresh_repo().await?;
+    let (task, _) = create_task(&repo, "TEAM-RETRY-2").await?;
+    // Task starts Pending — retry must refuse before the runner is consulted.
+
+    let runner = Arc::new(FakeStepRunner::new());
+    let (exec, _, _) = build_executor(Arc::clone(&repo), Arc::clone(&runner));
+
+    let err = exec.retry_needs_human_step(task.id).await.unwrap_err();
+    assert!(matches!(
+        err,
+        RetryError::Core(CoreError::InvalidLaunchTaskTransition {
+            from: LaunchTaskStatus::Pending,
+            to: LaunchTaskStatus::Running,
+        })
+    ));
+    assert!(runner.observed().is_empty());
+    Ok(())
+}
+
+#[tokio::test]
+async fn retry_from_terminal_failed_is_rejected() -> Result<()> {
+    let repo = fresh_repo().await?;
+    let (task, _) = create_task(&repo, "TEAM-RETRY-3").await?;
+    repo.update_task_status(task.id, LaunchTaskStatus::Failed)
+        .await?;
+
+    let runner = Arc::new(FakeStepRunner::new());
+    let (exec, _, _) = build_executor(Arc::clone(&repo), Arc::clone(&runner));
+
+    let err = exec.retry_needs_human_step(task.id).await.unwrap_err();
+    assert!(matches!(
+        err,
+        RetryError::Core(CoreError::InvalidLaunchTaskTransition {
+            from: LaunchTaskStatus::Failed,
+            to: LaunchTaskStatus::Running,
+        })
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn retry_after_planner_failure_drives_recipe_to_completed() -> Result<()> {
+    let repo = fresh_repo().await?;
+    let (task, _) = create_task(&repo, "TEAM-RETRY-4").await?;
+
+    let runner = Arc::new(FakeStepRunner::new());
+    // First Plan invocation fails → task moves to NeedsHuman.
+    runner.script(
+        LaunchStepKind::Plan,
+        ScriptedAction::Fail {
+            reason: "first attempt".into(),
+        },
+    );
+    // Second Plan invocation (the retry) and the rest of the recipe succeed.
+    runner.script(
+        LaunchStepKind::Plan,
+        ScriptedAction::Complete {
+            summary: Some("retry plan ok".into()),
+        },
+    );
+    runner.script(
+        LaunchStepKind::Implement,
+        ScriptedAction::Complete { summary: None },
+    );
+    runner.script(
+        LaunchStepKind::Review,
+        ScriptedAction::Complete { summary: None },
+    );
+
+    let (exec, bus, _) = build_executor(Arc::clone(&repo), Arc::clone(&runner));
+
+    // Cold-start the task — Plan fails, task ends in NeedsHuman.
+    exec.run(task.id).await?;
+    let mid = repo.get(task.id).await?.unwrap();
+    assert_eq!(mid.status, LaunchTaskStatus::NeedsHuman);
+
+    let mut rx = bus.subscribe();
+
+    // Retry — should re-run Plan, then Implement, then Review.
+    let outcome = exec.retry_needs_human_step(task.id).await?;
+    assert_eq!(outcome.task_status, LaunchTaskStatus::Completed);
+
+    let reloaded = repo.get(task.id).await?.unwrap();
+    assert_eq!(reloaded.status, LaunchTaskStatus::Completed);
+    for kind in [
+        LaunchStepKind::Plan,
+        LaunchStepKind::Implement,
+        LaunchStepKind::Review,
+    ] {
+        assert_eq!(
+            step_status(&repo, task.id, kind).await,
+            LaunchTaskStepStatus::Completed,
+            "{kind:?} should be Completed after retry"
+        );
+    }
+    assert_eq!(
+        runner.observed(),
+        vec![
+            LaunchStepKind::Plan,
+            LaunchStepKind::Plan,
+            LaunchStepKind::Implement,
+            LaunchStepKind::Review,
+        ],
+        "Plan should be invoked twice (initial + retry), then Implement + Review once each"
+    );
+
+    let events = drain_events(&mut rx).await;
+    // Expect: TaskStatusChanged(Running) for the retry start, StepStarted(Plan),
+    // StepFinished(Plan, Completed), StepStarted(Implement), StepFinished(...),
+    // StepStarted(Review), StepFinished(...), TaskStatusChanged(Completed).
+    let task_status_events: Vec<&LaunchTaskEvent> = events
+        .iter()
+        .filter(|e| matches!(e, LaunchTaskEvent::TaskStatusChanged { .. }))
+        .collect();
+    assert_eq!(
+        task_status_events.len(),
+        2,
+        "expected Running + Completed; got {events:?}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn retry_records_a_new_run_id_distinct_from_the_previous_attempt() -> Result<()> {
+    let repo = fresh_repo().await?;
+    let (task, _) = create_task(&repo, "TEAM-RETRY-5").await?;
+
+    let first_run_id = RunId::new();
+    let retry_run_id = RunId::new();
+    assert_ne!(first_run_id, retry_run_id);
+
+    let runner = Arc::new(FakeStepRunner::new());
+    // First attempt completes Plan with a run_id link, then fails Implement
+    // so the task ends in NeedsHuman pinned on Implement.
+    runner.script(
+        LaunchStepKind::Plan,
+        ScriptedAction::CompleteWithRun {
+            run_id: first_run_id,
+        },
+    );
+    runner.script(
+        LaunchStepKind::Implement,
+        ScriptedAction::Fail {
+            reason: "code didn't compile".into(),
+        },
+    );
+    // Second attempt: Implement now succeeds and records a *new* run id, then
+    // Review completes.
+    runner.script(
+        LaunchStepKind::Implement,
+        ScriptedAction::CompleteWithRun {
+            run_id: retry_run_id,
+        },
+    );
+    runner.script(
+        LaunchStepKind::Review,
+        ScriptedAction::Complete { summary: None },
+    );
+
+    let (exec, _, _) = build_executor(Arc::clone(&repo), Arc::clone(&runner));
+
+    exec.run(task.id).await?;
+    assert_eq!(
+        repo.get(task.id).await?.unwrap().status,
+        LaunchTaskStatus::NeedsHuman
+    );
+    assert_eq!(
+        step_status(&repo, task.id, LaunchStepKind::Implement).await,
+        LaunchTaskStepStatus::NeedsHuman
+    );
+
+    let outcome = exec.retry_needs_human_step(task.id).await?;
+    assert_eq!(outcome.task_status, LaunchTaskStatus::Completed);
+    assert_eq!(
+        outcome.new_linked_run_id,
+        Some(retry_run_id),
+        "retry must surface the run id produced on the new attempt"
+    );
+
+    // Implement step now points at the retry run id; the previous link is
+    // overwritten by design (see SUP-120 plan, "append-only des liens").
+    let steps = repo.list_steps(task.id).await?;
+    let implement = steps
+        .iter()
+        .find(|s| s.step_kind == LaunchStepKind::Implement)
+        .unwrap();
+    assert_eq!(implement.linked_run_id, Some(retry_run_id));
+    assert_eq!(implement.status, LaunchTaskStepStatus::Completed);
+
     Ok(())
 }
 

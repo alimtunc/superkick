@@ -523,4 +523,11 @@ pub trait LaunchTaskRepo: Send + Sync {
         task_id: LaunchTaskId,
         step_id: Option<LaunchTaskStepId>,
     ) -> impl Future<Output = Result<()>> + Send;
+
+    /// Atomic step→Running, task→Running, current_step_id=step_id in one tx.
+    fn begin_retry(
+        &self,
+        task_id: LaunchTaskId,
+        step_id: LaunchTaskStepId,
+    ) -> impl Future<Output = Result<()>> + Send;
 }
