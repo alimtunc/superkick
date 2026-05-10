@@ -9,6 +9,9 @@ pub mod git;
 pub mod handoff_service;
 pub mod heartbeat;
 pub mod interrupt_service;
+pub mod launch_task_event_bus;
+pub mod launch_task_executor;
+pub mod launch_task_registry;
 pub mod linear_context;
 pub mod mcp_policy;
 pub mod orchestrator;
@@ -36,6 +39,11 @@ pub use detector::{RuntimeDetector, boot_refresh, capabilities_for};
 pub use handoff_service::HandoffService;
 pub use heartbeat::spawn_heartbeat_listener;
 pub use interrupt_service::InterruptService;
+pub use launch_task_event_bus::{LaunchTaskEvent, LaunchTaskEventBus};
+pub use launch_task_executor::{
+    LaunchTaskExecutor, StepLinks, StepOutcome, StepRunner, StubStepRunner,
+};
+pub use launch_task_registry::LaunchTaskRegistry;
 pub use orchestrator::{
     OrchestratedSession, Orchestrator, SessionObservation, spawn_lifecycle_persistence_sink,
 };
