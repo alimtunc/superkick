@@ -11,6 +11,7 @@
 		"no-unused-expressions": "error",
 		"no-unused-vars": "error",
 		"no-inferrable-types": "warn",
+		"no-underscore-dangle": "off",
 
 		// Unicorn
 		"unicorn/prefer-set-has": "off",
@@ -20,7 +21,6 @@
 		// JSX-A11Y
 		"jsx-a11y/no-autofocus": "off",
 		"jsx-a11y/click-events-have-key-events": "off",
-		"jsx-a11y/no-new-array-as-prop": "off",
 		"jsx-a11y/mouse-events-have-key-events": "off",
 		"jsx-a11y/prefer-tag-over-role": "off",
 
@@ -49,8 +49,6 @@
 		],
 
 		// Import
-		"import/no-relative-packages": "warn",
-		"import/no-relative-imports": "warn",
 		"import/no-named-as-default": "off",
 		"import/no-unassigned-import": "off",
 		"no-restricted-imports": [
