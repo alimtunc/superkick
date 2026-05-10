@@ -105,20 +105,22 @@ export function LaunchTaskLauncher({ issueId, linearIssueIdentifier }: LaunchTas
 
 	return (
 		<div className="rounded-md border border-edge bg-slate-deep p-4">
-			<div className="mb-3 flex items-center justify-between">
+			<div className="mb-3">
 				<p className="font-data text-[11px] tracking-wider text-dim uppercase">
 					Plan → Implement → Review
 				</p>
-				<span className="font-data text-[10px] text-dim">{agents.length} agents available</span>
+				<p className="font-data mt-0.5 text-[10px] text-dim">
+					{agents.length} {agents.length === 1 ? 'agent' : 'agents'} available
+				</p>
 			</div>
 
-			<div className="flex flex-col gap-3">
+			<div className="flex flex-col gap-4">
 				{STEPS.map((step) => (
-					<div key={step.kind} className="flex flex-col gap-1">
-						<label className="font-data flex items-center justify-between text-[11px] text-fog">
-							<span className="font-medium">{step.label}</span>
-							<span className="text-[10px] text-dim">{step.helper}</span>
-						</label>
+					<div key={step.kind} className="flex flex-col gap-1.5">
+						<div>
+							<div className="font-data text-[11px] font-medium text-fog">{step.label}</div>
+							<div className="font-data text-[10px] leading-snug text-dim">{step.helper}</div>
+						</div>
 						<AgentPicker
 							value={selection[step.kind]}
 							agents={agents}
