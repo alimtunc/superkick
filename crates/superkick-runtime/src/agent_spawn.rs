@@ -26,8 +26,8 @@ use tracing::warn;
 
 use superkick_config::McpServerSpec;
 use superkick_core::{
-    AgentProvider, EventKind, EventLevel, LaunchReason, LinearContextMode, ResolvedAgent, Run,
-    RunId, StepId,
+    AgentBackend, AgentProvider, EventKind, EventLevel, LaunchReason, LinearContextMode,
+    ResolvedAgent, Run, RunId, StepId,
 };
 use superkick_storage::repo::RunEventRepo;
 
@@ -191,6 +191,25 @@ where
     )
     .await;
 
+    if let Some(backend) = resolved.backend.as_ref()
+        && !matches!(backend, AgentBackend::Protocol)
+    {
+        emit_event(
+            event_repo,
+            run.id,
+            Some(step_id),
+            EventKind::AgentOutput,
+            EventLevel::Info,
+            format!(
+                "role '{}' backend={} (issue {})",
+                resolved.role,
+                backend.audit_tag(),
+                run.issue_identifier
+            ),
+        )
+        .await;
+    }
+
     let policy_audit = PolicyAudit {
         mcp_servers_used: audit_servers,
         tools_allow_snapshot: resolved.tool_policy.allow_snapshot(),
@@ -224,9 +243,12 @@ pub struct LaunchConfigInputs<'a> {
 }
 
 /// Compose an `AgentLaunchConfig` from a resolved spawn plan and run-side
-/// inputs. The argv is `[program, ...resolved.args, ...spawn_plan.extra_cli_args, "--", prompt]`
-/// per the contract enforced by the Claude argv parser (`--` separator before
-/// a prompt that may start with `---`).
+/// inputs. The argv is `[program, ...resolved.args, ...backend_extra_args,
+/// ...spawn_plan.extra_cli_args, "--", prompt]` — the `--` separator is
+/// required by the Claude argv parser when the prompt itself may start with
+/// `---`. Backend rewriting via [`apply_claude_backend`] runs after
+/// `force_headless` has already been applied, so it stays a pure function of
+/// the resolved agent and prompt.
 pub fn build_launch_config(
     spawn_plan: &AgentSpawnPlan,
     inputs: LaunchConfigInputs<'_>,
@@ -242,8 +264,11 @@ pub fn build_launch_config(
         launch_reason,
     } = inputs;
 
+    let (backend_extra_args, prompt) = apply_claude_backend(resolved, prompt);
+
     let mut args = vec![resolved.program.clone()];
     args.extend(resolved.args.iter().cloned());
+    args.extend(backend_extra_args);
     args.extend(spawn_plan.extra_cli_args.iter().cloned());
     args.push("--".to_string());
     args.push(prompt);
@@ -265,6 +290,55 @@ pub fn build_launch_config(
             handoff_id: None,
         },
     }
+}
+
+/// Idempotence sentinel. Opaque on purpose so a hand-written operator brief
+/// cannot organically start with it and silently suppress the directive.
+const BACKEND_DIRECTIVE_MARKER: &str = "__SUPERKICK_BACKEND_DIRECTIVE_v1__";
+
+/// Translate an optional [`AgentBackend`] into argv + prompt mutations at
+/// spawn time. See [`AgentBackend`] for the fallback contract. Pure, no I/O,
+/// idempotent on the marker sentinel.
+pub fn apply_claude_backend(resolved: &ResolvedAgent, prompt: String) -> (Vec<String>, String) {
+    let Some(backend) = resolved.backend.as_ref() else {
+        return (Vec::new(), prompt);
+    };
+    if !matches!(resolved.provider, AgentProvider::Claude) {
+        return (Vec::new(), prompt);
+    }
+    if prompt.starts_with(BACKEND_DIRECTIVE_MARKER) {
+        return (Vec::new(), prompt);
+    }
+
+    let directive = match backend {
+        AgentBackend::Protocol => return (Vec::new(), prompt),
+        AgentBackend::ClaudeSubagent { subagent_name } => format!(
+            "{BACKEND_DIRECTIVE_MARKER}\n\
+             Delegate this entire step to the Claude Code sub-agent named \
+             `{subagent_name}` by invoking `Task(subagent_type=\"{subagent_name}\")` \
+             with the operator brief below as its prompt. Do not perform the work \
+             yourself — your role is to route the brief to the sub-agent and \
+             return its result.\n\n"
+        ),
+        AgentBackend::ClaudeSkill { skills } => {
+            let listed = skills
+                .iter()
+                .map(|s| format!("/{s}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(
+                "{BACKEND_DIRECTIVE_MARKER}\n\
+                 Before doing anything else, invoke the following Claude Code \
+                 skill(s) in this order: {listed}. Treat the operator brief \
+                 below as the input to those skills.\n\n"
+            )
+        }
+    };
+
+    let mut augmented = String::with_capacity(directive.len() + prompt.len());
+    augmented.push_str(&directive);
+    augmented.push_str(&prompt);
+    (Vec::new(), augmented)
 }
 
 async fn build_linear_snapshot_block<E>(
@@ -314,4 +388,167 @@ where
         })?;
 
     Ok(Some(context.render_for_prompt()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use superkick_core::{AgentBackend, ResolvedMcpPolicy, ResolvedToolPolicy};
+
+    fn resolved(provider: AgentProvider, backend: Option<AgentBackend>) -> ResolvedAgent {
+        ResolvedAgent {
+            name: "test".into(),
+            role: "test".into(),
+            provider,
+            model: None,
+            system_prompt: None,
+            program: match provider {
+                AgentProvider::Claude => "claude".into(),
+                AgentProvider::Codex => "codex".into(),
+            },
+            args: Vec::new(),
+            timeout: None,
+            max_turns: None,
+            linear_context: LinearContextMode::None,
+            mcp_policy: ResolvedMcpPolicy::default(),
+            tool_policy: ResolvedToolPolicy::default(),
+            backend,
+        }
+    }
+
+    #[test]
+    fn apply_backend_none_is_passthrough() {
+        let r = resolved(AgentProvider::Claude, None);
+        let (args, prompt) = apply_claude_backend(&r, "hello".into());
+        assert!(args.is_empty());
+        assert_eq!(prompt, "hello");
+    }
+
+    #[test]
+    fn apply_backend_protocol_is_passthrough() {
+        let r = resolved(AgentProvider::Claude, Some(AgentBackend::Protocol));
+        let (args, prompt) = apply_claude_backend(&r, "hello".into());
+        assert!(args.is_empty());
+        assert_eq!(prompt, "hello");
+    }
+
+    #[test]
+    fn apply_backend_subagent_prefixes_directive() {
+        let r = resolved(
+            AgentProvider::Claude,
+            Some(AgentBackend::ClaudeSubagent {
+                subagent_name: "planner".into(),
+            }),
+        );
+        let (args, prompt) = apply_claude_backend(&r, "do the thing".into());
+        assert!(args.is_empty());
+        assert!(prompt.starts_with(BACKEND_DIRECTIVE_MARKER));
+        assert!(prompt.contains("subagent_type=\"planner\""));
+        assert!(prompt.ends_with("do the thing"));
+    }
+
+    #[test]
+    fn apply_backend_skill_lists_each_skill() {
+        let r = resolved(
+            AgentProvider::Claude,
+            Some(AgentBackend::ClaudeSkill {
+                skills: vec!["ticket-plan".into(), "review".into()],
+            }),
+        );
+        let (args, prompt) = apply_claude_backend(&r, "brief".into());
+        assert!(args.is_empty());
+        assert!(prompt.contains("/ticket-plan"));
+        assert!(prompt.contains("/review"));
+        assert!(prompt.find("/ticket-plan") < prompt.find("/review"));
+    }
+
+    #[test]
+    fn apply_backend_is_noop_for_codex_even_when_set() {
+        let r = resolved(
+            AgentProvider::Codex,
+            Some(AgentBackend::ClaudeSubagent {
+                subagent_name: "planner".into(),
+            }),
+        );
+        let (args, prompt) = apply_claude_backend(&r, "hello".into());
+        assert!(args.is_empty());
+        assert_eq!(prompt, "hello");
+    }
+
+    #[test]
+    fn apply_backend_is_idempotent_on_subagent() {
+        let r = resolved(
+            AgentProvider::Claude,
+            Some(AgentBackend::ClaudeSubagent {
+                subagent_name: "planner".into(),
+            }),
+        );
+        let (_, once) = apply_claude_backend(&r, "brief".into());
+        let (_, twice) = apply_claude_backend(&r, once.clone());
+        assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn apply_backend_is_idempotent_on_skill() {
+        let r = resolved(
+            AgentProvider::Claude,
+            Some(AgentBackend::ClaudeSkill {
+                skills: vec!["foo".into()],
+            }),
+        );
+        let (_, once) = apply_claude_backend(&r, "brief".into());
+        let (_, twice) = apply_claude_backend(&r, once.clone());
+        assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn build_launch_config_with_subagent_backend_lands_directive_after_dash_dash() {
+        use superkick_core::{RunId, StepId};
+
+        let r = resolved(
+            AgentProvider::Claude,
+            Some(AgentBackend::ClaudeSubagent {
+                subagent_name: "planner".into(),
+            }),
+        );
+        let plan = AgentSpawnPlan {
+            effective_mode: LinearContextMode::None,
+            snapshot_block: None,
+            extra_cli_args: vec!["--model".into(), "opus".into()],
+            policy_audit: PolicyAudit::default(),
+        };
+        let inputs = LaunchConfigInputs {
+            run_id: RunId::new(),
+            step_id: StepId::new(),
+            resolved: &r,
+            prompt: "operator brief".into(),
+            workdir: std::path::PathBuf::from("/tmp"),
+            default_timeout: Duration::from_secs(60),
+            purpose: "test".into(),
+            launch_reason: LaunchReason::InitialStep,
+        };
+
+        let cfg = build_launch_config(&plan, inputs);
+
+        let sep = cfg
+            .args
+            .iter()
+            .position(|a| a == "--")
+            .expect("`--` present");
+        let prompt_arg = cfg.args.last().expect("prompt is last argv");
+
+        assert_eq!(
+            sep,
+            cfg.args.len() - 2,
+            "prompt sits immediately after `--`"
+        );
+        assert!(prompt_arg.starts_with(BACKEND_DIRECTIVE_MARKER));
+        assert!(prompt_arg.contains("subagent_type=\"planner\""));
+        assert!(prompt_arg.ends_with("operator brief"));
+        assert!(
+            cfg.args.iter().any(|a| a == "--model"),
+            "spawn_plan.extra_cli_args still flow through: {:?}",
+            cfg.args
+        );
+    }
 }

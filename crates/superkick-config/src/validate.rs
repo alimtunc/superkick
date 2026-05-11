@@ -1,4 +1,5 @@
 use anyhow::{bail, ensure};
+use superkick_core::AgentProvider;
 
 use crate::model::{SuperkickConfig, WorkflowStep};
 
@@ -17,6 +18,19 @@ pub fn validate(config: &SuperkickConfig) -> anyhow::Result<()> {
         !config.workflow.steps.is_empty(),
         "workflow must have at least one step"
     );
+
+    for (name, def) in &config.agents {
+        if let Some(backend) = &def.backend
+            && backend.requires_claude()
+            && def.provider != AgentProvider::Claude
+        {
+            bail!(
+                "agent \"{name}\": backend `{}` requires provider `claude` but the role declares provider `{}`",
+                backend.audit_tag(),
+                def.provider
+            );
+        }
+    }
 
     if let Some(allowed) = &config.launch_profile.allowed_agents {
         for name in allowed {

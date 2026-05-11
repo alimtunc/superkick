@@ -39,6 +39,7 @@ fn agent(
         linear_context: LinearContextMode::default(),
         mcp_policy: ResolvedMcpPolicy::default(),
         tool_policy: ResolvedToolPolicy::default(),
+        backend: None,
     }
 }
 

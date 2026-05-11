@@ -91,8 +91,8 @@ pub use recovery::{
 };
 pub use review::{ReviewFinding, ReviewSwarmResult};
 pub use role_router::{
-    AgentCatalog, AgentDefinition as CoreAgentDefinition, ResolvedAgent, RoleRouter, RouterError,
-    RunPolicy,
+    AgentBackend, AgentCatalog, AgentDefinition as CoreAgentDefinition, ResolvedAgent, RoleRouter,
+    RouterError, RunPolicy,
 };
 pub use run::{
     ExecutionMode, LinkedRunSummary, PauseKind, Run, RunBudget, RunBudgetGrant, RunState,

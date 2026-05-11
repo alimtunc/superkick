@@ -1,7 +1,7 @@
 use indoc::indoc;
 
 use crate::{LINEAR_MCP_SERVER_NAME, LINEAR_MCP_URL, load_str, model::*};
-use superkick_core::{AgentProvider, LinearContextMode, McpMode};
+use superkick_core::{AgentBackend, AgentProvider, LinearContextMode, McpMode};
 
 const FULL_YAML: &str = indoc! {"
     version: 1
@@ -710,4 +710,229 @@ fn default_linear_context_does_not_inject_linear_server() {
     let coder = catalog.get("coder").unwrap();
     assert_eq!(coder.linear_context, LinearContextMode::Snapshot);
     assert_eq!(coder.mcp_policy.mode, McpMode::None);
+}
+
+// ── SUP-121: AgentBackend round-trip + validation ───────────────────
+
+#[test]
+fn parse_claude_subagent_backend() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          planner:
+            provider: claude
+            backend:
+              type: claude_subagent
+              subagent_name: general-purpose
+        workflow:
+          steps:
+            - type: plan
+              agent: planner
+    "};
+    let config = load_str(yaml).unwrap();
+    let planner = &config.agents["planner"];
+    assert_eq!(
+        planner.backend,
+        Some(AgentBackend::ClaudeSubagent {
+            subagent_name: "general-purpose".into()
+        })
+    );
+
+    // Catalog projection carries the backend through.
+    let catalog = config.agent_catalog();
+    let resolved = catalog.get("planner").unwrap();
+    assert_eq!(
+        resolved.backend,
+        Some(AgentBackend::ClaudeSubagent {
+            subagent_name: "general-purpose".into()
+        })
+    );
+}
+
+#[test]
+fn parse_claude_skill_backend_preserves_order() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          coder:
+            provider: claude
+            backend:
+              type: claude_skill
+              skills: [ticket-plan, ticket-execute]
+        workflow:
+          steps:
+            - type: code
+              agent: coder
+    "};
+    let config = load_str(yaml).unwrap();
+    assert_eq!(
+        config.agents["coder"].backend,
+        Some(AgentBackend::ClaudeSkill {
+            skills: vec!["ticket-plan".into(), "ticket-execute".into()]
+        })
+    );
+}
+
+#[test]
+fn parse_protocol_backend_is_explicit_default() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          coder:
+            provider: claude
+            backend:
+              type: protocol
+        workflow:
+          steps:
+            - type: code
+              agent: coder
+    "};
+    let config = load_str(yaml).unwrap();
+    assert_eq!(config.agents["coder"].backend, Some(AgentBackend::Protocol));
+}
+
+#[test]
+fn omitted_backend_is_none() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          coder:
+            provider: claude
+        workflow:
+          steps:
+            - type: code
+              agent: coder
+    "};
+    let config = load_str(yaml).unwrap();
+    assert_eq!(config.agents["coder"].backend, None);
+}
+
+#[test]
+fn reject_claude_subagent_backend_on_codex_provider() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          reviewer:
+            provider: codex
+            backend:
+              type: claude_subagent
+              subagent_name: reviewer
+        workflow:
+          steps:
+            - type: review_swarm
+              agents: [reviewer]
+    "};
+    let err = load_str(yaml).unwrap_err().to_string();
+    assert!(err.contains("reviewer"), "unexpected error: {err}");
+    assert!(
+        err.contains("requires provider `claude`"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn reject_claude_skill_backend_on_codex_provider() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          reviewer:
+            provider: codex
+            backend:
+              type: claude_skill
+              skills: [review]
+        workflow:
+          steps:
+            - type: review_swarm
+              agents: [reviewer]
+    "};
+    let err = load_str(yaml).unwrap_err().to_string();
+    assert!(
+        err.contains("requires provider `claude`"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn protocol_backend_allowed_on_any_provider() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          reviewer:
+            provider: codex
+            backend:
+              type: protocol
+        workflow:
+          steps:
+            - type: review_swarm
+              agents: [reviewer]
+    "};
+    let config = load_str(yaml).expect("protocol backend is legal on Codex");
+    assert_eq!(
+        config.agents["reviewer"].backend,
+        Some(AgentBackend::Protocol)
+    );
+}
+
+#[test]
+fn accept_claude_subagent_backend_on_claude_provider() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          planner:
+            provider: claude
+            backend:
+              type: claude_subagent
+              subagent_name: general-purpose
+        workflow:
+          steps:
+            - type: plan
+              agent: planner
+    "};
+    let config = load_str(yaml).expect("claude + claude_subagent is legal");
+    assert_eq!(
+        config.agents["planner"].backend,
+        Some(AgentBackend::ClaudeSubagent {
+            subagent_name: "general-purpose".into()
+        })
+    );
+}
+
+#[test]
+fn validator_renders_provider_in_lowercase_wire_form() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          reviewer:
+            provider: codex
+            backend:
+              type: claude_subagent
+              subagent_name: planner
+        workflow:
+          steps:
+            - type: review_swarm
+              agents: [reviewer]
+    "};
+    let err = load_str(yaml).unwrap_err().to_string();
+    assert!(
+        err.contains("provider `codex`"),
+        "provider must render in YAML wire form, got: {err}"
+    );
 }

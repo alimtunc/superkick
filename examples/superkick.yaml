@@ -40,6 +40,7 @@ agents:
     #     servers: [linear]
     # without needing the explicit block.
     linear_context: snapshot_plus_mcp
+    # Optional `backend:` block — see docs/conventions/rust.md (Agents & router).
     # Tool-policy precedence (SUP-104):
     #   - Legacy `tools: [...]` (informational pre-104) becomes
     #     `tool_policy.allow` when no explicit `allow` is set here.

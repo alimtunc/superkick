@@ -2,8 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 use superkick_core::{
-    AgentCatalog, AgentProvider, CoreAgentDefinition as CoreAgent, LinearContextMode, McpMode,
-    RecoveryConfig, ResolvedMcpPolicy, ResolvedToolPolicy, RunBudget, RunPolicy, RunState, StepKey,
+    AgentBackend, AgentCatalog, AgentProvider, CoreAgentDefinition as CoreAgent, LinearContextMode,
+    McpMode, RecoveryConfig, ResolvedMcpPolicy, ResolvedToolPolicy, RunBudget, RunPolicy, RunState,
+    StepKey,
 };
 
 /// Canonical name used by the legacy `linear_context: snapshot_plus_mcp`
@@ -161,6 +162,8 @@ pub struct AgentDefinition {
     /// require-approval, results persisted.
     #[serde(default, rename = "tool_policy")]
     pub tool_policy: Option<AgentToolPolicy>,
+    #[serde(default)]
+    pub backend: Option<AgentBackend>,
 }
 
 // ── MCP policy ──────────────────────────────────────────────────────
@@ -278,6 +281,7 @@ impl SuperkickConfig {
             linear_context: def.linear_context,
             mcp_policy: resolve_mcp_policy(def),
             tool_policy: resolve_tool_policy(def),
+            backend: def.backend.clone(),
         }))
     }
 

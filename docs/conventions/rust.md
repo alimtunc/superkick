@@ -71,3 +71,11 @@ Applies during implementation and review.
 
 - Shared logic across crates → extract. Shared *shape* that happens to look alike → leave it; convergence is not duplication.
 - Utility code lives in the crate whose domain it belongs to: domain types in `superkick-core`, process/worktree helpers in `superkick-runtime`, adapters in `superkick-integrations`.
+
+## Agents & router
+
+- `AgentBackend` (in `superkick-core::role_router`) is orthogonal to `AgentProvider`: provider picks the CLI, backend shapes the prompt/argv at spawn time. The two never mix — adding a new backend variant must not branch on provider beyond the existing Claude-only guard.
+  - **Why:** the runtime spawn loop already routes per provider; making backends a second axis keeps the matrix linear. A combined enum would force every new backend to repeat the provider switch.
+- `claude_subagent` and `claude_skill` backends are Claude-only. They are rejected at config-load time (`superkick_config::validate`) so the operator gets a precise error before any spawn. The runtime helper `apply_claude_backend` is the second line of defence — it no-ops on non-Claude providers so a manually-built `ResolvedAgent` in a test cannot produce a malformed argv.
+- Backend fallback is documented on the enum: `None` and `protocol` are equivalent and preserve the historical spawn path bit-for-bit. A missing sub-agent / skill file inside the worktree surfaces as Claude Code's normal warning — the step does not crash.
+- A backend is *not* persisted per `LaunchTaskStep`. The catalog is the source of truth at spawn time; the audit ledger records the effective backend via an `AgentOutput` Info event so operators can grep `backend=…` per run.

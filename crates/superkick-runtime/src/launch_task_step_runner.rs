@@ -708,6 +708,7 @@ mod tests {
             linear_context: LinearContextMode::None,
             mcp_policy: ResolvedMcpPolicy::default(),
             tool_policy: ResolvedToolPolicy::default(),
+            backend: None,
         }
     }
 
