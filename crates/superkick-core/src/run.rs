@@ -104,6 +104,11 @@ pub enum TriggerSource {
     LinearWebhook,
     Manual,
     Retry,
+    /// SUP-124 — synthetic "shadow" run created by `LaunchTaskExecutor` so its
+    /// `RealStepRunner` has the `(run_id, run_step_id)` FK pair `agent_sessions`
+    /// requires. These runs never go through the playbook step engine; they
+    /// only exist to anchor `agent_sessions` for the three Launch Task steps.
+    LaunchTask,
 }
 
 /// How much autonomy a run has during execution.

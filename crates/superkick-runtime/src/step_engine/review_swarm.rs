@@ -13,7 +13,8 @@ use superkick_storage::repo::{
 };
 
 use super::{DEFAULT_AGENT_TIMEOUT, StepEngine, build_full_prompt};
-use crate::agent_supervisor::{AgentHandle, AgentLaunchConfig, SessionLaunchInfo};
+use crate::agent_spawn::{LaunchConfigInputs, build_launch_config, resolve_spawn_plan};
+use crate::agent_supervisor::AgentHandle;
 
 impl<R, ST, E, A, AR, I, AT, T> StepEngine<R, ST, E, A, AR, I, AT, T>
 where
@@ -64,12 +65,16 @@ where
                 .resolve(agent_name)
                 .with_context(|| format!("failed to resolve review agent '{agent_name}'"))?;
 
-            let mut args = vec![resolved.program.clone()];
-            args.extend(resolved.args.iter().cloned());
-
-            let ctx_plan = self
-                .prepare_mcp_policy(run, &resolved, worktree, step.id)
-                .await?;
+            let spawn_plan = resolve_spawn_plan(
+                run,
+                &resolved,
+                worktree,
+                step.id,
+                &*self.event_repo,
+                self.mcp_registry(),
+                &self.linear_client,
+            )
+            .await?;
 
             let base_prompt = format!(
                 "You are a code reviewer for issue {} (id: {}). \
@@ -90,35 +95,25 @@ where
                 None,
                 None,
                 resolved.system_prompt.as_deref(),
-                ctx_plan.snapshot_block.as_deref(),
+                spawn_plan.snapshot_block.as_deref(),
             );
-            // MCP flags must precede the positional prompt. `--` ends option
-            // parsing so prompts starting with `---` aren't mistaken for
-            // CLI options.
-            args.extend(ctx_plan.extra_cli_args.iter().cloned());
-            args.push("--".to_string());
-            args.push(review_prompt);
 
-            let launch_cfg = AgentLaunchConfig {
-                run_id: run.id,
-                step_id: step.id,
-                provider: resolved.provider,
-                args,
-                workdir: worktree.to_path_buf(),
-                timeout: resolved.timeout.unwrap_or(DEFAULT_AGENT_TIMEOUT),
-                linear_context_mode: ctx_plan.effective_mode,
-                policy_audit: ctx_plan.policy_audit.clone(),
-                session_launch: SessionLaunchInfo {
-                    role: resolved.role.clone(),
+            let launch_cfg = build_launch_config(
+                &spawn_plan,
+                LaunchConfigInputs {
+                    run_id: run.id,
+                    step_id: step.id,
+                    resolved: &resolved,
+                    prompt: review_prompt,
+                    workdir: worktree.to_path_buf(),
+                    default_timeout: DEFAULT_AGENT_TIMEOUT,
                     purpose: format!(
                         "review agent '{}' for issue {}",
                         agent_name, run.issue_identifier
                     ),
-                    parent_session_id: None,
                     launch_reason: LaunchReason::ReviewFanout,
-                    handoff_id: None,
                 },
-            };
+            );
 
             let permit = semaphore
                 .clone()

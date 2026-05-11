@@ -7,8 +7,10 @@
 //!
 //! * Tests inject a deterministic `FakeStepRunner` so the loop is unit-testable
 //!   without standing up a real process supervisor.
-//! * Production wires `StubStepRunner` in V1 — see its docstring for why
-//!   `Orchestrator::spawn` integration is deferred.
+//! * Production wires `RealStepRunner` (SUP-124) — it spawns the agent
+//!   process for each Plan/Implement/Review step via `AgentSupervisor::launch`
+//!   under a synthetic "shadow" `Run` that provides the FK pair
+//!   `agent_sessions` requires.
 //!
 //! The V1 failure policy is explicit and intentional:
 //!
@@ -80,8 +82,8 @@ pub struct RetryOutcome {
     /// `current_step_id` when the retry began).
     pub retried_step_id: LaunchTaskStepId,
     /// New run id linked to the retried step by the runner, when one was
-    /// produced. The V1 `StubStepRunner` never produces a link, so this is
-    /// always `None` until the real `Orchestrator::spawn` integration lands.
+    /// produced. SUP-124's `RealStepRunner` populates this with the synthetic
+    /// shadow run id; the test stub leaves it `None`.
     pub new_linked_run_id: Option<RunId>,
 }
 
@@ -100,12 +102,13 @@ pub enum StepOutcome {
 }
 
 /// Pluggable substrate for executing one step. Tests stub this to drive the
-/// executor deterministically; production injects `StubStepRunner` until the
-/// real `Orchestrator::spawn` wiring lands (see `StubStepRunner` docstring).
+/// executor deterministically; production injects `RealStepRunner` (SUP-124),
+/// which spawns the agent process for each step via `AgentSupervisor::launch`
+/// under a synthetic shadow `Run`.
 ///
 /// The runner is **expected** to honour `cancel`: when the token fires the
 /// implementation should propagate cancellation to its substrate (e.g.
-/// `Orchestrator::cancel`) and return `StepOutcome::Cancelled` promptly so the
+/// `AgentHandle::cancel`) and return `StepOutcome::Cancelled` promptly so the
 /// executor can finalise the launch task in a timely manner.
 pub trait StepRunner: Send + Sync + 'static {
     fn run_step(
@@ -116,18 +119,17 @@ pub trait StepRunner: Send + Sync + 'static {
     ) -> impl Future<Output = Result<StepOutcome>> + Send;
 }
 
-/// V1 production runner. **Does not yet spawn a real agent process.**
+/// V1 stub runner — **test-only**.
 ///
-/// Plumbing the executor through `Orchestrator::spawn` requires a `RunId` +
-/// `RunStepId` for the resulting `agent_sessions` row (FK-enforced), which in
-/// turn forces the launch-task loop to either (a) create a parallel `Run`
-/// per step — polluting the runs/queue/dashboard surfaces — or (b) refactor
-/// `agent_supervisor` to accept spawn requests without an owning run. Both
-/// are larger than SUP-118 and tracked as a follow-up.
+/// Historically wired into production while the FK arbitration for
+/// `agent_sessions` was unresolved. SUP-124 picked option (a) from the
+/// original docstring (a shadow `Run` per Launch Task) and `RealStepRunner`
+/// became the production substrate. The stub stays around so HTTP-shape
+/// tests and the unit tests in this module can drive the loop without
+/// spawning real agent processes.
 ///
-/// Until that lands, this stub honours `cancel`, sleeps briefly so the bus
-/// emits observable transitions, and reports the step as `Completed` with a
-/// summary tagged `[V1 stub]` so operators understand no real work happened.
+/// Honours `cancel`, sleeps briefly so the bus emits observable transitions,
+/// and reports the step as `Completed` with a summary tagged `[V1 stub]`.
 pub struct StubStepRunner;
 
 impl StubStepRunner {
@@ -421,6 +423,10 @@ where
                     .await
                     .with_context(|| format!("step {} link recording", step.id))?;
                 self.repo
+                    .set_step_summary(step.id, summary.clone())
+                    .await
+                    .with_context(|| format!("step {} summary persist", step.id))?;
+                self.repo
                     .update_step_status(step.id, LaunchTaskStepStatus::Completed)
                     .await
                     .with_context(|| format!("step {} → Completed", step.id))?;
@@ -605,6 +611,10 @@ where
         step: &LaunchTaskStep,
         reason: String,
     ) -> Result<()> {
+        self.repo
+            .set_step_summary(step.id, Some(reason.clone()))
+            .await
+            .with_context(|| format!("step {} summary persist (NeedsHuman)", step.id))?;
         self.repo
             .update_step_status(step.id, LaunchTaskStepStatus::NeedsHuman)
             .await

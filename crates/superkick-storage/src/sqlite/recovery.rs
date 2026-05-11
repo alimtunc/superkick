@@ -177,11 +177,19 @@ impl RawRecoveryRow {
 /// Build [`RecoveryCandidate`]s for every non-terminal run. Hits the same
 /// `runs` table the rest of the system reads from so the scheduler always
 /// sees the freshest snapshot.
+///
+/// Synthetic shadow runs created by `LaunchTaskExecutor`
+/// (`trigger_source = 'launch_task'`) are excluded: they sit at non-terminal
+/// `state` while their owning Launch Task is parked at `NeedsHuman`, and the
+/// recovery scheduler has no policy lever for them (cancel/retry is steered
+/// from the Launch Task UI). Including them would emit phantom "stalled"
+/// rows for every `NeedsHuman` block.
 pub async fn list_recovery_candidates(pool: &SqlitePool) -> Result<Vec<RecoveryCandidate>> {
     let rows = sqlx::query_as::<_, RecoveryCandidateRow>(
         "SELECT id, state, updated_at, last_heartbeat_at
          FROM runs
-         WHERE state NOT IN ('completed', 'failed', 'cancelled')",
+         WHERE state NOT IN ('completed', 'failed', 'cancelled')
+           AND trigger_source <> 'launch_task'",
     )
     .fetch_all(pool)
     .await?;

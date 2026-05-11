@@ -260,3 +260,50 @@ async fn no_event_emitted_for_continuously_healthy_run() {
             .expect("count");
     assert_eq!(count, 0);
 }
+
+/// Shadow runs created by `LaunchTaskExecutor` carry
+/// `TriggerSource::LaunchTask`. They sit at non-terminal `state` while the
+/// owning Launch Task is parked at `NeedsHuman`, but the recovery scheduler
+/// has no policy lever for them — so the candidate query must hide them or
+/// the dashboard fills with phantom "stalled" rows on every block.
+#[tokio::test]
+async fn launch_task_shadow_runs_are_excluded_from_recovery_classification() {
+    let pool = connect("sqlite::memory:").await.expect("pool");
+    let run_repo = SqliteRunRepo::new(pool.clone());
+    let recovery_repo = Arc::new(SqliteRecoveryEventRepo::new(pool.clone()));
+    let bus = WorkspaceEventBus::new();
+    let mut rx = bus.subscribe();
+
+    let mut shadow = Run::new(
+        "issue-launch".into(),
+        "SUP-124-SHADOW".into(),
+        "owner/repo".into(),
+        TriggerSource::LaunchTask,
+        ExecutionMode::FullAuto,
+        "main".into(),
+        true,
+        None,
+    );
+    shadow
+        .transition_to(RunState::Preparing)
+        .expect("queued → preparing should be valid");
+    run_repo.insert(&shadow).await.expect("insert shadow");
+    // Age it well past every stall threshold.
+    age_run(&pool, shadow.id, 60 * 60).await;
+
+    recovery_scheduler::tick(&recovery_repo, &bus, &tight_config())
+        .await
+        .expect("tick");
+
+    assert!(
+        rx.try_recv().is_err(),
+        "no event should fire for shadow run"
+    );
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM run_recovery_events WHERE run_id = ?1")
+            .bind(shadow.id.0.to_string())
+            .fetch_one(&pool)
+            .await
+            .expect("count");
+    assert_eq!(count, 0, "shadow runs must never produce recovery rows");
+}

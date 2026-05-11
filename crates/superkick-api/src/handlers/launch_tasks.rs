@@ -23,32 +23,43 @@ use superkick_core::{
     AgentCatalog, LaunchTask, LaunchTaskId, LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId,
     PlanImplementReviewAgents, RunId,
 };
-use superkick_runtime::{LaunchTaskEventBus, LaunchTaskExecutor, StubStepRunner};
-use superkick_storage::SqliteLaunchTaskRepo;
+use superkick_runtime::launch_task::RealStepRunner;
+use superkick_runtime::{LaunchTaskEventBus, LaunchTaskExecutor, StepRunner};
 use superkick_storage::repo::LaunchTaskRepo;
+use superkick_storage::{
+    SqliteAgentSessionRepo, SqliteLaunchTaskRepo, SqliteRunRepo, SqliteRunStepRepo,
+    SqliteTranscriptRepo,
+};
 
-use crate::AppState;
 use crate::error::AppError;
+use crate::{AppState, EventRepo};
 
 const TASK_NOT_FOUND: &str = "launch task not found";
 
-/// Production wiring of the executor. Held as a concrete type alias so the
-/// handlers can name it without dragging the generic parameters across the
-/// HTTP layer.
-pub type ProdLaunchTaskExecutor = LaunchTaskExecutor<SqliteLaunchTaskRepo, StubStepRunner>;
+/// Production wiring of the executor. SUP-124 swapped the V1 `StubStepRunner`
+/// for `RealStepRunner`, which spawns a real agent process per step. Held as
+/// a concrete type alias so the handlers can name it without dragging the
+/// generic parameters across the HTTP layer.
+pub type ProdRealStepRunner = RealStepRunner<
+    SqliteRunRepo,
+    SqliteRunStepRepo,
+    EventRepo,
+    SqliteAgentSessionRepo,
+    SqliteTranscriptRepo,
+    SqliteLaunchTaskRepo,
+>;
+pub type ProdLaunchTaskExecutor = LaunchTaskExecutor<SqliteLaunchTaskRepo, ProdRealStepRunner>;
 
 /// Substate slice the launch-task handlers need: the SQLite repo, the project
 /// agent catalog (for validating agent names at create time), and the SUP-118
-/// execution plane (event bus, registry, executor). The `FromRef` impl pulls
-/// everything out of `AppState`; the test router builds them directly with
-/// in-memory defaults so integration tests don't have to materialise a full
-/// `AppState`.
-#[derive(Clone)]
-pub struct LaunchTaskState {
+/// execution plane (event bus, registry, executor). Generic over the
+/// `StepRunner` so the test router (`launch_task_test_router`) can wire a
+/// deterministic stub while production runs the real agent spawn loop.
+pub struct LaunchTaskState<S: StepRunner> {
     pub repo: Arc<SqliteLaunchTaskRepo>,
     pub catalog: Arc<AgentCatalog>,
     pub bus: Arc<LaunchTaskEventBus>,
-    pub executor: Arc<ProdLaunchTaskExecutor>,
+    pub executor: Arc<LaunchTaskExecutor<SqliteLaunchTaskRepo, S>>,
     /// Whether `create_launch_task` should auto-spawn the executor in the
     /// background. Always `true` in production wiring; the test router opts
     /// out so that SUP-116 status assertions (e.g. "freshly created tasks
@@ -58,7 +69,21 @@ pub struct LaunchTaskState {
     pub auto_trigger_executor: bool,
 }
 
-impl FromRef<AppState> for LaunchTaskState {
+// Manual `Clone` so the derive doesn't infect `S` with a `Clone` bound — the
+// fields are all `Arc`/`Copy`, so cloning the wrapper is unconditional.
+impl<S: StepRunner> Clone for LaunchTaskState<S> {
+    fn clone(&self) -> Self {
+        Self {
+            repo: Arc::clone(&self.repo),
+            catalog: Arc::clone(&self.catalog),
+            bus: Arc::clone(&self.bus),
+            executor: Arc::clone(&self.executor),
+            auto_trigger_executor: self.auto_trigger_executor,
+        }
+    }
+}
+
+impl FromRef<AppState> for LaunchTaskState<ProdRealStepRunner> {
     fn from_ref(state: &AppState) -> Self {
         Self {
             repo: Arc::clone(&state.launch_task_repo),
@@ -84,8 +109,8 @@ pub struct LaunchTaskWithSteps {
     pub steps: Vec<LaunchTaskStep>,
 }
 
-pub async fn create_launch_task(
-    State(state): State<LaunchTaskState>,
+pub async fn create_launch_task<S: StepRunner>(
+    State(state): State<LaunchTaskState<S>>,
     Json(body): Json<CreateLaunchTaskRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let agents = PlanImplementReviewAgents {
@@ -124,8 +149,8 @@ pub struct ListLaunchTasksQuery {
     pub status: Option<LaunchTaskStatus>,
 }
 
-pub async fn list_launch_tasks(
-    State(state): State<LaunchTaskState>,
+pub async fn list_launch_tasks<S: StepRunner>(
+    State(state): State<LaunchTaskState<S>>,
     Query(q): Query<ListLaunchTasksQuery>,
 ) -> Result<Json<Vec<LaunchTask>>, AppError> {
     let tasks = state
@@ -135,8 +160,8 @@ pub async fn list_launch_tasks(
     Ok(Json(tasks))
 }
 
-pub async fn get_launch_task(
-    State(state): State<LaunchTaskState>,
+pub async fn get_launch_task<S: StepRunner>(
+    State(state): State<LaunchTaskState<S>>,
     Path(id): Path<uuid::Uuid>,
 ) -> Result<Json<LaunchTask>, AppError> {
     let task = state
@@ -147,8 +172,8 @@ pub async fn get_launch_task(
     Ok(Json(task))
 }
 
-pub async fn list_launch_task_steps(
-    State(state): State<LaunchTaskState>,
+pub async fn list_launch_task_steps<S: StepRunner>(
+    State(state): State<LaunchTaskState<S>>,
     Path(id): Path<uuid::Uuid>,
 ) -> Result<Json<Vec<LaunchTaskStep>>, AppError> {
     let task_id = LaunchTaskId(id);
@@ -169,8 +194,8 @@ pub struct CancelLaunchTaskResponse {
     pub signalled: bool,
 }
 
-pub async fn cancel_launch_task(
-    State(state): State<LaunchTaskState>,
+pub async fn cancel_launch_task<S: StepRunner>(
+    State(state): State<LaunchTaskState<S>>,
     Path(id): Path<uuid::Uuid>,
 ) -> Result<Json<CancelLaunchTaskResponse>, AppError> {
     let task_id = LaunchTaskId(id);
@@ -191,9 +216,9 @@ pub struct RetryLaunchTaskResponse {
     pub task_id: LaunchTaskId,
     pub status: LaunchTaskStatus,
     pub step_id: LaunchTaskStepId,
-    /// New run id linked to the retried step by the runner. `None` while V1
-    /// uses `StubStepRunner` — populated once the real `Orchestrator::spawn`
-    /// integration lands.
+    /// New run id linked to the retried step by the runner. SUP-124's
+    /// `RealStepRunner` populates this with the shadow run id; tests using
+    /// `StubStepRunner` leave it `None`.
     pub new_linked_run_id: Option<RunId>,
 }
 
@@ -206,8 +231,8 @@ pub struct RetryLaunchTaskResponse {
 /// loop uses, producing a new run id (and overwriting the step's
 /// `linked_run_id`; the previous run remains queryable via `linear_issue_id`
 /// — see SUP-120 plan, "append-only des liens").
-pub async fn retry_launch_task(
-    State(state): State<LaunchTaskState>,
+pub async fn retry_launch_task<S: StepRunner>(
+    State(state): State<LaunchTaskState<S>>,
     Path(id): Path<uuid::Uuid>,
 ) -> Result<Json<RetryLaunchTaskResponse>, AppError> {
     let task_id = LaunchTaskId(id);
@@ -230,8 +255,8 @@ pub struct LaunchTaskEventsQuery {
     pub linear_issue_id: Option<String>,
 }
 
-pub async fn launch_task_events_sse(
-    State(state): State<LaunchTaskState>,
+pub async fn launch_task_events_sse<S: StepRunner>(
+    State(state): State<LaunchTaskState<S>>,
     Query(q): Query<LaunchTaskEventsQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let mut rx = state.bus.subscribe();
