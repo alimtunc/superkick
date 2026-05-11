@@ -23,6 +23,7 @@ import type {
 	IssueListResponse,
 	LaunchQueueResponse,
 	LaunchTask,
+	LaunchTaskEvent,
 	LaunchTaskStep,
 	LaunchTaskWithSteps,
 	OpenTakeoverRequest,
@@ -464,21 +465,25 @@ export function subscribeToTurnEvents(
 	return () => es.close()
 }
 
-/**
- * Workspace-level event stream (SUP-84). One subscription feeds the shell
- * broker which fans out to every per-run / per-surface subscriber. Callers
- * outside the broker should almost never talk to this endpoint directly.
- */
-export function subscribeToWorkspaceEvents(handlers: {
-	onEvent: (event: WorkspaceRunEvent) => void
+export interface SseHandlers<T> {
+	onEvent: (event: T) => void
 	onLagged?: (skipped: number) => void
 	onClosed?: () => void
 	onError?: (err: Event) => void
-}): () => void {
-	const es = new EventSource(`${BASE}/events`)
+}
 
-	es.addEventListener('workspace_event', (e) => {
-		const data: WorkspaceRunEvent = JSON.parse(e.data)
+/**
+ * Open a shared-shape SSE stream: a typed `<eventName>` data channel plus the
+ * `lagged` / `done` / `error` conventions every Superkick bus follows. Used by
+ * both the workspace and launch-task brokers — keeping the parsing + closing
+ * + error-classification logic here (instead of duplicated per stream) means a
+ * single fix lands on every bus.
+ */
+function subscribeToSse<T>(path: string, eventName: string, handlers: SseHandlers<T>): () => void {
+	const es = new EventSource(`${BASE}${path}`)
+
+	es.addEventListener(eventName, (e) => {
+		const data = JSON.parse(e.data) as T
 		handlers.onEvent(data)
 	})
 
@@ -501,4 +506,24 @@ export function subscribeToWorkspaceEvents(handlers: {
 	})
 
 	return () => es.close()
+}
+
+/**
+ * Workspace-level event stream (SUP-84). One subscription feeds the shell
+ * broker which fans out to every per-run / per-surface subscriber. Callers
+ * outside the broker should almost never talk to this endpoint directly.
+ */
+export function subscribeToWorkspaceEvents(handlers: SseHandlers<WorkspaceRunEvent>): () => void {
+	return subscribeToSse('/events', 'workspace_event', handlers)
+}
+
+/**
+ * Launch-task event stream (SUP-123). Parallel to `subscribeToWorkspaceEvents`
+ * because the backend keeps the launch-task bus separate from the run bus
+ * (different back-pressure budgets — see
+ * `crates/superkick-runtime/src/launch_task_event_bus.rs`). Callers outside
+ * the shell broker should not talk to this endpoint directly.
+ */
+export function subscribeToLaunchTaskEvents(handlers: SseHandlers<LaunchTaskEvent>): () => void {
+	return subscribeToSse('/launch-tasks/events', 'launch_task_event', handlers)
 }

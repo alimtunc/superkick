@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Disclosure } from '@/components/ui/disclosure'
 import { useConfig } from '@/hooks/useConfig'
 import { useCreateRun } from '@/hooks/useCreateRun'
+import { useIssueLaunchTasks } from '@/hooks/useIssueLaunchTasks'
 import { useLaunchDialog } from '@/hooks/useLaunchDialog'
-import { useLaunchTasksForIssue } from '@/hooks/useLaunchTasksForIssue'
 import { isActiveRun, pickLatestRun } from '@/lib/domain'
 import type { IssueDetailResponse } from '@/types'
 import { Play } from 'lucide-react'
@@ -33,7 +33,7 @@ export function IssueLauncherPanel({ issue }: IssueLauncherPanelProps) {
 		defaultUseWorktree: launchProfile?.use_worktree ?? true
 	})
 
-	const { activeTask } = useLaunchTasksForIssue(issue.identifier)
+	const { activeTask } = useIssueLaunchTasks(issue.identifier)
 
 	const latest = pickLatestRun(issue.linked_runs)
 	const hasActiveRun = isActiveRun(latest)
