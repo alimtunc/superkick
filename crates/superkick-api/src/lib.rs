@@ -318,6 +318,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         launch_task_repo: Arc::clone(&launch_task_repo),
         registry: Arc::clone(&pty_registry),
         session_bus: Some(Arc::clone(&session_bus)),
+        launch_task_bus: Arc::clone(&launch_task_event_bus),
         repo_cache: repo_cache.clone(),
         config: config.clone(),
         linear_client: linear_client.clone(),

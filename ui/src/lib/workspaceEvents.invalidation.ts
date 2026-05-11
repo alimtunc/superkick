@@ -105,26 +105,32 @@ export function invalidateForLaunchTaskNotice(
 		queryClient.invalidateQueries({
 			predicate: (q) => isLaunchTaskForIssueKey(q.queryKey)
 		})
+		queryClient.invalidateQueries({ queryKey: queryKeys.issues.all })
+		queryClient.invalidateQueries({ queryKey: queryKeys.runs.all })
 		return
 	}
 
 	switch (notice.kind) {
 		case 'task_status_changed':
-			queryClient.invalidateQueries({
-				queryKey: queryKeys.launchTasks.forIssue(notice.linear_issue_id)
-			})
-			queryClient.invalidateQueries({
-				queryKey: queryKeys.launchTasks.steps(notice.task_id)
-			})
-			return
 		case 'step_started':
 		case 'step_finished':
 			queryClient.invalidateQueries({
-				queryKey: queryKeys.launchTasks.steps(notice.task_id)
-			})
-			queryClient.invalidateQueries({
 				queryKey: queryKeys.launchTasks.forIssue(notice.linear_issue_id)
 			})
+			queryClient.invalidateQueries({
+				queryKey: queryKeys.launchTasks.steps(notice.task_id)
+			})
+			queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.queue })
+			return
+		case 'shadow_run_state_changed':
+			// Shadow runs change state via direct field writes that bypass the
+			// workspace event bus; this dedicated event is the only signal that
+			// `linked_runs` on the issue (and `/runs/<id>` detail) need a refresh
+			// between `StepStarted`/`StepFinished` pulses.
+			queryClient.invalidateQueries({ queryKey: queryKeys.issues.all })
+			queryClient.invalidateQueries({ queryKey: queryKeys.runs.detail(notice.run_id) })
+			queryClient.invalidateQueries({ queryKey: queryKeys.runs.all })
+			queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.queue })
 			return
 		default: {
 			const _exhaustive: never = notice

@@ -1,4 +1,4 @@
-import type { LaunchQueueItem, QueueRunSummary, Run } from '@/types'
+import type { LaunchQueueItem, LinearIssueListItem, QueueRunSummary, Run } from '@/types'
 
 export type NeedsHumanReasonKind =
 	| 'awaiting_approval'
@@ -28,3 +28,23 @@ export interface RecentlyDoneEntry {
 	timestamp: number
 	item: LaunchQueueItem
 }
+
+export type InboxActionVerb = 'answer' | 'approve' | 'review' | 'resume' | 'takeover' | 'launch' | 'view'
+
+export type InboxActionDestination =
+	| { kind: 'issue'; issueId: string; openChat?: boolean }
+	| { kind: 'run'; runId: string; hash?: 'terminal'; openChat?: boolean }
+	| { kind: 'external'; href: string }
+	| { kind: 'dispatch' }
+
+export interface InboxAction {
+	verb: InboxActionVerb
+	label: string
+	destination: InboxActionDestination
+}
+
+export type InboxActionContext =
+	| { kind: 'needs-human'; item: NeedsHumanItem }
+	| { kind: 'queue-run'; run: QueueRunSummary }
+	| { kind: 'recently-done'; entry: RecentlyDoneEntry }
+	| { kind: 'ready-to-launch'; issue: LinearIssueListItem }

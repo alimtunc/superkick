@@ -137,6 +137,24 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
+    /// Contract: returns the most-recently-updated step pointing at `run_id`.
+    ///
+    /// The schema does not enforce uniqueness on `linked_run_id`. The runtime
+    /// invariant (one shadow run per launch task, owned by exactly one step)
+    /// is upheld by `RealStepRunner::ensure_shadow_run` + the
+    /// `add_step_links` write path. Callers that need this mapping (e.g.
+    /// `cancel_run`) rely on the "most recent wins" tie-break.
+    async fn find_step_by_linked_run(&self, run_id: RunId) -> Result<Option<LaunchTaskStep>> {
+        let row = sqlx::query_as::<_, LaunchTaskStepRow>(
+            "SELECT * FROM launch_task_steps WHERE linked_run_id = ?1 \
+             ORDER BY updated_at DESC LIMIT 1",
+        )
+        .bind(run_id.0.to_string())
+        .fetch_optional(&self.pool)
+        .await?;
+        row.map(|r| r.into_domain()).transpose()
+    }
+
     async fn update_task_status(
         &self,
         id: LaunchTaskId,

@@ -270,6 +270,32 @@ async fn update_task_status_rejects_concurrent_state_change() -> Result<()> {
 }
 
 #[tokio::test]
+async fn find_step_by_linked_run_returns_linked_step_or_none() -> Result<()> {
+    let repo = setup().await?;
+    let (task, steps) = LaunchTask::new_with_v1_recipe("SUP-11", agents(), &catalog())?;
+    repo.insert_with_steps(&task, &steps).await?;
+
+    let run_id = superkick_core::RunId::new();
+    assert!(repo.find_step_by_linked_run(run_id).await?.is_none());
+
+    let plan = &steps[0];
+    repo.add_step_links(plan.id, Some(run_id), None, None)
+        .await?;
+
+    let found = repo
+        .find_step_by_linked_run(run_id)
+        .await?
+        .expect("step linked to run");
+    assert_eq!(found.id, plan.id);
+    assert_eq!(found.launch_task_id, task.id);
+
+    let unrelated = superkick_core::RunId::new();
+    assert!(repo.find_step_by_linked_run(unrelated).await?.is_none());
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn set_current_step_rejects_step_from_other_task() -> Result<()> {
     let repo = setup().await?;
     let (task_a, steps_a) = LaunchTask::new_with_v1_recipe("SUP-9", agents(), &catalog())?;
