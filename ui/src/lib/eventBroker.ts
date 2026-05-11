@@ -1,55 +1,71 @@
 /**
- * Shell-level workspace event broker (SUP-84).
+ * Shell-level event brokers (SUP-84 / SUP-123).
  *
- * Owns the single `EventSource` to `GET /api/events` for the whole app. Any
- * hook, page, or store that needs live run events subscribes through this
- * broker instead of opening its own SSE connection. That keeps the number of
- * open streams at exactly one regardless of how many runs the operator is
- * watching — a precondition for honest multi-run supervision.
+ * Each broker owns the single `EventSource` for one Superkick bus and fans the
+ * stream out to per-page / per-rail subscribers, so the number of open
+ * connections stays at exactly one per bus regardless of how many surfaces are
+ * watching. The transport is hidden — subscribers pass a filter + callback and
+ * never touch `EventSource`.
  *
- * The broker is deliberately transport-agnostic at the call-site API level:
- * subscribers pass a filter + callback and receive events, they never touch
- * the underlying EventSource.
- *
- * Lifecycle:
- *   - `start()` opens the stream (idempotent; safe to call from a React
- *     effect in the shell mount).
- *   - On `error`/close, exponential-backoff reconnect up to a cap.
- *   - On `lagged`, the broker emits a synthetic `{ type: 'lagged' }` event
- *     so subscribers (or the query-invalidation wiring below) can reconcile
- *     by refetching the affected runs.
- *   - `stop()` closes the stream and drops every subscriber — call only on
- *     full app teardown.
+ * Lifecycle (shared via the generic `SseBroker`):
+ *   - `start()` opens the stream; idempotent so React effects can call it.
+ *   - On `error`/`close`, exponential-backoff reconnect up to a cap.
+ *   - On `lagged`, a synthetic `LaggedNotice` is broadcast to every subscriber
+ *     regardless of filter — any of them may have missed events.
+ *   - `stop()` closes the stream and drops every subscriber; call only on full
+ *     app teardown.
  */
 
-import { subscribeToWorkspaceEvents } from '@/api'
+import { subscribeToLaunchTaskEvents, subscribeToWorkspaceEvents } from '@/api'
+import type { SseHandlers } from '@/api'
 import type {
-	BrokerNotice,
 	LaggedNotice,
+	LaunchTaskEvent,
+	LaunchTaskSubscriptionFilter,
 	SubscriptionFilter,
-	WorkspaceEventSubscriber,
 	WorkspaceRunEvent
 } from '@/types'
-
-interface SubscriberEntry {
-	filter: SubscriptionFilter
-	callback: WorkspaceEventSubscriber
-}
 
 const RECONNECT_MIN_MS = 500
 const RECONNECT_MAX_MS = 10_000
 
-export class WorkspaceEventBroker {
-	private subscribers = new Map<symbol, SubscriberEntry>()
+export type SubscribeFn<E> = (handlers: SseHandlers<E>) => () => void
+
+interface SseBrokerOptions<Event, Filter> {
+	/** Open the underlying SSE stream. Swapped in tests for an in-memory harness. */
+	subscribe: SubscribeFn<Event>
+	/** Per-subscriber filter predicate. Lagged notices bypass this and reach everyone. */
+	matches: (filter: Filter, event: Event) => boolean
+	/** Symbol description for new subscribers (debug only). */
+	label: string
+}
+
+interface SubscriberEntry<Event, Filter> {
+	filter: Filter
+	callback: (notice: Event | LaggedNotice) => void
+}
+
+/**
+ * Generic event broker shared by every Superkick SSE bus. Parameterised over
+ * the event shape and the per-subscriber filter shape so the workspace broker
+ * (run events, `{runId, variant}` filter) and the launch-task broker
+ * (launch-task events, `{linearIssueId}` filter) share one implementation.
+ */
+export class SseBroker<Event, Filter> {
+	private readonly options: SseBrokerOptions<Event, Filter>
+	private subscribers = new Map<symbol, SubscriberEntry<Event, Filter>>()
+	private connectionListeners = new Set<(connected: boolean) => void>()
 	private stopStream: (() => void) | null = null
 	private started = false
+	private connected = false
 	private reconnectDelay = RECONNECT_MIN_MS
 	private reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
-	/**
-	 * Open the stream. Idempotent — subsequent calls are no-ops while a
-	 * connection is live.
-	 */
+	constructor(options: SseBrokerOptions<Event, Filter>) {
+		this.options = options
+	}
+
+	/** Open the stream. Idempotent — extra calls while connected are no-ops. */
 	start(): void {
 		if (this.started) return
 		this.started = true
@@ -57,9 +73,8 @@ export class WorkspaceEventBroker {
 	}
 
 	/**
-	 * Close the stream and drop every subscriber. Only call this on full
-	 * teardown — per-subscriber cleanup is handled by the `unsubscribe`
-	 * return value of `subscribe()`.
+	 * Close the stream and drop every subscriber. Only call on full teardown —
+	 * per-subscriber cleanup is handled by the `unsubscribe` return value.
 	 */
 	stop(): void {
 		this.started = false
@@ -70,43 +85,59 @@ export class WorkspaceEventBroker {
 			this.reconnectTimer = null
 		}
 		this.subscribers.clear()
+		this.setConnected(false)
 	}
 
-	/**
-	 * Register a subscriber. Returns an unsubscribe function. The broker
-	 * keeps the stream open as long as it was started via `start()` — it
-	 * does not reference-count subscribers.
-	 */
-	subscribe(filter: SubscriptionFilter, callback: WorkspaceEventSubscriber): () => void {
-		const key = Symbol('workspace-event-subscriber')
+	subscribe(filter: Filter, callback: (notice: Event | LaggedNotice) => void): () => void {
+		const key = Symbol(this.options.label)
 		this.subscribers.set(key, { filter, callback })
 		return () => {
 			this.subscribers.delete(key)
 		}
 	}
 
+	/**
+	 * Subscribe to connection-state changes. Fires synchronously with the
+	 * current value, then on every transition. Returns an unsubscribe.
+	 */
+	subscribeConnection(callback: (connected: boolean) => void): () => void {
+		this.connectionListeners.add(callback)
+		callback(this.connected)
+		return () => {
+			this.connectionListeners.delete(callback)
+		}
+	}
+
+	isConnected(): boolean {
+		return this.connected
+	}
+
+	/** Test-only: publish an event without going through SSE. */
+	publishForTest(event: Event): void {
+		this.fanOut(event)
+	}
+
 	private connect(): void {
-		this.stopStream = subscribeToWorkspaceEvents({
+		this.stopStream = this.options.subscribe({
 			onEvent: (event) => {
 				this.reconnectDelay = RECONNECT_MIN_MS
+				this.setConnected(true)
 				this.fanOut(event)
 			},
 			onLagged: (skipped) => {
 				const notice: LaggedNotice = { type: 'lagged', skipped }
-				// Broadcast to every subscriber — consumers decide whether
-				// to refetch. Filters do not apply to lag notices because
-				// any subscriber may have missed events for any run.
-				const laggedNotice: BrokerNotice = notice
 				for (const { callback } of this.subscribers.values()) {
-					callback(laggedNotice)
+					callback(notice)
 				}
 			},
 			onClosed: () => {
 				this.stopStream = null
+				this.setConnected(false)
 				this.scheduleReconnect()
 			},
 			onError: () => {
 				this.stopStream = null
+				this.setConnected(false)
 				this.scheduleReconnect()
 			}
 		})
@@ -124,23 +155,21 @@ export class WorkspaceEventBroker {
 		}, delay)
 	}
 
-	private fanOut(event: WorkspaceRunEvent): void {
-		// Issue-scope events (SUP-81) have no `run_id` — a run-filter should
-		// drop them, a variant-filter on `issue_event` should pass them.
-		const eventRunId = runIdForEvent(event)
+	private fanOut(event: Event): void {
 		for (const { filter, callback } of this.subscribers.values()) {
-			if (filter.runId && eventRunId !== filter.runId) continue
-			if (filter.variant && event.type !== filter.variant) continue
+			if (!this.options.matches(filter, event)) continue
 			callback(event)
 		}
 	}
-}
 
-/**
- * Process-wide broker instance. The shell provider calls `start()`; there
- * is only ever one EventSource open.
- */
-export const workspaceEventBroker = new WorkspaceEventBroker()
+	private setConnected(next: boolean): void {
+		if (this.connected === next) return
+		this.connected = next
+		for (const listener of this.connectionListeners) {
+			listener(next)
+		}
+	}
+}
 
 function runIdForEvent(event: WorkspaceRunEvent): string | undefined {
 	switch (event.type) {
@@ -157,3 +186,39 @@ function runIdForEvent(event: WorkspaceRunEvent): string | undefined {
 		}
 	}
 }
+
+function workspaceMatches(filter: SubscriptionFilter, event: WorkspaceRunEvent): boolean {
+	// Issue-scope events (SUP-81) have no `run_id` — a run-filter drops them,
+	// a variant-filter on `issue_event` passes them.
+	if (filter.runId && runIdForEvent(event) !== filter.runId) return false
+	if (filter.variant && event.type !== filter.variant) return false
+	return true
+}
+
+function launchTaskMatches(filter: LaunchTaskSubscriptionFilter, event: LaunchTaskEvent): boolean {
+	if (filter.linearIssueId && event.linear_issue_id !== filter.linearIssueId) return false
+	return true
+}
+
+export function createWorkspaceBroker(
+	subscribe: SubscribeFn<WorkspaceRunEvent> = subscribeToWorkspaceEvents
+): SseBroker<WorkspaceRunEvent, SubscriptionFilter> {
+	return new SseBroker({ subscribe, matches: workspaceMatches, label: 'workspace-event-subscriber' })
+}
+
+export function createLaunchTaskBroker(
+	subscribe: SubscribeFn<LaunchTaskEvent> = subscribeToLaunchTaskEvents
+): SseBroker<LaunchTaskEvent, LaunchTaskSubscriptionFilter> {
+	return new SseBroker({
+		subscribe,
+		matches: launchTaskMatches,
+		label: 'launch-task-event-subscriber'
+	})
+}
+
+export type WorkspaceEventBroker = SseBroker<WorkspaceRunEvent, SubscriptionFilter>
+export type LaunchTaskEventBroker = SseBroker<LaunchTaskEvent, LaunchTaskSubscriptionFilter>
+
+/** Process-wide instances — the shell provider calls `start()` on both. */
+export const workspaceEventBroker: WorkspaceEventBroker = createWorkspaceBroker()
+export const launchTaskEventBroker: LaunchTaskEventBroker = createLaunchTaskBroker()

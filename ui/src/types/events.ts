@@ -1,3 +1,5 @@
+import type { LaunchStepKind, LaunchTaskStatus, LaunchTaskStepStatus } from './launch'
+
 export type EventKind =
 	| 'state_change'
 	| 'step_started'
@@ -139,3 +141,56 @@ export interface LaggedNotice {
 export type BrokerNotice = WorkspaceRunEvent | LaggedNotice
 
 export type WorkspaceEventSubscriber = (event: BrokerNotice) => void
+
+/**
+ * Launch-task event envelope (SUP-123). Mirrors
+ * `superkick_runtime::LaunchTaskEvent`, which serialises with
+ * `#[serde(tag = "kind", rename_all = "snake_case")]` — every variant
+ * carries a `kind` discriminant and flattens its payload alongside.
+ *
+ * Persistence remains authoritative: on `lagged`, consumers reconcile by
+ * refetching the affected task. See
+ * `crates/superkick-runtime/src/launch_task_event_bus.rs`.
+ */
+export type LaunchTaskEvent =
+	| {
+			kind: 'step_started'
+			task_id: string
+			linear_issue_id: string
+			step_id: string
+			step_kind: LaunchStepKind
+			agent_name: string
+			sequence: number
+	  }
+	| {
+			kind: 'step_finished'
+			task_id: string
+			linear_issue_id: string
+			step_id: string
+			step_kind: LaunchStepKind
+			status: LaunchTaskStepStatus
+			summary: string | null
+	  }
+	| {
+			kind: 'task_status_changed'
+			task_id: string
+			linear_issue_id: string
+			status: LaunchTaskStatus
+			current_step_id: string | null
+			reason: string | null
+	  }
+
+/**
+ * Discriminant of `LaunchTaskEvent`. Exhaustive switches over this type catch a
+ * new Rust variant at compile time instead of silently routing to a `default`
+ * branch.
+ */
+export type LaunchTaskEventKind = LaunchTaskEvent['kind']
+
+export interface LaunchTaskSubscriptionFilter {
+	linearIssueId?: string
+}
+
+export type LaunchTaskBrokerNotice = LaunchTaskEvent | LaggedNotice
+
+export type LaunchTaskEventSubscriber = (notice: LaunchTaskBrokerNotice) => void

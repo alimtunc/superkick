@@ -44,7 +44,7 @@ function pickCurrentStep(steps: readonly LaunchTaskStep[], task: LaunchTask): La
  * SUP-117 — replaces the launcher once a Launch Task exists for the issue.
  * Surfaces the parent task status, the current step, and a link to the
  * associated run when one is wired (links are appended by SUP-118 / step
- * runtime). Polling cadence is owned by `useLaunchTasksForIssue` upstream.
+ * runtime). Polling cadence is owned by `useIssueLaunchTasks` upstream.
  */
 export function LaunchTaskActivePanel({ task }: LaunchTaskActivePanelProps) {
 	const stepsQuery = useQuery(launchTaskStepsQuery(task.id))

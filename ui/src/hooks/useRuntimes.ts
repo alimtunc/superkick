@@ -1,11 +1,8 @@
 import { refreshRuntimes } from '@/api'
+import { toErrorMessage } from '@/lib/errors'
 import { runtimesQuery } from '@/lib/queries'
 import { queryKeys } from '@/lib/queryKeys'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-
-function errorMessage(err: unknown): string {
-	return err instanceof Error ? err.message : 'Unknown error'
-}
 
 export function useRuntimes() {
 	const query = useQuery(runtimesQuery())
@@ -21,9 +18,9 @@ export function useRuntimes() {
 	return {
 		data: query.data ?? null,
 		isLoading: query.isLoading,
-		error: query.error !== null ? errorMessage(query.error) : null,
+		error: toErrorMessage(query.error),
 		refresh: refresh.mutate,
 		isRefreshing: refresh.isPending,
-		refreshError: refresh.error !== null ? errorMessage(refresh.error) : null
+		refreshError: toErrorMessage(refresh.error)
 	}
 }

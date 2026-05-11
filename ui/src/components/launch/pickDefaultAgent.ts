@@ -11,18 +11,35 @@ export const ROLE_BY_KIND: Record<LaunchStepKind, string> = {
 	review: 'reviewer'
 }
 
+const NAME_HINTS_BY_KIND: Record<LaunchStepKind, readonly string[]> = {
+	plan: ['plan', 'planner', 'planning'],
+	implement: ['implement', 'implementation', 'coder', 'code', 'dev', 'developer'],
+	review: ['review', 'reviewer']
+}
+
 /**
- * SUP-117 — pick the default agent for a Launch Task step. Heuristic is
- * intentionally simple: prefer an exact `role` match, then a name match, then
- * the first agent in the catalog. A future iteration (P2 in the plan) will
- * replace this with explicit `capabilities` on the agent definition.
+ * Whether `agent` is a recommended fit for a step kind. Matches in this order:
+ * explicit `role`, exact name on the canonical role, then a fuzzy name hint
+ * (so an agent literally called `review` is treated as the reviewer default
+ * even when superkick.yaml sets no `role`).
+ */
+export function isRecommendedAgent(agent: Agent, kind: LaunchStepKind): boolean {
+	const target = ROLE_BY_KIND[kind]
+	if (agent.role === target) return true
+	if (agent.name === target) return true
+	const hints = NAME_HINTS_BY_KIND[kind]
+	const lowered = agent.name.toLowerCase()
+	return hints.some((h) => lowered.includes(h))
+}
+
+/**
+ * SUP-117 — pick the default agent for a Launch Task step. Prefers a
+ * recommended agent (see `isRecommendedAgent`), falling back to `agents[0]`
+ * when no agent matches.
  */
 export function pickDefaultAgent(agents: readonly Agent[], kind: LaunchStepKind): Agent | null {
 	if (agents.length === 0) return null
-	const target = ROLE_BY_KIND[kind]
-	const byRole = agents.find((a) => a.role === target)
-	if (byRole) return byRole
-	const byName = agents.find((a) => a.name === target)
-	if (byName) return byName
+	const recommended = agents.find((a) => isRecommendedAgent(a, kind))
+	if (recommended) return recommended
 	return agents[0] ?? null
 }

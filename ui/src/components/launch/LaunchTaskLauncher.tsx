@@ -2,28 +2,20 @@ import { useEffect, useState } from 'react'
 
 import { AgentPicker } from '@/components/launch/AgentPicker'
 import { pickDefaultAgent } from '@/components/launch/pickDefaultAgent'
+import { LAUNCH_STEPS } from '@/components/launch/steps'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/state-empty'
 import { ErrorState } from '@/components/ui/state-error'
 import { LoadingState } from '@/components/ui/state-loading'
 import { useAgents } from '@/hooks/useAgents'
 import { useCreateLaunchTask } from '@/hooks/useCreateLaunchTask'
+import { errorMessageOr } from '@/lib/errors'
 import type { Agent, LaunchStepKind } from '@/types'
 import { Play, Users } from 'lucide-react'
 
 interface LaunchTaskLauncherProps {
 	issueId: string
 	linearIssueIdentifier: string
-}
-
-const STEPS: { kind: LaunchStepKind; label: string; helper: string }[] = [
-	{ kind: 'plan', label: 'Plan', helper: 'Reads the issue and writes a plan.' },
-	{ kind: 'implement', label: 'Implement', helper: 'Executes the plan in a worktree.' },
-	{ kind: 'review', label: 'Review', helper: 'Reviews the diff before ship.' }
-]
-
-function errorMessage(err: unknown): string {
-	return err instanceof Error ? err.message : 'Unknown error'
 }
 
 /**
@@ -71,7 +63,7 @@ export function LaunchTaskLauncher({ issueId, linearIssueIdentifier }: LaunchTas
 		return (
 			<ErrorState
 				title="Could not load agents"
-				message={errorMessage(agentsQuery.error)}
+				message={errorMessageOr(agentsQuery.error)}
 				onRetry={() => agentsQuery.refetch()}
 				density="compact"
 			/>
@@ -91,7 +83,7 @@ export function LaunchTaskLauncher({ issueId, linearIssueIdentifier }: LaunchTas
 
 	const { plan, implement, review } = selection
 	const allSelected = plan !== null && implement !== null && review !== null
-	const submitError = createLaunchTask.error ? errorMessage(createLaunchTask.error) : null
+	const submitError = createLaunchTask.error ? errorMessageOr(createLaunchTask.error) : null
 
 	function handleSubmit() {
 		if (plan === null || implement === null || review === null) return
@@ -105,20 +97,22 @@ export function LaunchTaskLauncher({ issueId, linearIssueIdentifier }: LaunchTas
 
 	return (
 		<div className="rounded-md border border-edge bg-slate-deep p-4">
-			<div className="mb-3 flex items-center justify-between">
+			<div className="mb-3">
 				<p className="font-data text-[11px] tracking-wider text-dim uppercase">
 					Plan → Implement → Review
 				</p>
-				<span className="font-data text-[10px] text-dim">{agents.length} agents available</span>
+				<p className="font-data mt-0.5 text-[10px] text-dim">
+					{agents.length} {agents.length === 1 ? 'agent' : 'agents'} available
+				</p>
 			</div>
 
-			<div className="flex flex-col gap-3">
-				{STEPS.map((step) => (
-					<div key={step.kind} className="flex flex-col gap-1">
-						<label className="font-data flex items-center justify-between text-[11px] text-fog">
-							<span className="font-medium">{step.label}</span>
-							<span className="text-[10px] text-dim">{step.helper}</span>
-						</label>
+			<div className="flex flex-col gap-4">
+				{LAUNCH_STEPS.map((step) => (
+					<div key={step.kind} className="flex flex-col gap-1.5">
+						<div>
+							<div className="font-data text-[11px] font-medium text-fog">{step.label}</div>
+							<div className="font-data text-[10px] leading-snug text-dim">{step.helper}</div>
+						</div>
 						<AgentPicker
 							value={selection[step.kind]}
 							agents={agents}

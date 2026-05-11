@@ -37,3 +37,19 @@ export const queryKeys = {
 		steps: (taskId: string) => ['launch-tasks', taskId, 'steps'] as const
 	}
 }
+
+/**
+ * Recognise a query key produced by `queryKeys.launchTasks.forIssue`. Kept next
+ * to the key factory so the tuple shape lives in exactly one place — predicates
+ * (e.g. cache invalidation on broker `lagged`) call this instead of indexing
+ * `queryKey` positionally and silently breaking on a shape change.
+ */
+export function isLaunchTaskForIssueKey(key: unknown): boolean {
+	return (
+		Array.isArray(key) &&
+		key.length === 3 &&
+		key[0] === 'issues' &&
+		typeof key[1] === 'string' &&
+		key[2] === 'launch-tasks'
+	)
+}

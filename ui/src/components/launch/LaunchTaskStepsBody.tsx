@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 
 import { ErrorState } from '@/components/ui/state-error'
 import { LoadingState } from '@/components/ui/state-loading'
+import { errorMessageOr } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import type { LaunchStepKind, LaunchTaskStep, LaunchTaskStepStatus } from '@/types'
 
@@ -30,10 +31,6 @@ const STEP_STATUS_LABEL: Record<LaunchTaskStepStatus, string> = {
 	cancelled: 'Cancelled'
 }
 
-function errorMessage(err: unknown): string {
-	return err instanceof Error ? err.message : 'Unknown error'
-}
-
 /**
  * SUP-117 — render slot inside `LaunchTaskActivePanel`. Owns the
  * loading/error/list branching so the parent can read as a flat sequence of
@@ -51,7 +48,7 @@ export function LaunchTaskStepsBody({
 		return <LoadingState rows={3} density="compact" />
 	}
 	if (isError) {
-		return <ErrorState message={errorMessage(error)} onRetry={onRetry} density="compact" />
+		return <ErrorState message={errorMessageOr(error)} onRetry={onRetry} density="compact" />
 	}
 	return (
 		<ol className="flex flex-col gap-1">

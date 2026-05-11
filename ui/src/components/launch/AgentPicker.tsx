@@ -1,4 +1,4 @@
-import { ROLE_BY_KIND } from '@/components/launch/pickDefaultAgent'
+import { isRecommendedAgent } from '@/components/launch/pickDefaultAgent'
 import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { Agent, LaunchStepKind } from '@/types'
@@ -15,12 +15,6 @@ interface AgentPickerProps {
 
 function providerLabel(provider: Agent['provider']) {
 	return provider === 'claude' ? 'Claude' : 'Codex'
-}
-
-function isRecommended(agent: Agent, kind: LaunchStepKind): boolean {
-	const recommendedRole = ROLE_BY_KIND[kind]
-	if (agent.role === recommendedRole) return true
-	return agent.name === recommendedRole
 }
 
 /**
@@ -57,7 +51,7 @@ export function AgentPicker({ value, agents, onChange, recommendedFor, disabled 
 							onValueChange={(next) => onChange(next as string)}
 						>
 							{agents.map((agent) => {
-								const recommended = isRecommended(agent, recommendedFor)
+								const recommended = isRecommendedAgent(agent, recommendedFor)
 								return (
 									<Menu.RadioItem
 										key={agent.name}
