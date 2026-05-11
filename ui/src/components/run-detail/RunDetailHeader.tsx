@@ -7,8 +7,8 @@ import { HeaderDivider } from '@/components/ui/header-divider'
 import { Pill } from '@/components/ui/pill'
 import { Tooltip } from '@/components/ui/tooltip'
 import { ChatToggleButton } from '@/components/workspace/ChatToggleButton'
+import { useBackNavigation } from '@/hooks/useBackNavigation'
 import type { PullRequest, Run } from '@/types'
-import { Link } from '@tanstack/react-router'
 import { ArrowLeft, Pin, RefreshCw, Square } from 'lucide-react'
 
 interface RunDetailHeaderProps {
@@ -52,18 +52,22 @@ export function RunDetailHeader({
 	onCancelDismiss,
 	cancelling
 }: RunDetailHeaderProps) {
+	const { goBack, hasHistory } = useBackNavigation('/')
+	const backLabel = hasHistory ? 'Go back' : 'Back to control center'
+
 	return (
 		<header className="sticky top-0 z-50 border-b border-edge bg-carbon/90 backdrop-blur-md">
 			<div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-5">
 				<div className="flex items-center gap-3">
-					<Tooltip label="Back to control center">
-						<Link
-							to="/"
+					<Tooltip label={backLabel}>
+						<button
+							type="button"
+							onClick={goBack}
 							className="inline-flex items-center rounded-md text-ash transition-colors hover:text-silver focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
-							aria-label="Back to control center"
+							aria-label={backLabel}
 						>
 							<ArrowLeft size={14} strokeWidth={1.75} aria-hidden="true" />
-						</Link>
+						</button>
 					</Tooltip>
 					<span className="text-edge" aria-hidden="true">
 						|

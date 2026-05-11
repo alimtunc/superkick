@@ -4,9 +4,10 @@ import { HeaderDivider } from '@/components/ui/header-divider'
 import { Pill } from '@/components/ui/pill'
 import { Tooltip } from '@/components/ui/tooltip'
 import { ChatToggleButton } from '@/components/workspace/ChatToggleButton'
+import { useBackNavigation } from '@/hooks/useBackNavigation'
 import { isActiveRun } from '@/lib/domain'
 import type { IssueDetailResponse } from '@/types'
-import { Link, useRouter } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { ArrowLeft, ExternalLink, RefreshCw } from 'lucide-react'
 
 export function IssueDetailHeader({
@@ -16,19 +17,20 @@ export function IssueDetailHeader({
 	issue: IssueDetailResponse
 	onRefresh: () => void
 }) {
-	const router = useRouter()
+	const { goBack, hasHistory } = useBackNavigation('/')
+	const backLabel = hasHistory ? 'Go back' : 'Back to control center'
 	const activeRun = issue.linked_runs.find(isActiveRun)
 
 	return (
 		<header className="sticky top-0 z-50 border-b border-edge bg-carbon/90 backdrop-blur-md">
 			<div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-5">
 				<div className="flex items-center gap-3">
-					<Tooltip label="Back">
+					<Tooltip label={backLabel}>
 						<button
 							type="button"
-							onClick={() => router.history.back()}
+							onClick={goBack}
 							className="inline-flex items-center rounded-md text-ash transition-colors hover:text-silver focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
-							aria-label="Back"
+							aria-label={backLabel}
 						>
 							<ArrowLeft size={14} strokeWidth={1.75} aria-hidden="true" />
 						</button>

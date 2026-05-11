@@ -13,8 +13,8 @@ use superkick_core::{
     parse_pr_number,
 };
 use superkick_storage::repo::{
-    AgentSessionRepo, ArtifactRepo, AttentionRequestRepo, InterruptRepo, PullRequestRepo,
-    RunEventRepo, RunRepo, RunStepRepo,
+    AgentSessionRepo, ArtifactRepo, AttentionRequestRepo, InterruptRepo, LaunchTaskRepo,
+    PullRequestRepo, RunEventRepo, RunRepo, RunStepRepo,
 };
 
 use crate::AppState;
@@ -260,6 +260,26 @@ pub async fn cancel_run(
         return Ok(Json(run));
     }
 
+    if let Some(step) = state
+        .launch_task_repo
+        .find_step_by_linked_run(run_id)
+        .await?
+        && !step.status.is_terminal()
+    {
+        tracing::info!(%run_id, launch_task_id = %step.launch_task_id, "cancel run via launch-task executor");
+        state
+            .launch_task_executor
+            .cancel(step.launch_task_id)
+            .await?;
+        let refreshed = state
+            .run_repo
+            .get(run_id)
+            .await?
+            .ok_or(AppError::NotFound("run not found"))?;
+        return Ok(Json(refreshed));
+    }
+
+    tracing::info!(%run_id, "cancel run via direct state transition");
     run.transition_to(superkick_core::RunState::Cancelled)
         .map_err(|e| AppError::Internal(e.into()))?;
     state.run_repo.update(&run).await?;

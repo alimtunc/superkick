@@ -1,4 +1,5 @@
 import type { LaunchStepKind, LaunchTaskStatus, LaunchTaskStepStatus } from './launch'
+import type { RunState } from './runs'
 
 export type EventKind =
 	| 'state_change'
@@ -178,6 +179,13 @@ export type LaunchTaskEvent =
 			status: LaunchTaskStatus
 			current_step_id: string | null
 			reason: string | null
+	  }
+	| {
+			kind: 'shadow_run_state_changed'
+			task_id: string
+			linear_issue_id: string
+			run_id: string
+			state: RunState
 	  }
 
 /**

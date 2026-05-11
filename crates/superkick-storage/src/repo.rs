@@ -485,6 +485,15 @@ pub trait LaunchTaskRepo: Send + Sync {
         task_id: LaunchTaskId,
     ) -> impl Future<Output = Result<Vec<LaunchTaskStep>>> + Send;
 
+    /// Find the step whose `linked_run_id` equals `run_id`. Used by the
+    /// run-cancel handler to propagate cancellation up to the owning launch
+    /// task — a shadow run cancelled in isolation otherwise leaves the
+    /// executor running while the run row is already Cancelled.
+    fn find_step_by_linked_run(
+        &self,
+        run_id: RunId,
+    ) -> impl Future<Output = Result<Option<LaunchTaskStep>>> + Send;
+
     /// Validate the transition via the domain, then persist the new status
     /// inside a single transaction with a `WHERE status = <old>` guard.
     /// A concurrent writer that already moved the row out from under us

@@ -17,7 +17,8 @@ use tokio::sync::broadcast;
 use tracing::{debug, trace};
 
 use superkick_core::{
-    LaunchStepKind, LaunchTaskId, LaunchTaskStatus, LaunchTaskStepId, LaunchTaskStepStatus,
+    LaunchStepKind, LaunchTaskId, LaunchTaskStatus, LaunchTaskStepId, LaunchTaskStepStatus, RunId,
+    RunState,
 };
 
 const BUS_CAPACITY: usize = 1024;
@@ -51,6 +52,17 @@ pub enum LaunchTaskEvent {
         current_step_id: Option<LaunchTaskStepId>,
         reason: Option<String>,
     },
+    /// Shadow `Run` state transition for a Launch Task. Shadow runs change
+    /// state via direct field writes that bypass the workspace event bus, so
+    /// without this variant the front-end never learns that `linked_runs` on
+    /// the issue (and the `/runs/<id>` detail) need to refetch between the
+    /// `StepStarted`/`StepFinished` pulses.
+    ShadowRunStateChanged {
+        task_id: LaunchTaskId,
+        linear_issue_id: String,
+        run_id: RunId,
+        state: RunState,
+    },
 }
 
 impl LaunchTaskEvent {
@@ -58,7 +70,8 @@ impl LaunchTaskEvent {
         match self {
             Self::StepStarted { task_id, .. }
             | Self::StepFinished { task_id, .. }
-            | Self::TaskStatusChanged { task_id, .. } => *task_id,
+            | Self::TaskStatusChanged { task_id, .. }
+            | Self::ShadowRunStateChanged { task_id, .. } => *task_id,
         }
     }
 
@@ -71,6 +84,9 @@ impl LaunchTaskEvent {
                 linear_issue_id, ..
             }
             | Self::TaskStatusChanged {
+                linear_issue_id, ..
+            }
+            | Self::ShadowRunStateChanged {
                 linear_issue_id, ..
             } => linear_issue_id,
         }

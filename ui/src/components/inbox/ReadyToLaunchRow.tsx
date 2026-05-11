@@ -1,6 +1,7 @@
 import { PriorityIcon } from '@/components/issues/PriorityIcon'
 import { Button } from '@/components/ui/button'
 import { Pill } from '@/components/ui/pill'
+import { inboxActionAriaLabel, pendingLabel, pickPrimaryAction } from '@/lib/inbox/actions'
 import type { LaunchQueueItem } from '@/types'
 import { Link } from '@tanstack/react-router'
 
@@ -11,17 +12,15 @@ interface ReadyToLaunchRowProps {
 	dispatchPending: boolean
 }
 
-/**
- * Compact dispatch row. The Link wraps only the identity column so the
- * Dispatch button stays a sibling — keeps screen-reader semantics clean
- * (no nested interactive elements) while the title row stays clickable.
- */
+// Link wraps only the identity column so the action button stays a sibling — avoids nested interactive elements.
 export function ReadyToLaunchRow({
 	item,
 	dispatchPosition,
 	onDispatch,
 	dispatchPending
 }: ReadyToLaunchRowProps) {
+	const action = pickPrimaryAction({ kind: 'ready-to-launch', issue: item.issue })
+
 	return (
 		<div className="group flex items-center gap-3 border-l-2 border-transparent px-3 py-2 transition-colors focus-within:border-l-mineral focus-within:bg-slate-deep/40 hover:border-l-mineral hover:bg-slate-deep/40">
 			<Pill tone="live" size="xs" aria-label={`Position ${dispatchPosition} in dispatch order`}>
@@ -46,9 +45,9 @@ export function ReadyToLaunchRow({
 				disabled={dispatchPending}
 				onClick={() => onDispatch(item.issue.identifier)}
 				className="font-data shrink-0 text-[10px] tracking-wider uppercase"
-				aria-label={`Dispatch ${item.issue.identifier}`}
+				aria-label={inboxActionAriaLabel(action, item.issue.identifier)}
 			>
-				{dispatchPending ? 'Dispatching…' : 'Dispatch'}
+				{dispatchPending ? `${pendingLabel(action.verb)}…` : action.label}
 			</Button>
 		</div>
 	)

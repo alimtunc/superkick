@@ -1,57 +1,48 @@
 import { StalledBadge } from '@/components/dashboard/queue/StalledBadge'
 import { ExecutionModeBadge } from '@/components/ExecutionModeBadge'
+import { InboxActionLink } from '@/components/inbox/InboxActionLink'
+import { InboxActionPill } from '@/components/inbox/InboxActionPill'
 import { RunBadges } from '@/components/runs/RunBadges'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { fmtRunElapsed, pickRunReason, stepLabel } from '@/lib/domain'
-import type { QueueRunSummary } from '@/types'
-import { Link } from '@tanstack/react-router'
-import { ArrowUpRight } from 'lucide-react'
+import { inboxActionAriaLabel, pickPrimaryAction, pickSecondaryAction } from '@/lib/inbox/actions'
+import type { InboxAction, QueueRunSummary } from '@/types'
 
 interface RunCardProps {
 	run: QueueRunSummary
 	refTime: number
-	/**
-	 * Layout variant. `respond` flips the primary CTA to the run detail
-	 * (where the attention / interrupt panels live) and demotes the issue
-	 * link to the secondary slot — used by the Needs Human column.
-	 */
+	// `respond` is purely a visual hook for the Needs Human column; the primary verb still comes from the action helper.
 	variant: 'default' | 'respond'
 }
 
-/**
- * Kanban-style compact card. The card body is a single `<Link>` to the
- * primary destination; a sibling pill-link in the footer covers the secondary
- * destination so we never nest two interactive elements.
- */
 export function RunCard({ run, refTime, variant }: RunCardProps) {
 	const step = run.current_step_key ? (stepLabel[run.current_step_key] ?? run.current_step_key) : null
 	const reason = pickRunReason(run)
 	const elapsed = fmtRunElapsed(run, refTime)
 
-	const primary =
-		variant === 'respond'
-			? {
-					to: '/runs/$runId' as const,
-					params: { runId: run.id },
-					label: `Respond to ${run.issue_identifier}`
-				}
-			: {
-					to: '/issues/$issueId' as const,
-					params: { issueId: run.issue_id },
-					label: `Open ${run.issue_identifier}`
-				}
+	const primary = pickPrimaryAction({ kind: 'queue-run', run })
+	const secondary = pickSecondaryAction({ kind: 'queue-run', run }, primary)
+	const issueAction: InboxAction = {
+		verb: 'view',
+		label: 'Issue',
+		destination: { kind: 'issue', issueId: run.issue_id }
+	}
 
-	const secondary =
+	const variantClass =
 		variant === 'respond'
-			? { to: '/issues/$issueId' as const, params: { issueId: run.issue_id }, label: 'Issue' }
-			: { to: '/runs/$runId' as const, params: { runId: run.id }, label: 'Detail' }
+			? 'border-edge focus-within:border-oxide hover:border-oxide'
+			: 'border-edge focus-within:border-edge-bright hover:border-edge-bright'
+
+	const secondarySlotClass =
+		'font-data inline-flex h-5 items-center rounded px-1.5 transition-colors hover:bg-graphite focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none'
 
 	return (
-		<div className="group flex flex-col gap-1.5 rounded-md border border-edge bg-slate-deep p-2.5 transition-colors focus-within:border-edge-bright hover:border-edge-bright hover:bg-slate-deep/80">
-			<Link
-				to={primary.to}
-				params={primary.params}
-				aria-label={primary.label}
+		<div
+			className={`group flex flex-col gap-1.5 rounded-md border bg-slate-deep p-2.5 transition-colors hover:bg-slate-deep/80 ${variantClass}`}
+		>
+			<InboxActionLink
+				action={primary}
+				ariaLabel={inboxActionAriaLabel(primary, run.issue_identifier)}
 				className="flex flex-col gap-1.5 rounded focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
 			>
 				<div className="flex items-center gap-2">
@@ -85,17 +76,30 @@ export function RunCard({ run, refTime, variant }: RunCardProps) {
 						<ExecutionModeBadge mode={run.execution_mode} />
 					</div>
 				) : null}
-			</Link>
 
-			<Link
-				to={secondary.to}
-				params={secondary.params}
-				className="font-data inline-flex h-5 items-center gap-1 self-end rounded px-1.5 text-[10px] tracking-wider text-ash uppercase transition-colors hover:bg-graphite hover:text-silver focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
-				aria-label={`${secondary.label} for ${run.issue_identifier}`}
-			>
-				<span>{secondary.label}</span>
-				<ArrowUpRight size={10} strokeWidth={1.75} aria-hidden="true" />
-			</Link>
+				<span className="self-end transition-colors">
+					<InboxActionPill action={primary} />
+				</span>
+			</InboxActionLink>
+
+			<div className="flex items-center justify-end gap-1">
+				{secondary ? (
+					<InboxActionLink
+						action={secondary}
+						ariaLabel={inboxActionAriaLabel(secondary, run.issue_identifier)}
+						className={secondarySlotClass}
+					>
+						<InboxActionPill action={secondary} muted />
+					</InboxActionLink>
+				) : null}
+				<InboxActionLink
+					action={issueAction}
+					ariaLabel={`Issue for ${run.issue_identifier}`}
+					className={secondarySlotClass}
+				>
+					<InboxActionPill action={issueAction} muted />
+				</InboxActionLink>
+			</div>
 		</div>
 	)
 }

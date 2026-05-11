@@ -21,7 +21,7 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 use superkick_config::SuperkickConfig;
 use superkick_core::{
@@ -35,6 +35,7 @@ use superkick_storage::repo::{
 
 use crate::agent_spawn::{LaunchConfigInputs, build_launch_config, resolve_spawn_plan};
 use crate::agent_supervisor::AgentSupervisor;
+use crate::launch_task_event_bus::{LaunchTaskEvent, LaunchTaskEventBus};
 use crate::launch_task_executor::{StepLinks, StepOutcome, StepRunner};
 use crate::linear_context::OptionalLinearClient;
 use crate::repo_cache::RepoCache;
@@ -129,6 +130,7 @@ where
     pub launch_task_repo: Arc<L>,
     pub registry: Arc<crate::pty_session::PtySessionRegistry>,
     pub session_bus: Option<Arc<SessionBus>>,
+    pub launch_task_bus: Arc<LaunchTaskEventBus>,
     pub repo_cache: RepoCache,
     pub config: SuperkickConfig,
     pub linear_client: OptionalLinearClient,
@@ -151,6 +153,7 @@ where
     step_repo: Arc<ST>,
     event_repo: Arc<E>,
     launch_task_repo: Arc<L>,
+    launch_task_bus: Arc<LaunchTaskEventBus>,
     supervisor: AgentSupervisor<A, E, T>,
     repo_cache: RepoCache,
     catalog: AgentCatalog,
@@ -193,6 +196,7 @@ where
             step_repo: deps.step_repo,
             event_repo: deps.event_repo,
             launch_task_repo: deps.launch_task_repo,
+            launch_task_bus: deps.launch_task_bus,
             supervisor,
             repo_cache: deps.repo_cache,
             catalog,
@@ -204,6 +208,16 @@ where
             base_branch: deps.base_branch,
             shadow_runs: Mutex::new(HashMap::new()),
         }
+    }
+
+    fn publish_shadow_run_state(&self, task: &LaunchTask, run_id: RunId, state: RunState) {
+        self.launch_task_bus
+            .publish(LaunchTaskEvent::ShadowRunStateChanged {
+                task_id: task.id,
+                linear_issue_id: task.linear_issue_id.clone(),
+                run_id,
+                state,
+            });
     }
 
     /// Materialise (or reuse) the shadow `Run` + worktree backing a Launch
@@ -278,6 +292,8 @@ where
             "shadow run created for launch task"
         );
 
+        self.publish_shadow_run_state(task, run.id, run.state);
+
         let mut map = self.shadow_runs.lock().await;
         // A concurrent task call may have raced us — last writer wins, the
         // earlier worktree is leaked. In practice the executor calls the
@@ -296,7 +312,12 @@ where
     /// stage, or `Reviewing → Completed` skipping `OpeningPr`). The shadow
     /// run is a synthetic mirror — its job is to keep the runs dashboard
     /// honest, not to obey the playbook engine's invariants.
-    async fn set_shadow_run_state(&self, run: &mut Run, new_state: RunState) -> Result<()> {
+    async fn set_shadow_run_state(
+        &self,
+        task: &LaunchTask,
+        run: &mut Run,
+        new_state: RunState,
+    ) -> Result<()> {
         run.state = new_state;
         let now = Utc::now();
         run.updated_at = now;
@@ -306,7 +327,9 @@ where
         self.run_repo
             .update(run)
             .await
-            .with_context(|| format!("shadow run {} state → {new_state}", run.id))
+            .with_context(|| format!("shadow run {} state → {new_state}", run.id))?;
+        self.publish_shadow_run_state(task, run.id, new_state);
+        Ok(())
     }
 
     /// Mark the shadow `RunStep` terminal so the runs dashboard stops
@@ -453,6 +476,24 @@ where
             }
         };
 
+        if let Err(e) = self
+            .launch_task_repo
+            .add_step_links(step.id, Some(shadow_run_id), None, None)
+            .await
+        {
+            // The step still runs, but cancel-from-run silently degrades:
+            // `cancel_run` looks the launch task up via `linked_run_id`, so
+            // without the link the API falls back to cancelling only the
+            // shadow `Run` and the launch step keeps executing.
+            error!(
+                launch_task_id = %task.id,
+                step_id = %step.id,
+                shadow_run_id = %shadow_run_id,
+                error = %e,
+                "failed to link step to shadow run — cancel-from-run will not propagate for this step"
+            );
+        }
+
         let mut run = match self.run_repo.get(shadow_run_id).await? {
             Some(run) => run,
             None => {
@@ -465,7 +506,7 @@ where
         // Move the shadow Run's state banner forward so the dashboard
         // reflects which Launch Task step is currently in flight.
         let phase_state = Self::shadow_run_state_for_step(step.step_kind);
-        if let Err(e) = self.set_shadow_run_state(&mut run, phase_state).await {
+        if let Err(e) = self.set_shadow_run_state(task, &mut run, phase_state).await {
             warn!(
                 shadow_run_id = %shadow_run_id,
                 error = %e,
@@ -571,7 +612,10 @@ where
                 handle.cancel();
                 self.finish_run_step(run_step_id, StepStatus::Failed, Some("cancelled".into()))
                     .await;
-                if let Err(e) = self.set_shadow_run_state(&mut run, RunState::Cancelled).await {
+                if let Err(e) = self
+                    .set_shadow_run_state(task, &mut run, RunState::Cancelled)
+                    .await
+                {
                     warn!(
                         shadow_run_id = %shadow_run_id,
                         error = %e,
@@ -604,7 +648,7 @@ where
                     .await;
                 if matches!(step.step_kind, LaunchStepKind::Review) {
                     if let Err(e) = self
-                        .set_shadow_run_state(&mut run, RunState::Completed)
+                        .set_shadow_run_state(task, &mut run, RunState::Completed)
                         .await
                     {
                         warn!(

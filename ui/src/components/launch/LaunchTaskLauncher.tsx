@@ -27,7 +27,7 @@ interface LaunchTaskLauncherProps {
  */
 export function LaunchTaskLauncher({ issueId, linearIssueIdentifier }: LaunchTaskLauncherProps) {
 	const agentsQuery = useAgents()
-	const createLaunchTask = useCreateLaunchTask({ issueId })
+	const createLaunchTask = useCreateLaunchTask({ issueId, issueIdentifier: linearIssueIdentifier })
 
 	const agentsData = agentsQuery.data
 	const agents: readonly Agent[] = agentsData ?? []
