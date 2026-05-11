@@ -62,8 +62,13 @@ export function pendingLabel(verb: InboxActionVerb): string {
 
 function primaryForNeedsHuman(item: NeedsHumanItem): InboxAction {
 	switch (item.reasonKind) {
-		case 'awaiting_approval':
+		case 'awaiting_approval': {
+			// awaiting_approval is only emitted from a launch-issue source.
+			if (item.source.kind !== 'launch-issue') {
+				throw new Error(`awaiting_approval expects launch-issue source, got ${item.source.kind}`)
+			}
 			return mkAction('approve', { kind: 'issue', issueId: item.source.item.issue.id })
+		}
 		case 'attention_pending':
 			return mkAction('answer', { kind: 'run', runId: runIdFromSource(item), openChat: true })
 		case 'interrupt_pending':

@@ -182,7 +182,7 @@ describe('pickPrimaryAction — queue-run (run card / running now)', () => {
 			'stalled → Resume',
 			{
 				stalled_for_seconds: 60,
-				stalled_reason: { kind: 'no_heartbeat', state: 'coding' as RunState }
+				stalled_reason: { kind: 'no_heartbeat', state: 'coding' as RunState, age_secs: 60 }
 			},
 			'resume'
 		],
