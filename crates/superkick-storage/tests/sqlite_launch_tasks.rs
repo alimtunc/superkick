@@ -37,6 +37,7 @@ fn agent(name: &str, provider: AgentProvider, model: Option<&str>) -> CoreAgentD
         linear_context: LinearContextMode::default(),
         mcp_policy: ResolvedMcpPolicy::default(),
         tool_policy: ResolvedToolPolicy::default(),
+        backend: None,
     }
 }
 

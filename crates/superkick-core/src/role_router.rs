@@ -26,6 +26,43 @@ use crate::agent::AgentProvider;
 use crate::linear_context::LinearContextMode;
 use crate::mcp_policy::{ResolvedMcpPolicy, ResolvedToolPolicy};
 
+/// Optional execution backend layered on top of the resolved provider command.
+/// See `docs/conventions/rust.md` (Agents & router) for the fallback contract
+/// and the Claude-only invariant.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum AgentBackend {
+    /// Default spawn path — equivalent to `backend: None`. Kept as an explicit
+    /// variant so YAML can opt back into the default when a parent template
+    /// provides a non-default value.
+    Protocol,
+    ClaudeSubagent {
+        subagent_name: String,
+    },
+    /// Order in the list is preserved so operators can sequence skills.
+    ClaudeSkill {
+        skills: Vec<String>,
+    },
+}
+
+impl AgentBackend {
+    /// Stable string operators grep for in the audit ledger
+    /// (`backend=claude_subagent(planner)`).
+    pub fn audit_tag(&self) -> String {
+        match self {
+            Self::Protocol => "protocol".to_string(),
+            Self::ClaudeSubagent { subagent_name } => {
+                format!("claude_subagent({subagent_name})")
+            }
+            Self::ClaudeSkill { skills } => format!("claude_skill([{}])", skills.join(", ")),
+        }
+    }
+
+    pub fn requires_claude(&self) -> bool {
+        matches!(self, Self::ClaudeSubagent { .. } | Self::ClaudeSkill { .. })
+    }
+}
+
 /// One project-level agent role as consumed by the router.
 ///
 /// This is a projection of `superkick_config::AgentDefinition` that the core
@@ -55,6 +92,8 @@ pub struct AgentDefinition {
     /// drive audit columns on the agent session.
     #[serde(default)]
     pub tool_policy: ResolvedToolPolicy,
+    #[serde(default)]
+    pub backend: Option<AgentBackend>,
 }
 
 impl AgentDefinition {
@@ -179,6 +218,7 @@ pub struct ResolvedAgent {
     pub mcp_policy: ResolvedMcpPolicy,
     /// Resolved tool policy snapshot. Audited as-is on the agent session.
     pub tool_policy: ResolvedToolPolicy,
+    pub backend: Option<AgentBackend>,
 }
 
 /// Errors the router can emit when a role cannot be launched.
@@ -235,6 +275,7 @@ impl<'a> RoleRouter<'a> {
             linear_context: def.linear_context,
             mcp_policy: def.mcp_policy.clone(),
             tool_policy: def.tool_policy.clone(),
+            backend: def.backend.clone(),
         })
     }
 }
@@ -265,6 +306,7 @@ mod tests {
             linear_context: LinearContextMode::default(),
             mcp_policy: ResolvedMcpPolicy::default(),
             tool_policy: ResolvedToolPolicy::default(),
+            backend: None,
         }
     }
 
@@ -334,5 +376,79 @@ mod tests {
         let merged = base.with_override(None);
         assert!(merged.is_allowed("planner"));
         assert!(!merged.is_allowed("coder"));
+    }
+
+    #[test]
+    fn resolve_carries_backend_through_to_resolved_agent() {
+        let mut planner = def("planner", AgentProvider::Claude);
+        planner.backend = Some(AgentBackend::ClaudeSubagent {
+            subagent_name: "general-purpose".into(),
+        });
+        let cat = AgentCatalog::from_definitions([planner]);
+        let policy = RunPolicy::allow_all();
+        let router = RoleRouter::new(&cat, &policy);
+        let resolved = router.resolve("planner").unwrap();
+        assert_eq!(
+            resolved.backend,
+            Some(AgentBackend::ClaudeSubagent {
+                subagent_name: "general-purpose".into()
+            })
+        );
+    }
+
+    #[test]
+    fn protocol_backend_and_none_backend_resolve_identically() {
+        let mut with_protocol = def("a", AgentProvider::Claude);
+        with_protocol.backend = Some(AgentBackend::Protocol);
+        let cat_proto = AgentCatalog::from_definitions([with_protocol]);
+
+        let without = def("a", AgentProvider::Claude);
+        let cat_none = AgentCatalog::from_definitions([without]);
+
+        let policy = RunPolicy::allow_all();
+        let resolved_proto = RoleRouter::new(&cat_proto, &policy).resolve("a").unwrap();
+        let resolved_none = RoleRouter::new(&cat_none, &policy).resolve("a").unwrap();
+
+        assert_eq!(resolved_proto.program, resolved_none.program);
+        assert_eq!(resolved_proto.args, resolved_none.args);
+        assert_eq!(resolved_proto.provider, resolved_none.provider);
+        assert_eq!(resolved_proto.backend, Some(AgentBackend::Protocol));
+        assert_eq!(resolved_none.backend, None);
+    }
+
+    #[test]
+    fn backend_requires_claude_predicate_is_correct() {
+        assert!(!AgentBackend::Protocol.requires_claude());
+        assert!(
+            AgentBackend::ClaudeSubagent {
+                subagent_name: "x".into()
+            }
+            .requires_claude()
+        );
+        assert!(
+            AgentBackend::ClaudeSkill {
+                skills: vec!["foo".into()]
+            }
+            .requires_claude()
+        );
+    }
+
+    #[test]
+    fn audit_tag_renders_each_variant_distinctly() {
+        assert_eq!(AgentBackend::Protocol.audit_tag(), "protocol");
+        assert_eq!(
+            AgentBackend::ClaudeSubagent {
+                subagent_name: "planner".into()
+            }
+            .audit_tag(),
+            "claude_subagent(planner)"
+        );
+        assert_eq!(
+            AgentBackend::ClaudeSkill {
+                skills: vec!["ticket-plan".into(), "review".into()]
+            }
+            .audit_tag(),
+            "claude_skill([ticket-plan, review])"
+        );
     }
 }
