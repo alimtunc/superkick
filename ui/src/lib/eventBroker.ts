@@ -52,6 +52,7 @@ interface SubscriberEntry<Event, Filter> {
  * (launch-task events, `{linearIssueId}` filter) share one implementation.
  */
 export class SseBroker<Event, Filter> {
+	private readonly options: SseBrokerOptions<Event, Filter>
 	private subscribers = new Map<symbol, SubscriberEntry<Event, Filter>>()
 	private connectionListeners = new Set<(connected: boolean) => void>()
 	private stopStream: (() => void) | null = null
@@ -60,7 +61,9 @@ export class SseBroker<Event, Filter> {
 	private reconnectDelay = RECONNECT_MIN_MS
 	private reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
-	constructor(private readonly options: SseBrokerOptions<Event, Filter>) {}
+	constructor(options: SseBrokerOptions<Event, Filter>) {
+		this.options = options
+	}
 
 	/** Open the stream. Idempotent — extra calls while connected are no-ops. */
 	start(): void {

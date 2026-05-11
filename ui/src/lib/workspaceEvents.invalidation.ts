@@ -98,7 +98,9 @@ export function invalidateForLaunchTaskNotice(
 	queryClient: QueryClient,
 	notice: LaunchTaskBrokerNotice
 ): void {
-	if (notice.type === 'lagged') {
+	// `LaunchTaskEvent` uses `kind` as its discriminant; `LaggedNotice` uses
+	// `type`. Narrow via `in` so both code paths typecheck against the union.
+	if (!('kind' in notice)) {
 		queryClient.invalidateQueries({ queryKey: queryKeys.launchTasks.all })
 		queryClient.invalidateQueries({
 			predicate: (q) => isLaunchTaskForIssueKey(q.queryKey)
