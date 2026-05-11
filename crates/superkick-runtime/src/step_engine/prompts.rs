@@ -1,0 +1,81 @@
+//! Shared per-step prompt bodies for agent steps.
+//!
+//! Used by both the playbook `StepEngine` (`execute_agent`) and the Launch
+//! Task `RealStepRunner`. Keeping the wording in one place prevents guardrail
+//! drift — every body must carry the "Do NOT update the issue status" rule,
+//! and two callers maintaining their own copies silently diverged before.
+
+/// Selects which body wording to render. The caller supplies its own
+/// preamble; this enum only picks the body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PromptStepKind {
+    Plan,
+    Implement,
+    Review,
+}
+
+/// The guardrail every agent step shares. Exposed so the rare fallback
+/// branches (unknown `StepKey` variants) can append it without duplicating
+/// the wording.
+pub const NO_LINEAR_UPDATE_GUARDRAIL: &str = "IMPORTANT: Do NOT update the issue status in Linear or any external tracker. \
+     Do NOT mark the issue as done, closed, or resolved.";
+
+/// Render the body for one step kind. Callers prepend their own preamble
+/// (e.g. "You are working on issue X (id: …)") so the same body works for
+/// both playbook runs and Launch Tasks.
+pub fn step_body_for(kind: PromptStepKind) -> String {
+    match kind {
+        PromptStepKind::Plan => format!(
+            "Analyze the codebase and produce a detailed implementation plan. \
+             Describe the files to change, the approach, and any risks. \
+             Do NOT make code changes yet — only plan. \
+             {NO_LINEAR_UPDATE_GUARDRAIL} Only plan the implementation."
+        ),
+        PromptStepKind::Implement => format!(
+            "Implement the changes needed to resolve this issue. \
+             Follow the existing code style and patterns. \
+             Make all necessary code changes. \
+             {NO_LINEAR_UPDATE_GUARDRAIL} Only write code."
+        ),
+        PromptStepKind::Review => format!(
+            "Review the changes on this branch for bugs, logic errors, \
+             security issues, and code quality. If the code looks good, \
+             say 'LGTM'. If there are issues, list them clearly. \
+             {NO_LINEAR_UPDATE_GUARDRAIL} Only review code."
+        ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_body_contains_the_no_linear_update_guardrail() {
+        for kind in [
+            PromptStepKind::Plan,
+            PromptStepKind::Implement,
+            PromptStepKind::Review,
+        ] {
+            assert!(
+                step_body_for(kind).contains("Do NOT update the issue status"),
+                "{kind:?} body missing guardrail"
+            );
+        }
+    }
+
+    #[test]
+    fn plan_body_forbids_code_changes() {
+        assert!(step_body_for(PromptStepKind::Plan).contains("only plan"));
+    }
+
+    #[test]
+    fn implement_body_directs_only_code() {
+        assert!(step_body_for(PromptStepKind::Implement).contains("Only write code"));
+    }
+
+    #[test]
+    fn review_body_directs_only_review() {
+        assert!(step_body_for(PromptStepKind::Review).contains("Only review code"));
+    }
+}

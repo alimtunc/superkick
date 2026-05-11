@@ -1,5 +1,6 @@
 //! Runtime services — worktree lifecycle, agent supervision, subprocess control.
 
+pub mod agent_spawn;
 pub mod agent_supervisor;
 pub mod attention_service;
 pub mod cli_resume;
@@ -12,6 +13,7 @@ pub mod interrupt_service;
 pub mod launch_task_event_bus;
 pub mod launch_task_executor;
 pub mod launch_task_registry;
+pub mod launch_task_step_runner;
 pub mod linear_context;
 pub mod mcp_policy;
 pub mod orchestrator;
@@ -45,6 +47,13 @@ pub use launch_task_executor::{
     StepRunner, StubStepRunner,
 };
 pub use launch_task_registry::{CancelDecision, LaunchTaskRegistry, ReservedSlot};
+
+/// Namespace for the SUP-124 production `StepRunner` and its construction
+/// deps. Grouped under their own path so the flat crate prelude doesn't grow
+/// every time the launch-task surface gains a type.
+pub mod launch_task {
+    pub use crate::launch_task_step_runner::{RealStepRunner, RealStepRunnerDeps};
+}
 pub use orchestrator::{
     OrchestratedSession, Orchestrator, SessionObservation, spawn_lifecycle_persistence_sink,
 };

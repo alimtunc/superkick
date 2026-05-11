@@ -530,4 +530,14 @@ pub trait LaunchTaskRepo: Send + Sync {
         task_id: LaunchTaskId,
         step_id: LaunchTaskStepId,
     ) -> impl Future<Output = Result<()>> + Send;
+
+    /// SUP-124 — persist the final summary the runner extracted from the
+    /// agent's output. `None` clears the column; `Some` overwrites it.
+    /// Idempotent — no status guard, callers invoke this around the
+    /// `Completed`/`NeedsHuman` transition.
+    fn set_step_summary(
+        &self,
+        id: LaunchTaskStepId,
+        summary: Option<String>,
+    ) -> impl Future<Output = Result<()>> + Send;
 }

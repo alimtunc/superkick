@@ -210,6 +210,21 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         Ok(())
     }
 
+    async fn set_step_summary(&self, id: LaunchTaskStepId, summary: Option<String>) -> Result<()> {
+        let now = chrono::Utc::now().to_rfc3339();
+        let result =
+            sqlx::query("UPDATE launch_task_steps SET summary = ?1, updated_at = ?2 WHERE id = ?3")
+                .bind(summary)
+                .bind(now)
+                .bind(id.0.to_string())
+                .execute(&self.pool)
+                .await?;
+        if result.rows_affected() == 0 {
+            return Err(anyhow!("launch_task_step {} not found", id.0));
+        }
+        Ok(())
+    }
+
     async fn add_step_links(
         &self,
         id: LaunchTaskStepId,

@@ -9,6 +9,7 @@ pub(crate) mod budget;
 mod commands;
 mod create_pr;
 mod prepare;
+pub(crate) mod prompts;
 mod review_swarm;
 
 use std::collections::HashMap;
@@ -150,14 +151,6 @@ where
     /// folded in for any role still using `linear_context: snapshot_plus_mcp`).
     pub(crate) fn mcp_registry(&self) -> &HashMap<String, superkick_config::McpServerSpec> {
         &self.mcp_registry
-    }
-
-    /// Shared Linear client used for snapshot delivery. `None` when
-    /// `LINEAR_API_KEY` is not configured.
-    pub(crate) fn linear_client(
-        &self,
-    ) -> Option<&Arc<superkick_integrations::linear::LinearClient>> {
-        self.linear_client.as_ref()
     }
 
     /// Construct a run-scoped router. Every agent spawn must flow through
@@ -1198,7 +1191,7 @@ pub(super) async fn kill_child(child: &mut tokio::process::Child) {
     }
 }
 
-pub(super) fn build_full_prompt(
+pub(crate) fn build_full_prompt(
     base: &str,
     default_instructions: Option<&str>,
     per_run_instructions: Option<&str>,
@@ -1244,7 +1237,7 @@ async fn check_tool_exists(tool: &str) -> Result<()> {
     Ok(())
 }
 
-pub(super) async fn emit_event<E: RunEventRepo>(
+pub(crate) async fn emit_event<E: RunEventRepo>(
     repo: &E,
     run_id: superkick_core::RunId,
     step_id: Option<superkick_core::StepId>,

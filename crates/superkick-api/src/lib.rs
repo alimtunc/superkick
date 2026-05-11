@@ -11,11 +11,12 @@ use axum::routing::{get, post};
 use superkick_config::{IssueTrigger, LaunchProfileConfig, OrchestrationConfig};
 use superkick_core::{AgentCatalog, RunId};
 use superkick_integrations::linear::LinearClient;
+use superkick_runtime::launch_task::{RealStepRunner, RealStepRunnerDeps};
 use superkick_runtime::{
     AttentionService, ConversationAdapters, ConversationRunner, InterruptService,
     LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry, OwnershipService,
     PtySessionRegistry, PublishingRunEventRepo, RepoCache, RuntimeDetector, SessionBus, StepEngine,
-    StepEngineDeps, StubStepRunner, TerminalTakeoverService, TurnEventBus, WorkspaceEventBus,
+    StepEngineDeps, TerminalTakeoverService, TurnEventBus, WorkspaceEventBus,
     boot_refresh as runtime_boot_refresh, spawn_heartbeat_listener,
 };
 use superkick_storage::{
@@ -98,6 +99,7 @@ pub fn launch_task_test_router(
     repo: Arc<SqliteLaunchTaskRepo>,
     catalog: Arc<AgentCatalog>,
 ) -> Router {
+    use superkick_runtime::StubStepRunner;
     let bus = LaunchTaskEventBus::new();
     let executor = LaunchTaskExecutor::new(
         Arc::clone(&repo),
@@ -105,7 +107,7 @@ pub fn launch_task_test_router(
         Arc::new(LaunchTaskRegistry::new()),
         Arc::new(StubStepRunner::new()),
     );
-    let state = handlers::launch_tasks::LaunchTaskState {
+    let state = handlers::launch_tasks::LaunchTaskState::<StubStepRunner> {
         repo,
         catalog,
         bus,
@@ -282,12 +284,6 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let orchestrator_session_repo = Arc::new(SqliteOrchestratorSessionRepo::new(pool.clone()));
     let launch_task_repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
     let launch_task_event_bus = LaunchTaskEventBus::new();
-    let launch_task_executor = LaunchTaskExecutor::new(
-        Arc::clone(&launch_task_repo),
-        Arc::clone(&launch_task_event_bus),
-        Arc::new(LaunchTaskRegistry::new()),
-        Arc::new(StubStepRunner::new()),
-    );
     let agent_catalog = Arc::new(config.agent_catalog());
     let runtime_repo = Arc::new(SqliteRuntimeRepo::new(pool.clone()));
     let runtime_detector = Arc::new(RuntimeDetector::new(Arc::clone(&runtime_repo)));
@@ -312,6 +308,28 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
              roles configured for linear_context will downgrade to `none`"
         );
     }
+
+    let real_step_runner = Arc::new(RealStepRunner::new(RealStepRunnerDeps {
+        run_repo: Arc::clone(&run_repo),
+        step_repo: Arc::clone(&step_repo),
+        event_repo: Arc::clone(&event_repo),
+        session_repo: Arc::clone(&session_repo),
+        transcript_repo: Arc::clone(&transcript_repo),
+        launch_task_repo: Arc::clone(&launch_task_repo),
+        registry: Arc::clone(&pty_registry),
+        session_bus: Some(Arc::clone(&session_bus)),
+        repo_cache: repo_cache.clone(),
+        config: config.clone(),
+        linear_client: linear_client.clone(),
+        repo_slug: repo_slug.clone(),
+        base_branch: base_branch.clone(),
+    }));
+    let launch_task_executor = LaunchTaskExecutor::new(
+        Arc::clone(&launch_task_repo),
+        Arc::clone(&launch_task_event_bus),
+        Arc::new(LaunchTaskRegistry::new()),
+        real_step_runner,
+    );
 
     let engine = Arc::new(StepEngine::new(StepEngineDeps {
         run_repo: Arc::clone(&run_repo),
