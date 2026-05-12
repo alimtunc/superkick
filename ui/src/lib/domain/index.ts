@@ -33,6 +33,14 @@ export {
 	type BlockingContext
 } from './launchTaskBlocking'
 export {
+	LAUNCH_STEP_KIND_LABEL,
+	LAUNCH_TASK_STATUS_LABEL,
+	LAUNCH_TASK_STATUS_TONE,
+	LAUNCH_STEP_STATUS_LABEL,
+	LAUNCH_STEP_STATUS_TONE,
+	LAUNCH_STEP_MUTED_STATUSES
+} from './launchTaskLabels'
+export {
 	runNarrative,
 	summarizeAttention,
 	attentionHint,

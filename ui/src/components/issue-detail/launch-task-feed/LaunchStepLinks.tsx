@@ -1,7 +1,7 @@
 import { Pill } from '@/components/ui/pill'
 import type { LaunchTaskStep } from '@/types'
+import { Icon } from '@/ui/Icon'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight } from 'lucide-react'
 
 interface LaunchStepLinksProps {
 	step: LaunchTaskStep
@@ -16,26 +16,30 @@ export function LaunchStepLinks({ step }: LaunchStepLinksProps) {
 	if (!hasAny) return null
 
 	return (
-		<div className="flex flex-wrap items-center gap-1.5 pl-6">
+		<div className="flex flex-wrap items-center gap-1.5">
 			{runId ? (
 				<Link
 					to="/runs/$runId"
 					params={{ runId }}
-					className="font-data inline-flex items-center gap-1 rounded border border-edge bg-slate-deep/60 px-2 py-0.5 text-[10px] text-silver transition-colors hover:border-mineral/40 hover:text-mineral"
+					className="inline-flex items-center gap-1 rounded-md border border-border bg-raised px-2 py-0.5 font-mono text-[10.5px] text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
 				>
 					Run
-					<ArrowRight size={10} strokeWidth={1.75} aria-hidden="true" />
+					<Icon name="arrowRight" size={10} />
 				</Link>
 			) : null}
 			{conversationId ? (
-				<Pill tone="neutral" size="xs" title={conversationId}>
-					Conversation
-				</Pill>
+				<span title={conversationId} className="inline-flex">
+					<Pill tone="neutral" size="sm" mono>
+						Conversation
+					</Pill>
+				</span>
 			) : null}
 			{orchestratorSessionId ? (
-				<Pill tone="neutral" size="xs" title={orchestratorSessionId}>
-					Orchestrator
-				</Pill>
+				<span title={orchestratorSessionId} className="inline-flex">
+					<Pill tone="neutral" size="sm" mono>
+						Orchestrator
+					</Pill>
+				</span>
 			) : null}
 		</div>
 	)

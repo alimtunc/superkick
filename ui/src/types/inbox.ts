@@ -48,3 +48,11 @@ export type InboxActionContext =
 	| { kind: 'queue-run'; run: QueueRunSummary }
 	| { kind: 'recently-done'; entry: RecentlyDoneEntry }
 	| { kind: 'ready-to-launch'; issue: LinearIssueListItem }
+
+export type InboxTabId = 'needs' | 'watching' | 'all'
+
+export interface InboxTabDescriptor {
+	id: InboxTabId
+	label: string
+	count: number
+}

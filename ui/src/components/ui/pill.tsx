@@ -1,6 +1,7 @@
 import type { ComponentProps, CSSProperties, ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
+import { Dot } from '@/ui/Dot'
 import { cva, type VariantProps } from 'class-variance-authority'
 
 const pillVariants = cva(
@@ -14,7 +15,12 @@ const pillVariants = cva(
 				gold: 'border border-gold/30 bg-gold-dim text-gold',
 				cyan: 'border border-cyan/30 bg-cyan-dim text-cyan',
 				violet: 'border border-violet/30 bg-violet-dim text-violet',
-				live: 'border border-neon-green/30 bg-neon-green/10 text-neon-green'
+				live: 'border border-neon-green/30 bg-neon-green/10 text-neon-green',
+				accent: 'border border-accent/30 bg-accent-soft text-accent',
+				success: 'border border-success/30 bg-success-soft text-success',
+				warn: 'border border-warn/30 bg-warn-soft text-warn',
+				danger: 'border border-danger/30 bg-danger-soft text-danger',
+				info: 'border border-info/30 bg-info-soft text-info'
 			},
 			size: {
 				xs: 'h-5 gap-1 rounded px-1.5 text-[10px]',
@@ -28,6 +34,10 @@ const pillVariants = cva(
 			interactive: {
 				true: 'cursor-pointer hover:border-edge-bright',
 				false: ''
+			},
+			mono: {
+				true: 'font-mono',
+				false: ''
 			}
 		},
 		compoundVariants: [
@@ -39,15 +49,36 @@ const pillVariants = cva(
 			tone: 'neutral',
 			size: 'xs',
 			shape: 'default',
-			interactive: false
+			interactive: false,
+			mono: false
 		}
 	}
 )
+
+export type PillTone = NonNullable<VariantProps<typeof pillVariants>['tone']>
+export type PillSize = NonNullable<VariantProps<typeof pillVariants>['size']>
+
+type SKToneSubset = 'neutral' | 'accent' | 'success' | 'warn' | 'danger' | 'info'
+
+function dotToneFor(tone: PillTone | null | undefined): SKToneSubset {
+	switch (tone) {
+		case 'accent':
+		case 'success':
+		case 'warn':
+		case 'danger':
+		case 'info':
+			return tone
+		default:
+			return 'neutral'
+	}
+}
 
 interface PillProps extends Omit<ComponentProps<'span'>, 'children'>, VariantProps<typeof pillVariants> {
 	children?: ReactNode
 	leading?: ReactNode
 	trailing?: ReactNode
+	dot?: boolean
+	pulse?: boolean
 	style?: CSSProperties
 }
 
@@ -56,20 +87,21 @@ export function Pill({
 	size = 'xs',
 	shape = 'default',
 	interactive = false,
+	mono = false,
 	leading,
 	trailing,
+	dot,
+	pulse,
 	className,
 	children,
 	...props
 }: PillProps) {
 	return (
-		<span className={cn(pillVariants({ tone, size, shape, interactive }), className)} {...props}>
+		<span className={cn(pillVariants({ tone, size, shape, interactive, mono }), className)} {...props}>
+			{dot ? <Dot tone={dotToneFor(tone)} size={6} pulse={pulse} /> : null}
 			{leading ? <span className="inline-flex shrink-0 items-center">{leading}</span> : null}
 			{children}
 			{trailing ? <span className="inline-flex shrink-0 items-center">{trailing}</span> : null}
 		</span>
 	)
 }
-
-export type PillTone = NonNullable<VariantProps<typeof pillVariants>['tone']>
-export type PillSize = NonNullable<VariantProps<typeof pillVariants>['size']>

@@ -13,6 +13,8 @@ import { Route as runsRoute } from './_shell/runs'
 import { Route as runDetailRoute } from './_shell/runs.$runId'
 import { Route as sessionsRoute } from './_shell/sessions'
 import { Route as settingsRoute } from './_shell/settings'
+import { Route as tasksDetailRoute } from './_shell/tasks.$taskId'
+import { Route as tasksNewRoute } from './_shell/tasks.new'
 
 const routeTree = rootRoute.addChildren([
 	shellRoute.addChildren([
@@ -25,7 +27,9 @@ const routeTree = rootRoute.addChildren([
 		sessionsRoute,
 		attentionRoute,
 		agentsRoute,
-		settingsRoute
+		settingsRoute,
+		tasksNewRoute,
+		tasksDetailRoute
 	])
 ])
 

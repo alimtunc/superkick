@@ -1,5 +1,3 @@
-import { InboxCapacityBadge } from '@/components/inbox/InboxCapacityBadge'
-import { InboxSection } from '@/components/inbox/InboxSection'
 import { InboxSectionBody } from '@/components/inbox/InboxSectionBody'
 import { ReadyToLaunchRow } from '@/components/inbox/ReadyToLaunchRow'
 import { LaunchDialog } from '@/components/launch/LaunchDialog'
@@ -18,37 +16,28 @@ export function ReadyToLaunchSection() {
 		(item): item is Extract<LaunchQueueItem, { kind: 'issue' }> => item.kind === 'issue'
 	)
 
-	const subtitle = launchQueue.loading ? null : <InboxCapacityBadge capacity={launchQueue.activeCapacity} />
 	const errorMessage = launchQueue.error
 		? `Linear unavailable — ${launchQueue.error}. Other sections still work.`
 		: null
 
 	return (
 		<>
-			<InboxSection
-				title="Ready to Launch"
-				count={launchQueue.loading ? null : items.length}
-				subtitle={subtitle}
+			<InboxSectionBody
+				loading={launchQueue.loading}
+				error={errorMessage}
+				emptyMessage="No launchable issues. Move a Linear issue to In Progress to queue it."
+				isEmpty={items.length === 0}
 			>
-				<InboxSectionBody
-					loading={launchQueue.loading}
-					error={errorMessage}
-					emptyMessage="No launchable issues. Move a Linear issue to In Progress to queue it for dispatch."
-					isEmpty={items.length === 0}
-				>
-					<div className="divide-y divide-edge/50 overflow-hidden rounded border border-edge">
-						{items.map((item, index) => (
-							<ReadyToLaunchRow
-								key={`issue:${item.issue.id}`}
-								item={item}
-								dispatchPosition={index + 1}
-								onDispatch={launch.openFor}
-								dispatchPending={launch.isPending}
-							/>
-						))}
-					</div>
-				</InboxSectionBody>
-			</InboxSection>
+				{items.map((item, index) => (
+					<ReadyToLaunchRow
+						key={`issue:${item.issue.id}`}
+						item={item}
+						dispatchPosition={index + 1}
+						onDispatch={launch.openFor}
+						dispatchPending={launch.isPending}
+					/>
+				))}
+			</InboxSectionBody>
 			{launchProfile ? (
 				<LaunchDialog
 					open={launch.dialog.open}

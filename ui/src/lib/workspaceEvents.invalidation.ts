@@ -118,6 +118,9 @@ export function invalidateForLaunchTaskNotice(
 				queryKey: queryKeys.launchTasks.forIssue(notice.linear_issue_id)
 			})
 			queryClient.invalidateQueries({
+				queryKey: queryKeys.launchTasks.detail(notice.task_id)
+			})
+			queryClient.invalidateQueries({
 				queryKey: queryKeys.launchTasks.steps(notice.task_id)
 			})
 			queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.queue })
