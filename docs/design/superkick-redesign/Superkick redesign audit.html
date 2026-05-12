@@ -1,0 +1,1447 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Superkick — Redesign audit</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    /* Surfaces */
+    --void: #0b0c0e;
+    --carbon: #111214;
+    --graphite: #181a1e;
+    --slate: #1f2228;
+    --panel: #252830;
+    --edge: #2e323b;
+    --edge-bright: #363a45;
+    /* Text */
+    --fog: #e8e6e1;
+    --silver: #b0ada6;
+    --ash: #7a7770;
+    --dim: #55524c;
+    color-scheme: dark;
+  }
+  [data-theme="light"] {
+    /* Surfaces — paper-first, calm */
+    --void: #f6f5f1;
+    --carbon: #efede7;
+    --graphite: #ffffff;
+    --slate: #f1efea;
+    --panel: #ffffff;
+    --edge: #e2dfd8;
+    --edge-bright: #cfcbc1;
+    /* Text — invert axis */
+    --fog: #1a1c1f;
+    --silver: #4a4d52;
+    --ash: #807d76;
+    --dim: #a8a59d;
+    /* Accents stay semantically equivalent, slightly desaturated for paper */
+    --neon: #1f9d5f;
+    --mineral: #2f8d5e;
+    --mineral-dim: rgba(47,141,94,.10);
+    --oxide: #c64535;
+    --oxide-dim: rgba(198,69,53,.10);
+    --gold: #b88308;
+    --gold-dim: rgba(184,131,8,.10);
+    --cyan: #2b8caf;
+    --cyan-dim: rgba(43,140,175,.10);
+    --violet: #6a59d6;
+    --violet-dim: rgba(106,89,214,.10);
+    color-scheme: light;
+    /* Accents */
+    --neon: #3ddc84;
+    --mineral: #4caf7d;
+    --mineral-dim: rgba(76,175,125,.12);
+    --oxide: #e85d4a;
+    --oxide-dim: rgba(232,93,74,.12);
+    --gold: #e5a913;
+    --gold-dim: rgba(229,169,19,.10);
+    --cyan: #4fc1e8;
+    --cyan-dim: rgba(79,193,232,.10);
+    --violet: #9b8aff;
+    --violet-dim: rgba(155,138,255,.10);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: var(--void); color: var(--fog); }
+  body {
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  .mono { font-family: 'DM Mono', ui-monospace, monospace; }
+  a { color: var(--fog); text-decoration: none; }
+
+  /* ── Layout ── */
+  .page { max-width: 1120px; margin: 0 auto; padding: 64px 40px 120px; }
+  .hero { padding: 32px 0 56px; border-bottom: 1px solid var(--edge); margin-bottom: 64px; }
+  .hero .eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ash);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .hero .eyebrow::before {
+    content: ""; width: 6px; height: 6px; border-radius: 999px;
+    background: var(--neon); box-shadow: 0 0 12px rgba(61,220,132,.5);
+  }
+  .hero h1 {
+    font-size: 44px; line-height: 1.05; letter-spacing: -.02em;
+    font-weight: 500; color: var(--fog); margin: 18px 0 14px;
+    max-width: 22ch;
+  }
+  .hero p.lede {
+    font-size: 16px; color: var(--silver); max-width: 64ch;
+  }
+  .hero .meta {
+    display: flex; gap: 22px; margin-top: 26px;
+    font-family: 'DM Mono', monospace; font-size: 11px; color: var(--ash);
+  }
+  .hero .meta b { color: var(--silver); font-weight: 500; }
+
+  /* ── Section primitives ── */
+  section + section { margin-top: 72px; }
+  h2.section {
+    font-size: 20px; font-weight: 500; color: var(--fog);
+    margin-bottom: 4px; letter-spacing: -.01em;
+  }
+  h2.section .num {
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    color: var(--ash); letter-spacing: .18em;
+    margin-right: 14px; text-transform: uppercase;
+  }
+  .section-sub {
+    color: var(--silver); margin-bottom: 28px;
+    max-width: 64ch;
+  }
+  h3.sub {
+    font-size: 14px; font-weight: 500; color: var(--fog);
+    margin-bottom: 8px;
+  }
+
+  /* ── Grids ── */
+  .grid-2 { display: grid; gap: 16px; grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { display: grid; gap: 16px; grid-template-columns: repeat(3, 1fr); }
+  .grid-5 { display: grid; gap: 12px; grid-template-columns: repeat(5, 1fr); }
+
+  /* ── Cards / panels ── */
+  .card {
+    background: var(--graphite); border: 1px solid var(--edge);
+    border-radius: 8px; padding: 18px 20px;
+  }
+  .card .label {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ash); margin-bottom: 10px;
+  }
+  .card h4 { font-size: 14px; font-weight: 500; color: var(--fog); margin-bottom: 6px; }
+  .card p { font-size: 13px; color: var(--silver); }
+
+  /* ── Direction tiles (visual principles) ── */
+  .dir { display: flex; flex-direction: column; min-height: 168px; }
+  .dir .swatch { flex: 1; border-radius: 6px; margin-top: 10px; border: 1px solid var(--edge); }
+  .dir-text .swatch { display: flex; align-items: flex-end; padding: 14px; background: var(--graphite); }
+  .dir-text .big { font-size: 28px; color: var(--fog); letter-spacing: -.01em; line-height: 1; }
+  .dir-text .small { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--ash); margin-left: 10px; }
+  .dir-colors .swatch { display: flex; padding: 0; overflow: hidden; }
+  .dir-colors .sw { flex: 1; }
+  .dir-density .swatch { background: var(--graphite); padding: 0; }
+  .dir-density .row {
+    height: 32px; padding: 0 14px; border-bottom: 1px solid var(--edge);
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; color: var(--fog);
+  }
+  .dir-density .row:last-child { border-bottom: none; }
+  .dir-density .id { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--silver); }
+  .dir-density .dot {
+    width: 8px; height: 8px; border-radius: 999px; background: var(--mineral);
+  }
+  .dir-motion .swatch {
+    background: var(--graphite); display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+  .pulse {
+    width: 10px; height: 10px; border-radius: 999px; background: var(--neon);
+    box-shadow: 0 0 0 0 rgba(61,220,132,.6);
+    animation: pulse 2s ease-out infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(61,220,132,.5); }
+    70% { box-shadow: 0 0 0 14px rgba(61,220,132,0); }
+    100% { box-shadow: 0 0 0 0 rgba(61,220,132,0); }
+  }
+  .dir-icon .swatch { background: var(--graphite); display: flex; align-items: center; justify-content: center; gap: 18px; }
+  .dir-icon svg { stroke: var(--silver); stroke-width: 1.5; fill: none; }
+
+  /* ── Problems ── */
+  .problems { display: flex; flex-direction: column; gap: 1px; background: var(--edge); border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; }
+  .problem {
+    background: var(--graphite); padding: 18px 22px;
+    display: grid; grid-template-columns: 56px 1fr; gap: 18px; align-items: flex-start;
+  }
+  .problem .pid {
+    font-family: 'DM Mono', monospace; font-size: 11px; color: var(--ash);
+    letter-spacing: .18em; padding-top: 2px;
+  }
+  .problem h4 { font-size: 14px; font-weight: 500; color: var(--fog); margin-bottom: 4px; }
+  .problem p { font-size: 13px; color: var(--silver); }
+
+  /* ── Principles ── */
+  .principle {
+    border-left: 2px solid var(--mineral);
+    padding: 4px 0 4px 16px;
+  }
+  .principle h4 { font-size: 14px; font-weight: 500; color: var(--fog); margin-bottom: 4px; }
+  .principle p { font-size: 13px; color: var(--silver); }
+
+  /* ── Tickets ── */
+  .ticket {
+    margin-top: 28px;
+    background: var(--graphite);
+    border: 1px solid var(--edge);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .ticket-head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: flex-start;
+    gap: 24px;
+    padding: 22px 26px 18px;
+    border-bottom: 1px solid var(--edge);
+  }
+  .ticket-id {
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    color: var(--ash); letter-spacing: .14em; text-transform: uppercase;
+    margin-bottom: 6px; display: flex; gap: 12px; align-items: center;
+  }
+  .ticket-id .pill {
+    border: 1px solid var(--edge-bright); color: var(--silver);
+    padding: 2px 8px; border-radius: 999px; font-size: 10px;
+  }
+  .ticket-head h3 {
+    font-size: 22px; line-height: 1.2; font-weight: 500; color: var(--fog);
+    letter-spacing: -.01em;
+  }
+  .ticket-head .effort {
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    color: var(--silver); text-align: right;
+  }
+  .ticket-head .effort b { display: block; color: var(--fog); font-size: 12px; font-weight: 500; }
+
+  .ticket-body { display: grid; grid-template-columns: 1.05fr 1fr; gap: 0; }
+  .ticket-meta { padding: 22px 26px; border-right: 1px solid var(--edge); }
+  .ticket-meta dl { display: grid; gap: 20px; }
+  .ticket-meta dt {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    color: var(--ash); letter-spacing: .16em; text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .ticket-meta dd { color: var(--silver); font-size: 13px; }
+  .ticket-meta li { font-size: 13px; color: var(--silver); list-style: none; position: relative; padding-left: 16px; margin-bottom: 5px; }
+  .ticket-meta li::before {
+    content: ""; position: absolute; left: 0; top: 9px;
+    width: 6px; height: 1px; background: var(--ash);
+  }
+  .ticket-meta li.bad::before { background: var(--oxide); }
+  .ticket-meta li.good::before { background: var(--mineral); }
+
+  .ticket-mock {
+    padding: 22px;
+    background: linear-gradient(180deg, var(--carbon) 0%, var(--void) 100%);
+    display: flex; flex-direction: column; gap: 10px;
+    min-height: 360px;
+  }
+  .ticket-mock .mock-label {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    color: var(--ash); letter-spacing: .16em; text-transform: uppercase;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .ticket-mock .mock-label .tag {
+    border: 1px solid var(--edge); padding: 2px 8px; border-radius: 999px;
+    color: var(--silver);
+  }
+
+  /* ── Mock primitives ── */
+  .mock {
+    background: var(--graphite); border: 1px solid var(--edge);
+    border-radius: 8px; overflow: hidden; flex: 1;
+    display: flex; flex-direction: column;
+  }
+  .mock-topbar {
+    height: 36px; border-bottom: 1px solid var(--edge); background: var(--carbon);
+    display: flex; align-items: center; gap: 12px; padding: 0 14px;
+    font-family: 'DM Mono', monospace; font-size: 11px; color: var(--silver);
+  }
+  .mock-topbar .crumb { color: var(--ash); }
+  .mock-topbar .crumb .sep { color: var(--dim); margin: 0 8px; }
+  .mock-topbar .right { margin-left: auto; display: flex; gap: 8px; align-items: center; color: var(--ash); }
+
+  .mock-section-title {
+    padding: 14px 16px 8px; font-size: 13px; font-weight: 500; color: var(--fog);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .mock-section-title .count { color: var(--ash); font-family: 'DM Mono', monospace; font-size: 11px; }
+  .mock-section-title .dot {
+    width: 5px; height: 5px; border-radius: 999px; background: var(--edge-bright);
+  }
+  .mock-section-title.urgent .dot { background: var(--oxide); }
+  .mock-section-title.urgent { color: var(--fog); }
+
+  .mock-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 16px; border-top: 1px solid transparent;
+    border-bottom: 1px solid transparent; cursor: pointer;
+    transition: background .15s ease;
+  }
+  .mock-row:hover { background: rgba(31,34,40,.5); }
+  .mock-row.urgent { border-left: 2px solid var(--oxide); padding-left: 14px; }
+  .mock-row .id {
+    font-family: 'DM Mono', monospace; font-size: 12px; color: var(--silver);
+    min-width: 64px;
+  }
+  .mock-row .title { flex: 1; color: var(--fog); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mock-row .meta { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--ash); }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    padding: 2px 8px; border-radius: 999px;
+    border: 1px solid var(--edge); color: var(--silver);
+    letter-spacing: .04em; text-transform: uppercase;
+  }
+  .pill.mineral { color: var(--mineral); border-color: rgba(76,175,125,.4); background: var(--mineral-dim); }
+  .pill.oxide   { color: var(--oxide);   border-color: rgba(232,93,74,.4);  background: var(--oxide-dim); }
+  .pill.gold    { color: var(--gold);    border-color: rgba(229,169,19,.4); background: var(--gold-dim); }
+  .pill.cyan    { color: var(--cyan);    border-color: rgba(79,193,232,.4); background: var(--cyan-dim); }
+  .pill.violet  { color: var(--violet);  border-color: rgba(155,138,255,.4); background: var(--violet-dim); }
+  .pill.ghost   { color: var(--ash); border-color: var(--edge); }
+  .pill .d { width: 5px; height: 5px; border-radius: 999px; background: currentColor; }
+  .pill.live .d { animation: blink 1.6s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
+    border: 1px solid var(--edge); background: transparent; color: var(--silver);
+    cursor: pointer; transition: all .12s ease;
+  }
+  .btn:hover { border-color: var(--edge-bright); color: var(--fog); }
+  .btn.primary {
+    background: var(--mineral); color: #0a1e14;
+    border-color: var(--mineral);
+  }
+  .btn.primary:hover { background: #5cc28f; color: #0a1e14; }
+  .btn.sm { padding: 4px 10px; font-size: 11px; }
+
+  /* ── Shell mock ── */
+  .shell {
+    display: grid; grid-template-columns: 160px 1fr; flex: 1; min-height: 280px;
+  }
+  .shell-side {
+    background: var(--carbon); border-right: 1px solid var(--edge);
+    padding: 12px 8px; display: flex; flex-direction: column; gap: 2px;
+  }
+  .shell-brand {
+    font-family: 'DM Mono', monospace; font-size: 10px; color: var(--silver);
+    letter-spacing: .18em; text-transform: uppercase;
+    padding: 6px 10px 12px; display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--edge); margin-bottom: 10px;
+  }
+  .shell-brand .d { width: 6px; height: 6px; border-radius: 999px; background: var(--neon); animation: blink 2s ease-in-out infinite; }
+  .shell-nav {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 10px; border-radius: 6px; font-size: 13px; color: var(--silver);
+    cursor: pointer;
+  }
+  .shell-nav.active { background: var(--slate); color: var(--fog); border-left: 2px solid var(--mineral); padding-left: 8px; }
+  .shell-nav .icon { width: 14px; height: 14px; opacity: .7; }
+  .shell-nav .badge {
+    margin-left: auto; font-family: 'DM Mono', monospace; font-size: 10px;
+    color: var(--ash); background: var(--slate); padding: 1px 6px; border-radius: 999px;
+  }
+  .shell-nav.urgent .badge { color: var(--oxide); }
+  .shell-main { padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; }
+
+  /* ── Launch task feed mock ── */
+  .feed-step {
+    display: grid; grid-template-columns: 28px 1fr auto; align-items: center;
+    gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--edge);
+  }
+  .feed-step:last-child { border-bottom: none; }
+  .feed-step .ring {
+    width: 22px; height: 22px; border-radius: 999px;
+    border: 1.5px solid var(--edge-bright); display: flex; align-items: center; justify-content: center;
+    color: var(--ash); font-family: 'DM Mono', monospace; font-size: 11px;
+  }
+  .feed-step.done .ring { background: var(--mineral-dim); border-color: var(--mineral); color: var(--mineral); }
+  .feed-step.running .ring { border-color: var(--neon); color: var(--neon); }
+  .feed-step.running .ring::after {
+    content: ""; position: absolute; width: 22px; height: 22px; border-radius: 999px;
+    border: 1px solid var(--neon); animation: ping 1.8s ease-out infinite;
+  }
+  @keyframes ping { 0% { opacity: .8; transform: scale(1); } 100% { opacity: 0; transform: scale(1.6); } }
+  .feed-step .meta-row { display: flex; gap: 10px; align-items: center; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--ash); margin-top: 2px; }
+  .feed-step h5 { font-size: 13px; color: var(--fog); font-weight: 500; }
+
+  .evidence {
+    background: var(--slate); border-radius: 6px; padding: 10px 12px;
+    display: grid; grid-template-columns: 16px 1fr auto; gap: 10px; align-items: center;
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    margin: 8px 16px 0 56px;
+  }
+  .evidence .e-icon { width: 12px; height: 12px; border-radius: 2px; background: var(--cyan-dim); border: 1px solid var(--cyan); }
+  .evidence .e-icon.ok { background: var(--mineral-dim); border-color: var(--mineral); }
+  .evidence .label { color: var(--silver); }
+  .evidence .val { color: var(--ash); }
+
+  /* ── Issue Detail recompose mock ── */
+  .id-grid { display: grid; grid-template-columns: 1fr 220px; gap: 14px; padding: 14px 16px; flex: 1; }
+  .id-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .id-side { display: flex; flex-direction: column; gap: 10px; }
+  .id-banner {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; background: var(--oxide-dim);
+    border: 1px solid rgba(232,93,74,.3); border-radius: 6px;
+  }
+  .id-banner .text { flex: 1; font-size: 12px; color: var(--fog); }
+  .id-banner .text b { color: var(--oxide); font-weight: 500; }
+  .id-title { font-size: 18px; font-weight: 500; color: var(--fog); letter-spacing: -.01em; line-height: 1.25; }
+  .id-meta { display: flex; gap: 10px; align-items: center; }
+
+  .prop-row {
+    display: grid; grid-template-columns: 70px 1fr; gap: 8px; padding: 6px 0;
+    font-size: 12px; align-items: center;
+  }
+  .prop-row .k { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--ash); text-transform: uppercase; letter-spacing: .1em; }
+  .prop-row .v { color: var(--fog); }
+
+  /* ── Run Detail mock ── */
+  .rd-grid { display: grid; grid-template-columns: 220px 1fr; gap: 14px; padding: 14px 16px; flex: 1; }
+  .rd-step {
+    display: grid; grid-template-columns: 18px 1fr auto; gap: 10px; padding: 8px 12px;
+    border-radius: 6px; font-size: 12px; align-items: center;
+  }
+  .rd-step.now { background: var(--slate); }
+  .rd-step .d { width: 8px; height: 8px; border-radius: 999px; background: var(--edge-bright); }
+  .rd-step.done .d { background: var(--mineral); }
+  .rd-step.now .d { background: var(--neon); }
+  .rd-step .l { color: var(--fog); }
+  .rd-step .t { font-family: 'DM Mono', monospace; color: var(--ash); font-size: 11px; }
+
+  /* ── before/after ── */
+  .ba {
+    border: 1px dashed var(--edge); border-radius: 6px; padding: 12px;
+    background: rgba(11,12,14,.6);
+    display: flex; flex-direction: column; gap: 8px;
+    min-height: 120px;
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    color: var(--silver);
+  }
+  .ba .label {
+    font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ash);
+    margin-bottom: 4px;
+  }
+  .ba.before { opacity: .85; }
+
+  /* Footer */
+  footer {
+    margin-top: 96px; padding-top: 28px; border-top: 1px solid var(--edge);
+    font-family: 'DM Mono', monospace; font-size: 11px; color: var(--ash);
+    display: flex; gap: 18px; justify-content: space-between;
+  }
+
+  /* small */
+  .muted { color: var(--ash); }
+  .accent-green { color: var(--mineral); }
+  .accent-red { color: var(--oxide); }
+  .accent-cyan { color: var(--cyan); }
+  .accent-violet { color: var(--violet); }
+  .accent-gold { color: var(--gold); }
+</style>
+</head>
+<body>
+<button id="theme-toggle" style="position:fixed;top:20px;right:20px;z-index:50;background:var(--graphite);border:1px solid var(--edge);color:var(--silver);padding:6px 12px;border-radius:999px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.08em;cursor:pointer;transition:all .15s ease" onclick="const r=document.documentElement;const t=r.getAttribute('data-theme')==='light'?'dark':'light';r.setAttribute('data-theme',t);this.textContent=t==='light'?'\u25D0 Dark':'\u25D1 Light'">◑ Light</button>
+<div class="page">
+
+  <!-- ─────────────────  HERO  ───────────────── -->
+  <header class="hero">
+    <div class="eyebrow">SUPERKICK · UX/UI AUDIT · MAY 2026</div>
+    <h1>From internal tool to calm operations workspace.</h1>
+    <p class="lede">
+      Superkick a tout pour devenir un mission control élégant et lisible. Aujourd'hui l'app fait
+      "internal tool dense" — beaucoup de DM Mono UPPERCASE, beaucoup de sections empilées, deux entrées
+      de launcher concurrentes. Cet audit propose une direction visuelle, 6 problèmes UX prioritaires,
+      4 principes de redesign, et 6 tickets shippables — chacun avec scope, non-goals, et critères d'acceptation.
+    </p>
+    <div class="meta">
+      <span><b>Direction</b> &nbsp; Linear · Multica · Claude</span>
+      <span><b>Surfaces</b> &nbsp; Shell · Inbox · Issues · Issue Detail · Launch Task · Run Detail</span>
+      <span><b>Constraint</b> &nbsp; No IA change · Ticket-first stays</span>
+    </div>
+  </header>
+
+  <!-- ─────────────────  DIRECTION VISUELLE  ───────────────── -->
+  <section>
+    <h2 class="section"><span class="num">01</span>Direction visuelle</h2>
+    <p class="section-sub">
+      On garde la palette <b style="color:var(--fog);font-weight:500">Graphite Operations Atelier</b> (tokens existants).
+      Ce qui change : on lève le pied sur le mono uppercase, on laisse respirer la grille, on traite chaque
+      surface comme une lecture — pas comme un panneau d'admin.
+    </p>
+
+    <div class="grid-5">
+
+      <div class="card dir dir-text">
+        <div class="label">Typo</div>
+        <h4>DM Sans first</h4>
+        <p style="font-size:12px">Le mono devient une exception (IDs, durées, états). Le chrome retrouve une voix humaine.</p>
+        <div class="swatch">
+          <span class="big">Aa</span>
+          <span class="small">SUP-217</span>
+        </div>
+      </div>
+
+      <div class="card dir dir-colors">
+        <div class="label">Surfaces</div>
+        <h4>4 élévations</h4>
+        <p style="font-size:12px">Void · Carbon · Graphite · Slate. Pas de 5ᵉ niveau, pas de noir hardcodé.</p>
+        <div class="swatch">
+          <div class="sw" style="background:var(--void)"></div>
+          <div class="sw" style="background:var(--carbon)"></div>
+          <div class="sw" style="background:var(--graphite)"></div>
+          <div class="sw" style="background:var(--slate)"></div>
+        </div>
+      </div>
+
+      <div class="card dir dir-colors">
+        <div class="label">Accents</div>
+        <h4>Sémantiques</h4>
+        <p style="font-size:12px">Mineral · Oxide · Gold · Cyan · Violet. Réservés au statut, jamais décoratifs.</p>
+        <div class="swatch">
+          <div class="sw" style="background:var(--mineral)"></div>
+          <div class="sw" style="background:var(--oxide)"></div>
+          <div class="sw" style="background:var(--gold)"></div>
+          <div class="sw" style="background:var(--cyan)"></div>
+          <div class="sw" style="background:var(--violet)"></div>
+        </div>
+      </div>
+
+      <div class="card dir dir-density">
+        <div class="label">Density</div>
+        <h4>32px rows</h4>
+        <p style="font-size:12px">Standard h-8 pour les listes. Pas de gros titres, pas de carte épaisse.</p>
+        <div class="swatch">
+          <div class="row"><span class="id">SUP-217</span><span>Launcher consolidation</span><span class="dot" style="margin-left:auto"></span></div>
+          <div class="row"><span class="id">SUP-218</span><span>Inbox triage</span><span class="dot" style="background:var(--gold);margin-left:auto"></span></div>
+          <div class="row"><span class="id">SUP-219</span><span>Run supervision</span><span class="dot" style="background:var(--cyan);margin-left:auto"></span></div>
+        </div>
+      </div>
+
+      <div class="card dir dir-motion">
+        <div class="label">Motion</div>
+        <h4>Vivant, calme</h4>
+        <p style="font-size:12px">Une seule animation par écran : le pulse vert qui dit "ça tourne".</p>
+        <div class="swatch"><div class="pulse"></div></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ─────────────────  PROBLÈMES UX  ───────────────── -->
+  <section>
+    <h2 class="section"><span class="num">02</span>Problèmes UX actuels</h2>
+    <p class="section-sub">
+      Observations sur le code actuel (<span class="mono">ui/src/components/*</span>) et la direction <span class="mono">visual-design.md</span>.
+      Listés par ordre d'impact perçu sur l'usage quotidien.
+    </p>
+
+    <div class="problems">
+
+      <div class="problem">
+        <div class="pid">P-01</div>
+        <div>
+          <h4>Le chrome parle en télégramme</h4>
+          <p>
+            Headers, sidebars, banners, statuts : tout est <span class="mono">font-data uppercase tracking-[.18em]</span>.
+            C'est l'esthétique "Multica trader UI", pas Linear. Résultat : l'app a l'air d'un outil internal-only et la
+            lecture est fatigante en daily use. <b style="color:var(--fog);font-weight:500">Le mono doit rester réservé aux IDs, durées et états techniques.</b>
+          </p>
+        </div>
+      </div>
+
+      <div class="problem">
+        <div class="pid">P-02</div>
+        <div>
+          <h4>Deux launchers concurrents pour la même action</h4>
+          <p>
+            Sur Issue Detail, le panel droit contient <span class="mono">LaunchTaskLauncher</span> (recette Plan→Implement→Review)
+            <i>et</i> une <span class="mono">Disclosure "Advanced — launch a single isolated run"</span> qui ouvre <span class="mono">LaunchDialog</span>.
+            Deux flows pour lancer un truc. L'utilisateur ne sait pas lequel choisir, et le "single run" est un legacy escape hatch
+            qui pollue la surface principale.
+          </p>
+        </div>
+      </div>
+
+      <div class="problem">
+        <div class="pid">P-03</div>
+        <div>
+          <h4>L'Inbox n'a pas de hiérarchie d'urgence</h4>
+          <p>
+            Quatre sections empilées (<span class="mono">NeedsHuman · RunningNow · ReadyToLaunch · RecentlyDone</span>),
+            même poids visuel pour chacune, même header style. "Needs you" devrait dominer la page, pas être un titre parmi quatre.
+            Pas de verbe d'action explicite sur les rows ("Answer", "Approve", "Take over").
+          </p>
+        </div>
+      </div>
+
+      <div class="problem">
+        <div class="pid">P-04</div>
+        <div>
+          <h4>Issue Detail surcharge la zone principale</h4>
+          <p>
+            Top-down on a : <i>NeedsHuman banner · Issue title · Launch Task feed · Description · Children · Activity timeline</i>.
+            C'est 5 sections de hauteur libre dans la colonne principale. Le Launch Task feed — qui est <i>l'objet produit principal</i> —
+            est mélangé à la description Linear et à un timeline de commentaires. Aucune surface n'est mise en avant.
+          </p>
+        </div>
+      </div>
+
+      <div class="problem">
+        <div class="pid">P-05</div>
+        <div>
+          <h4>Run Detail est une liste de tiroirs</h4>
+          <p>
+            <span class="mono">RunDetailView</span> empile 5 <span class="mono">EvidenceSection</span> collapsibles : ledger, step timeline,
+            sessions, reviews, terminal. C'est exhaustif mais ce n'est pas une <i>histoire</i>. L'utilisateur veut savoir "où on en est, qu'est-ce qui bloque",
+            pas naviguer une table des matières.
+          </p>
+        </div>
+      </div>
+
+      <div class="problem">
+        <div class="pid">P-06</div>
+        <div>
+          <h4>Trois bars horizontales mangent le viewport</h4>
+          <p>
+            <span class="mono">ShellHeader</span> (h-12) + <span class="mono">SessionWatchRail</span> (h-8 à h-10) + <span class="mono">RunDock</span>
+            en bas = ~120px de chrome avant même de voir le contenu. Sur un MacBook 13", c'est cher payé.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ─────────────────  PRINCIPES  ───────────────── -->
+  <section>
+    <h2 class="section"><span class="num">03</span>Principes de redesign</h2>
+    <p class="section-sub">Quatre règles qui décident des arbitrages dans chaque ticket.</p>
+
+    <div class="grid-2" style="gap:24px">
+      <div class="principle">
+        <h4>1 · Le ticket est l'objet, pas l'évidence.</h4>
+        <p>
+          L'écran principal d'une issue, c'est le Launch Task et son état. Description, comments, children s'effacent
+          au-dessous. Le launcher est central, jamais dans une aside cramped à 20rem.
+        </p>
+      </div>
+      <div class="principle">
+        <h4>2 · Une action attendue par écran.</h4>
+        <p>
+          Inbox row, run card, issue header → toujours une seule "next action" lisible : Answer · Approve · Resume · Take over.
+          Pas trois boutons équivalents.
+        </p>
+      </div>
+      <div class="principle">
+        <h4>3 · Le mono est une exception.</h4>
+        <p>
+          DM Mono pour : IDs (SUP-217), durées (2m 14s), états techniques (RUNNING), valeurs numériques. Tout le reste
+          en DM Sans. Plus de headers UPPERCASE par défaut.
+        </p>
+      </div>
+      <div class="principle">
+        <h4>4 · Le terminal est un escape hatch.</h4>
+        <p>
+          Visible, accessible, mais visuellement calme. Le takeover est une promesse de pouvoir, pas une invitation par défaut.
+          Aucune surface ne doit ressembler à un terminal.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────  TICKETS  ───────────────── -->
+  <section>
+    <h2 class="section"><span class="num">04</span>6 tickets shippables</h2>
+    <p class="section-sub">
+      Ordonnés par dépendance : on commence par les fondations (chrome typo + density), puis on consolide les surfaces
+      l'une après l'autre. Chacun est livrable en une à deux semaines, isolé, et n'introduit aucune feature produit nouvelle.
+    </p>
+
+    <!-- ─── T1 ─── -->
+    <article class="ticket">
+      <div class="ticket-head">
+        <div>
+          <div class="ticket-id">
+            <span>SUP-217</span><span class="pill">Foundation</span><span class="pill">Cross-cutting</span>
+          </div>
+          <h3>Tone down the chrome: typo, casing &amp; sidebar harmonization</h3>
+        </div>
+        <div class="effort">
+          <b>3–4 days</b>
+          1 frontend
+        </div>
+      </div>
+      <div class="ticket-body">
+        <div class="ticket-meta">
+          <dl>
+            <div>
+              <dt>Objectif</dt>
+              <dd>Donner à Superkick une voix calme et lisible. Le chrome (sidebar, headers, section titles, banners) parle en DM Sans sentence case. DM Mono survit seulement pour la data.</dd>
+            </div>
+            <div>
+              <dt>Scope</dt>
+              <dd>
+                <ul>
+                  <li class="good">Audit + remove de <span class="mono">font-data uppercase tracking-*</span> sur tous les headers de chrome (Sidebar brand, ShellHeader, SectionTitle, InboxSection header, RunDetailHeader, IssueDetailHeader, panel titles).</li>
+                  <li class="good">Helper component <span class="mono">&lt;SectionTitle&gt;</span> unifié : DM Sans 13/14px, weight 500, sentence case, count en mono ash.</li>
+                  <li class="good">ShellHeader passe de h-12 à h-11. SessionWatchRail devient optionnel et collapse quand 0 watched.</li>
+                  <li class="good">Sidebar : brand "Superkick" en DM Sans 13px medium au lieu du tracking-wider uppercase.</li>
+                </ul>
+              </dd>
+            </div>
+            <div>
+              <dt>Non-goals</dt>
+              <dd>
+                <ul>
+                  <li class="bad">Ne pas toucher aux IDs (<span class="mono">SUP-217</span>) ni aux durées ni aux états techniques (<span class="mono">RUNNING</span>).</li>
+                  <li class="bad">Pas de changement de palette ni de tokens.</li>
+                  <li class="bad">Pas de refactor d'IA, juste cosmétique.</li>
+                </ul>
+              </dd>
+            </div>
+            <div>
+              <dt>Critères d'acceptation</dt>
+              <dd>
+                <ul>
+                  <li class="good">Grep <span class="mono">uppercase tracking-</span> retourne &lt; 10 occurrences (vs ~50 aujourd'hui), toutes sur des labels techniques justifiés.</li>
+                  <li class="good">Aucun header de section en mono uppercase.</li>
+                  <li class="good">visual-design.md mis à jour avec la nouvelle règle "mono = data only".</li>
+                  <li class="good">Screenshots avant/après sur Inbox + Issue Detail + Run Detail joints à la PR.</li>
+                </ul>
+              </dd>
+            </div>
+          </dl>
+        </div>
+        <div class="ticket-mock">
+          <div class="mock-label"><span>Sidebar &amp; topbar — after</span><span class="tag">Mock</span></div>
+          <div class="mock">
+            <div class="shell">
+              <div class="shell-side">
+                <div class="shell-brand"><span class="d"></span>Superkick</div>
+                <div class="shell-nav urgent active">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/></svg>
+                  Inbox
+                  <span class="badge">3</span>
+                </div>
+                <div class="shell-nav">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/></svg>
+                  Issues
+                </div>
+                <div class="shell-nav">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  Runs
+                </div>
+                <div class="shell-nav">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/></svg>
+                  Agents
+                </div>
+              </div>
+              <div class="shell-main">
+                <div style="display:flex; gap:10px; align-items:center;">
+                  <span style="color:var(--ash); font-size:12px">Inbox</span>
+                  <span style="color:var(--dim)">›</span>
+                  <span style="color:var(--fog); font-size:14px; font-weight:500">Today</span>
+                  <span class="pill ghost" style="margin-left:auto">⌘ K</span>
+                </div>
+                <div style="background:var(--slate); border-radius:6px; padding:10px 14px; font-size:13px; color:var(--silver); display:flex; gap:12px; align-items:center;">
+                  <span style="color:var(--mineral); font-size:11px" class="mono">●</span>
+                  4 runs · 1 needs you · <span class="mono" style="margin-left:auto; color:var(--ash)">last sync 12s ago</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="mock-label" style="margin-top:6px"><span class="muted">Before: brand en <span class="mono">"SUPERKICK"</span> tracking-wider · headers UPPERCASE partout</span></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ─── T2 ─── -->
+    <article class="ticket">
+      <div class="ticket-head">
+        <div>
+          <div class="ticket-id">
+            <span>SUP-218</span><span class="pill">Inbox</span><span class="pill">High impact</span>
+          </div>
+          <h3>Inbox: triage queue, not metrics board</h3>
+        </div>
+        <div class="effort">
+          <b>5–6 days</b>
+          1 frontend
+        </div>
+      </div>
+      <div class="ticket-body">
+        <div class="ticket-meta">
+          <dl>
+            <div>
+              <dt>Objectif</dt>
+              <dd>L'Inbox doit répondre à une seule question en 2 secondes : "qu'est-ce qui attend moi maintenant ?". On la transforme en file d'attente d'interruptions, avec un verbe d'action par ligne.</dd>
+            </div>
+            <div>
+              <dt>Scope</dt>
+              <dd>
+                <ul>
+                  <li class="good"><b>Needs you</b> devient une zone dominante en haut (titre <i>h2 sans uppercase</i>, lignes oxide-bordered, action verb visible).</li>
+                  <li class="good">Chaque <span class="mono">NeedsHumanRow</span> expose un bouton primary explicite : <i>Answer</i> · <i>Approve</i> · <i>Resume</i> · <i>Take over</i>. Le verbe est calculé depuis <span class="mono">reasonKind</span>.</li>
+                  <li class="good"><b>Running · Ready · Done</b> deviennent des sections secondaires unifiées (typo plus discrète, count à droite).</li>
+                  <li class="good">Largeur passe de <span class="mono">max-w-3xl</span> à <span class="mono">max-w-4xl</span> pour respirer la deuxième ligne (reason / branch).</li>
+                  <li class="good">Empty state quand 0 needs-human : "All clear" + count des running. C'est le bon état par défaut.</li>
+                </ul>
+              </dd>
+            </div>
+            <div>
+              <dt>Non-goals</dt>
+              <dd>
+                <ul>
+                  <li class="bad">Pas de nouveau bucket. On garde NeedsHuman / RunningNow / ReadyToLaunch / RecentlyDone.</li>
+                  <li class="bad">Pas de métriques agrégées (succès / failure rate). L'Inbox n'est pas un dashboard.</li>
+                  <li class="bad">Pas de filtre ni de search dans cette pass.</li>
+                </ul>
+              </dd>
+            </div>
+            <div>
+              <dt>Critères d'acceptation</dt>
+              <dd>
+                <ul>
+                  <li class="good">Chaque NeedsHuman row a un CTA visible et keyboard-accessible.</li>
+                  <li class="good">Quand 0 needs-human, l'écran montre clairement "all clear" et le focus est sur Running.</li>
+                  <li class="good">Sidebar nav <i>Inbox</i> badge réutilise <span class="mono">needsHumanCount</span> avec accent oxide quand &gt; 0.</li>
+                  <li class="good">a11y : <span class="mono">aria-label</span> sur chaque row inclut le verbe ("Answer SUP-217").</li>
+                </ul>
+              </dd>
+            </div>
+          </dl>
+        </div>
+        <div class="ticket-mock">
+          <div class="mock-label"><span>Inbox — after</span><span class="tag">Mock</span></div>
+          <div class="mock">
+            <div class="mock-topbar">
+              <span class="crumb">Inbox</span>
+              <span class="right">
+                <span class="pill ghost">2 needs you</span>
+                <span class="mono">⌘K</span>
+              </span>
+            </div>
+            <div style="padding: 14px 16px; flex:1; display:flex; flex-direction:column; gap:14px; overflow:hidden">
+              <div>
+                <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px">
+                  <h4 style="font-size:15px; font-weight:500; color:var(--fog)">Needs you</h4>
+                  <span class="mono" style="font-size:11px; color:var(--oxide)">2</span>
+                </div>
+                <div style="border:1px solid var(--edge); border-radius:6px; overflow:hidden">
+                  <div class="mock-row urgent" style="background:rgba(232,93,74,.04)">
+                    <span class="pill oxide">Decision</span>
+                    <span class="id">SUP-218</span>
+                    <span class="title">Reviewer flagged unsafe migration — approve schema change?</span>
+                    <button class="btn primary sm">Approve</button>
+                  </div>
+                  <div class="mock-row urgent" style="border-top:1px solid var(--edge); background:rgba(232,93,74,.04)">
+                    <span class="pill gold">Blocker</span>
+                    <span class="id">SUP-203</span>
+                    <span class="title">Coder stalled · awaiting test results</span>
+                    <button class="btn sm">Take over</button>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:6px">
+                  <h4 style="font-size:13px; font-weight:500; color:var(--silver)">Running now</h4>
+                  <span class="mono" style="font-size:11px; color:var(--ash)">3</span>
+                </div>
+                <div class="mock-row">
+                  <span class="pill cyan live"><span class="d"></span>Implement</span>
+                  <span class="id">SUP-211</span>
+                  <span class="title">Billing settings page · coder agent</span>
+                  <span class="meta">02:14</span>
+                </div>
+                <div class="mock-row">
+                  <span class="pill violet">Review</span>
+                  <span class="id">SUP-209</span>
+                  <span class="title">Workspace shell refactor · reviewer agent</span>
+                  <span class="meta">PR #82</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ─── T3 ─── -->
+    <article class="ticket">
+      <div class="ticket-head">
+        <div>
+          <div class="ticket-id">
+            <span>SUP-219</span><span class="pill">Launch Task</span><span class="pill">High impact</span>
+          </div>
+          <h3>Consolidate the Launch Task launcher: one path, no legacy dialog</h3>
+        </div>
+        <div class="effort">
+          <b>4–5 days</b>
+          1 frontend, light backend touch
+        </div>
+      </div>
+      <div class="ticket-body">
+        <div class="ticket-meta">
+          <dl>
+            <div>
+              <dt>Objectif</dt>
+              <dd>Supprimer la dualité <i>Launch Task</i> vs <i>Advanced single run</i>. Le launcher devient unique, central sur Issue Detail, et lisible.</dd>
+            </div>
+            <div>
+              <dt>Scope</dt>
+              <dd>
+                <ul>
+                  <li class="good">Retirer le <span class="mono">Disclosure "Advanced — launch a single isolated run"</span> du <span class="mono">IssueLauncherPanel</span>. La <span class="mono">LaunchDialog</span> reste accessible via menu <i>·· ›</i> du header Issue ("Run without recipe"), mais n'est plus dans la surface principale.</li>
+                  <li class="good">Le launcher (Plan → Implement → Review) sort de l'aside et devient une zone hero pleine largeur sur Issue Detail (voir T5).</li>
+                  <li class="good">Refactor visuel de <span class="mono">LaunchTaskLauncher</span> : 3 cards horizontales (une par step) + un footer avec <i>Launch task</i> en primary mineral. Plus de mono uppercase sur "Plan → Implement → Review".</li>
+                  <li class="good">Persister le dernier agent choisi par step au niveau du repo (localStorage suffit pour V1).</li>
+                </ul>
+              </dd>
+            </div>
+            <div>
+              <dt>Non-goals</dt>
+              <dd>
+                <ul>
+                  <li class="bad">Ne pas casser <span class="mono">LaunchDialog</span> : il reste utilisable pour les power users.</li>
+                  <li class="bad">Pas de nouveau type de recipe.</li>
+                  <li class="bad">Pas de configuration globale d'agents par défaut (reste sur <span class="mono">superkick.yaml</span>).</li>
+                </ul>
+              </dd>
+            </div>
+            <div>
+              <dt>Critères d'acceptation</dt>
+              <dd>
+                <ul>
+                  <li class="good">Sur Issue Detail sans active task, on voit un seul bouton primary <i>Launch task</i>.</li>
+                  <li class="good"><span class="mono">LaunchDialog</span> n'est plus rendu par <span class="mono">IssueLauncherPanel</span>.</li>
+                  <li class="good">Le choix d'agent par step est restauré entre sessions.</li>
+                  <li class="good">Aucun changement d'API. <span class="mono">useCreateRun</span> est conservé pour le menu power-user.</li>
+                </ul>
+              </dd>
+            </div>
+          </dl>
+        </div>
+        <div class="ticket-mock">
+          <div class="mock-label"><span>Launcher — after</span><span class="tag">Mock</span></div>
+          <div class="mock">
+            <div style="padding: 16px; display:flex; flex-direction:column; gap:14px; flex:1">
+              <div style="display:flex; align-items:baseline; gap:10px">
+                <h4 style="font-size:14px; font-weight:500; color:var(--fog)">Launch a task</h4>
+                <span style="font-size:12px; color:var(--ash)">Plan → Implement → Review</span>
+              </div>
+              <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px">
+                <div style="border:1px solid var(--edge); border-radius:6px; padding:12px; background:var(--slate)">
+                  <div class="mono" style="font-size:10px; color:var(--ash); margin-bottom:4px">PLAN</div>
+                  <div style="font-size:13px; color:var(--fog); margin-bottom:2px">planner</div>
+                  <div class="mono" style="font-size:10px; color:var(--mineral)">claude · sonnet</div>
+                </div>
+                <div style="border:1px solid var(--edge); border-radius:6px; padding:12px; background:var(--slate)">
+                  <div class="mono" style="font-size:10px; color:var(--ash); margin-bottom:4px">IMPLEMENT</div>
+                  <div style="font-size:13px; color:var(--fog); margin-bottom:2px">coder</div>
+                  <div class="mono" style="font-size:10px; color:var(--mineral)">claude · sonnet</div>
+                </div>
+                <div style="border:1px solid var(--edge); border-radius:6px; padding:12px; background:var(--slate)">
+                  <div class="mono" style="font-size:10px; color:var(--ash); margin-bottom:4px">REVIEW</div>
+                  <div style="font-size:13px; color:var(--fog); margin-bottom:2px">reviewer</div>
+                  <div class="mono" style="font-size:10px; color:var(--mineral)">codex · gpt-5</div>
+                </div>
+              </div>
+              <div style="display:flex; gap:10px; align-items:center; margin-top:auto; padding-top:10px; border-top:1px solid var(--edge)">
+                <span style="font-size:12px; color:var(--ash)">Use worktree · semi-auto</span>
+                <button class="btn sm" style="margin-left:auto">··· Run without recipe</button>
+                <button class="btn primary sm">▸ Launch task</button>
+              </div>
+            </div>
+          </div>
+          <div class="mock-label" style="margin-top:6px"><span class="muted">Before: launcher dans aside 20rem + Disclosure "Advanced" + LaunchDialog uppercase</span></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ─── T4 ─── -->
+    <article class="ticket">
+      <div class="ticket-head">
+        <div>
+          <div class="ticket-id">
+            <span>SUP-220</span><span class="pill">Launch Task</span><span class="pill">Evidence</span>
+          </div>
+          <h3>Launch Task feed: evidence cards, not bullet list</h3>
+        </div>
+        <div class="effort">
+          <b>4–5 days</b>
+          1 frontend
+        </div>
+      </div>
+      <div class="ticket-body">
+        <div class="ticket-meta">
+          <dl>
+            <div>
+              <dt>Objectif</dt>
+              <dd>Quand une task tourne, l'utilisateur doit lire l'avancement comme une histoire : "Plan ok, Implement en cours (ran tests, edited 4 files), Review pending". Pas comme une checklist.</dd>
+            </div>
+            <div>
+              <dt>Scope</dt>
+              <dd>
+                <ul>
+                  <li class="good">Refactor <span class="mono">LaunchTaskFeed</span> en 3 step cards verticales : status ring + step name + agent + 2-3 evidence lignes (tool calls collapsed).</li>
+                  <li class="good">Le step en cours est mis en avant : pulse cyan/neon sur le ring, surface <span class="mono">bg-slate</span> légèrement plus claire.</li>
+                  <li class="good">Evidence : "Edited 4 files", "Ran tests · passed", "Opened PR #82" — chacune cliquable pour ouvrir le détail. Réutiliser le payload <span class="mono">protocol events</span> déjà parsé.</li>
+                  <li class="good">CTA <i>"View linked run →"</i> remplacé par un bouton inline plus discret <i>"Inspect run"</i> en bas de la step active.</li>
+                  <li class="good">Bouton <i>Cancel</i> et <i>Retry</i> dans le header de la card, plus dans une dropdown séparée.</li>
+                </ul>
+              </dd>
+            </div>
+            <div>
+              <dt>Non-goals</dt>
+              <dd>
+                <ul>
+                  <li class="bad">Ne pas recréer le run ledger ici. Garder le ledger dans Run Detail.</li>
+                  <li class="bad">Pas de stream live des logs dans la card (reste protocole-first, on parse).</li>
+                  <li class="bad">Pas de chat embarqué dans le feed (le ChatDrawer reste séparé).</li>
+                </ul>
+              </dd>
+            </div>
+            <div>
+              <dt>Critères d'acceptation</dt>
+              <dd>
+                <ul>
+                  <li class="good">Sur une task running, l'utilisateur identifie le step en cours en &lt; 1s.</li>
+                  <li class="good">L'evidence (tool calls résumés) est visible sans drilling.</li>
+                  <li class="good">Cancel/Retry sont au max à 1 clic depuis la feed card.</li>
+                  <li class="good">Sur une task <span class="mono">needs_human</span>, la card du step active est bordée gold avec un <i>Banner inline "Reviewer is waiting on you"</i>.</li>
+                </ul>
+              </dd>
+            </div>
+          </dl>
+        </div>
+        <div class="ticket-mock">
+          <div class="mock-label"><span>Launch Task feed — after</span><span class="tag">Mock</span></div>
+          <div class="mock">
+            <div style="padding:14px 16px 8px; display:flex; align-items:baseline; gap:10px">
+              <h4 style="font-size:14px; font-weight:500; color:var(--fog)">Launch task</h4>
+              <span class="pill cyan live" style="margin-left:auto"><span class="d"></span>Running</span>
+            </div>
+            <div style="border-top:1px solid var(--edge)">
+              <div class="feed-step done">
+                <div class="ring">✓</div>
+                <div>
+                  <h5>Plan</h5>
+                  <div class="meta-row"><span>planner · claude sonnet</span><span>·</span><span>32s</span></div>
+                </div>
+                <span class="pill mineral">Done</span>
+              </div>
+              <div class="feed-step running" style="background:rgba(31,34,40,.55); position:relative">
+                <div class="ring" style="position:relative">●</div>
+                <div>
+                  <h5>Implement</h5>
+                  <div class="meta-row"><span>coder · claude sonnet</span><span>·</span><span>02:14</span></div>
+                </div>
+                <span class="pill cyan live"><span class="d"></span>Running</span>
+              </div>
+              <div class="evidence"><div class="e-icon ok"></div><span class="label">Edited 4 files</span><span class="val">src/api/billing.rs, …</span></div>
+              <div class="evidence"><div class="e-icon ok"></div><span class="label">Ran tests · passed</span><span class="val">357 passed · 42s</span></div>
+              <div class="evidence"><div class="e-icon"></div><span class="label">Calling tool</span><span class="val">cargo check</span></div>
+              <div style="padding: 6px 16px 8px 56px">
+                <button class="btn sm">Inspect run →</button>
+              </div>
+              <div class="feed-step">
+                <div class="ring">3</div>
+                <div>
+                  <h5>Review</h5>
+                  <div class="meta-row"><span>reviewer · codex gpt-5</span><span>·</span><span>pending</span></div>
+                </div>
+                <span class="pill ghost">Waiting</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ─── T5 ─── -->
+    <article class="ticket">
+      <div class="ticket-head">
+        <div>
+          <div class="ticket-id">
+            <span>SUP-221</span><span class="pill">Issue Detail</span><span class="pill">Recompose</span>
+          </div>
+          <h3>Issue Detail: ticket as workspace, description below</h3>
+        </div>
+        <div class="effort">
+          <b>5–6 days</b>
+          1 frontend
+        </div>
+      </div>
+      <div class="ticket-body">
+        <div class="ticket-meta">
+          <dl>
+            <div>
+              <dt>Objectif</dt>
+              <dd>Donner au Launch Task la place qu'il mérite : haut de l'écran, pleine largeur. Description, comments, children deviennent du contexte secondaire, accessible mais pas dominant.</dd>
+            </div>
+            <div>
+              <dt>Scope</dt>
+              <dd>
+                <ul>
+                  <li class="good">Nouvelle composition : <i>Header issue · NeedsHuman banner · Title · Launch Task zone (pleine largeur) · grid 2 col [Description + Activity / Properties]</i>.</li>
+                  <li class="good">Le panel <span class="mono">IssueLauncherPanel</span> sort de l'aside et devient une <i>hero section</i> en haut de la colonne principale.</li>
+                  <li class="good">L'aside (sticky) garde uniquement : <i>Properties · Latest run mini-card · Terminal entry (compact)</i>. Plus de launcher dedans.</li>
+                  <li class="good">Description et Activity Timeline passent sous le Launch Task. Description par défaut <i>collapsed à 4 lignes</i> avec "Show more" si longue.</li>
+                  <li class="good">Children issues : si présents, deviennent une mini-table au-dessus du timeline d'activité.</li>
+                </ul>
+              </dd>
+            </div>
+            <div>
+              <dt>Non-goals</dt>
+              <dd>
+                <ul>
+                  <li class="bad">Pas de retour au chat-first. ChatDrawer reste un drawer.</li>
+                  <li class="bad">Pas de nouveau composant Activity. On réutilise <span class="mono">IssueActivityTimeline</span>.</li>
+                  <li class="bad">Pas de tabs ("Overview / Activity / PRs"). On garde un scroll unique.</li>
+                </ul>
+              </dd>
+            </div>
+            <div>
+              <dt>Critères d'acceptation</dt>
+              <dd>
+                <ul>
+                  <li class="good">Sur load, le Launch Task feed est visible sans scroller (sur viewport ≥ 900px).</li>
+                  <li class="good">Aside droite ne contient plus le launcher complet — uniquement properties + latest run + terminal entry.</li>
+                  <li class="good">Description longue (&gt; 4 lignes) est tronquée par défaut.</li>
+                  <li class="good">Aucun changement de routing ni d'URL.</li>
+                </ul>
+              </dd>
+            </div>
+          </dl>
+        </div>
+        <div class="ticket-mock">
+          <div class="mock-label"><span>Issue Detail — after</span><span class="tag">Mock</span></div>
+          <div class="mock">
+            <div class="mock-topbar">
+              <span class="crumb">Issues<span class="sep">›</span></span>
+              <span class="mono" style="color:var(--silver)">SUP-211</span>
+              <span class="pill cyan" style="margin-left:8px"><span class="d"></span>In Progress</span>
+              <span class="right">
+                <button class="btn sm">Open in Linear</button>
+                <button class="btn sm">···</button>
+              </span>
+            </div>
+            <div style="padding:14px 16px 0">
+              <div class="id-banner">
+                <span class="pill oxide">Decision</span>
+                <span class="text"><b>Reviewer flagged unsafe migration.</b> Approve schema change?</span>
+                <button class="btn primary sm">Approve</button>
+              </div>
+            </div>
+            <div class="id-grid">
+              <div class="id-main">
+                <div class="id-title">Add billing settings page</div>
+                <div style="border:1px solid var(--edge); border-radius:8px; background:var(--graphite); padding:12px">
+                  <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
+                    <span style="font-size:13px; color:var(--fog); font-weight:500">Launch task</span>
+                    <span class="pill cyan live" style="margin-left:auto"><span class="d"></span>Implement</span>
+                  </div>
+                  <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:6px">
+                    <div style="background:var(--slate); border-radius:4px; padding:8px 10px"><div class="mono" style="font-size:10px;color:var(--mineral)">✓ PLAN</div><div style="font-size:11px; color:var(--silver)">planner · 32s</div></div>
+                    <div style="background:var(--slate); border-radius:4px; padding:8px 10px; border:1px solid var(--cyan); box-shadow:0 0 0 1px var(--cyan-dim)"><div class="mono" style="font-size:10px;color:var(--cyan)">● IMPLEMENT</div><div style="font-size:11px; color:var(--silver)">coder · 02:14</div></div>
+                    <div style="background:var(--slate); border-radius:4px; padding:8px 10px"><div class="mono" style="font-size:10px;color:var(--ash)">○ REVIEW</div><div style="font-size:11px; color:var(--ash)">reviewer · pending</div></div>
+                  </div>
+                </div>
+                <div style="font-size:12px; color:var(--silver); line-height:1.55">
+                  <span style="color:var(--ash); font-size:11px" class="mono">DESCRIPTION</span><br/>
+                  Add a billing settings page that lists active subscription, payment method and invoice history. Integrates Stripe customer portal…
+                  <span style="color:var(--ash); text-decoration:underline; cursor:pointer">Show more</span>
+                </div>
+              </div>
+              <div class="id-side">
+                <div style="font-size:11px; color:var(--ash)" class="mono">PROPERTIES</div>
+                <div class="prop-row"><span class="k">Status</span><span class="v"><span class="pill cyan"><span class="d"></span>In progress</span></span></div>
+                <div class="prop-row"><span class="k">Priority</span><span class="v">High</span></div>
+                <div class="prop-row"><span class="k">Assignee</span><span class="v">@thomas</span></div>
+                <div class="prop-row"><span class="k">PR</span><span class="v"><span class="pill violet">#82</span></span></div>
+                <div style="border-top:1px solid var(--edge); margin-top:6px; padding-top:8px">
+                  <div style="font-size:11px; color:var(--ash)" class="mono">TERMINAL</div>
+                  <button class="btn sm" style="margin-top:6px; width:100%; justify-content:center">Inspect workspace ›</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ─── T6 ─── -->
+    <article class="ticket">
+      <div class="ticket-head">
+        <div>
+          <div class="ticket-id">
+            <span>SUP-222</span><span class="pill">Run Detail</span><span class="pill">Recompose</span>
+          </div>
+          <h3>Run Detail: supervision view, not a folder of accordions</h3>
+        </div>
+        <div class="effort">
+          <b>6–7 days</b>
+          1 frontend
+        </div>
+      </div>
+      <div class="ticket-body">
+        <div class="ticket-meta">
+          <dl>
+            <div>
+              <dt>Objectif</dt>
+              <dd>Quand on ouvre un run, on doit lire en une scan : où on en est, qu'est-ce qui bloque, où agir. Pas naviguer 5 sections collapsibles.</dd>
+            </div>
+            <div>
+              <dt>Scope</dt>
+              <dd>
+                <ul>
+                  <li class="good">Header simplifié : titre issue + state pill + actions primary contextuelle (<i>Approve / Cancel / Take over</i>).</li>
+                  <li class="good">Layout 2 colonnes : <b>gauche (220px sticky)</b> = steps timeline avec step actif en évidence, hero metrics (budget, duration, PR) en bas. <b>Droite (1fr)</b> = "What's happening now" : la step active dépliée, evidence inline, attention requests, interrupts.</li>
+                  <li class="good">Les autres steps sont compacts dans la timeline gauche. Cliquer dessus déplie leur evidence dans la droite.</li>
+                  <li class="good">Ledger complet et Sessions deviennent un drawer secondaire ("View full ledger") — pas un accordéon par défaut.</li>
+                  <li class="good">Terminal takeover : entry compact en bas de la sidebar gauche, plus un accordéon central.</li>
+                </ul>
+              </dd>
+            </div>
+            <div>
+              <dt>Non-goals</dt>
+              <dd>
+                <ul>
+                  <li class="bad">Pas de nouveau backend ni nouveau payload — on recompose autour de <span class="mono">RunLedger · StepTimeline · SessionList · ReviewResults · TerminalTakeover</span>.</li>
+                  <li class="bad">Pas de fusion du ledger et du chat. Cadences différentes, surfaces différentes.</li>
+                  <li class="bad">Pas de retour au terminal-first.</li>
+                </ul>
+              </dd>
+            </div>
+            <div>
+              <dt>Critères d'acceptation</dt>
+              <dd>
+                <ul>
+                  <li class="good">Le step actif est identifiable en &lt; 1s.</li>
+                  <li class="good">L'action humaine attendue (si elle existe) est au-dessus du fold avec un CTA primary.</li>
+                  <li class="good">Les 5 EvidenceSection existantes survivent, recomposées (4 vers la sidebar + step focus + 1 drawer).</li>
+                  <li class="good">Le terminal est accessible en 1 clic mais visuellement secondaire.</li>
+                </ul>
+              </dd>
+            </div>
+          </dl>
+        </div>
+        <div class="ticket-mock">
+          <div class="mock-label"><span>Run Detail — after</span><span class="tag">Mock</span></div>
+          <div class="mock">
+            <div class="mock-topbar">
+              <span class="crumb">Runs<span class="sep">›</span></span>
+              <span class="mono" style="color:var(--silver)">SUP-211</span>
+              <span class="pill cyan live" style="margin-left:8px"><span class="d"></span>Implement</span>
+              <span class="right">
+                <button class="btn sm">Pause</button>
+                <button class="btn sm">···</button>
+              </span>
+            </div>
+            <div class="rd-grid">
+              <div style="display:flex; flex-direction:column; gap:8px; border-right:1px solid var(--edge); padding-right:14px">
+                <div style="font-size:11px; color:var(--ash)" class="mono">PROGRESS</div>
+                <div class="rd-step done"><span class="d"></span><span class="l">Plan</span><span class="t">32s</span></div>
+                <div class="rd-step now"><span class="d"></span><span class="l">Implement</span><span class="t">02:14</span></div>
+                <div class="rd-step"><span class="d"></span><span class="l">Review</span><span class="t">—</span></div>
+                <div style="border-top:1px solid var(--edge); margin-top:8px; padding-top:10px; font-size:12px; color:var(--silver); display:flex; flex-direction:column; gap:6px">
+                  <div style="display:flex; justify-content:space-between"><span style="color:var(--ash)">Budget</span><span class="mono">$1.24 / $5.00</span></div>
+                  <div style="display:flex; justify-content:space-between"><span style="color:var(--ash)">Branch</span><span class="mono">sup-211-billing</span></div>
+                  <div style="display:flex; justify-content:space-between"><span style="color:var(--ash)">PR</span><span class="pill violet">#82</span></div>
+                </div>
+                <button class="btn sm" style="margin-top:auto; justify-content:center">Inspect terminal ›</button>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:10px; min-width:0">
+                <div style="display:flex; align-items:baseline; gap:10px">
+                  <h4 style="font-size:14px; font-weight:500; color:var(--fog)">Implement step</h4>
+                  <span style="font-size:12px; color:var(--ash)">coder · claude sonnet · 02:14</span>
+                </div>
+                <div style="background:rgba(229,169,19,.08); border:1px solid rgba(229,169,19,.3); border-radius:6px; padding:10px 12px; display:flex; gap:10px; align-items:center">
+                  <span class="pill gold">Attn</span>
+                  <span style="font-size:12px; color:var(--fog); flex:1">Test suite asked for confirmation: drop fixtures from <span class="mono">billing_test.sql</span>?</span>
+                  <button class="btn primary sm">Resume</button>
+                </div>
+                <div class="evidence" style="margin:0"><div class="e-icon ok"></div><span class="label">Edited 4 files</span><span class="val">src/api/billing.rs, src/db/migrations/082_…</span></div>
+                <div class="evidence" style="margin:0"><div class="e-icon ok"></div><span class="label">Ran tests · passed</span><span class="val">357 passed · 42s</span></div>
+                <div class="evidence" style="margin:0"><div class="e-icon"></div><span class="label">Calling tool</span><span class="val">cargo check --workspace</span></div>
+                <button class="btn sm" style="align-self:flex-start">View full ledger →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </section>
+
+  <!-- ─────────────────  ORDER  ───────────────── -->
+  <section>
+    <h2 class="section"><span class="num">05</span>Ordre &amp; dépendances</h2>
+    <p class="section-sub">Les tickets se branchent. T1 prépare le terrain typo/density utilisé par tous les autres. T3 et T4 dépendent de T1. T5 dépend de T3 (le launcher consolidé est nécessaire pour la recomposition d'Issue Detail). T6 est indépendant et peut tourner en parallèle de T4/T5.</p>
+    <div style="display:grid; grid-template-columns: repeat(6, 1fr); gap:8px; margin-top:24px">
+      <div class="card" style="padding:14px"><div class="mono" style="font-size:10px; color:var(--ash)">WK 1</div><h4>SUP-217</h4><p style="font-size:12px">Tone chrome</p></div>
+      <div class="card" style="padding:14px"><div class="mono" style="font-size:10px; color:var(--ash)">WK 2</div><h4>SUP-218</h4><p style="font-size:12px">Inbox triage</p></div>
+      <div class="card" style="padding:14px"><div class="mono" style="font-size:10px; color:var(--ash)">WK 3</div><h4>SUP-219</h4><p style="font-size:12px">Launcher</p></div>
+      <div class="card" style="padding:14px"><div class="mono" style="font-size:10px; color:var(--ash)">WK 4</div><h4>SUP-220</h4><p style="font-size:12px">Feed cards</p></div>
+      <div class="card" style="padding:14px"><div class="mono" style="font-size:10px; color:var(--ash)">WK 5</div><h4>SUP-221</h4><p style="font-size:12px">Issue Detail</p></div>
+      <div class="card" style="padding:14px"><div class="mono" style="font-size:10px; color:var(--ash)">WK 6–7</div><h4>SUP-222</h4><p style="font-size:12px">Run Detail</p></div>
+    </div>
+  </section>
+
+  <!-- ─────────────────  LIGHT MODE  ───────────────── -->
+  <section>
+    <h2 class="section"><span class="num">06</span>Light mode</h2>
+    <p class="section-sub">Direction proposée : un light mode <i>paper-first</i> (pas un dark inversé). Surfaces chaudes neutres, accents légèrement désaturés pour rester lisibles sur fond clair. Mêmes tokens sémantiques, même hiérarchie d’élévation. Toggle haut-droite pour prévisualiser tout ce document en clair.</p>
+
+    <div class="grid-5" style="margin-bottom:20px">
+      <div class="card dir dir-colors"><div class="label">Surfaces (light)</div><h4>Paper stack</h4><p style="font-size:12px">Void chaud → Carbon → Graphite (white card) → Slate.</p>
+        <div class="swatch">
+          <div class="sw" style="background:#f6f5f1"></div>
+          <div class="sw" style="background:#efede7"></div>
+          <div class="sw" style="background:#ffffff"></div>
+          <div class="sw" style="background:#f1efea"></div>
+        </div>
+      </div>
+      <div class="card dir dir-colors"><div class="label">Accents (light)</div><h4>Desaturated</h4><p style="font-size:12px">Légère baisse de chroma pour la lisibilité sur fond clair.</p>
+        <div class="swatch">
+          <div class="sw" style="background:#2f8d5e"></div>
+          <div class="sw" style="background:#c64535"></div>
+          <div class="sw" style="background:#b88308"></div>
+          <div class="sw" style="background:#2b8caf"></div>
+          <div class="sw" style="background:#6a59d6"></div>
+        </div>
+      </div>
+      <div class="card dir" style="grid-column:span 3"><div class="label">Règles</div><h4>Pas un dark inversé</h4>
+        <ul style="font-size:12px;color:var(--silver);list-style:none;display:grid;gap:6px;margin-top:6px">
+          <li>· Le fond n’est jamais <span class="mono">#fff</span> au root. <span class="mono">--void</span> = papier légèrement chaud (<span class="mono">#f6f5f1</span>).</li>
+          <li>· Les cards passent en blanc pur pour émerger du papier (l’inverse du dark : graphite au-dessus du void).</li>
+          <li>· Les bordures portent plus de poids visuel — elles remplacent les ombres internes du dark.</li>
+          <li>· Les accents <span class="mono">dim</span> (mineral-dim, oxide-dim…) restent en <span class="mono">rgba</span> ; mais on baisse l’opacité à ~10% au lieu de 12%.</li>
+          <li>· Le pulse <span class="mono">neon-green</span> devient <span class="mono">mineral</span> en light — le néon flashe trop sur papier.</li>
+        </ul>
+      </div>
+    </div>
+
+    <article class="ticket">
+      <div class="ticket-head">
+        <div>
+          <div class="ticket-id">
+            <span>SUP-223</span><span class="pill">Foundation</span><span class="pill">Theme</span>
+          </div>
+          <h3>Light mode: paper-first companion theme</h3>
+        </div>
+        <div class="effort"><b>4–5 days</b>1 frontend</div>
+      </div>
+      <div class="ticket-body">
+        <div class="ticket-meta">
+          <dl>
+            <div><dt>Objectif</dt><dd>Donner à Superkick un light mode complet, lisible en journée, sans renier l’identité calme du dark. Mêmes tokens, même hiérarchie, palette déclinée papier.</dd></div>
+            <div><dt>Scope</dt><dd>
+              <ul>
+                <li class="good">Ajouter un set de tokens <span class="mono">[data-theme="light"]</span> dans <span class="mono">ui/src/index.css</span> (surfaces + texte + accents desaturés).</li>
+                <li class="good">Toggle dans le menu Settings + raccourci <span class="mono">⌘⇧L</span>. Préférence persistée dans localStorage, default = <span class="mono">prefers-color-scheme</span>.</li>
+                <li class="good">Audit shadcn variables (<span class="mono">--background</span>, <span class="mono">--card</span>, <span class="mono">--primary</span>…) : redéclarer sous <span class="mono">[data-theme="light"]</span>.</li>
+                <li class="good">Sweep des composants qui hardcodent <span class="mono">bg-carbon</span> / <span class="mono">bg-graphite</span> sans token (re-utiliser celui-ci doit être suffisant). Lint rule pour interdire <span class="mono">bg-zinc-*</span> / <span class="mono">#hex</span> en dur.</li>
+                <li class="good">Re-tester les 6 surfaces principales (Inbox, Issues, Issue Detail, Launch Task feed, Run Detail, Settings) en light + screenshots regression.</li>
+              </ul>
+            </dd></div>
+            <div><dt>Non-goals</dt><dd>
+              <ul>
+                <li class="bad">Pas un dark inversé : ne pas mapper <span class="mono">#0b0c0e</span> → <span class="mono">#fff</span>.</li>
+                <li class="bad">Pas de variation d’accent par theme (semantics restent : mineral=ok, oxide=fail…).</li>
+                <li class="bad">Pas de “auto” suivi du système en temps réel dans cette pass — lu une fois au boot.</li>
+              </ul>
+            </dd></div>
+            <div><dt>Critères d’acceptation</dt><dd>
+              <ul>
+                <li class="good">Toggle visible dans Settings + raccourci clavier.</li>
+                <li class="good">Aucune régression contrast WCAG AA sur les 6 surfaces principales.</li>
+                <li class="good">Grep <span class="mono">#[0-9a-f]{3,8}</span> dans <span class="mono">components/</span> retourne 0 résultats hors <span class="mono">index.css</span>.</li>
+                <li class="good">visual-design.md mis à jour avec la règle “light mode = paper-first, not inverted”.</li>
+              </ul>
+            </dd></div>
+          </dl>
+        </div>
+        <div class="ticket-mock">
+          <div class="mock-label"><span>Light mode — Inbox preview</span><span class="tag">Mock</span></div>
+          <div class="mock" style="background:#ffffff;border-color:#e2dfd8">
+            <div class="mock-topbar" style="background:#efede7;border-color:#e2dfd8;color:#4a4d52">
+              <span style="color:#807d76">Inbox</span>
+              <span class="right" style="color:#807d76">
+                <span style="border:1px solid #e2dfd8;color:#4a4d52;padding:2px 8px;border-radius:999px;font-size:10px">2 needs you</span>
+                <span class="mono">⌘K</span>
+              </span>
+            </div>
+            <div style="padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:baseline;gap:12px">
+                <h4 style="font-size:15px;font-weight:500;color:#1a1c1f">Needs you</h4>
+                <span class="mono" style="font-size:11px;color:#c64535">2</span>
+              </div>
+              <div style="border:1px solid #e2dfd8;border-radius:6px;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:12px;padding:8px 14px;border-left:2px solid #c64535;background:rgba(198,69,53,.04)">
+                  <span style="font-family:'DM Mono',monospace;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid rgba(198,69,53,.4);background:rgba(198,69,53,.10);color:#c64535;text-transform:uppercase;letter-spacing:.04em">Decision</span>
+                  <span class="mono" style="font-size:12px;color:#4a4d52;min-width:64px">SUP-218</span>
+                  <span style="flex:1;color:#1a1c1f;font-size:13px">Reviewer flagged unsafe migration — approve schema change?</span>
+                  <button style="background:#2f8d5e;color:#fff;border:1px solid #2f8d5e;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:500;cursor:pointer">Approve</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;padding:8px 14px;border-left:2px solid #c64535;border-top:1px solid #e2dfd8;background:rgba(198,69,53,.04)">
+                  <span style="font-family:'DM Mono',monospace;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid rgba(184,131,8,.4);background:rgba(184,131,8,.10);color:#b88308;text-transform:uppercase;letter-spacing:.04em">Blocker</span>
+                  <span class="mono" style="font-size:12px;color:#4a4d52;min-width:64px">SUP-203</span>
+                  <span style="flex:1;color:#1a1c1f;font-size:13px">Coder stalled · awaiting test results</span>
+                  <button style="background:#fff;color:#4a4d52;border:1px solid #e2dfd8;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:500;cursor:pointer">Take over</button>
+                </div>
+              </div>
+              <div style="display:flex;align-items:baseline;gap:12px;margin-top:4px">
+                <h4 style="font-size:13px;font-weight:500;color:#4a4d52">Running now</h4>
+                <span class="mono" style="font-size:11px;color:#807d76">3</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:8px 14px;border:1px solid #e2dfd8;border-radius:6px;background:#fff">
+                <span style="font-family:'DM Mono',monospace;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid rgba(43,140,175,.4);background:rgba(43,140,175,.10);color:#2b8caf;text-transform:uppercase;letter-spacing:.04em">Implement</span>
+                <span class="mono" style="font-size:12px;color:#4a4d52;min-width:64px">SUP-211</span>
+                <span style="flex:1;color:#1a1c1f;font-size:13px">Billing settings page · coder agent</span>
+                <span class="mono" style="font-size:11px;color:#807d76">02:14</span>
+              </div>
+            </div>
+          </div>
+          <div class="mock-label" style="margin-top:6px"><span class="muted">Toggle haut-droite → prévisualise tout le document.</span></div>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <footer>
+    <span>Superkick · UX/UI audit · May 2026</span>
+    <span>Tokens: Graphite Operations Atelier · Type: DM Sans / DM Mono</span>
+  </footer>
+
+</div>
+</body>
+</html>

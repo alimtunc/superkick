@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Superkick · Design System</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#f0eee9; font-family:"DM Sans", system-ui, sans-serif; }
+  #cover { position:fixed; inset:0; background:#f0eee9; display:flex; align-items:center; justify-content:center;
+    z-index:9999; transition:opacity .35s ease; }
+  #cover.gone { opacity:0; pointer-events:none; }
+  #cover .lo { font-family:"DM Sans"; font-weight:600; font-size:18px; color:#3a2f24; }
+  #cover .lo b { color:#5b6ef2; }
+  #cover .sub { margin-top:8px; font-size:12.5px; color:#7a6a55; }
+</style>
+</head>
+<body>
+  <div id="cover">
+    <div style="text-align:center">
+      <div class="lo">Superkick · <b>Design canvas</b></div>
+      <div class="sub">loading screens…</div>
+    </div>
+  </div>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="screens/sk-tokens.jsx"></script>
+  <script type="text/babel" src="screens/sk-primitives.jsx"></script>
+  <script type="text/babel" src="screens/sk-shell.jsx"></script>
+  <script type="text/babel" src="screens/sk-inbox.jsx"></script>
+  <script type="text/babel" src="screens/sk-issues.jsx"></script>
+  <script type="text/babel" src="screens/sk-issue-detail.jsx"></script>
+  <script type="text/babel" src="screens/sk-launch-task.jsx"></script>
+  <script type="text/babel" src="screens/sk-run-detail.jsx"></script>
+  <script type="text/babel" src="screens/sk-agents-settings.jsx"></script>
+  <script type="text/babel" src="screens/sk-overlays.jsx"></script>
+
+  <script type="text/babel" data-presets="env,react">
+    const { useEffect } = React;
+    function App() {
+      useEffect(() => {
+        const t = setTimeout(() => document.getElementById('cover').classList.add('gone'), 380);
+        return () => clearTimeout(t);
+      }, []);
+      return (
+        <>
+          <SKStyles/>
+          <DesignCanvas>
+            <DCSection id="overview" title="Superkick — every interface, one canvas"
+              subtitle="Eight surfaces × multiple states. Use this with SUPERKICK_HANDOFF.md to implement. Open any artboard fullscreen via the ⤢ button.">
+              <DCPostIt top={20} left={20} width={260}>
+                <b>Read this first →</b><br/>
+                Hand SUPERKICK_HANDOFF.md to Claude Code alongside this canvas.<br/><br/>
+                Foundations (SUP-217) ship first — tokens, primitives, shell. Everything after is reuse.
+              </DCPostIt>
+            </DCSection>
+
+            <DCSection id="shell" title="01 · Shell + Inbox"
+              subtitle="The chrome and the landing page. Replaces the dashboard.">
+              <DCArtboard id="inbox-default" label="Inbox · default (4 need you)" width={1280} height={800}>
+                <InboxScreen theme="dark"/>
+              </DCArtboard>
+              <DCArtboard id="inbox-clear" label="Inbox · all clear" width={1280} height={800}>
+                <InboxScreen theme="dark" state="all-clear"/>
+              </DCArtboard>
+              <DCArtboard id="inbox-light" label="Inbox · light (SUP-223)" width={1280} height={800}>
+                <InboxScreen theme="light"/>
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="issues" title="02 · Issues"
+              subtitle="List for triage, kanban for status flow. Same data, two lenses.">
+              <DCArtboard id="issues-list" label="Issues · list" width={1280} height={800}>
+                <IssuesList theme="dark"/>
+              </DCArtboard>
+              <DCArtboard id="issues-kanban" label="Issues · kanban" width={1280} height={800}>
+                <IssuesKanban theme="dark"/>
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="issue-detail" title="03 · Issue Detail (SUP-221)"
+              subtitle="One column. Context strip + single timeline. Kills the right rail and the bottom tabs.">
+              <DCArtboard id="issue-running" label="Issue Detail · run in flight" width={1280} height={920}>
+                <IssueDetail theme="dark" state="running"/>
+              </DCArtboard>
+              <DCArtboard id="issue-needs" label="Issue Detail · needs human" width={1280} height={920}>
+                <IssueDetail theme="dark" state="needs-human"/>
+              </DCArtboard>
+              <DCArtboard id="issue-light" label="Issue Detail · light" width={1280} height={920}>
+                <IssueDetail theme="light" state="running"/>
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="launch" title="04 · Launch Task (SUP-219 + SUP-220)"
+              subtitle="One composer at /tasks/new — every &laquo;Launch task&raquo; CTA points here.">
+              <DCArtboard id="launch-empty" label="Composer · empty (SUP-219)" width={1280} height={800}>
+                <LaunchTaskLauncher theme="dark"/>
+              </DCArtboard>
+              <DCArtboard id="launch-feed" label="Feed · running (SUP-220)" width={1280} height={900}>
+                <LaunchTaskFeed theme="dark" state="running"/>
+              </DCArtboard>
+              <DCArtboard id="launch-feed-needs" label="Feed · needs human" width={1280} height={900}>
+                <LaunchTaskFeed theme="dark" state="needs-human"/>
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="run" title="05 · Run Detail (SUP-222)"
+              subtitle="Two-pane supervision view: conversation + workspace. Sticky banner when state needs you.">
+              <DCArtboard id="run-running" label="Run Detail · running" width={1280} height={820}>
+                <RunDetail theme="dark" state="running"/>
+              </DCArtboard>
+              <DCArtboard id="run-needs" label="Run Detail · needs human" width={1280} height={820}>
+                <RunDetail theme="dark" state="needs-human"/>
+              </DCArtboard>
+              <DCArtboard id="run-done" label="Run Detail · completed" width={1280} height={820}>
+                <RunDetail theme="dark" state="completed"/>
+              </DCArtboard>
+              <DCArtboard id="run-light" label="Run Detail · light" width={1280} height={820}>
+                <RunDetail theme="light" state="needs-human"/>
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="config" title="06 · Agents & Settings"
+              subtitle="Agent fleet + the rules that surface runs in your Inbox.">
+              <DCArtboard id="agents" label="Agents" width={1280} height={800}>
+                <AgentsScreen theme="dark"/>
+              </DCArtboard>
+              <DCArtboard id="settings" label="Settings · Rules &amp; guardrails" width={1280} height={800}>
+                <SettingsScreen theme="dark"/>
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="overlays" title="07 · Overlays"
+              subtitle="Modals, drawers, command bar. Layered on top of any page.">
+              <DCArtboard id="cmd" label="Command bar (⌘K)" width={720} height={520}>
+                <CommandBar theme="dark"/>
+              </DCArtboard>
+              <DCArtboard id="launch-dialog" label="Launch dialog (compact)" width={640} height={520}>
+                <LaunchDialog theme="dark"/>
+              </DCArtboard>
+              <DCArtboard id="chat" label="Chat drawer" width={520} height={720}>
+                <ChatDrawer theme="dark"/>
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="handoff" title="08 · Handoff doc"
+              subtitle="The bridge from canvas to repo. Read this before opening tickets.">
+              <DCPostIt top={20} left={20} width={280} rotate={1.5}>
+                Open <b>SUPERKICK_HANDOFF.md</b> in the file tree (or hand it to Claude Code alongside this canvas).<br/><br/>
+                Covers: tokens, primitive APIs, per-screen file map, ticket dependency order, what's out of scope.
+              </DCPostIt>
+            </DCSection>
+
+          </DesignCanvas>
+        </>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>

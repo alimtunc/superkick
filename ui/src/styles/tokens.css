@@ -1,0 +1,29 @@
+@theme {
+	--color-canvas: #0b0d0f;
+	--color-surface: #15181c;
+	--color-raised: #1c2026;
+	--color-overlay: #23282f;
+
+	--color-border: #262b32;
+	--color-border-strong: #323843;
+	--color-fg: #e7e9ec;
+	--color-fg-muted: #9aa0a8;
+	--color-fg-dim: #6b727b;
+
+	--color-accent: #5b6ef2;
+	--color-accent-soft: rgba(91, 110, 242, 0.16);
+
+	--color-success: #4ea674;
+	--color-success-soft: rgba(78, 166, 116, 0.13);
+	--color-warn: #d4a04a;
+	--color-warn-soft: rgba(212, 160, 74, 0.14);
+	--color-danger: #cf5a55;
+	--color-danger-soft: rgba(207, 90, 85, 0.13);
+	--color-info: #5b8ec9;
+	--color-info-soft: rgba(91, 142, 201, 0.13);
+
+	--color-code: #0f1114;
+	--color-code-fg: #cdd2d8;
+
+	--font-mono: 'JetBrains Mono', 'IBM Plex Mono', 'DM Mono', ui-monospace, monospace;
+}
