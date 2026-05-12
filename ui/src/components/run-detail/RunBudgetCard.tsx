@@ -44,10 +44,6 @@ function sumRetries(steps: RunStep[]): number {
 	return steps.reduce((acc, s) => acc + Math.max(0, s.attempt - 1), 0)
 }
 
-/**
- * Only render dimensions the project actually declared a ceiling for —
- * an empty budget card would just be noise.
- */
 function buildRows(run: Run, steps: RunStep[], refTime: number): Row[] {
 	const rows: Row[] = []
 
@@ -100,19 +96,21 @@ export function RunBudgetCard({ run, steps, refTime }: RunBudgetCardProps) {
 	if (rows.length === 0) return null
 
 	return (
-		<div className="mb-8 rounded-md border border-edge bg-carbon/40 p-4">
-			<p className="font-data mb-3 text-[10px] tracking-wider text-dim uppercase">Execution budget</p>
+		<div>
+			<p className="font-data mb-3 text-[10px] tracking-[0.08em] text-fg-dim uppercase">
+				Execution budget
+			</p>
 			<div className="space-y-3">
 				{rows.map((row) => (
 					<div key={row.label}>
 						<div className="flex items-baseline justify-between">
-							<span className="font-data text-[11px] text-fog">{row.label}</span>
-							<span className="font-data text-[11px] text-dim">
+							<span className="font-data text-[11.5px] text-fg">{row.label}</span>
+							<span className="font-data text-[11.5px] text-fg-dim">
 								{row.observed} / {row.limit}
 							</span>
 						</div>
 						{row.ratio === null ? null : (
-							<div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-edge/50">
+							<div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-border">
 								<div
 									className={`h-full ${ratioColor(row.ratio)}`}
 									style={{ width: `${Math.min(100, Math.round(row.ratio * 100))}%` }}

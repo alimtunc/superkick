@@ -1,12 +1,10 @@
 import { ExecutionModeBadge } from '@/components/ExecutionModeBadge'
 import { PrStateBadge } from '@/components/PrStateBadge'
-import { RunDetailsGrid } from '@/components/run-detail/RunDetailsGrid'
 import { fmtElapsed, fmtRelativeTime, providerLabel, stepLabel } from '@/lib/domain'
 import {
 	attentionHint,
 	runNarrative,
 	summarizeAttention,
-	toneAccentClass,
 	toneDotClass,
 	toneTextClass
 } from '@/lib/domain/narrative'
@@ -37,6 +35,17 @@ function activeRole(run: Run, sessions: AgentSession[]): string | null {
 	return stepName
 }
 
+function pluralize(count: number, noun: string): string {
+	return `${count} ${noun}${count === 1 ? '' : 's'}`
+}
+
+function formatAttention(attention: ReturnType<typeof summarizeAttention>): string {
+	const parts: string[] = []
+	if (attention.pendingAttention > 0) parts.push(pluralize(attention.pendingAttention, 'request'))
+	if (attention.pendingInterrupts > 0) parts.push(pluralize(attention.pendingInterrupts, 'interrupt'))
+	return parts.join(' · ')
+}
+
 export function RunHero({ run, pr, sessions, attentionRequests, interrupts, refTime }: RunHeroProps) {
 	const narrative = runNarrative(run.state)
 	const role = activeRole(run, sessions)
@@ -48,11 +57,8 @@ export function RunHero({ run, pr, sessions, attentionRequests, interrupts, refT
 	const nextHint = attentionHint(attention.total) ?? narrative.nextHint
 
 	return (
-		<section
-			className={`mb-6 overflow-hidden rounded-lg border ${toneAccentClass[tone]}`}
-			aria-label="Run status summary"
-		>
-			<div className="flex flex-col gap-3 px-5 py-4 md:flex-row md:items-start md:justify-between md:gap-6">
+		<section className="space-y-3" aria-label="Run status summary">
+			<div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-6">
 				<div className="min-w-0 flex-1">
 					<div className="mb-2 flex items-center gap-2">
 						<span className={`inline-block h-2 w-2 rounded-full ${toneDotClass[tone]}`} />
@@ -91,17 +97,7 @@ export function RunHero({ run, pr, sessions, attentionRequests, interrupts, refT
 							{attention.total === 0 ? (
 								<span className="text-dim">None</span>
 							) : (
-								<span className="text-gold">
-									{attention.pendingAttention > 0
-										? `${attention.pendingAttention} request${attention.pendingAttention === 1 ? '' : 's'}`
-										: null}
-									{attention.pendingAttention > 0 && attention.pendingInterrupts > 0
-										? ' · '
-										: null}
-									{attention.pendingInterrupts > 0
-										? `${attention.pendingInterrupts} interrupt${attention.pendingInterrupts === 1 ? '' : 's'}`
-										: null}
-								</span>
+								<span className="text-gold">{formatAttention(attention)}</span>
 							)}
 						</dd>
 					</div>
@@ -134,10 +130,6 @@ export function RunHero({ run, pr, sessions, attentionRequests, interrupts, refT
 						</div>
 					) : null}
 				</dl>
-			</div>
-
-			<div className="border-t border-edge/50 bg-carbon/40 px-5 py-2.5">
-				<RunDetailsGrid run={run} pr={pr} />
 			</div>
 		</section>
 	)

@@ -16,5 +16,9 @@ function RunDetailPage() {
 	const { runId } = useParams({ from: '/_shell/runs/$runId' })
 	const refTime = useNow()
 
-	return <RunDetailView key={runId} runId={runId} refTime={refTime} />
+	return (
+		<div className="h-full overflow-hidden">
+			<RunDetailView key={runId} runId={runId} refTime={refTime} />
+		</div>
+	)
 }

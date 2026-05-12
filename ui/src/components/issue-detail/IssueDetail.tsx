@@ -1,72 +1,140 @@
-import { ChildIssues } from '@/components/issue-detail/ChildIssues'
-import { IssueActivityTimeline } from '@/components/issue-detail/IssueActivityTimeline'
-import { IssueDescription } from '@/components/issue-detail/IssueDescription'
-import { IssueDetailHeader } from '@/components/issue-detail/IssueDetailHeader'
-import { IssueLauncherPanel } from '@/components/issue-detail/IssueLauncherPanel'
-import { IssuePropertiesPanel } from '@/components/issue-detail/IssuePropertiesPanel'
-import { IssueTerminalEntry } from '@/components/issue-detail/IssueTerminalEntry'
-import { LaunchTaskFeed } from '@/components/issue-detail/launch-task-feed'
-import { NeedsHumanBanner } from '@/components/issue-detail/NeedsHumanBanner'
-import { DetailShell } from '@/components/ui/detail-shell'
+import { useMemo } from 'react'
+
+import { IssueContextStrip } from '@/components/issue-detail/IssueContextStrip'
+import { IssueFeed } from '@/components/issue-detail/IssueFeed'
+import { IssueReplyComposer } from '@/components/issue-detail/IssueReplyComposer'
+import { StatusChip } from '@/components/issue-detail/StatusChip'
+import { Pill } from '@/components/ui/pill'
 import { EmptyState } from '@/components/ui/state-empty'
 import { ErrorState } from '@/components/ui/state-error'
 import { LoadingState } from '@/components/ui/state-loading'
 import { ChatDrawer } from '@/components/workspace/ChatDrawer'
+import { ChatToggleButton } from '@/components/workspace/ChatToggleButton'
 import { useIssueDetail } from '@/hooks/useIssueDetail'
-import { pickLatestRun } from '@/lib/domain'
-import { FileSearch } from 'lucide-react'
+import { isActiveRun } from '@/lib/domain'
+import { TopbarBackButton } from '@/shell/TopbarBackButton'
+import { usePageActions } from '@/shell/usePageActions'
+import type { IssueDetailResponse } from '@/types'
+import { Btn } from '@/ui/Btn'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { ExternalLink, FileSearch, RefreshCw, Zap } from 'lucide-react'
 
 export function IssueDetail({ issueId }: { issueId: string }) {
 	const { issue, loading, error, refresh } = useIssueDetail(issueId)
 
 	if (loading)
 		return (
-			<DetailShell>
+			<div className="px-6 py-6">
 				<LoadingState rows={4} />
-			</DetailShell>
+			</div>
 		)
 	if (error)
 		return (
-			<DetailShell>
+			<div className="px-6 py-6">
 				<ErrorState title="Issue load failed" message={error} onRetry={refresh} />
-			</DetailShell>
+			</div>
 		)
 	if (!issue)
 		return (
-			<DetailShell>
+			<div className="px-6 py-6">
 				<EmptyState
 					icon={FileSearch}
 					title="Issue not found"
 					description="It may have been deleted in Linear or the identifier is wrong."
 				/>
-			</DetailShell>
+			</div>
 		)
 
-	const latestRun = pickLatestRun(issue.linked_runs)
+	return <IssueDetailLoaded issue={issue} onRefresh={refresh} />
+}
+
+interface IssueDetailLoadedProps {
+	issue: IssueDetailResponse
+	onRefresh: () => void
+}
+
+function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
+	const navigate = useNavigate()
+	const activeRun = issue.linked_runs.find(isActiveRun)
+
+	const sub = useMemo(
+		() => (
+			<>
+				<Pill mono size="xs">
+					{issue.identifier}
+				</Pill>
+				<StatusChip status={issue.status} />
+				{activeRun ? (
+					<Link
+						to="/runs/$runId"
+						params={{ runId: activeRun.id }}
+						className="inline-flex rounded-md focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+					>
+						<Pill tone="live" size="xs" dot pulse>
+							Active run
+						</Pill>
+					</Link>
+				) : null}
+			</>
+		),
+		[issue.identifier, issue.status, activeRun]
+	)
+
+	const right = useMemo(
+		() => (
+			<>
+				<ChatToggleButton />
+				<a
+					href={issue.url}
+					target="_blank"
+					rel="noopener noreferrer"
+					aria-label="Open in Linear"
+					title="Open in Linear"
+					className="inline-flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+				>
+					<ExternalLink size={14} strokeWidth={1.75} aria-hidden="true" />
+				</a>
+				<button
+					type="button"
+					onClick={onRefresh}
+					aria-label="Refresh issue data"
+					title="Refresh issue data"
+					className="inline-flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+				>
+					<RefreshCw size={14} strokeWidth={1.75} aria-hidden="true" />
+				</button>
+				<Btn
+					kind="primary"
+					size="sm"
+					iconRight="arrowRight"
+					onClick={() => navigate({ to: '/tasks/new', search: { issue: issue.identifier } })}
+					aria-label={`Launch task for ${issue.identifier}`}
+				>
+					<Zap size={14} strokeWidth={1.85} aria-hidden="true" />
+					Launch task…
+				</Btn>
+			</>
+		),
+		[issue.identifier, issue.url, onRefresh, navigate]
+	)
+
+	usePageActions({
+		title: issue.title,
+		sub,
+		right,
+		back: <TopbarBackButton />
+	})
 
 	return (
-		<div>
-			<IssueDetailHeader issue={issue} onRefresh={refresh} />
-			<DetailShell>
-				<NeedsHumanBanner runs={issue.linked_runs} />
-				<h1 className="font-data mb-5 text-[20px] leading-tight font-semibold text-fog">
-					{issue.title}
-				</h1>
-				<div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-					<div className="min-w-0 space-y-6">
-						<LaunchTaskFeed issueIdentifier={issue.identifier} />
-						<IssueDescription description={issue.description} />
-						{issue.children.length > 0 ? <ChildIssues issues={issue.children} /> : null}
-						<IssueActivityTimeline comments={issue.comments} runs={issue.linked_runs} />
-					</div>
-					<aside className="space-y-5">
-						<IssuePropertiesPanel issue={issue} />
-						<IssueLauncherPanel issue={issue} />
-						<IssueTerminalEntry latestRun={latestRun} />
-					</aside>
+		<>
+			<IssueContextStrip issue={issue} />
+			<div className="mx-auto w-full max-w-4xl px-6 py-6">
+				<IssueFeed issue={issue} />
+				<div className="mt-2">
+					<IssueReplyComposer />
 				</div>
-			</DetailShell>
+			</div>
 			<ChatDrawer subject={{ kind: 'issue', identifier: issue.identifier }} />
-		</div>
+		</>
 	)
 }

@@ -1,4 +1,3 @@
-import { SectionTitle } from '@/components/dashboard/SectionTitle'
 import { IssueRow } from '@/components/issues/IssueRow'
 import type { IssueChildRef, LinearIssueListItem } from '@/types'
 
@@ -22,14 +21,12 @@ function childRefToListItem(child: IssueChildRef): LinearIssueListItem {
 }
 
 export function ChildIssues({ issues }: { issues: IssueChildRef[] }) {
+	if (issues.length === 0) return null
 	return (
-		<section className="mb-6">
-			<SectionTitle title="SUB-ISSUES" count={issues.length} />
-			<div>
-				{issues.map((child) => (
-					<IssueRow key={child.id} issue={childRefToListItem(child)} indent />
-				))}
-			</div>
-		</section>
+		<div className="overflow-hidden rounded-md border border-border">
+			{issues.map((child) => (
+				<IssueRow key={child.id} issue={childRefToListItem(child)} indent />
+			))}
+		</div>
 	)
 }
