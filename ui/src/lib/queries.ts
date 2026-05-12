@@ -4,6 +4,7 @@ import {
 	fetchIssueDetail,
 	fetchIssues,
 	fetchLaunchQueue,
+	fetchLaunchTask,
 	fetchLaunchTaskSteps,
 	fetchRun,
 	fetchRuns,
@@ -81,5 +82,12 @@ export const launchTaskStepsQuery = (taskId: string | null) =>
 	queryOptions({
 		queryKey: taskId ? queryKeys.launchTasks.steps(taskId) : ['launch-tasks', 'pending', 'steps'],
 		queryFn: taskId ? () => fetchLaunchTaskSteps(taskId) : skipToken,
+		staleTime: 3_000
+	})
+
+export const launchTaskDetailQuery = (taskId: string | null) =>
+	queryOptions({
+		queryKey: taskId ? queryKeys.launchTasks.detail(taskId) : ['launch-tasks', 'pending', 'detail'],
+		queryFn: taskId ? () => fetchLaunchTask(taskId) : skipToken,
 		staleTime: 3_000
 	})

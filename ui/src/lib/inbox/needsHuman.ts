@@ -1,5 +1,6 @@
 import type { PillTone } from '@/components/ui/pill'
 import type { LaunchQueueItem, NeedsHumanItem, NeedsHumanReasonKind, QueueRunSummary, Run } from '@/types'
+import type { SKTone } from '@/types/icons'
 
 interface DeriveInputs {
 	launchItems: readonly LaunchQueueItem[]
@@ -35,6 +36,31 @@ export const NEEDS_HUMAN_REASON_PILL_TONE: Record<NeedsHumanReasonKind, PillTone
 	attention_pending: 'oxide',
 	budget_paused: 'gold',
 	recently_failed: 'oxide'
+}
+
+export const NEEDS_HUMAN_REASON_TONE: Record<NeedsHumanReasonKind, SKTone> = {
+	awaiting_approval: 'warn',
+	stalled: 'warn',
+	interrupt_pending: 'warn',
+	attention_pending: 'info',
+	budget_paused: 'warn',
+	recently_failed: 'danger'
+}
+
+export function needsHumanRowTitle(item: NeedsHumanItem): string {
+	if (item.source.kind === 'launch-issue') return item.source.item.issue.title
+	return item.source.run.issue_identifier
+}
+
+export function needsHumanRowIdentifier(item: NeedsHumanItem): string {
+	if (item.source.kind === 'launch-issue') return item.source.item.issue.identifier
+	return item.source.run.issue_identifier
+}
+
+export function needsHumanRowAgeIso(item: NeedsHumanItem): string | null {
+	if (item.source.kind === 'launch-issue') return null
+	if (item.source.kind === 'queue-run') return item.source.run.started_at ?? null
+	return item.source.run.finished_at ?? item.source.run.updated_at ?? null
 }
 
 /**

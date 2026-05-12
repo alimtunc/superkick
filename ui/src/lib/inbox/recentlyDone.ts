@@ -1,4 +1,46 @@
-import type { LaunchQueueItem, RecentlyDoneEntry } from '@/types'
+import type { LaunchQueueItem, RecentlyDoneEntry, RunState } from '@/types'
+import type { SKTone } from '@/types/icons'
+
+export interface RecentlyDoneRowSummary {
+	tone: SKTone
+	pillLabel: string
+	title: string
+	identifier: string
+	why: string | null
+	ctx: string
+}
+
+export function runStateTone(state: RunState): SKTone {
+	if (state === 'completed') return 'success'
+	if (state === 'failed') return 'danger'
+	return 'neutral'
+}
+
+export function summariseRecentlyDone(entry: RecentlyDoneEntry): RecentlyDoneRowSummary {
+	const { item } = entry
+	if (item.kind === 'run') {
+		const state = item.run.state
+		const tone = runStateTone(state)
+		const identifier = item.run.issue_identifier
+		return {
+			tone,
+			pillLabel: state.replace(/_/g, ' '),
+			title: identifier,
+			identifier,
+			why: item.reason || null,
+			ctx: item.run.branch_name ? `${identifier} · ${item.run.branch_name}` : identifier
+		}
+	}
+	const identifier = item.issue.identifier
+	return {
+		tone: 'success',
+		pillLabel: item.issue.status.name.toLowerCase(),
+		title: item.issue.title,
+		identifier,
+		why: item.reason || null,
+		ctx: identifier
+	}
+}
 
 const RECENT_WINDOW_MS = 24 * 60 * 60 * 1000
 const MAX_ENTRIES = 5

@@ -4,6 +4,7 @@ import { pathnameToTitle } from '@/shell/pathnameToTitle'
 import { Sidebar } from '@/shell/Sidebar'
 import { Topbar } from '@/shell/Topbar'
 import { TopbarStatus } from '@/shell/TopbarStatus'
+import { usePageActionsStore } from '@/shell/usePageActions'
 import { Outlet, useMatches } from '@tanstack/react-router'
 import { Toaster } from 'sonner'
 
@@ -15,12 +16,20 @@ export function AppShell() {
 	const matches = useMatches()
 	const pathname = matches[matches.length - 1].pathname
 	const { active, title, crumbs } = pathnameToTitle(pathname)
+	const pageTitle = usePageActionsStore((s) => s.title)
+	const pageSub = usePageActionsStore((s) => s.sub)
+	const pageRight = usePageActionsStore((s) => s.right)
 
 	return (
 		<div className="flex h-screen bg-canvas">
 			<Sidebar active={active} />
 			<div className="flex min-w-0 flex-1 flex-col">
-				<Topbar title={title} crumbs={crumbs} right={<TopbarStatus />} />
+				<Topbar
+					title={pageTitle ?? title}
+					crumbs={crumbs}
+					sub={pageSub ?? undefined}
+					right={pageRight ?? <TopbarStatus />}
+				/>
 				<SessionWatchRail refTime={dashboard.refTime} mode="overview" />
 				<main className="min-h-0 flex-1 overflow-y-auto">
 					<Outlet />

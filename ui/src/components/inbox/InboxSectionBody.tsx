@@ -13,17 +13,9 @@ interface InboxSectionBodyProps {
 	onRetry?: () => void
 	/** Optional banner rendered above both the empty state and the children list. */
 	prepend?: ReactNode
-	/** Rendered when not loading, not errored, and not empty. */
 	children: ReactNode
 }
 
-/**
- * Single source of truth for an Inbox section's body state machine:
- * loading → skeleton, error → error panel, empty → dashed empty state,
- * else → children. The `prepend` slot lets sections layer a banner (e.g.
- * a Linear-down warning) above the empty state without re-implementing the
- * branching.
- */
 export function InboxSectionBody({
 	loading,
 	error,
@@ -34,19 +26,31 @@ export function InboxSectionBody({
 	prepend,
 	children
 }: InboxSectionBodyProps) {
-	if (loading) return <LoadingState rows={skeletonRows} density="compact" />
-	if (error) return <ErrorState message={error} onRetry={onRetry} density="compact" />
+	if (loading) {
+		return (
+			<div className="px-6 py-2">
+				<LoadingState rows={skeletonRows} density="compact" />
+			</div>
+		)
+	}
+	if (error) {
+		return (
+			<div className="px-6 py-2">
+				<ErrorState message={error} onRetry={onRetry} density="compact" />
+			</div>
+		)
+	}
 	if (isEmpty) {
 		return (
-			<div className="flex flex-col gap-2">
-				{prepend ? prepend : null}
+			<div className="flex flex-col gap-2 px-6 py-2">
+				{prepend}
 				<EmptyState title={emptyMessage} density="compact" />
 			</div>
 		)
 	}
 	return (
-		<div className="flex flex-col gap-2">
-			{prepend ? prepend : null}
+		<div className="flex flex-col">
+			{prepend ? <div className="px-6 pt-2">{prepend}</div> : null}
 			{children}
 		</div>
 	)

@@ -333,6 +333,12 @@ export async function fetchLaunchTaskSteps(taskId: string): Promise<LaunchTaskSt
 	return res.json()
 }
 
+export async function fetchLaunchTask(taskId: string): Promise<LaunchTask> {
+	const res = await fetch(`${BASE}/launch-tasks/${encodeURIComponent(taskId)}`)
+	if (!res.ok) await throwGenericApiError(res, 'fetch launch task failed')
+	return res.json()
+}
+
 // SUP-120 — operator-facing actions on a running launch task.
 
 export async function cancelLaunchTask(taskId: string): Promise<CancelLaunchTaskResponse> {

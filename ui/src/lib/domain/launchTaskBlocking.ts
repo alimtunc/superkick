@@ -1,5 +1,7 @@
 import type { LaunchStepKind, LaunchTask, LaunchTaskStatus, LaunchTaskStep } from '@/types'
 
+import { LAUNCH_STEP_KIND_LABEL } from './launchTaskLabels'
+
 export interface BlockingContext {
 	step: LaunchTaskStep | null
 	stepKind: LaunchStepKind | null
@@ -8,12 +10,6 @@ export interface BlockingContext {
 }
 
 export const TERMINAL_LAUNCH_TASK_STATUSES = new Set<LaunchTaskStatus>(['completed', 'failed', 'cancelled'])
-
-const STEP_KIND_LABEL: Record<LaunchStepKind, string> = {
-	plan: 'Plan',
-	implement: 'Implement',
-	review: 'Review'
-}
 
 const STEP_KIND_HINT: Record<LaunchStepKind, string> = {
 	plan: 'Open the run terminal to take over, or retry the planner.',
@@ -25,7 +21,7 @@ const FALLBACK_HEADLINE = 'Launch task waiting on you'
 const FALLBACK_HINT = 'Reply in the chat to keep the task moving.'
 
 function pickHeadline(kind: LaunchStepKind | null): string {
-	return kind ? `${STEP_KIND_LABEL[kind]} step waiting on you` : FALLBACK_HEADLINE
+	return kind ? `${LAUNCH_STEP_KIND_LABEL[kind]} step waiting on you` : FALLBACK_HEADLINE
 }
 
 function pickHint(kind: LaunchStepKind | null): string {

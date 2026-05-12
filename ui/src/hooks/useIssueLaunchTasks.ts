@@ -1,15 +1,14 @@
 import { fetchLaunchTaskSteps, listLaunchTasksForIssue } from '@/api'
 import { useBrokerConnected } from '@/hooks/useBrokerConnection'
+import { TERMINAL_LAUNCH_TASK_STATUSES } from '@/lib/domain'
 import { toErrorMessage } from '@/lib/errors'
 import { launchTaskEventBroker } from '@/lib/eventBroker'
 import { queryKeys } from '@/lib/queryKeys'
 import type { LaunchTask, LaunchTaskWithSteps } from '@/types'
 import { skipToken, useQuery } from '@tanstack/react-query'
 
-const TERMINAL_TASK_STATUSES = new Set<LaunchTask['status']>(['completed', 'failed', 'cancelled'])
-
 function isTerminal(task: LaunchTask): boolean {
-	return TERMINAL_TASK_STATUSES.has(task.status)
+	return TERMINAL_LAUNCH_TASK_STATUSES.has(task.status)
 }
 
 function sortByUpdatedDesc(tasks: LaunchTask[]): LaunchTask[] {

@@ -103,3 +103,12 @@ export interface RetryLaunchTaskResponse {
 	step_id: string
 	new_linked_run_id: string | null
 }
+
+// SUP-127 — UI-only value passed between LaunchComposer and IssueChipPicker.
+// Narrower than `LinearIssueListItem` because the picker only needs the bits
+// it displays in the trigger.
+export interface IssueChipPickerValue {
+	id: string
+	identifier: string
+	title: string
+}

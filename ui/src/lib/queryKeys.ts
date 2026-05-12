@@ -34,6 +34,7 @@ export const queryKeys = {
 	launchTasks: {
 		all: ['launch-tasks'] as const,
 		forIssue: (issueId: string) => ['issues', issueId, 'launch-tasks'] as const,
+		detail: (taskId: string) => ['launch-tasks', taskId, 'detail'] as const,
 		steps: (taskId: string) => ['launch-tasks', taskId, 'steps'] as const
 	}
 }
