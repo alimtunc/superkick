@@ -2,10 +2,11 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
+@import './styles/tokens.css';
 @custom-variant dark (&:is(.dark *));
 
+/* Graphite palette — deprecated, retired when all surfaces consume tokens.css (SUP-127+). */
 @theme {
-	/* ── Graphite Operations Atelier ── */
 	/* Surfaces */
 	--color-void: #0b0c0e;
 	--color-carbon: #111214;

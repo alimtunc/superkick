@@ -5,6 +5,14 @@ This file is the source of truth for tokens, surfaces, density, typography, icon
 interactive states across the V1 surfaces (`shell/`, `inbox/`, `issues/`,
 `issue-detail/`, `runs/`, `run-detail/`, `dashboard/`).
 
+> **Migration in progress (SUP-126):** The redesign palette lives in
+> [ui/src/styles/tokens.css](../../ui/src/styles/tokens.css) (`bg-canvas`, `bg-surface`,
+> `bg-raised`, `text-fg`, `text-fg-muted`, `text-fg-dim`, `border-border`,
+> `bg-accent`, `bg-success`, `bg-warn`, `bg-danger`, `bg-info`, plus `-soft` variants).
+> New surfaces (`ui/src/shell/`, `ui/src/ui/`) consume those tokens. The Graphite palette
+> below still ships for un-migrated screens and shadcn components — both retire when
+> consumers migrate.
+
 Reviewed alongside [frontend.md](./frontend.md). Every rule below carries its rationale
 so edge cases can be reasoned about — when in doubt, follow the rationale, not the rule.
 
