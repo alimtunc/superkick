@@ -14,11 +14,12 @@ import { RunDock } from './RunDock'
 export function AppShell() {
 	const dashboard = useDashboardRuns()
 	const matches = useMatches()
-	const pathname = matches[matches.length - 1].pathname
+	const pathname = matches.at(-1)?.pathname ?? '/'
 	const { active, title, crumbs } = pathnameToTitle(pathname)
 	const pageTitle = usePageActionsStore((s) => s.title)
 	const pageSub = usePageActionsStore((s) => s.sub)
 	const pageRight = usePageActionsStore((s) => s.right)
+	const pageBack = usePageActionsStore((s) => s.back)
 
 	return (
 		<div className="flex h-screen bg-canvas">
@@ -29,6 +30,7 @@ export function AppShell() {
 					crumbs={crumbs}
 					sub={pageSub ?? undefined}
 					right={pageRight ?? <TopbarStatus />}
+					back={pageBack ?? undefined}
 				/>
 				<SessionWatchRail refTime={dashboard.refTime} mode="overview" />
 				<main className="min-h-0 flex-1 overflow-y-auto">
