@@ -16,7 +16,7 @@
 #   ./examples/demo.sh
 # ───────────────────────────────────────────────────────────────────────
 
-API="http://127.0.0.1:3100"
+API="http://127.0.0.1:3100/api"
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
@@ -181,7 +181,7 @@ echo ""
 echo "  If a step fails and the run pauses (waiting_human),"
 echo "  respond to the interrupt in the dashboard or via the API:"
 echo ""
-cmd "curl http://127.0.0.1:3100/runs/<run-id>/interrupts | jq"
+cmd "curl http://127.0.0.1:3100/api/runs/<run-id>/interrupts | jq"
 echo ""
 note "The dashboard shows interrupts inline on the run detail page."
 

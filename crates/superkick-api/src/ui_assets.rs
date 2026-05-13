@@ -28,9 +28,17 @@ async fn spa_handler(uri: Uri) -> Response {
 fn serve_asset(path: &str) -> Option<Response> {
     let asset = UiAssets::get(path)?;
     let mime = mime_guess::from_path(path).first_or_octet_stream();
+    // Vite emits content-hashed files under assets/; everything else (index.html,
+    // favicon, etc.) must revalidate so upgrades don't serve a stale SPA shell.
+    let cache_control = if path.starts_with("assets/") {
+        "public, max-age=31536000, immutable"
+    } else {
+        "no-cache"
+    };
     Some(
         Response::builder()
             .header(header::CONTENT_TYPE, mime.as_ref())
+            .header(header::CACHE_CONTROL, cache_control)
             .body(Body::from(asset.data.into_owned()))
             .expect("valid response"),
     )
