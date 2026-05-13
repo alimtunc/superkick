@@ -1,13 +1,6 @@
-import type { LaunchStepKind, LaunchTask, LaunchTaskStatus, LaunchTaskStep } from '@/types'
+import type { BlockingContext, LaunchStepKind, LaunchTask, LaunchTaskStatus, LaunchTaskStep } from '@/types'
 
 import { LAUNCH_STEP_KIND_LABEL } from './launchTaskLabels'
-
-export interface BlockingContext {
-	step: LaunchTaskStep | null
-	stepKind: LaunchStepKind | null
-	headline: string
-	hint: string
-}
 
 export const TERMINAL_LAUNCH_TASK_STATUSES = new Set<LaunchTaskStatus>(['completed', 'failed', 'cancelled'])
 

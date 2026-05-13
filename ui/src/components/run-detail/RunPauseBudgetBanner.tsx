@@ -5,12 +5,7 @@ interface RunPauseBudgetBannerProps {
 	run: Run
 }
 
-/**
- * Budget-trip variant — hard stop demanding intervention. `role="alert"` so
- * screen readers announce immediately rather than waiting for the next polite
- * pause. Resolution controls live in the Interrupts panel below; we deliberately
- * don't duplicate the action buttons here (one source of truth per action).
- */
+// Budget-trip alert; actions live in the Interrupts panel (one source of truth).
 export function RunPauseBudgetBanner({ run }: RunPauseBudgetBannerProps) {
 	return (
 		<div

@@ -9,11 +9,7 @@ interface IssueExtraBadgesProps {
 	dispatchPosition?: number | undefined
 }
 
-/**
- * Contextual badges that surface gating signals the 6-column kanban
- * intentionally folds away (`waiting` / `blocked` / `launchable`). Run-side
- * attention badges live in `LaunchRunBadges` and are not duplicated here.
- */
+// Surfaces gating signals the 6-column kanban intentionally hides.
 export function IssueExtraBadges({ item, dispatchPosition }: IssueExtraBadgesProps) {
 	if (!item) return null
 

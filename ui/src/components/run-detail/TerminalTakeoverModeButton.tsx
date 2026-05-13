@@ -17,11 +17,6 @@ const SUB_LABEL: Record<TakeoverModeKind, string> = {
 	force_takeover: 'Cancel turn, then take over'
 }
 
-/**
- * One row in the takeover mode selector. Self-contained per CLAUDE.md
- * (one component per file). Surfaces availability + reason verbatim — never
- * silently disables.
- */
 export function TerminalTakeoverModeButton({
 	availability,
 	icon,
@@ -39,7 +34,7 @@ export function TerminalTakeoverModeButton({
 			type="button"
 			disabled={disabled}
 			onClick={() => onSelect(availability.mode)}
-			className="group flex w-full items-start gap-3 rounded-md border border-edge bg-graphite/30 px-3 py-3 text-left transition-colors hover:border-mineral/40 hover:bg-graphite/60 focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-edge disabled:hover:bg-graphite/30"
+			className="group flex w-full items-start gap-3 rounded-md border border-edge bg-graphite/30 p-3 text-left transition-colors hover:border-mineral/40 hover:bg-graphite/60 focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-edge disabled:hover:bg-graphite/30"
 		>
 			<span aria-hidden="true" className="mt-0.5 text-ash group-hover:text-silver">
 				{icon}

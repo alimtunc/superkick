@@ -8,7 +8,7 @@
 //! and bumps the parent session's denormalised pointers in the same
 //! transaction so the pointer cannot reference a missing row.
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use sqlx::SqlitePool;
 use superkick_core::{
     AgentProvider, EventId, HandoffId, OperatorId, OrchestratorCheckpoint,
@@ -55,7 +55,8 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
         .bind(s.created_at.to_rfc3339())
         .bind(s.updated_at.to_rfc3339())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("insert orchestrator_session {}", s.id.0))?;
         Ok(())
     }
 
@@ -65,7 +66,8 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
         )
         .bind(id.0.to_string())
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("get orchestrator_session {}", id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -75,7 +77,8 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
         )
         .bind(serialize_enum(&status)?)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list orchestrator_sessions by status {status:?}"))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -84,7 +87,8 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
             "SELECT * FROM orchestrator_sessions ORDER BY created_at",
         )
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .context("list all orchestrator_sessions")?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -99,7 +103,10 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
             "SELECT * FROM orchestrator_sessions ORDER BY created_at",
         )
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| {
+            format!("list orchestrator_sessions by issue_identifier {issue_identifier}")
+        })?;
         rows.into_iter()
             .map(|r| r.into_domain())
             .filter(|res| match res {
@@ -136,7 +143,8 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
         .bind(s.updated_at.to_rfc3339())
         .bind(s.id.0.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("update orchestrator_session {}", s.id.0))?;
         if result.rows_affected() == 0 {
             return Err(anyhow!("orchestrator_session {} not found", s.id.0));
         }
@@ -156,7 +164,8 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
         .bind(now_rfc3339())
         .bind(id.0.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("set provider_session_id for orchestrator_session {}", id.0))?;
         if result.rows_affected() == 0 {
             return Err(anyhow!("orchestrator_session {} not found", id.0));
         }
@@ -164,7 +173,11 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
     }
 
     async fn insert_checkpoint(&self, c: &OrchestratorCheckpoint) -> Result<()> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .context("begin transaction for insert_checkpoint")?;
 
         sqlx::query(
             "INSERT INTO orchestrator_checkpoints (\
@@ -184,7 +197,13 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
         .bind(serde_json::to_string(&c.child_handoff_ids)?)
         .bind(c.created_at.to_rfc3339())
         .execute(&mut *tx)
-        .await?;
+        .await
+        .with_context(|| {
+            format!(
+                "insert orchestrator_checkpoint {} for orchestrator_session {}",
+                c.id.0, c.session_id.0
+            )
+        })?;
 
         // Advance the session's denormalised pointers. `last_event_cursor`
         // mirrors the checkpoint's `covers_to_event` when set — a fresh
@@ -201,7 +220,13 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
         .bind(now_rfc3339())
         .bind(c.session_id.0.to_string())
         .execute(&mut *tx)
-        .await?;
+        .await
+        .with_context(|| {
+            format!(
+                "advance orchestrator_session {} pointers for checkpoint {}",
+                c.session_id.0, c.id.0
+            )
+        })?;
 
         if result.rows_affected() == 0 {
             return Err(anyhow!(
@@ -211,7 +236,9 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
             ));
         }
 
-        tx.commit().await?;
+        tx.commit()
+            .await
+            .context("commit transaction for insert_checkpoint")?;
         Ok(())
     }
 
@@ -224,7 +251,8 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
         )
         .bind(id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list orchestrator_checkpoints for session {}", id.0))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -238,7 +266,8 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
         )
         .bind(id.0.to_string())
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("get latest orchestrator_checkpoint for session {}", id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -251,7 +280,8 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
         )
         .bind(id.0.to_string())
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("get orchestrator_checkpoint {}", id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 }

@@ -1,7 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 
 import { ActivityNode } from '@/components/issue-detail/ActivityNode'
-import type { ActivityNodeKind, ActivityNodeRole } from '@/components/issue-detail/ActivityNode'
 import { AuthorAvatar } from '@/components/issue-detail/AuthorAvatar'
 import { ChildIssues } from '@/components/issue-detail/ChildIssues'
 import { IssueDescription } from '@/components/issue-detail/IssueDescription'
@@ -9,7 +8,13 @@ import { LaunchTaskFeed } from '@/components/issue-detail/launch-task-feed'
 import { RunPrBadge } from '@/components/issue-detail/RunPrBadge'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { buildIssueActivity, fmtRelativeTime, isTerminalRunState, runNarrative } from '@/lib/domain'
-import type { CommentNode, IssueDetailResponse, LinkedRunSummary } from '@/types'
+import type {
+	ActivityNodeKind,
+	ActivityNodeRole,
+	CommentNode,
+	IssueDetailResponse,
+	LinkedRunSummary
+} from '@/types'
 import { Link } from '@tanstack/react-router'
 
 function NeedsHumanBody({ run }: { run: LinkedRunSummary }) {

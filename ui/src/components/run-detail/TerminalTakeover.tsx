@@ -65,10 +65,7 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 	const latestPersistedId = latestPersisted?.takeover_session_id ?? null
 	const latestPersistedMode = latestPersisted?.mode ?? null
 
-	// Reconnect to a persisted takeover after a reload — pick the most
-	// recently opened one to anchor the UI without forcing the operator to
-	// re-open. If multiple takeovers exist (rare), the operator can use
-	// `closeTakeover` and pick a fresh mode.
+	// Re-anchor to the most recent persisted takeover on reload so context survives.
 	useEffect(() => {
 		if (activeTakeover) return
 		if (!latestPersistedId || !latestPersistedMode) return
@@ -144,10 +141,10 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 			</button>
 
 			{open ? (
-				<div className="space-y-3 border-t border-edge px-3 py-3">
+				<div className="space-y-3 border-t border-edge p-3">
 					<p className="font-data text-[11px] text-ash">
 						Pick how you want to take the terminal. Force takeover cancels the active protocol
-						turn — use it sparingly and prefer attention requests for product decisions.
+						turn. Use it sparingly and prefer attention requests for product decisions.
 					</p>
 
 					{activeTakeover && wsUrl ? (

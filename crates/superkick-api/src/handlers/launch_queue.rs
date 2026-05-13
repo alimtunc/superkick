@@ -17,7 +17,6 @@
 //! - [`merge`] — projects the pure `LaunchQueueClassification` onto the
 //!   wire buckets.
 
-mod blockers;
 mod merge;
 mod routes;
 mod wire;

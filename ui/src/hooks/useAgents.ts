@@ -1,11 +1,7 @@
 import { agentsQuery } from '@/lib/queries'
 import { useQuery } from '@tanstack/react-query'
 
-/**
- * SUP-117 — read the project agent catalog. Long staleTime by default since
- * the catalog is built from `superkick.yaml` at server boot and almost never
- * changes inside a session.
- */
+// Long staleTime: catalog is built at boot from superkick.yaml and rarely changes per session.
 export function useAgents() {
 	return useQuery(agentsQuery())
 }

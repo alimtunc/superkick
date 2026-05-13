@@ -1,5 +1,4 @@
-import type { SseHandlers } from '@/api'
-import type { LaunchTaskBrokerNotice, LaunchTaskEvent } from '@/types'
+import type { LaunchTaskBrokerNotice, LaunchTaskEvent, SseHandlers } from '@/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createLaunchTaskBroker } from './eventBroker'
@@ -16,11 +15,6 @@ function stepStarted(taskId: string, issueId: string): LaunchTaskEvent {
 	}
 }
 
-/**
- * In-memory replacement for the EventSource subscribe function. Counts how
- * many times `start()` opens a stream and exposes `emit*` helpers so tests
- * drive the broker without a real HTTP connection.
- */
 function createSubscribeHarness() {
 	const handlers: SseHandlers<LaunchTaskEvent>[] = []
 	let opens = 0

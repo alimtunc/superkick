@@ -1,3 +1,4 @@
+import { fmtSecondsVerbose } from '@/lib/domain'
 import type { Run, RunStep } from '@/types'
 
 interface RunBudgetCardProps {
@@ -13,28 +14,10 @@ interface Row {
 	ratio: number | null
 }
 
-function formatDuration(seconds: number): string {
-	if (seconds < 60) return `${Math.round(seconds)}s`
-	if (seconds < 3600) {
-		const m = Math.floor(seconds / 60)
-		const s = Math.round(seconds % 60)
-		return s === 0 ? `${m}m` : `${m}m ${s}s`
-	}
-	if (seconds < 86_400) {
-		const h = Math.floor(seconds / 3600)
-		const m = Math.floor((seconds % 3600) / 60)
-		return m === 0 ? `${h}h` : `${h}h ${m}m`
-	}
-	const d = Math.floor(seconds / 86_400)
-	const h = Math.floor((seconds % 86_400) / 3600)
-	return h === 0 ? `${d}d` : `${d}d ${h}h`
-}
-
+// Freeze duration at finished_at for terminal runs so the card doesn't keep ticking.
 function elapsedSeconds(startedAt: string, finishedAt: string | null, refTime: number): number {
 	const started = new Date(startedAt).getTime()
 	if (Number.isNaN(started)) return 0
-	// For terminal runs, freeze the duration at `finished_at` — without this
-	// the card keeps ticking forever after a cancelled / completed / failed run.
 	const end = finishedAt ? new Date(finishedAt).getTime() : refTime
 	const effective = Number.isNaN(end) ? refTime : end
 	return Math.max(0, Math.floor((effective - started) / 1000))
@@ -52,8 +35,8 @@ function buildRows(run: Run, steps: RunStep[], refTime: number): Row[] {
 		const limit = run.budget.duration_secs
 		rows.push({
 			label: 'Duration',
-			observed: formatDuration(observed),
-			limit: formatDuration(limit),
+			observed: fmtSecondsVerbose(observed),
+			limit: fmtSecondsVerbose(limit),
 			ratio: limit > 0 ? observed / limit : null
 		})
 	}

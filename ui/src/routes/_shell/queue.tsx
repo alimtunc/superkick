@@ -1,5 +1,7 @@
 import { CapacityBanner } from '@/components/launch-queue/CapacityBanner'
 import { LaunchQueueColumn } from '@/components/launch-queue/LaunchQueueColumn'
+import { ErrorState } from '@/components/ui/state-error'
+import { LoadingState } from '@/components/ui/state-loading'
 import { useDispatchFromQueue } from '@/hooks/useDispatchFromQueue'
 import { useLaunchQueue } from '@/hooks/useLaunchQueue'
 import { useNow } from '@/hooks/useNow'
@@ -39,13 +41,9 @@ function LaunchQueuePage() {
 
 			<CapacityBanner capacity={activeCapacity} generatedAt={generatedAt} />
 
-			{error ? (
-				<div className="panel glow-red font-data p-3 text-[12px] text-oxide">{error}</div>
-			) : null}
+			{error ? <ErrorState message={error} density="compact" /> : null}
 
-			{loading ? (
-				<p className="font-data py-6 text-center text-[11px] text-dim">Loading queue…</p>
-			) : null}
+			{loading ? <LoadingState rows={4} /> : null}
 
 			{/* Kanban-style horizontal scroll: every bucket renders as a fixed-
 			    width column. Avoids per-breakpoint stacking so the operator

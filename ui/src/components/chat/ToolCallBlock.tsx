@@ -1,5 +1,5 @@
 import { Disclosure } from '@/components/ui/disclosure'
-import type { ToolCallEntry } from '@/hooks/useTurnStream'
+import type { ToolCallEntry } from '@/types'
 
 function safeStringify(value: unknown, pretty = true): string {
 	if (value === null || value === undefined) return ''

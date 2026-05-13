@@ -5,7 +5,7 @@
 //! `session_ownership_events` for the audit trail. Callers are expected to
 //! sequence the two writes via the service layer.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use sqlx::SqlitePool;
 use superkick_core::{
@@ -28,7 +28,11 @@ impl SqliteSessionOwnershipRepo {
 
 impl SessionOwnershipRepo for SqliteSessionOwnershipRepo {
     async fn apply(&self, event: &OwnershipEvent, snapshot_since: DateTime<Utc>) -> Result<()> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .context("begin transaction for ownership apply")?;
 
         // Upsert the snapshot on agent_sessions.
         let serialized = serialize_owner(&event.to)?;
@@ -48,7 +52,13 @@ impl SessionOwnershipRepo for SqliteSessionOwnershipRepo {
         .bind(snapshot_since.to_rfc3339())
         .bind(event.session_id.0.to_string())
         .execute(&mut *tx)
-        .await?;
+        .await
+        .with_context(|| {
+            format!(
+                "update ownership snapshot for session {}",
+                event.session_id.0
+            )
+        })?;
 
         if result.rows_affected() != 1 {
             return Err(anyhow::anyhow!(
@@ -76,9 +86,12 @@ impl SessionOwnershipRepo for SqliteSessionOwnershipRepo {
         .bind(event.operator_id.as_ref().map(|o| o.0.clone()))
         .bind(event.created_at.to_rfc3339())
         .execute(&mut *tx)
-        .await?;
+        .await
+        .with_context(|| format!("insert session_ownership_event {}", event.id.0))?;
 
-        tx.commit().await?;
+        tx.commit()
+            .await
+            .context("commit transaction for ownership apply")?;
         Ok(())
     }
 
@@ -89,7 +102,8 @@ impl SessionOwnershipRepo for SqliteSessionOwnershipRepo {
         )
         .bind(session_id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list ownership events for session {}", session_id.0))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -101,7 +115,8 @@ impl SessionOwnershipRepo for SqliteSessionOwnershipRepo {
         )
         .bind(session_id.0.to_string())
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("get current ownership for session {}", session_id.0))?;
         row.map(|r| r.into_snapshot()).transpose()
     }
 
@@ -113,7 +128,8 @@ impl SessionOwnershipRepo for SqliteSessionOwnershipRepo {
         )
         .bind(run_id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list current ownership snapshots for run {}", run_id.0))?;
         rows.into_iter().map(|r| r.into_snapshot()).collect()
     }
 
@@ -124,7 +140,8 @@ impl SessionOwnershipRepo for SqliteSessionOwnershipRepo {
         )
         .bind(run_id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list ownership events for run {}", run_id.0))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { fetchTerminalHistory, terminalWsUrl } from '@/api'
+import type { TerminalCapabilities, TerminalStatus } from '@/types'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 
@@ -8,29 +9,11 @@ import '@xterm/xterm/css/xterm.css'
 import { Terminal } from '@xterm/xterm'
 
 import { TerminalStatusBar } from './TerminalStatusBar'
-import type { Capabilities, TerminalStatus } from './TerminalStatusBar'
 
-/**
- * Live PTY surface. Two callers:
- * - The run-primary terminal (no `wsUrl` prop → derives from `runId`, uses
- *   `terminal-history` for the cleaned-up case).
- * - SUP-101 takeover PTYs (`wsUrl` provided directly, no historyUrl —
- *   takeovers do not persist a transcript).
- */
 interface PtyTerminalProps {
 	runId: string
 	isTerminal: boolean
-	/**
-	 * Optional explicit WebSocket URL. When omitted, the component derives
-	 * the URL from `runId` (legacy primary PTY behaviour). Passed by
-	 * `TerminalTakeover` for the SUP-101 takeover PTY.
-	 */
 	wsUrl?: string
-	/**
-	 * Whether to load durable history when `isTerminal` is true. Defaults to
-	 * `true`. Set to `false` for takeover PTYs since SUP-101 explicitly does
-	 * not persist a transcript.
-	 */
 	loadHistoryOnTerminal?: boolean
 }
 
@@ -77,26 +60,23 @@ export function PtyTerminal({ runId, isTerminal, wsUrl, loadHistoryOnTerminal = 
 	const mountedRef = useRef(true)
 
 	const [status, setStatus] = useState<TerminalStatus>('connecting')
-	const [capabilities, setCapabilities] = useState<Capabilities | null>(null)
+	const [capabilities, setCapabilities] = useState<TerminalCapabilities | null>(null)
 
 	const setupTerminal = useCallback(() => {
 		if (!containerRef.current) return null
 
 		const styles = getComputedStyle(document.documentElement)
-		const readToken = (name: string, fallback: string): string => {
-			const value = styles.getPropertyValue(name).trim()
-			return value || fallback
-		}
+		const readToken = (name: string): string => styles.getPropertyValue(name).trim()
 
 		const terminal = new Terminal({
 			cursorBlink: true,
 			fontSize: 12,
 			fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
 			theme: {
-				background: readToken('--color-carbon', '#111214'),
-				foreground: readToken('--color-silver', '#b0ada6'),
-				cursor: readToken('--color-silver', '#b0ada6'),
-				selectionBackground: readToken('--color-slate-deep', '#1f2228')
+				background: readToken('--color-carbon'),
+				foreground: readToken('--color-silver'),
+				cursor: readToken('--color-silver'),
+				selectionBackground: readToken('--color-slate-deep')
 			},
 			scrollback: 10000,
 			convertEol: true
@@ -136,7 +116,7 @@ export function PtyTerminal({ runId, isTerminal, wsUrl, loadHistoryOnTerminal = 
 				} else if (typeof event.data === 'string') {
 					const envelope = parseCapabilitiesEnvelope(event.data)
 					if (envelope) {
-						const caps: Capabilities = {
+						const caps: TerminalCapabilities = {
 							writable: envelope.writable,
 							reason: envelope.reason
 						}
@@ -237,7 +217,7 @@ export function PtyTerminal({ runId, isTerminal, wsUrl, loadHistoryOnTerminal = 
 	return (
 		<div className="rounded-md border border-edge bg-carbon">
 			<TerminalStatusBar status={status} capabilities={capabilities} />
-			<div ref={containerRef} className="min-h-80 px-1 py-1" />
+			<div ref={containerRef} className="min-h-80 p-1" />
 		</div>
 	)
 }

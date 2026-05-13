@@ -58,9 +58,6 @@ export function InboxActionLink({ action, children, className, ariaLabel }: Inbo
 		)
 	}
 
-	// `dispatch` actions have no navigation target — the caller renders its
-	// own clickable control (Button, etc.) and only uses the action for verb
-	// / label. We render the children inert so the layout still composes.
 	if (destination.kind === 'dispatch') {
 		return (
 			<span className={className} aria-label={ariaLabel}>

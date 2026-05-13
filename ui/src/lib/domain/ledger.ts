@@ -12,7 +12,7 @@ import type {
 	SessionPayload
 } from '@/types'
 
-import { resolveProviderLabel } from './labels'
+import { resolveProviderLabel } from './displayLabels'
 
 // Raw terminal streams (agent_output, command_output) are the supporting
 // evidence surface, not the ledger — keep them out of this set.
@@ -93,15 +93,15 @@ export function categoryOf(kind: EventKind): LedgerCategory {
 }
 
 const CATEGORY_VISUAL: Record<LedgerCategory, CategoryVisual> = {
-	step: { icon: '\u25cf', dot: 'bg-cyan', ring: 'ring-cyan/40', label: 'Step' },
-	session: { icon: '\u25a3', dot: 'bg-violet', ring: 'ring-violet/40', label: 'Session' },
-	handoff: { icon: '\u21c4', dot: 'bg-gold', ring: 'ring-gold/40', label: 'Handoff' },
-	attention: { icon: '\u26a0', dot: 'bg-gold', ring: 'ring-gold/40', label: 'Attention' },
-	interrupt: { icon: '\u25c6', dot: 'bg-gold', ring: 'ring-gold/40', label: 'Interrupt' },
-	ownership: { icon: '\u29bf', dot: 'bg-silver', ring: 'ring-silver/30', label: 'Ownership' },
-	operator: { icon: '\u2691', dot: 'bg-mineral', ring: 'ring-mineral/40', label: 'Operator' },
-	system: { icon: '\u00b7', dot: 'bg-dim', ring: 'ring-dim/30', label: 'System' },
-	error: { icon: '\u2717', dot: 'bg-oxide', ring: 'ring-oxide/40', label: 'Error' }
+	step: { dot: 'bg-cyan', ring: 'ring-cyan/40', label: 'Step' },
+	session: { dot: 'bg-violet', ring: 'ring-violet/40', label: 'Session' },
+	handoff: { dot: 'bg-gold', ring: 'ring-gold/40', label: 'Handoff' },
+	attention: { dot: 'bg-gold', ring: 'ring-gold/40', label: 'Attention' },
+	interrupt: { dot: 'bg-gold', ring: 'ring-gold/40', label: 'Interrupt' },
+	ownership: { dot: 'bg-silver', ring: 'ring-silver/30', label: 'Ownership' },
+	operator: { dot: 'bg-mineral', ring: 'ring-mineral/40', label: 'Operator' },
+	system: { dot: 'bg-dim', ring: 'ring-dim/30', label: 'System' },
+	error: { dot: 'bg-oxide', ring: 'ring-oxide/40', label: 'Error' }
 }
 
 export function visualOf(kind: EventKind): CategoryVisual {

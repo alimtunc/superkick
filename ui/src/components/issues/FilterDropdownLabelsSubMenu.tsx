@@ -1,3 +1,6 @@
+import { DEFAULT_LABEL_COLOR } from '@/lib/issueLabels'
+import { Menu } from '@base-ui/react/menu'
+
 export function FilterDropdownLabelsSubMenu({
 	allLabels,
 	labelColors,
@@ -26,32 +29,32 @@ export function FilterDropdownLabelsSubMenu({
 					type="text"
 					value={search}
 					onChange={(e) => onSearchChange(e.target.value)}
+					onKeyDown={(e) => e.stopPropagation()}
 					placeholder="Filter..."
-					autoFocus
 					className="font-data w-full bg-transparent text-[12px] text-silver outline-none placeholder:text-dim"
 				/>
 			</div>
 			<div className="max-h-64 overflow-y-auto py-1">
 				{filtered.map((label) => {
-					const color = labelColors.get(label) ?? '#6b7280'
+					const color = labelColors.get(label) ?? DEFAULT_LABEL_COLOR
 					const isActive = activeLabels.has(label)
 					const count = labelCounts.get(label) ?? 0
 					return (
-						<button
+						<Menu.Item
 							key={label}
-							type="button"
 							onClick={() => onToggle(label)}
+							closeOnClick={false}
 							className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-left transition-colors hover:bg-white/5 ${
 								isActive ? 'bg-white/3' : ''
 							}`}
 						>
 							<span
-								className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+								className="inline-block size-2.5 shrink-0 rounded-full"
 								style={{ backgroundColor: color }}
 							/>
 							<span className="font-data flex-1 text-[12px] text-silver">{label}</span>
 							<span className="font-data text-[11px] text-dim">{count}</span>
-						</button>
+						</Menu.Item>
 					)
 				})}
 				{filtered.length === 0 ? (

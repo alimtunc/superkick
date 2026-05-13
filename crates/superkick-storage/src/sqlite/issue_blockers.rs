@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::IssueBlocker;
 
@@ -20,18 +20,30 @@ impl IssueBlockerRepo for SqliteIssueBlockerRepo {
         downstream_issue_id: &str,
         blockers: &[IssueBlocker],
     ) -> Result<()> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .context("begin transaction for replace_for_downstream")?;
         replace_downstream_in_tx(&mut tx, downstream_issue_id, blockers).await?;
-        tx.commit().await?;
+        tx.commit()
+            .await
+            .context("commit transaction for replace_for_downstream")?;
         Ok(())
     }
 
     async fn replace_for_downstreams(&self, entries: &[(String, Vec<IssueBlocker>)]) -> Result<()> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .context("begin transaction for replace_for_downstreams")?;
         for (downstream_issue_id, blockers) in entries {
             replace_downstream_in_tx(&mut tx, downstream_issue_id, blockers).await?;
         }
-        tx.commit().await?;
+        tx.commit()
+            .await
+            .context("commit transaction for replace_for_downstreams")?;
         Ok(())
     }
 
@@ -42,7 +54,8 @@ impl IssueBlockerRepo for SqliteIssueBlockerRepo {
              FROM issue_blockers ORDER BY downstream_issue_id, blocker_issue_id",
         )
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .context("list all issue_blockers")?;
         rows.into_iter().map(IssueBlockerRow::into_domain).collect()
     }
 
@@ -54,7 +67,8 @@ impl IssueBlockerRepo for SqliteIssueBlockerRepo {
         )
         .bind(downstream_issue_id)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list issue_blockers for downstream {downstream_issue_id}"))?;
         rows.into_iter().map(IssueBlockerRow::into_domain).collect()
     }
 }
@@ -67,7 +81,8 @@ async fn replace_downstream_in_tx(
     sqlx::query("DELETE FROM issue_blockers WHERE downstream_issue_id = ?1")
         .bind(downstream_issue_id)
         .execute(&mut **tx)
-        .await?;
+        .await
+        .with_context(|| format!("delete issue_blockers for downstream {downstream_issue_id}"))?;
 
     for b in blockers {
         sqlx::query(
@@ -83,7 +98,13 @@ async fn replace_downstream_in_tx(
         .bind(&b.blocker_state_type)
         .bind(b.recorded_at.to_rfc3339())
         .execute(&mut **tx)
-        .await?;
+        .await
+        .with_context(|| {
+            format!(
+                "insert issue_blocker downstream={} blocker={}",
+                b.downstream_issue_id, b.blocker_issue_id
+            )
+        })?;
     }
     Ok(())
 }

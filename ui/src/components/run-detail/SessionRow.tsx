@@ -3,24 +3,9 @@ import { useState } from 'react'
 import { AttachPanel } from '@/components/run-detail/AttachPanel'
 import { CopyValue } from '@/components/run-detail/CopyValue'
 import { useSessionAttach } from '@/hooks/useSessionAttach'
-import { fmtDuration } from '@/lib/domain'
+import { agentStatusColorPulsing, fmtDuration } from '@/lib/domain'
 import type { AgentSession, AgentStatus, Run } from '@/types'
-
-const statusIcon: Record<AgentStatus, string> = {
-	starting: '\u25cb',
-	running: '\u25cf',
-	completed: '\u2713',
-	failed: '\u2717',
-	cancelled: '\u2014'
-}
-
-const statusColor: Record<AgentStatus, string> = {
-	starting: 'text-dim',
-	running: 'text-cyan live-pulse',
-	completed: 'text-mineral',
-	failed: 'text-oxide',
-	cancelled: 'text-dim'
-}
+import { Check, ChevronDown, ChevronUp, Circle, CircleDot, Minus, X } from 'lucide-react'
 
 const ATTACHABLE_STATUSES = new Set<AgentStatus>(['starting', 'running', 'failed'])
 
@@ -28,6 +13,22 @@ function sessionDuration(session: AgentSession): string {
 	if (!session.started_at) return ''
 	const end = session.finished_at ? new Date(session.finished_at).getTime() : Date.now()
 	return fmtDuration(end - new Date(session.started_at).getTime())
+}
+
+function agentStatusMark(status: AgentStatus) {
+	const props = { size: 13, strokeWidth: 1.9, 'aria-hidden': true }
+	switch (status) {
+		case 'starting':
+			return <Circle {...props} />
+		case 'running':
+			return <CircleDot {...props} />
+		case 'completed':
+			return <Check {...props} />
+		case 'failed':
+			return <X {...props} />
+		case 'cancelled':
+			return <Minus {...props} />
+	}
 }
 
 export function SessionRow({
@@ -50,7 +51,9 @@ export function SessionRow({
 				onClick={() => setExpanded((prev) => !prev)}
 				className="-mx-1 flex w-full items-center gap-3 rounded px-1 text-left transition-colors hover:bg-edge/20"
 			>
-				<span className={`text-sm ${statusColor[session.status]}`}>{statusIcon[session.status]}</span>
+				<span className={`inline-flex ${agentStatusColorPulsing[session.status]}`}>
+					{agentStatusMark(session.status)}
+				</span>
 				<span className="font-data text-[11px] text-dim">{session.status}</span>
 				{session.exit_code !== null ? (
 					<span
@@ -62,7 +65,12 @@ export function SessionRow({
 
 				<span className="ml-auto flex items-center gap-2">
 					<span className="font-data text-[10px] text-dim">
-						cmd {expanded ? '\u25B4' : '\u25BE'}
+						cmd{' '}
+						{expanded ? (
+							<ChevronUp size={11} strokeWidth={1.75} className="inline" aria-hidden="true" />
+						) : (
+							<ChevronDown size={11} strokeWidth={1.75} className="inline" aria-hidden="true" />
+						)}
 					</span>
 					<span className="font-data text-[11px] text-dim">{sessionDuration(session)}</span>
 				</span>

@@ -5,11 +5,14 @@ import { IssuesKanbanView } from '@/components/issues/IssuesKanbanView'
 import { IssuesListView } from '@/components/issues/IssuesListView'
 import { IssuesToolbar } from '@/components/issues/IssuesToolbar'
 import { IssuesViewToggle } from '@/components/issues/IssuesViewToggle'
-import { buildLabelColorMap } from '@/components/issues/LabelFilter'
+import { EmptyState } from '@/components/ui/state-empty'
+import { ErrorState } from '@/components/ui/state-error'
+import { LoadingState } from '@/components/ui/state-loading'
 import { useFilteredIssues } from '@/hooks/useFilteredIssues'
 import { useIssueAggregations } from '@/hooks/useIssueAggregations'
 import { useIssueFilters } from '@/hooks/useIssueFilters'
 import { useIssues } from '@/hooks/useIssues'
+import { buildLabelColorMap } from '@/lib/issueLabels'
 import { issuesQuery, launchQueueQuery } from '@/lib/queries'
 import { createRoute, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
@@ -72,15 +75,13 @@ function IssuesPage() {
 					/>
 				</div>
 
-				{data.error ? <p className="font-data text-[11px] text-oxide">{data.error}</p> : null}
-
-				{isInitialLoading ? (
-					<p className="font-data py-10 text-center text-dim">Loading issues...</p>
+				{data.error ? (
+					<ErrorState message={data.error} onRetry={data.refresh} density="compact" />
 				) : null}
 
-				{!data.loading && data.issues.length === 0 ? (
-					<p className="font-data py-10 text-center text-dim">No issues found.</p>
-				) : null}
+				{isInitialLoading ? <LoadingState rows={5} /> : null}
+
+				{!data.loading && data.issues.length === 0 ? <EmptyState title="No issues found." /> : null}
 
 				{data.issues.length > 0 ? (
 					<>

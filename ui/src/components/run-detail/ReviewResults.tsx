@@ -1,4 +1,5 @@
 import type { RunStep, ReviewSwarmResult } from '@/types'
+import { Check, X } from 'lucide-react'
 
 function parseReviewResult(step: RunStep): ReviewSwarmResult | null {
 	if (!step.output_json) return null
@@ -24,7 +25,7 @@ export function ReviewResults({ steps }: { steps: RunStep[] }) {
 						return (
 							<div key={step.id} className="panel glow-green p-4">
 								<p className="font-data live-pulse text-sm text-cyan">
-									Review swarm in progress...
+									Review swarm in progress&hellip;
 								</p>
 							</div>
 						)
@@ -60,8 +61,16 @@ export function ReviewResults({ steps }: { steps: RunStep[] }) {
 									key={f.session_id}
 									className="flex items-center gap-2 rounded border border-edge/50 bg-graphite/50 px-3 py-1.5 text-[12px]"
 								>
-									<span className={f.passed ? 'text-mineral' : 'text-oxide'}>
-										{f.passed ? '\u2713' : '\u2717'}
+									<span
+										className={
+											f.passed ? 'inline-flex text-mineral' : 'inline-flex text-oxide'
+										}
+									>
+										{f.passed ? (
+											<Check size={14} strokeWidth={1.75} aria-hidden="true" />
+										) : (
+											<X size={14} strokeWidth={1.75} aria-hidden="true" />
+										)}
 									</span>
 									<span className="font-data text-fog">{f.agent_name}</span>
 									<span className="font-data ml-auto text-[10px] text-dim">

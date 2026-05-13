@@ -15,13 +15,6 @@ interface NeedsHumanItemsResult {
 	refresh: () => void
 }
 
-/**
- * Compose the "Needs Human" Inbox section data: aggregates three independent
- * queries (operator queue, dashboard runs, launch queue), runs `deriveNeedsHuman`,
- * and exposes a single `refresh` for the section's retry button. Linear errors
- * surface separately as `linearWarning` so the section can show a banner without
- * blanking the panel.
- */
 export function useNeedsHumanItems(): NeedsHumanItemsResult {
 	const launchQueue = useLaunchQueue()
 	const queue = useOperatorQueue()

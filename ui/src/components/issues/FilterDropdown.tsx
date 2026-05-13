@@ -5,7 +5,8 @@ import { FilterDropdownLabelsSubMenu } from '@/components/issues/FilterDropdownL
 import { FilterDropdownPrioritySubMenu } from '@/components/issues/FilterDropdownPrioritySubMenu'
 import { FilterDropdownProjectSubMenu } from '@/components/issues/FilterDropdownProjectSubMenu'
 import { PriorityIcon } from '@/components/issues/PriorityIcon'
-import { Filter } from 'lucide-react'
+import { Menu } from '@base-ui/react/menu'
+import { Clock, Filter } from 'lucide-react'
 
 type FilterCategory = null | 'priority' | 'labels' | 'project'
 
@@ -40,41 +41,35 @@ export function FilterDropdown({
 	const [activeCategory, setActiveCategory] = useState<FilterCategory>(null)
 	const [labelSearch, setLabelSearch] = useState('')
 
-	function handleClose() {
-		setOpen(false)
-		setActiveCategory(null)
-		setLabelSearch('')
-	}
-
-	function handleToggle() {
-		if (open) {
-			handleClose()
+	function handleOpenChange(nextOpen: boolean) {
+		setOpen(nextOpen)
+		if (!nextOpen) {
+			setActiveCategory(null)
+			setLabelSearch('')
 		} else {
-			setOpen(true)
 			setActiveCategory(null)
 		}
 	}
 
 	return (
-		<div className="relative">
-			<button
-				type="button"
-				onClick={handleToggle}
+		<Menu.Root open={open} onOpenChange={handleOpenChange} modal={false}>
+			<Menu.Trigger
 				className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border transition-colors ${
 					hasActiveFilters || open
 						? 'border-edge-bright text-silver'
 						: 'border-edge text-dim hover:border-edge-bright hover:text-silver'
 				}`}
 				title="Add filter"
+				aria-label="Add filter"
 			>
-				<Filter size={14} />
-			</button>
+				<Filter size={14} aria-hidden="true" />
+			</Menu.Trigger>
 
-			{open ? (
-				<>
-					<div className="absolute top-full right-0 z-50 mt-1 flex">
+			<Menu.Portal>
+				<Menu.Positioner sideOffset={4} align="end" className="z-50">
+					<Menu.Popup className="flex items-start gap-1 bg-transparent outline-none">
 						{activeCategory ? (
-							<div className="mr-1 w-56 rounded-lg border border-edge bg-carbon shadow-xl">
+							<div className="w-56 rounded-lg border border-edge bg-carbon shadow-xl">
 								{activeCategory === 'priority' ? (
 									<FilterDropdownPrioritySubMenu
 										activePriorities={activePriorities}
@@ -96,10 +91,7 @@ export function FilterDropdown({
 									<FilterDropdownProjectSubMenu
 										allProjects={allProjects}
 										activeProject={activeProject}
-										onSelect={(value) => {
-											onSelectProject(value)
-											handleClose()
-										}}
+										onSelect={onSelectProject}
 									/>
 								) : null}
 							</div>
@@ -107,7 +99,7 @@ export function FilterDropdown({
 
 						<div className="w-48 rounded-lg border border-edge bg-carbon shadow-xl">
 							<div className="border-b border-edge px-3 py-2">
-								<span className="font-data text-[12px] text-dim">Add Filter...</span>
+								<span className="font-data text-[12px] text-dim">Add Filter&hellip;</span>
 							</div>
 							<div className="py-1">
 								<FilterDropdownCategoryRow
@@ -123,8 +115,8 @@ export function FilterDropdown({
 								/>
 								<FilterDropdownCategoryRow
 									icon={
-										<span className="flex h-3.5 w-3.5 items-center justify-center rounded border border-dim">
-											<span className="inline-block h-1.5 w-1.5 rounded-full bg-dim" />
+										<span className="flex size-3.5 items-center justify-center rounded border border-dim">
+											<span className="inline-block size-1.5 rounded-full bg-dim" />
 										</span>
 									}
 									label="Labels"
@@ -138,29 +130,7 @@ export function FilterDropdown({
 									}}
 								/>
 								<FilterDropdownCategoryRow
-									icon={
-										<svg
-											width="14"
-											height="14"
-											viewBox="0 0 16 16"
-											fill="none"
-											className="text-dim"
-										>
-											<circle
-												cx="8"
-												cy="8"
-												r="6"
-												stroke="currentColor"
-												strokeWidth="1.2"
-											/>
-											<path
-												d="M8 4v4l3 2"
-												stroke="currentColor"
-												strokeWidth="1.2"
-												strokeLinecap="round"
-											/>
-										</svg>
-									}
+									icon={<Clock size={14} strokeWidth={1.75} className="text-dim" />}
 									label="Project"
 									active={activeCategory === 'project'}
 									hasValue={activeProject !== null}
@@ -172,11 +142,9 @@ export function FilterDropdown({
 								/>
 							</div>
 						</div>
-					</div>
-
-					<div className="fixed inset-0 z-40" onClick={handleClose} aria-hidden="true" />
-				</>
-			) : null}
-		</div>
+					</Menu.Popup>
+				</Menu.Positioner>
+			</Menu.Portal>
+		</Menu.Root>
 	)
 }

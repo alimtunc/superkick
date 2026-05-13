@@ -1,6 +1,6 @@
 import type { LinkedPrSummary, QueueRunSummary } from '@/types'
 
-export interface RunPillSlots {
+interface RunPillSlots {
 	attention: { count: number } | null
 	interrupt: { count: number } | null
 	pr: LinkedPrSummary | null

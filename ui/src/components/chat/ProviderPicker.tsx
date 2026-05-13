@@ -23,11 +23,6 @@ interface ProviderPickerProps {
 	disabled?: boolean
 }
 
-/**
- * Empty-state provider chooser. The chat sends to a single provider (Claude
- * or Codex) — no agent role multiplexing. Matches the popover pattern used
- * by ModePicker / ModelPicker so all three pickers compose visually.
- */
 export function ProviderPicker({ value, onChange, disabled }: ProviderPickerProps) {
 	const current = PROVIDER_OPTIONS.find((o) => o.value === value)
 

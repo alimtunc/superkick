@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button'
-import { fmtElapsed, healthSignal, stepLabel } from '@/lib/domain'
+import { fmtElapsed, healthSignal, healthSignalBg, stepLabel } from '@/lib/domain'
 import { cn } from '@/lib/utils'
 import type { Run } from '@/types'
 import { X } from 'lucide-react'
@@ -11,15 +11,9 @@ interface WatchChipProps {
 	onUnwatch: () => void
 }
 
-const healthBarColor = {
-	critical: 'bg-oxide',
-	warning: 'bg-gold',
-	ok: 'bg-mineral'
-} as const
-
 export function WatchChip({ run, refTime, isFocused, onUnwatch }: WatchChipProps) {
 	const sig = healthSignal(run, refTime)
-	const dotColor = healthBarColor[sig]
+	const dotColor = healthSignalBg[sig]
 
 	return (
 		<span

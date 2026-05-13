@@ -3,6 +3,7 @@ use sqlx::SqlitePool;
 use superkick_core::{Interrupt, InterruptId, InterruptStatus, Run, RunId, StepId};
 
 use super::codec::{deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::repo::{InterruptRepo, InterruptTxRepo};
 
 pub struct SqliteInterruptRepo {
@@ -31,7 +32,8 @@ impl InterruptRepo for SqliteInterruptRepo {
         .bind(interrupt.created_at.to_rfc3339())
         .bind(interrupt.resolved_at.map(|t| t.to_rfc3339()))
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("insert interrupt {}", interrupt.id.0))?;
         Ok(())
     }
 
@@ -39,7 +41,8 @@ impl InterruptRepo for SqliteInterruptRepo {
         let row = sqlx::query_as::<_, InterruptRow>("SELECT * FROM interrupts WHERE id = ?1")
             .bind(id.0.to_string())
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .with_context(|| format!("get interrupt {}", id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -49,12 +52,13 @@ impl InterruptRepo for SqliteInterruptRepo {
         )
         .bind(run_id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list interrupts for run {}", run_id.0))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
     async fn update(&self, interrupt: &Interrupt) -> Result<()> {
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE interrupts SET status = ?1, answer_json = ?2, resolved_at = ?3 WHERE id = ?4",
         )
         .bind(serialize_enum(&interrupt.status)?)
@@ -62,19 +66,25 @@ impl InterruptRepo for SqliteInterruptRepo {
         .bind(interrupt.resolved_at.map(|t| t.to_rfc3339()))
         .bind(interrupt.id.0.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("update interrupt {}", interrupt.id.0))?;
+        ensure_updated(result, "interrupt", interrupt.id.0)?;
         Ok(())
     }
 }
 
 impl InterruptTxRepo for SqliteInterruptRepo {
     async fn create_interrupt_atomic(&self, run: &Run, interrupt: &Interrupt) -> Result<()> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .context("begin transaction for create_interrupt_atomic")?;
 
         let budget_json = serde_json::to_string(&run.budget).context("serialize run budget")?;
 
         // 1. Update run state.
-        sqlx::query(
+        let run_result = sqlx::query(
             "UPDATE runs SET state = ?1, trigger_source = ?2, current_step_key = ?3, worktree_path = ?4, branch_name = ?5, updated_at = ?6, finished_at = ?7, error_message = ?8, budget_json = ?9, pause_kind = ?10, pause_reason = ?11 WHERE id = ?12",
         )
         .bind(serialize_enum(&run.state)?)
@@ -90,7 +100,9 @@ impl InterruptTxRepo for SqliteInterruptRepo {
         .bind(&run.pause_reason)
         .bind(run.id.0.to_string())
         .execute(&mut *tx)
-        .await?;
+        .await
+        .with_context(|| format!("update run {} for atomic interrupt", run.id.0))?;
+        ensure_updated(run_result, "run", run.id.0)?;
 
         // 2. Insert interrupt.
         sqlx::query(
@@ -107,9 +119,12 @@ impl InterruptTxRepo for SqliteInterruptRepo {
         .bind(interrupt.created_at.to_rfc3339())
         .bind(interrupt.resolved_at.map(|t| t.to_rfc3339()))
         .execute(&mut *tx)
-        .await?;
+        .await
+        .with_context(|| format!("insert interrupt {} atomically", interrupt.id.0))?;
 
-        tx.commit().await?;
+        tx.commit()
+            .await
+            .context("commit transaction for create_interrupt_atomic")?;
         Ok(())
     }
 }

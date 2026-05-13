@@ -7,6 +7,7 @@ import { RunStateBadge } from '@/components/RunStateBadge'
 import { fmtRunElapsed, pickRunReason, stepLabel } from '@/lib/domain'
 import { inboxActionAriaLabel, pickPrimaryAction, pickSecondaryAction } from '@/lib/inbox/actions'
 import type { InboxAction, QueueRunSummary } from '@/types'
+import { ArrowRight } from 'lucide-react'
 
 interface RunCardProps {
 	run: QueueRunSummary
@@ -56,13 +57,23 @@ export function RunCard({ run, refTime, variant }: RunCardProps) {
 				</div>
 
 				<div className="flex items-center justify-between gap-2">
-					<span className="font-data truncate text-[10px] text-silver">{step ?? '—'}</span>
+					<span className="font-data truncate text-[10px] text-silver">{step ?? 'n/a'}</span>
 					<span className="font-data shrink-0 text-[10px] text-ash">{elapsed}</span>
 				</div>
 
-				<div className="font-data truncate text-[10px] text-ash">
-					{run.repo_slug}
-					{run.branch_name ? ` → ${run.branch_name}` : null}
+				<div className="font-data flex min-w-0 items-center gap-1 truncate text-[10px] text-ash">
+					<span className="truncate">{run.repo_slug}</span>
+					{run.branch_name ? (
+						<>
+							<ArrowRight
+								size={10}
+								strokeWidth={1.75}
+								className="shrink-0"
+								aria-hidden="true"
+							/>
+							<span className="truncate">{run.branch_name}</span>
+						</>
+					) : null}
 				</div>
 
 				{reason ? <p className="font-data line-clamp-2 text-[10px] text-silver">{reason}</p> : null}

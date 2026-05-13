@@ -3,6 +3,7 @@ import { InterruptSummary } from '@/components/dashboard/InterruptSummary'
 import { StepTimeline } from '@/components/run-detail/StepTimeline'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { Button } from '@/components/ui/button'
+import { ClientDateTime } from '@/components/ui/client-date-time'
 import { TERMINAL_STATES } from '@/lib/constants'
 import { fmtElapsed } from '@/lib/domain'
 import { queryKeys } from '@/lib/queryKeys'
@@ -10,6 +11,7 @@ import { useWatchedSessionsStore } from '@/stores/watchedSessions'
 import type { Run } from '@/types'
 import { useQuery, useQueryClient, skipToken } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { X } from 'lucide-react'
 
 export function FocusedRunPanel({ refTime }: { refTime: number }) {
 	const focusedId = useWatchedSessionsStore((s) => s.focusedId)
@@ -65,13 +67,13 @@ export function FocusedRunPanel({ refTime }: { refTime: number }) {
 							className="font-data text-[11px] text-dim hover:text-silver"
 							title="Close panel"
 						>
-							&times;
+							<X size={12} strokeWidth={1.75} aria-hidden="true" />
 						</Button>
 					</div>
 				</div>
 
 				{loading && !data?.run ? (
-					<p className="font-data py-2 text-[11px] text-dim">Loading...</p>
+					<p className="font-data py-2 text-[11px] text-dim">Loading&hellip;</p>
 				) : error ? (
 					<p className="font-data py-2 text-[11px] text-oxide">{error}</p>
 				) : data?.run ? (
@@ -99,7 +101,11 @@ export function FocusedRunPanel({ refTime }: { refTime: number }) {
 										Started
 									</dt>
 									<dd className="font-data mt-0.5 text-silver">
-										{new Date(data.run.started_at).toLocaleTimeString()}
+										<ClientDateTime
+											value={data.run.started_at}
+											format="time"
+											fallback="--"
+										/>
 									</dd>
 								</div>
 								<div>

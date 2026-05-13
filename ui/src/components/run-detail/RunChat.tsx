@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 
 import { Avatar } from '@/ui/Avatar'
 
-export type RunChatFrom = 'user' | 'agent' | 'system'
+type RunChatFrom = 'user' | 'agent' | 'system'
 
 interface RunChatProps {
 	from: RunChatFrom

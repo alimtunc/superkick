@@ -10,6 +10,7 @@ use superkick_core::{
 };
 
 use super::codec::{deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::repo::{ConversationRepo, TurnEventRepo, TurnRepo};
 
 pub struct SqliteConversationRepo {
@@ -79,7 +80,8 @@ impl ConversationRepo for SqliteConversationRepo {
         )
         .bind(id.0.to_string())
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("get conversation {}", id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -90,15 +92,15 @@ impl ConversationRepo for SqliteConversationRepo {
             )
             .bind(identifier)
             .fetch_all(&self.pool)
-            .await?,
-            ConversationSubject::Run { run_id } => {
-                sqlx::query_as::<_, ConversationRow>(
-                    "SELECT * FROM conversations WHERE run_id = ?1 ORDER BY created_at ASC",
-                )
-                .bind(run_id.0.to_string())
-                .fetch_all(&self.pool)
-                .await?
-            }
+            .await
+            .with_context(|| format!("list conversations for issue_identifier {identifier}"))?,
+            ConversationSubject::Run { run_id } => sqlx::query_as::<_, ConversationRow>(
+                "SELECT * FROM conversations WHERE run_id = ?1 ORDER BY created_at ASC",
+            )
+            .bind(run_id.0.to_string())
+            .fetch_all(&self.pool)
+            .await
+            .with_context(|| format!("list conversations for run {}", run_id.0))?,
         };
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
@@ -132,17 +134,24 @@ impl ConversationRepo for SqliteConversationRepo {
              ORDER BY c.created_at ASC";
 
         let rows = match subject {
-            ConversationSubject::Issue { identifier } => {
-                sqlx::query_as::<_, ConversationWithFirstTextRow>(SQL_ISSUE)
-                    .bind(identifier)
-                    .fetch_all(&self.pool)
-                    .await?
-            }
+            ConversationSubject::Issue { identifier } => sqlx::query_as::<
+                _,
+                ConversationWithFirstTextRow,
+            >(SQL_ISSUE)
+            .bind(identifier)
+            .fetch_all(&self.pool)
+            .await
+            .with_context(|| {
+                format!("list conversations with first_text for issue_identifier {identifier}")
+            })?,
             ConversationSubject::Run { run_id } => {
                 sqlx::query_as::<_, ConversationWithFirstTextRow>(SQL_RUN)
                     .bind(run_id.0.to_string())
                     .fetch_all(&self.pool)
-                    .await?
+                    .await
+                    .with_context(|| {
+                        format!("list conversations with first_text for run {}", run_id.0)
+                    })?
             }
         };
         rows.into_iter()
@@ -156,14 +165,16 @@ impl ConversationRepo for SqliteConversationRepo {
         provider_session_id: &str,
         now: DateTime<Utc>,
     ) -> Result<()> {
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE conversations SET provider_session_id = ?1, updated_at = ?2 WHERE id = ?3",
         )
         .bind(provider_session_id)
         .bind(now.to_rfc3339())
         .bind(id.0.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("set provider_session_id for conversation {}", id.0))?;
+        ensure_updated(result, "conversation", id.0)?;
         Ok(())
     }
 
@@ -173,21 +184,28 @@ impl ConversationRepo for SqliteConversationRepo {
         status: ConversationStatus,
         now: DateTime<Utc>,
     ) -> Result<()> {
-        sqlx::query("UPDATE conversations SET status = ?1, updated_at = ?2 WHERE id = ?3")
-            .bind(status.to_string())
-            .bind(now.to_rfc3339())
-            .bind(id.0.to_string())
-            .execute(&self.pool)
-            .await?;
+        let result =
+            sqlx::query("UPDATE conversations SET status = ?1, updated_at = ?2 WHERE id = ?3")
+                .bind(status.to_string())
+                .bind(now.to_rfc3339())
+                .bind(id.0.to_string())
+                .execute(&self.pool)
+                .await
+                .with_context(|| format!("set status for conversation {}", id.0))?;
+        ensure_updated(result, "conversation", id.0)?;
         Ok(())
     }
 
     async fn set_last_turn_at(&self, id: ConversationId, at: DateTime<Utc>) -> Result<()> {
-        sqlx::query("UPDATE conversations SET last_turn_at = ?1, updated_at = ?1 WHERE id = ?2")
-            .bind(at.to_rfc3339())
-            .bind(id.0.to_string())
-            .execute(&self.pool)
-            .await?;
+        let result = sqlx::query(
+            "UPDATE conversations SET last_turn_at = ?1, updated_at = ?1 WHERE id = ?2",
+        )
+        .bind(at.to_rfc3339())
+        .bind(id.0.to_string())
+        .execute(&self.pool)
+        .await
+        .with_context(|| format!("set last_turn_at for conversation {}", id.0))?;
+        ensure_updated(result, "conversation", id.0)?;
         Ok(())
     }
 }
@@ -260,13 +278,23 @@ impl TurnRepo for SqliteTurnRepo {
         user_text: &str,
         now: DateTime<Utc>,
     ) -> Result<Turn> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .context("begin transaction for create_pending turn")?;
         let next_seq: i64 = sqlx::query_scalar(
             "SELECT COALESCE(MAX(seq) + 1, 0) FROM conversation_turns WHERE conversation_id = ?1",
         )
         .bind(conversation_id.0.to_string())
         .fetch_one(&mut *tx)
-        .await?;
+        .await
+        .with_context(|| {
+            format!(
+                "compute next turn seq for conversation {}",
+                conversation_id.0
+            )
+        })?;
 
         let id = TurnId::new();
         sqlx::query(
@@ -285,7 +313,9 @@ impl TurnRepo for SqliteTurnRepo {
         .await
         .context("insert conversation_turns row")?;
 
-        tx.commit().await?;
+        tx.commit()
+            .await
+            .context("commit transaction for create_pending turn")?;
 
         Ok(Turn {
             id,
@@ -307,7 +337,8 @@ impl TurnRepo for SqliteTurnRepo {
             sqlx::query_as::<_, TurnRow>("SELECT * FROM conversation_turns WHERE id = ?1 LIMIT 1")
                 .bind(id.0.to_string())
                 .fetch_optional(&self.pool)
-                .await?;
+                .await
+                .with_context(|| format!("get turn {}", id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -317,7 +348,8 @@ impl TurnRepo for SqliteTurnRepo {
         )
         .bind(conversation_id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list turns for conversation {}", conversation_id.0))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -332,17 +364,21 @@ impl TurnRepo for SqliteTurnRepo {
         )
         .bind(conversation_id.0.to_string())
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("find active turn for conversation {}", conversation_id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
     async fn mark_streaming(&self, id: TurnId, now: DateTime<Utc>) -> Result<()> {
-        sqlx::query("UPDATE conversation_turns SET status = ?1, started_at = ?2 WHERE id = ?3")
-            .bind(TurnStatus::Streaming.to_string())
-            .bind(now.to_rfc3339())
-            .bind(id.0.to_string())
-            .execute(&self.pool)
-            .await?;
+        let result =
+            sqlx::query("UPDATE conversation_turns SET status = ?1, started_at = ?2 WHERE id = ?3")
+                .bind(TurnStatus::Streaming.to_string())
+                .bind(now.to_rfc3339())
+                .bind(id.0.to_string())
+                .execute(&self.pool)
+                .await
+                .with_context(|| format!("mark turn {} streaming", id.0))?;
+        ensure_updated(result, "turn", id.0)?;
         Ok(())
     }
 
@@ -356,7 +392,7 @@ impl TurnRepo for SqliteTurnRepo {
             .map(serde_json::to_string)
             .transpose()
             .context("serialize usage snapshot")?;
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE conversation_turns SET status = ?1, usage_json = ?2, finished_at = ?3 \
              WHERE id = ?4",
         )
@@ -365,7 +401,9 @@ impl TurnRepo for SqliteTurnRepo {
         .bind(now.to_rfc3339())
         .bind(id.0.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("mark turn {} completed", id.0))?;
+        ensure_updated(result, "turn", id.0)?;
         Ok(())
     }
 
@@ -381,7 +419,7 @@ impl TurnRepo for SqliteTurnRepo {
             .map(serde_json::to_string)
             .transpose()
             .context("serialize usage snapshot")?;
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE conversation_turns SET status = ?1, usage_json = ?2, error_code = ?3, \
              error_message = ?4, finished_at = ?5 WHERE id = ?6",
         )
@@ -392,12 +430,14 @@ impl TurnRepo for SqliteTurnRepo {
         .bind(now.to_rfc3339())
         .bind(id.0.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("mark turn {} failed", id.0))?;
+        ensure_updated(result, "turn", id.0)?;
         Ok(())
     }
 
     async fn mark_cancelled(&self, id: TurnId, reason: &str, now: DateTime<Utc>) -> Result<()> {
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE conversation_turns SET status = ?1, cancel_reason = ?2, finished_at = ?3 \
              WHERE id = ?4",
         )
@@ -406,7 +446,9 @@ impl TurnRepo for SqliteTurnRepo {
         .bind(now.to_rfc3339())
         .bind(id.0.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("mark turn {} cancelled", id.0))?;
+        ensure_updated(result, "turn", id.0)?;
         Ok(())
     }
 
@@ -417,7 +459,8 @@ impl TurnRepo for SqliteTurnRepo {
         )
         .bind(conversation_id.0.to_string())
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("get first user_text for conversation {}", conversation_id.0))?;
         Ok(row.map(|(t,)| t))
     }
 }
@@ -513,7 +556,8 @@ impl TurnEventRepo for SqliteTurnEventRepo {
         )
         .bind(turn_id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list turn_events for turn {}", turn_id.0))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -524,7 +568,13 @@ impl TurnEventRepo for SqliteTurnEventRepo {
         .bind(turn_id.0.to_string())
         .bind(i64::try_from(after_seq).context("after_seq out of range")?)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| {
+            format!(
+                "list turn_events for turn {} after seq {}",
+                turn_id.0, after_seq
+            )
+        })?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -533,7 +583,8 @@ impl TurnEventRepo for SqliteTurnEventRepo {
             sqlx::query_as("SELECT MAX(seq) FROM turn_events WHERE turn_id = ?1")
                 .bind(turn_id.0.to_string())
                 .fetch_optional(&self.pool)
-                .await?;
+                .await
+                .with_context(|| format!("get last turn_event seq for turn {}", turn_id.0))?;
         row.and_then(|(v,)| v)
             .map(|v| u64::try_from(v).context("turn_events.seq negative"))
             .transpose()

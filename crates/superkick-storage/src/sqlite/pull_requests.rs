@@ -1,8 +1,9 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{PrState, PullRequest, PullRequestId, RunId};
 
 use super::codec::{deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::repo::PullRequestRepo;
 
 pub struct SqlitePullRequestRepo {
@@ -39,7 +40,8 @@ impl PullRequestRepo for SqlitePullRequestRepo {
         .bind(pr.updated_at.to_rfc3339())
         .bind(pr.merged_at.map(|t| t.to_rfc3339()))
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("upsert pull_request {} for run {}", pr.id.0, pr.run_id.0))?;
         Ok(())
     }
 
@@ -48,12 +50,13 @@ impl PullRequestRepo for SqlitePullRequestRepo {
             sqlx::query_as::<_, PullRequestRow>("SELECT * FROM pull_requests WHERE run_id = ?1")
                 .bind(run_id.0.to_string())
                 .fetch_optional(&self.pool)
-                .await?;
+                .await
+                .with_context(|| format!("get pull_request for run {}", run_id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
     async fn update(&self, pr: &PullRequest) -> Result<()> {
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE pull_requests SET state = ?1, title = ?2, head_branch = ?3, updated_at = ?4, merged_at = ?5 WHERE id = ?6",
         )
         .bind(serialize_enum(&pr.state)?)
@@ -63,7 +66,9 @@ impl PullRequestRepo for SqlitePullRequestRepo {
         .bind(pr.merged_at.map(|t| t.to_rfc3339()))
         .bind(pr.id.0.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("update pull_request {}", pr.id.0))?;
+        ensure_updated(result, "pull_request", pr.id.0)?;
         Ok(())
     }
 }

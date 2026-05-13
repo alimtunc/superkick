@@ -53,3 +53,10 @@ export interface ActiveTakeover {
 export interface ActiveTakeoversResponse {
 	takeovers: ActiveTakeover[]
 }
+
+export type TerminalStatus = 'connecting' | 'live' | 'readonly' | 'ended' | 'history'
+
+export interface TerminalCapabilities {
+	writable: boolean
+	reason: string
+}

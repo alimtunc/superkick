@@ -1,7 +1,7 @@
 //! SQLite persistence for `SessionLifecycleEvent` — the append-only audit
 //! stream introduced by SUP-79's spawn-and-observe orchestrator runtime.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::DateTime;
 use sqlx::SqlitePool;
 
@@ -48,7 +48,8 @@ impl SessionLifecycleRepo for SqliteSessionLifecycleRepo {
         .bind(serde_json::to_string(&event.phase)?)
         .bind(event.ts.to_rfc3339())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("insert session_lifecycle_event {}", event.id.0))?;
         Ok(())
     }
 
@@ -64,7 +65,8 @@ impl SessionLifecycleRepo for SqliteSessionLifecycleRepo {
         )
         .bind(session_id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list session_lifecycle_events for session {}", session_id.0))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -77,7 +79,8 @@ impl SessionLifecycleRepo for SqliteSessionLifecycleRepo {
         )
         .bind(run_id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list session_lifecycle_events for run {}", run_id.0))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 }

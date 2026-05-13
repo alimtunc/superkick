@@ -1,44 +1,9 @@
-import type { ReactNode } from 'react'
-
 import { Tooltip } from '@/components/ui/tooltip'
+import { DEFAULT_MODE_OPTIONS } from '@/lib/chatPickerOptions'
 import { cn } from '@/lib/utils'
 import type { ChatPermissionMode } from '@/types'
 import { Menu } from '@base-ui/react/menu'
-import { Check, ChevronDown, ClipboardList, CodeXml, Hand, Sparkles } from 'lucide-react'
-
-export interface ModeOption {
-	value: ChatPermissionMode
-	label: string
-	description: string
-	icon: ReactNode
-}
-
-export const DEFAULT_MODE_OPTIONS: ModeOption[] = [
-	{
-		value: 'ask_before_edits',
-		label: 'Ask before edits',
-		description: 'Agent will ask for approval before making each edit.',
-		icon: <Hand size={14} strokeWidth={1.75} />
-	},
-	{
-		value: 'edit_automatically',
-		label: 'Edit automatically',
-		description: 'Agent will edit your selected text or the whole file.',
-		icon: <CodeXml size={14} strokeWidth={1.75} />
-	},
-	{
-		value: 'plan_mode',
-		label: 'Plan mode',
-		description: 'Agent will explore the code and present a plan before editing.',
-		icon: <ClipboardList size={14} strokeWidth={1.75} />
-	},
-	{
-		value: 'auto_mode',
-		label: 'Auto mode',
-		description: 'Agent will automatically choose the best permission mode for each task.',
-		icon: <Sparkles size={14} strokeWidth={1.75} />
-	}
-]
+import { Check, ChevronDown } from 'lucide-react'
 
 interface ModePickerProps {
 	value: ChatPermissionMode
@@ -46,11 +11,6 @@ interface ModePickerProps {
 	disabled?: boolean
 }
 
-/**
- * Composer-embedded mode picker. Renders as a compact pill button that
- * opens a popover menu with icon + label + description per option, mirroring
- * the Claude Code terminal mode chooser.
- */
 export function ModePicker({ value, onChange, disabled }: ModePickerProps) {
 	const current = DEFAULT_MODE_OPTIONS.find((o) => o.value === value) ?? DEFAULT_MODE_OPTIONS[1]
 

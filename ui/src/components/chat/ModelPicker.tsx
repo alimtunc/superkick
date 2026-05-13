@@ -1,36 +1,11 @@
 import { Tooltip } from '@/components/ui/tooltip'
+import { modelOptionsFor } from '@/lib/chatPickerOptions'
 import { cn } from '@/lib/utils'
 import type { AgentProvider } from '@/types'
 import { Menu } from '@base-ui/react/menu'
 import { Check, ChevronDown, Cpu } from 'lucide-react'
 
-export interface ModelOption {
-	/** Wire value forwarded to the provider CLI. `null` = use default. */
-	value: string | null
-	label: string
-}
-
-const CLAUDE_MODELS: ModelOption[] = [
-	{ value: null, label: 'Default' },
-	{ value: 'claude-opus-4-7', label: 'Opus 4.7' },
-	{ value: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
-	{ value: 'claude-haiku-4-5', label: 'Haiku 4.5' }
-]
-
-const CODEX_MODELS: ModelOption[] = [
-	{ value: null, label: 'Default' },
-	{ value: 'gpt-5', label: 'GPT-5' },
-	{ value: 'gpt-5-mini', label: 'GPT-5 mini' }
-]
-
-export function modelOptionsFor(provider: AgentProvider): ModelOption[] {
-	return provider === 'claude' ? CLAUDE_MODELS : CODEX_MODELS
-}
-
 interface ModelPickerProps {
-	/** `null` = no provider chosen yet (launcher mode); the picker renders a
-	 * neutral placeholder so the visible label does not lie about the model
-	 * the not-yet-existing provider would use. */
 	provider: AgentProvider | null
 	value: string | null
 	onChange: (next: string | null) => void
@@ -39,10 +14,6 @@ interface ModelPickerProps {
 
 const SENTINEL_DEFAULT = '__default__'
 
-/**
- * Composer-embedded model picker. Mirrors `ModePicker` (popover menu) so the
- * two pickers compose visually as a single toolbar pill row.
- */
 export function ModelPicker({ provider, value, onChange, disabled }: ModelPickerProps) {
 	const options = provider !== null ? modelOptionsFor(provider) : []
 	const current = options.find((o) => o.value === value) ?? options[0]

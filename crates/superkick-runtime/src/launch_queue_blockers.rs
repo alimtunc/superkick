@@ -1,61 +1,37 @@
-//! Blocker snapshot diff + event emission for the launch-queue poll (SUP-81).
+//! Blocker snapshot reconciliation for the launch-queue poll (SUP-81).
 //!
-//! The launch-queue HTTP handler doubles as the Linear "poll" — every UI
-//! refresh fetches the live issue list. This module sits between the fetch
-//! and the classifier: it compares the freshly returned `blocked_by`
-//! relations to the previous `issue_blockers` snapshot, detects blockers that
-//! have just turned terminal, emits a `DependencyResolved` event on the
-//! workspace bus for each transition, then upserts the new snapshot.
-//!
-//! Why here and not in the classifier: the classifier is pure. Diffing is
-//! stateful (old vs. new) and has side effects (bus publish + DB write). The
-//! classifier only needs the post-transition blocker list to gate the
-//! downstream; the diff exists to feed the operator audit trail.
-//!
-//! ## Concurrency
-//!
-//! Two concurrent `GET /launch-queue` calls would otherwise each observe the
-//! same pre-transition snapshot and each publish the same resolution events.
-//! The handler takes a process-wide mutex (`AppState::blocker_reconcile_lock`)
-//! around the diff+persist+emit window so at most one reconcile runs at a
-//! time. Writes inside the window are already transactional via
-//! `replace_for_downstreams`.
+//! The classifier in `superkick-core` is pure; this service handles the
+//! stateful edge around it: compare the freshly returned Linear `blocked_by`
+//! relations with the prior `issue_blockers` snapshot, publish
+//! `DependencyResolved` events for non-terminal to terminal transitions, then
+//! persist the fresh snapshot.
 
-use chrono::Utc;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use anyhow::Result;
+use chrono::Utc;
 use superkick_core::{
     DependencyResolvedPayload, IssueBlocker, IssueEvent, WorkspaceRunEvent,
     is_terminal_blocker_state,
 };
 use superkick_integrations::linear::LinearIssueListItem;
-use superkick_runtime::WorkspaceEventBus;
 use superkick_storage::repo::IssueBlockerRepo;
 use tokio::sync::Mutex;
 
+use crate::WorkspaceEventBus;
+
 /// Diff the prior `issue_blockers` snapshot against the freshly fetched Linear
 /// relations, emit a `DependencyResolved` event per terminal transition, then
-/// replace the snapshot for every downstream atomically. Errors during
-/// persistence are surfaced to the caller; an empty `issues` slice is a no-op
-/// so a degraded Linear fetch (error branch) doesn't wipe the prior snapshot.
-//
-// TODO(SUP-81): the empty-issues no-op also means a legitimately-empty Linear
-// workspace never clears stale rows. Revisit once the feature is used in a
-// real workspace with no active issues.
-pub(super) async fn reconcile_blockers(
+/// replace the affected snapshot rows atomically. The caller must only invoke
+/// this after a successful Linear fetch; degraded runs-only views should skip
+/// reconciliation so stale DB rows are not cleared by accident.
+pub async fn reconcile_blockers(
     issues: &[LinearIssueListItem],
     repo: &impl IssueBlockerRepo,
     bus: &Arc<WorkspaceEventBus>,
     lock: &Mutex<()>,
-) -> anyhow::Result<()> {
-    if issues.is_empty() {
-        return Ok(());
-    }
-
-    // Serialise reconciliation so two concurrent GETs can't both publish the
-    // same transition. Held only for the diff+persist+emit window, not for
-    // the surrounding handler work.
+) -> Result<()> {
     let _guard = lock.lock().await;
 
     let now = Utc::now();
@@ -71,14 +47,10 @@ pub(super) async fn reconcile_blockers(
         .collect();
 
     let transitions = detect_transitions(issues, &old_by_pair, now);
+    let entries = replacement_entries(issues, &old, now);
 
-    // Persist first, emit after. If persistence fails we skip the emit — we'd
-    // otherwise tell the UI "unblocked" without a stable snapshot to back it
-    // up, and the next refresh would re-emit.
-    let entries: Vec<(String, Vec<IssueBlocker>)> = issues
-        .iter()
-        .map(|issue| (issue.id.clone(), fresh_rows_for(issue, now)))
-        .collect();
+    // Persist first, emit after. If persistence fails we skip the emit so a
+    // later refresh can retry without double-counting an unbacked transition.
     repo.replace_for_downstreams(&entries).await?;
 
     for payload in transitions {
@@ -90,8 +62,30 @@ pub(super) async fn reconcile_blockers(
     Ok(())
 }
 
-/// Pure diff step. Visible for tests.
-pub(super) fn detect_transitions(
+fn replacement_entries(
+    issues: &[LinearIssueListItem],
+    old: &[IssueBlocker],
+    recorded_at: chrono::DateTime<Utc>,
+) -> Vec<(String, Vec<IssueBlocker>)> {
+    let fresh_ids: HashSet<&str> = issues.iter().map(|issue| issue.id.as_str()).collect();
+    let mut entries: Vec<(String, Vec<IssueBlocker>)> = issues
+        .iter()
+        .map(|issue| (issue.id.clone(), fresh_rows_for(issue, recorded_at)))
+        .collect();
+
+    let mut stale_ids: Vec<String> = old
+        .iter()
+        .filter(|row| !fresh_ids.contains(row.downstream_issue_id.as_str()))
+        .map(|row| row.downstream_issue_id.clone())
+        .collect();
+    stale_ids.sort();
+    stale_ids.dedup();
+
+    entries.extend(stale_ids.into_iter().map(|id| (id, Vec::new())));
+    entries
+}
+
+fn detect_transitions(
     issues: &[LinearIssueListItem],
     old_by_pair: &HashMap<(&str, &str), &str>,
     now: chrono::DateTime<Utc>,
@@ -140,7 +134,6 @@ fn fresh_rows_for(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
     use superkick_integrations::linear::{
         IssueAssignee, IssueBlockerRef, IssueLabel, IssueParentRef, IssuePriority, IssueProject,
         IssueStatus,
@@ -189,6 +182,17 @@ mod tests {
         }
     }
 
+    fn blocker_row(downstream_id: &str, blocker_id: &str) -> IssueBlocker {
+        IssueBlocker {
+            downstream_issue_id: downstream_id.into(),
+            blocker_issue_id: blocker_id.into(),
+            blocker_identifier: "SUP-OLD".into(),
+            blocker_title: "old".into(),
+            blocker_state_type: "started".into(),
+            recorded_at: Utc::now(),
+        }
+    }
+
     #[test]
     fn emits_when_blocker_transitions_from_started_to_completed() {
         let issues = vec![make_issue(
@@ -225,8 +229,6 @@ mod tests {
         )];
         let old: HashMap<(&str, &str), &str> = HashMap::new();
 
-        // First sighting of a pair, even with a terminal state, is not a
-        // transition — we've never seen the blocker block anything.
         assert!(detect_transitions(&issues, &old, Utc::now()).is_empty());
     }
 
@@ -241,5 +243,26 @@ mod tests {
             [(("down", "blk"), "completed")].into_iter().collect();
 
         assert!(detect_transitions(&issues, &old, Utc::now()).is_empty());
+    }
+
+    #[test]
+    fn replacement_entries_clear_stale_downstreams() {
+        let old = vec![
+            blocker_row("stale-a", "old-a"),
+            blocker_row("stale-b", "old-b"),
+        ];
+        let entries = replacement_entries(&[], &old, Utc::now());
+
+        assert_eq!(entries.len(), 2);
+        assert!(
+            entries
+                .iter()
+                .any(|(id, rows)| id == "stale-a" && rows.is_empty())
+        );
+        assert!(
+            entries
+                .iter()
+                .any(|(id, rows)| id == "stale-b" && rows.is_empty())
+        );
     }
 }

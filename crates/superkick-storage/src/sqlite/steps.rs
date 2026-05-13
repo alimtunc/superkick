@@ -1,8 +1,9 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{RunId, RunStep, StepId, StepKey, StepStatus};
 
 use super::codec::{deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::repo::RunStepRepo;
 
 pub struct SqliteRunStepRepo {
@@ -33,7 +34,8 @@ impl RunStepRepo for SqliteRunStepRepo {
         .bind(step.output_json.as_ref().map(|v| v.to_string()))
         .bind(&step.error_message)
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("insert run_step {}", step.id.0))?;
         Ok(())
     }
 
@@ -41,7 +43,8 @@ impl RunStepRepo for SqliteRunStepRepo {
         let row = sqlx::query_as::<_, StepRow>("SELECT * FROM run_steps WHERE id = ?1")
             .bind(id.0.to_string())
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .with_context(|| format!("get run_step {}", id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -51,12 +54,13 @@ impl RunStepRepo for SqliteRunStepRepo {
         )
         .bind(run_id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list run_steps for run {}", run_id.0))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
     async fn update(&self, step: &RunStep) -> Result<()> {
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE run_steps SET status = ?1, agent_provider = ?2, started_at = ?3, finished_at = ?4, input_json = ?5, output_json = ?6, error_message = ?7 WHERE id = ?8",
         )
         .bind(serialize_enum(&step.status)?)
@@ -68,7 +72,9 @@ impl RunStepRepo for SqliteRunStepRepo {
         .bind(&step.error_message)
         .bind(step.id.0.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("update run_step {}", step.id.0))?;
+        ensure_updated(result, "run_step", step.id.0)?;
         Ok(())
     }
 }

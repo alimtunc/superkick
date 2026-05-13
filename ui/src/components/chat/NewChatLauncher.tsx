@@ -26,13 +26,7 @@ interface NewChatLauncherProps {
 // runtime registry exposes per-agent profiles we can reintroduce the axis.
 const DEFAULT_AGENT_ID = 'default'
 
-/**
- * Empty-state launcher: the composer hosts provider + model + mode pickers
- * inline. The launcher only creates the conversation row; the parent then
- * mounts `ChatConversationView`, which sends the first message through the
- * standard turn-create mutation (AC 6). Splitting the two avoids creating a
- * second conversation if the first turn fails on transient errors.
- */
+// Splits conversation creation from first-turn send to isolate transient failures.
 export function NewChatLauncher({
 	subject,
 	mode,

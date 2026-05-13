@@ -55,9 +55,7 @@ export function ChatComposer({
 	}
 
 	const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-		// Enter sends, Shift+Enter inserts a newline. Matches Slack / Linear
-		// / Claude.app composer conventions; ⌘/Ctrl+Enter still works because
-		// the modifier flag does not block the plain-Enter branch.
+		// Enter sends; Shift+Enter is newline (matches Slack/Linear/Claude.app).
 		if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
 			event.preventDefault()
 			submit()

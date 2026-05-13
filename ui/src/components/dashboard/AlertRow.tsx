@@ -4,6 +4,7 @@ import { fmtElapsed, watchButtonClass } from '@/lib/domain'
 import { useWatchedSessionsStore } from '@/stores/watchedSessions'
 import type { Run } from '@/types'
 import { Link } from '@tanstack/react-router'
+import { Eye, EyeOff } from 'lucide-react'
 
 interface AlertRowProps {
 	run: Run
@@ -51,7 +52,11 @@ export function AlertRow({ run, refTime, reason, isLast }: AlertRowProps) {
 				className={`font-data shrink-0 text-[10px] ${watchButtonClass(watched, maxReached)}`}
 				title={watched ? 'Unwatch' : 'Watch'}
 			>
-				{watched ? '\u25C9' : '\u25CB'}
+				{watched ? (
+					<EyeOff size={12} strokeWidth={1.75} aria-hidden="true" />
+				) : (
+					<Eye size={12} strokeWidth={1.75} aria-hidden="true" />
+				)}
 			</Button>
 		</div>
 	)

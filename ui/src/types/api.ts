@@ -17,3 +17,10 @@ export interface CreateAttentionRequest {
 	body: string
 	options?: string[]
 }
+
+export interface SseHandlers<T> {
+	onEvent: (event: T) => void
+	onLagged?: (skipped: number) => void
+	onClosed?: () => void
+	onError?: (err: Event) => void
+}

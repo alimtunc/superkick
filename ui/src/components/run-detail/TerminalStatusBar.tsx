@@ -1,20 +1,15 @@
-type TerminalStatus = 'connecting' | 'live' | 'readonly' | 'ended' | 'history'
-
-interface Capabilities {
-	writable: boolean
-	reason: string
-}
+import type { TerminalCapabilities, TerminalStatus } from '@/types'
 
 interface TerminalStatusBarProps {
 	status: TerminalStatus
-	capabilities: Capabilities | null
+	capabilities: TerminalCapabilities | null
 }
 
 export function TerminalStatusBar({ status, capabilities }: TerminalStatusBarProps) {
 	const label = (() => {
 		switch (status) {
 			case 'connecting':
-				return 'Connecting...'
+				return 'Connecting…'
 			case 'live':
 				return 'LIVE — Terminal attached'
 			case 'readonly':
@@ -41,10 +36,8 @@ export function TerminalStatusBar({ status, capabilities }: TerminalStatusBarPro
 
 	return (
 		<div className="flex items-center gap-2 border-b border-edge bg-carbon px-3 py-1.5">
-			<span className={`inline-block h-2 w-2 rounded-full ${dotColor}`} aria-hidden="true" />
+			<span className={`inline-block size-2 rounded-full ${dotColor}`} aria-hidden="true" />
 			<span className="font-data text-[11px] text-silver">{label}</span>
 		</div>
 	)
 }
-
-export type { Capabilities, TerminalStatus }

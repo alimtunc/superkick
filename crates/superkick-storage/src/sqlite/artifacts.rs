@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{Artifact, ArtifactId, ArtifactKind, RunId};
 
@@ -28,7 +28,8 @@ impl ArtifactRepo for SqliteArtifactRepo {
         .bind(artifact.metadata_json.as_ref().map(|v| v.to_string()))
         .bind(artifact.created_at.to_rfc3339())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("insert artifact {}", artifact.id.0))?;
         Ok(())
     }
 
@@ -36,7 +37,8 @@ impl ArtifactRepo for SqliteArtifactRepo {
         let row = sqlx::query_as::<_, ArtifactRow>("SELECT * FROM artifacts WHERE id = ?1")
             .bind(id.0.to_string())
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .with_context(|| format!("get artifact {}", id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -46,7 +48,8 @@ impl ArtifactRepo for SqliteArtifactRepo {
         )
         .bind(run_id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list artifacts for run {}", run_id.0))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 }

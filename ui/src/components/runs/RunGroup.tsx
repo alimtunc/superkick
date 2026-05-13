@@ -29,10 +29,7 @@ interface RunGroupProps {
 	emptyLabel: string
 }
 
-/**
- * Kanban column. Header height is fixed and the card list scrolls
- * independently — adding runs to one column never reflows the others.
- */
+// Kanban column with independent scroll so columns don't reflow together.
 export function RunGroup({
 	id,
 	tone,

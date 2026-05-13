@@ -1,7 +1,7 @@
 import type { LaunchQueueItem, RecentlyDoneEntry, RunState } from '@/types'
 import type { SKTone } from '@/types/icons'
 
-export interface RecentlyDoneRowSummary {
+interface RecentlyDoneRowSummary {
 	tone: SKTone
 	pillLabel: string
 	title: string

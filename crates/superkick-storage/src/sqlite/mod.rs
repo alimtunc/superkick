@@ -1,5 +1,10 @@
 //! SQLite repository implementations.
 
+use std::fmt;
+
+use anyhow::{Result, anyhow};
+use sqlx::sqlite::SqliteQueryResult;
+
 mod agent_sessions;
 mod artifacts;
 mod attention_requests;
@@ -40,3 +45,14 @@ pub use session_lifecycle::SqliteSessionLifecycleRepo;
 pub use session_ownership::SqliteSessionOwnershipRepo;
 pub use steps::SqliteRunStepRepo;
 pub use transcripts::SqliteTranscriptRepo;
+
+pub(super) fn ensure_updated(
+    result: SqliteQueryResult,
+    entity: &str,
+    id: impl fmt::Display,
+) -> Result<()> {
+    if result.rows_affected() == 0 {
+        return Err(anyhow!("{entity} {id} not found"));
+    }
+    Ok(())
+}

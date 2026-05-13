@@ -12,13 +12,7 @@ interface InboxRowProps {
 	ctx?: ReactNode
 	age?: ReactNode
 	actions?: ReactNode
-	/**
-	 * Wrap the identity column (dot + title + why + ctx + age) so the row's
-	 * primary destination is reachable without nesting interactive elements
-	 * inside the `actions` slot. Pass a function that renders its inner
-	 * content into a Link / button / anchor — for example, the existing
-	 * `InboxActionLink` which adapts to the action's destination kind.
-	 */
+	// Wraps identity to avoid nesting interactive elements inside the actions slot.
 	wrap?: (inner: ReactNode) => ReactNode
 	className?: string
 }

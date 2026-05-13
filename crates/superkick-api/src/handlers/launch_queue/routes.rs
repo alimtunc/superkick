@@ -8,13 +8,13 @@ use serde::Deserialize;
 use superkick_core::{
     OrchestrationInputs, QueueIssueBlocker, QueueIssueInput, QueueRunInput, classify_launch_queue,
 };
+use superkick_runtime::reconcile_blockers;
 
 use crate::AppState;
 use crate::error::AppError;
 use crate::handlers::queue_common::load_triages;
 use crate::handlers::runs::{CreateRunRequest, spawn_run_from_request};
 
-use super::blockers::reconcile_blockers;
 use super::merge::merge_into_groups;
 use super::wire::{ActiveCapacity, LaunchQueueResponse};
 
@@ -23,15 +23,15 @@ pub async fn get_queue(
 ) -> Result<Json<LaunchQueueResponse>, AppError> {
     // Linear may be unconfigured locally — we still want to render the run
     // side of the queue rather than 503 the whole surface.
-    let linear_issues = match state.linear_client.as_ref() {
+    let (linear_issues, should_reconcile_blockers) = match state.linear_client.as_ref() {
         Some(client) => match client.list_issues(200).await {
-            Ok(resp) => resp.issues,
+            Ok(resp) => (resp.issues, true),
             Err(err) => {
                 tracing::warn!(error = %err, "Linear list_issues failed; degrading to runs-only view");
-                Vec::new()
+                (Vec::new(), false)
             }
         },
-        None => Vec::new(),
+        None => (Vec::new(), false),
     };
 
     // SUP-81: reconcile the `issue_blockers` snapshot with the freshly fetched
@@ -40,13 +40,15 @@ pub async fn get_queue(
     // state for the classifier input below. Reconciliation failure is
     // surfaced rather than swallowed: a stale snapshot would quietly
     // mis-bucket downstream issues.
-    reconcile_blockers(
-        &linear_issues,
-        state.issue_blocker_repo.as_ref(),
-        &state.workspace_bus,
-        &state.blocker_reconcile_lock,
-    )
-    .await?;
+    if should_reconcile_blockers {
+        reconcile_blockers(
+            &linear_issues,
+            state.issue_blocker_repo.as_ref(),
+            &state.workspace_bus,
+            &state.blocker_reconcile_lock,
+        )
+        .await?;
+    }
 
     let triages = load_triages(&state).await?;
 
