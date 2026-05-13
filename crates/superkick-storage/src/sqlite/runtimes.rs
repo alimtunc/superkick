@@ -7,6 +7,7 @@ use superkick_core::{
 };
 
 use super::codec::{deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::is_unique_violation;
 
 /// Caller-supplied snapshot for a single provider upsert. Bundles the
@@ -114,12 +115,14 @@ impl SqliteRuntimeRepo {
     }
 
     pub async fn touch_seen(&self, runtime_id: RuntimeId, now: DateTime<Utc>) -> Result<()> {
-        sqlx::query("UPDATE runtimes SET last_seen_at = ?1, updated_at = ?1 WHERE id = ?2")
-            .bind(now.to_rfc3339())
-            .bind(runtime_id.0.to_string())
-            .execute(&self.pool)
-            .await
-            .context("touch runtime last_seen_at")?;
+        let result =
+            sqlx::query("UPDATE runtimes SET last_seen_at = ?1, updated_at = ?1 WHERE id = ?2")
+                .bind(now.to_rfc3339())
+                .bind(runtime_id.0.to_string())
+                .execute(&self.pool)
+                .await
+                .context("touch runtime last_seen_at")?;
+        ensure_updated(result, "runtime", runtime_id.0)?;
         Ok(())
     }
 

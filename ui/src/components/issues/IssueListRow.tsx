@@ -10,6 +10,7 @@ import { StatusIcon } from '@/components/issues/StatusIcon'
 import { formatShortDate } from '@/lib/format'
 import type { IssueState, LaunchQueueItem, LinearIssueListItem } from '@/types'
 import { Link } from '@tanstack/react-router'
+import { ChevronRight } from 'lucide-react'
 
 interface IssueListRowProps {
 	issue: LinearIssueListItem
@@ -46,8 +47,9 @@ export function IssueListRow({ issue, state, queueItem, indent = false, refTime 
 					<span className="truncate text-[13px] font-medium text-fog">{issue.title}</span>
 
 					{!indent && issue.parent ? (
-						<span className="font-data max-w-48 shrink-0 truncate text-[11px] text-ash">
-							&rsaquo; {issue.parent.identifier}
+						<span className="font-data inline-flex max-w-48 shrink-0 items-center gap-0.5 truncate text-[11px] text-ash">
+							<ChevronRight size={11} strokeWidth={1.75} aria-hidden="true" />
+							{issue.parent.identifier}
 							{issue.project ? ` · ${issue.project.name}` : ''}
 						</span>
 					) : null}

@@ -55,11 +55,12 @@ impl RunEventRepo for SqliteRunEventRepo {
     }
 
     async fn list_by_run_from_offset(&self, run_id: RunId, offset: usize) -> Result<Vec<RunEvent>> {
+        let offset = i64::try_from(offset).context("run_event offset out of range")?;
         let rows = sqlx::query_as::<_, EventRow>(
             "SELECT * FROM run_events WHERE run_id = ?1 ORDER BY ts LIMIT -1 OFFSET ?2",
         )
         .bind(run_id.0.to_string())
-        .bind(offset as i64)
+        .bind(offset)
         .fetch_all(&self.pool)
         .await
         .with_context(|| {

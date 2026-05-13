@@ -3,6 +3,7 @@ use sqlx::SqlitePool;
 use superkick_core::{RunId, RunStep, StepId, StepKey, StepStatus};
 
 use super::codec::{deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::repo::RunStepRepo;
 
 pub struct SqliteRunStepRepo {
@@ -59,7 +60,7 @@ impl RunStepRepo for SqliteRunStepRepo {
     }
 
     async fn update(&self, step: &RunStep) -> Result<()> {
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE run_steps SET status = ?1, agent_provider = ?2, started_at = ?3, finished_at = ?4, input_json = ?5, output_json = ?6, error_message = ?7 WHERE id = ?8",
         )
         .bind(serialize_enum(&step.status)?)
@@ -73,6 +74,7 @@ impl RunStepRepo for SqliteRunStepRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("update run_step {}", step.id.0))?;
+        ensure_updated(result, "run_step", step.id.0)?;
         Ok(())
     }
 }

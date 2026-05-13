@@ -10,6 +10,7 @@ use superkick_core::{
 };
 
 use super::codec::{deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::repo::{ConversationRepo, TurnEventRepo, TurnRepo};
 
 pub struct SqliteConversationRepo {
@@ -164,7 +165,7 @@ impl ConversationRepo for SqliteConversationRepo {
         provider_session_id: &str,
         now: DateTime<Utc>,
     ) -> Result<()> {
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE conversations SET provider_session_id = ?1, updated_at = ?2 WHERE id = ?3",
         )
         .bind(provider_session_id)
@@ -173,6 +174,7 @@ impl ConversationRepo for SqliteConversationRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("set provider_session_id for conversation {}", id.0))?;
+        ensure_updated(result, "conversation", id.0)?;
         Ok(())
     }
 
@@ -182,23 +184,28 @@ impl ConversationRepo for SqliteConversationRepo {
         status: ConversationStatus,
         now: DateTime<Utc>,
     ) -> Result<()> {
-        sqlx::query("UPDATE conversations SET status = ?1, updated_at = ?2 WHERE id = ?3")
-            .bind(status.to_string())
-            .bind(now.to_rfc3339())
-            .bind(id.0.to_string())
-            .execute(&self.pool)
-            .await
-            .with_context(|| format!("set status for conversation {}", id.0))?;
+        let result =
+            sqlx::query("UPDATE conversations SET status = ?1, updated_at = ?2 WHERE id = ?3")
+                .bind(status.to_string())
+                .bind(now.to_rfc3339())
+                .bind(id.0.to_string())
+                .execute(&self.pool)
+                .await
+                .with_context(|| format!("set status for conversation {}", id.0))?;
+        ensure_updated(result, "conversation", id.0)?;
         Ok(())
     }
 
     async fn set_last_turn_at(&self, id: ConversationId, at: DateTime<Utc>) -> Result<()> {
-        sqlx::query("UPDATE conversations SET last_turn_at = ?1, updated_at = ?1 WHERE id = ?2")
-            .bind(at.to_rfc3339())
-            .bind(id.0.to_string())
-            .execute(&self.pool)
-            .await
-            .with_context(|| format!("set last_turn_at for conversation {}", id.0))?;
+        let result = sqlx::query(
+            "UPDATE conversations SET last_turn_at = ?1, updated_at = ?1 WHERE id = ?2",
+        )
+        .bind(at.to_rfc3339())
+        .bind(id.0.to_string())
+        .execute(&self.pool)
+        .await
+        .with_context(|| format!("set last_turn_at for conversation {}", id.0))?;
+        ensure_updated(result, "conversation", id.0)?;
         Ok(())
     }
 }
@@ -363,13 +370,15 @@ impl TurnRepo for SqliteTurnRepo {
     }
 
     async fn mark_streaming(&self, id: TurnId, now: DateTime<Utc>) -> Result<()> {
-        sqlx::query("UPDATE conversation_turns SET status = ?1, started_at = ?2 WHERE id = ?3")
-            .bind(TurnStatus::Streaming.to_string())
-            .bind(now.to_rfc3339())
-            .bind(id.0.to_string())
-            .execute(&self.pool)
-            .await
-            .with_context(|| format!("mark turn {} streaming", id.0))?;
+        let result =
+            sqlx::query("UPDATE conversation_turns SET status = ?1, started_at = ?2 WHERE id = ?3")
+                .bind(TurnStatus::Streaming.to_string())
+                .bind(now.to_rfc3339())
+                .bind(id.0.to_string())
+                .execute(&self.pool)
+                .await
+                .with_context(|| format!("mark turn {} streaming", id.0))?;
+        ensure_updated(result, "turn", id.0)?;
         Ok(())
     }
 
@@ -383,7 +392,7 @@ impl TurnRepo for SqliteTurnRepo {
             .map(serde_json::to_string)
             .transpose()
             .context("serialize usage snapshot")?;
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE conversation_turns SET status = ?1, usage_json = ?2, finished_at = ?3 \
              WHERE id = ?4",
         )
@@ -394,6 +403,7 @@ impl TurnRepo for SqliteTurnRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("mark turn {} completed", id.0))?;
+        ensure_updated(result, "turn", id.0)?;
         Ok(())
     }
 
@@ -409,7 +419,7 @@ impl TurnRepo for SqliteTurnRepo {
             .map(serde_json::to_string)
             .transpose()
             .context("serialize usage snapshot")?;
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE conversation_turns SET status = ?1, usage_json = ?2, error_code = ?3, \
              error_message = ?4, finished_at = ?5 WHERE id = ?6",
         )
@@ -422,11 +432,12 @@ impl TurnRepo for SqliteTurnRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("mark turn {} failed", id.0))?;
+        ensure_updated(result, "turn", id.0)?;
         Ok(())
     }
 
     async fn mark_cancelled(&self, id: TurnId, reason: &str, now: DateTime<Utc>) -> Result<()> {
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE conversation_turns SET status = ?1, cancel_reason = ?2, finished_at = ?3 \
              WHERE id = ?4",
         )
@@ -437,6 +448,7 @@ impl TurnRepo for SqliteTurnRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("mark turn {} cancelled", id.0))?;
+        ensure_updated(result, "turn", id.0)?;
         Ok(())
     }
 

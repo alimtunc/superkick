@@ -21,21 +21,42 @@ export class TurnAlreadyStreamingError extends Error {
 	}
 }
 
+type ApiErrorBody = Record<string, unknown>
+
+function isRecord(value: unknown): value is ApiErrorBody {
+	return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export async function readApiErrorBody(res: Response): Promise<ApiErrorBody> {
+	const raw: unknown = await res.json().catch(() => ({ error: `status ${res.status}` }))
+	return isRecord(raw) ? raw : { error: `status ${res.status}` }
+}
+
+export function apiErrorField(body: ApiErrorBody, key: string): string | undefined {
+	const value = body[key]
+	return typeof value === 'string' ? value : undefined
+}
+
+export function apiErrorMessage(body: ApiErrorBody, fallback: string): string {
+	return apiErrorField(body, 'error') ?? fallback
+}
+
 export async function throwApiError(res: Response, fallbackLabel: string): Promise<never> {
-	const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
-	if (res.status === 409 && body.active_run_id) {
+	const body = await readApiErrorBody(res)
+	const activeRunId = apiErrorField(body, 'active_run_id')
+	if (res.status === 409 && activeRunId) {
 		throw new DuplicateRunError(
-			body.error || 'A run is already active for this issue',
-			body.active_run_id,
-			body.active_run_state
+			apiErrorMessage(body, 'A run is already active for this issue'),
+			activeRunId,
+			apiErrorField(body, 'active_run_state') ?? 'unknown'
 		)
 	}
-	throw new Error(body.error || `${fallbackLabel}: ${res.status}`)
+	throw new Error(apiErrorMessage(body, `${fallbackLabel}: ${res.status}`))
 }
 
 export async function throwGenericApiError(res: Response, fallbackLabel: string): Promise<never> {
-	const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
-	throw new Error(body.error || `${fallbackLabel}: ${res.status}`)
+	const body = await readApiErrorBody(res)
+	throw new Error(apiErrorMessage(body, `${fallbackLabel}: ${res.status}`))
 }
 
 export function subscribeToSse<T>(path: string, eventName: string, handlers: SseHandlers<T>): () => void {

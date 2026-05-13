@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { SessionRow } from '@/components/run-detail/SessionRow'
 import { agentStatusColor, providerLabel } from '@/lib/domain'
 import type { AgentSession, AgentStatus, ProviderGroupData, Run } from '@/types'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 
 function groupStatus(sessions: AgentSession[]): AgentStatus {
 	const priority: AgentStatus[] = ['running', 'starting', 'failed', 'cancelled', 'completed']
@@ -38,7 +39,13 @@ export function ProviderGroup({
 				onClick={() => setExpanded((prev) => !prev)}
 				className="flex w-full items-center gap-3 px-3 py-2 text-left"
 			>
-				<span className="font-data text-[11px] text-dim">{expanded ? '\u25BE' : '\u25B8'}</span>
+				<span className="inline-flex text-dim">
+					{expanded ? (
+						<ChevronDown size={13} strokeWidth={1.75} aria-hidden="true" />
+					) : (
+						<ChevronRight size={13} strokeWidth={1.75} aria-hidden="true" />
+					)}
+				</span>
 				<span className="font-data text-[12px] font-medium text-fog">{label}</span>
 				<span className={`font-data text-[10px] ${agentStatusColor[status]}`}>
 					{group.sessions.length} {group.sessions.length === 1 ? 'task' : 'tasks'}

@@ -10,6 +10,7 @@ pub mod git;
 pub mod handoff_service;
 pub mod heartbeat;
 pub mod interrupt_service;
+pub mod launch_queue_blockers;
 pub mod launch_task_event_bus;
 pub mod launch_task_executor;
 pub mod launch_task_registry;
@@ -41,6 +42,7 @@ pub use detector::{RuntimeDetector, boot_refresh, capabilities_for};
 pub use handoff_service::HandoffService;
 pub use heartbeat::spawn_heartbeat_listener;
 pub use interrupt_service::InterruptService;
+pub use launch_queue_blockers::reconcile_blockers;
 pub use launch_task_event_bus::{LaunchTaskEvent, LaunchTaskEventBus};
 pub use launch_task_executor::{
     CancelOutcome, LaunchTaskExecutor, RetryError, RetryOutcome, StepLinks, StepOutcome,

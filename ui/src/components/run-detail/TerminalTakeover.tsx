@@ -144,7 +144,7 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 				<div className="space-y-3 border-t border-edge p-3">
 					<p className="font-data text-[11px] text-ash">
 						Pick how you want to take the terminal. Force takeover cancels the active protocol
-						turn — use it sparingly and prefer attention requests for product decisions.
+						turn. Use it sparingly and prefer attention requests for product decisions.
 					</p>
 
 					{activeTakeover && wsUrl ? (

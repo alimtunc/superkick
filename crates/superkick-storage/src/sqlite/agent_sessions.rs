@@ -6,6 +6,7 @@ use superkick_core::{
 };
 
 use super::codec::{deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::repo::AgentSessionRepo;
 
 pub struct SqliteAgentSessionRepo {
@@ -84,7 +85,7 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
     }
 
     async fn update(&self, session: &AgentSession) -> Result<()> {
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE agent_sessions SET status = ?1, pid = ?2, finished_at = ?3, exit_code = ?4 WHERE id = ?5",
         )
         .bind(serialize_enum(&session.status)?)
@@ -95,6 +96,7 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("update agent_session {}", session.id.0))?;
+        ensure_updated(result, "agent_session", session.id.0)?;
         Ok(())
     }
 
@@ -103,12 +105,14 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
         id: AgentSessionId,
         provider_session_id: &str,
     ) -> Result<()> {
-        sqlx::query("UPDATE agent_sessions SET provider_session_id = ?1 WHERE id = ?2")
-            .bind(provider_session_id)
-            .bind(id.0.to_string())
-            .execute(&self.pool)
-            .await
-            .with_context(|| format!("set provider_session_id for agent_session {}", id.0))?;
+        let result =
+            sqlx::query("UPDATE agent_sessions SET provider_session_id = ?1 WHERE id = ?2")
+                .bind(provider_session_id)
+                .bind(id.0.to_string())
+                .execute(&self.pool)
+                .await
+                .with_context(|| format!("set provider_session_id for agent_session {}", id.0))?;
+        ensure_updated(result, "agent_session", id.0)?;
         Ok(())
     }
 

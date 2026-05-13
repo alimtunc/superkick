@@ -2,6 +2,9 @@ import { useMemo } from 'react'
 
 import { RunGroup } from '@/components/runs/RunGroup'
 import { RunsHeader } from '@/components/runs/RunsHeader'
+import { EmptyState } from '@/components/ui/state-empty'
+import { ErrorState } from '@/components/ui/state-error'
+import { LoadingState } from '@/components/ui/state-loading'
 import { useOperatorQueue } from '@/hooks/useOperatorQueue'
 import { toRunGroups } from '@/lib/domain'
 import { dashboardQueueQuery } from '@/lib/queries'
@@ -33,17 +36,15 @@ function RunsPage() {
 				onRefresh={queue.refresh}
 			/>
 
-			<div className="mx-auto flex min-h-0 w-full max-w-360 flex-1 flex-col gap-4 px-5 py-5">
-				{queue.error ? <p className="font-data text-[11px] text-oxide">{queue.error}</p> : null}
-
-				{queue.loading && total === 0 ? (
-					<p className="font-data py-10 text-center text-dim">Loading runs...</p>
+			<div className="mx-auto flex min-h-0 w-full max-w-360 flex-1 flex-col gap-4 p-5">
+				{queue.error ? (
+					<ErrorState message={queue.error} onRetry={queue.refresh} density="compact" />
 				) : null}
 
+				{queue.loading && total === 0 ? <LoadingState rows={5} /> : null}
+
 				{!queue.loading && total === 0 ? (
-					<p className="font-data py-10 text-center text-dim">
-						No runs yet. Start one from an issue.
-					</p>
+					<EmptyState title="No runs yet." description="Start one from an issue." />
 				) : null}
 
 				{total > 0 ? (

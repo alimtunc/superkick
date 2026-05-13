@@ -3,6 +3,7 @@ import { PriorityIcon } from '@/components/issues/PriorityIcon'
 import { RemovablePill } from '@/components/issues/RemovablePill'
 import { PRIORITY_META } from '@/lib/domain/priorityMeta'
 import { DEFAULT_LABEL_COLOR } from '@/lib/issueLabels'
+import { X } from 'lucide-react'
 
 export function ActiveFiltersBar({
 	activeLabels,
@@ -33,20 +34,17 @@ export function ActiveFiltersBar({
 				<FilterPill>
 					<span className="font-data text-[11px] text-dim">Priority is</span>
 					{[...activePriorities].map((v) => (
-						<span
+						<button
 							key={v}
-							className="font-data inline-flex cursor-pointer items-center gap-1 rounded-md border border-edge px-1.5 py-0.5 text-[10px] text-silver transition-colors hover:bg-white/5"
+							type="button"
+							className="font-data inline-flex cursor-pointer items-center gap-1 rounded-md border border-edge px-1.5 py-0.5 text-[10px] text-silver transition-colors hover:bg-white/5 focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
 							onClick={() => onTogglePriority(v)}
-							role="button"
-							tabIndex={0}
-							onKeyDown={(e) => {
-								if (e.key === 'Enter') onTogglePriority(v)
-							}}
+							aria-label={`Remove priority ${PRIORITY_META[v]?.label ?? `P${v}`}`}
 						>
 							<PriorityIcon value={v} />
 							{PRIORITY_META[v]?.label ?? `P${v}`}
-							<span className="ml-0.5 text-dim">&times;</span>
-						</span>
+							<X size={10} strokeWidth={2} className="ml-0.5 text-dim" aria-hidden="true" />
+						</button>
 					))}
 				</FilterPill>
 			) : null}
@@ -66,24 +64,21 @@ export function ActiveFiltersBar({
 					{[...activeLabels].map((name) => {
 						const color = labelColors.get(name) ?? DEFAULT_LABEL_COLOR
 						return (
-							<span
+							<button
 								key={name}
-								className="font-data inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition-colors hover:brightness-125"
+								type="button"
+								className="font-data inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition-colors hover:brightness-125 focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
 								style={{ color, borderColor: `${color}40` }}
 								onClick={() => onToggleLabel(name)}
-								role="button"
-								tabIndex={0}
-								onKeyDown={(e) => {
-									if (e.key === 'Enter') onToggleLabel(name)
-								}}
+								aria-label={`Remove label ${name}`}
 							>
 								<span
 									className="inline-block size-1.5 rounded-full"
 									style={{ backgroundColor: color }}
 								/>
 								{name}
-								<span className="ml-0.5 text-dim">&times;</span>
-							</span>
+								<X size={10} strokeWidth={2} className="ml-0.5 text-dim" aria-hidden="true" />
+							</button>
 						)
 					})}
 				</FilterPill>

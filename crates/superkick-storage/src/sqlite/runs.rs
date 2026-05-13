@@ -7,6 +7,7 @@ use superkick_core::{
 };
 
 use super::codec::{deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::repo::RunRepo;
 
 pub struct SqliteRunRepo {
@@ -110,7 +111,7 @@ impl RunRepo for SqliteRunRepo {
         let budget_json = serde_json::to_string(&run.budget).context("serialize run budget")?;
         let budget_grant_json =
             serde_json::to_string(&run.budget_grant).context("serialize run budget_grant")?;
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE runs SET state = ?1, trigger_source = ?2, current_step_key = ?3, worktree_path = ?4, branch_name = ?5, operator_instructions = ?6, updated_at = ?7, finished_at = ?8, error_message = ?9, budget_json = ?10, pause_kind = ?11, pause_reason = ?12, budget_grant_json = ?13, last_heartbeat_at = ?14 WHERE id = ?15",
         )
         .bind(serialize_enum(&run.state)?)
@@ -131,6 +132,7 @@ impl RunRepo for SqliteRunRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("update run {}", run.id.0))?;
+        ensure_updated(result, "run", run.id.0)?;
         Ok(())
     }
 

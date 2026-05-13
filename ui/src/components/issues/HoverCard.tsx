@@ -1,43 +1,27 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import type { ReactElement, ReactNode } from 'react'
+
+import { Popover } from '@base-ui/react/popover'
 
 const OPEN_DELAY = 400
 const CLOSE_DELAY = 150
 
-export function HoverCard({ content, children }: { content: ReactNode; children: ReactNode }) {
-	const [open, setOpen] = useState(false)
-	const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-	const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-	useEffect(() => {
-		return () => {
-			if (openTimer.current) clearTimeout(openTimer.current)
-			if (closeTimer.current) clearTimeout(closeTimer.current)
-		}
-	}, [])
-
-	function handleEnter() {
-		if (closeTimer.current) {
-			clearTimeout(closeTimer.current)
-			closeTimer.current = null
-		}
-		if (openTimer.current) clearTimeout(openTimer.current)
-		openTimer.current = setTimeout(() => setOpen(true), OPEN_DELAY)
-	}
-
-	function handleLeave() {
-		if (openTimer.current) {
-			clearTimeout(openTimer.current)
-			openTimer.current = null
-		}
-		closeTimer.current = setTimeout(() => setOpen(false), CLOSE_DELAY)
-	}
-
+export function HoverCard({ content, children }: { content: ReactNode; children: ReactElement }) {
 	return (
-		<div className="relative" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
-			{children}
-			{open ? (
-				<div className="pointer-events-none absolute top-full right-0 z-50 pt-1">{content}</div>
-			) : null}
-		</div>
+		<Popover.Root>
+			<Popover.Trigger
+				render={children}
+				nativeButton={false}
+				openOnHover
+				delay={OPEN_DELAY}
+				closeDelay={CLOSE_DELAY}
+			/>
+			<Popover.Portal>
+				<Popover.Positioner sideOffset={4} align="end" className="z-50">
+					<Popover.Popup initialFocus={false} className="pointer-events-none outline-none">
+						{content}
+					</Popover.Popup>
+				</Popover.Positioner>
+			</Popover.Portal>
+		</Popover.Root>
 	)
 }

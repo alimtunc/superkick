@@ -1,5 +1,7 @@
+import { ClientDateTime } from '@/components/ui/client-date-time'
 import { parseAnswer } from '@/lib/domain'
 import type { Interrupt } from '@/types'
+import { Check, Minus } from 'lucide-react'
 
 export function ResolvedInterrupt({ interrupt }: { interrupt: Interrupt }) {
 	const answer = parseAnswer(interrupt.answer_json)
@@ -8,8 +10,12 @@ export function ResolvedInterrupt({ interrupt }: { interrupt: Interrupt }) {
 	return (
 		<div className="panel p-3">
 			<div className="flex items-start gap-3">
-				<span className="font-data mt-0.5 text-base text-dim">
-					{interrupt.status === 'resolved' ? '\u2713' : '\u2014'}
+				<span className="mt-0.5 inline-flex text-dim">
+					{interrupt.status === 'resolved' ? (
+						<Check size={16} strokeWidth={1.75} aria-hidden="true" />
+					) : (
+						<Minus size={16} strokeWidth={1.75} aria-hidden="true" />
+					)}
 				</span>
 				<div className="min-w-0 flex-1">
 					<p className="text-[12px] text-silver">{interrupt.question}</p>
@@ -22,7 +28,7 @@ export function ResolvedInterrupt({ interrupt }: { interrupt: Interrupt }) {
 						) : null}
 						{interrupt.resolved_at ? (
 							<span className="font-data text-[10px] text-dim">
-								{new Date(interrupt.resolved_at).toLocaleString()}
+								<ClientDateTime value={interrupt.resolved_at} />
 							</span>
 						) : null}
 					</div>

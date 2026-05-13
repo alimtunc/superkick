@@ -10,7 +10,7 @@ export {
 	fmtSecondsVerbose
 } from './formatters'
 export { providerLabel, resolveProviderLabel, stepLabel, stateIcon, stateTone } from './displayLabels'
-export { agentStatusIcon, agentStatusColor, agentStatusColorPulsing } from './agentStatus'
+export { agentStatusColor, agentStatusColorPulsing } from './agentStatus'
 export { healthSignal, healthSignalBg, shouldShowInterrupts } from './health'
 export { extractFormError, parseAnswer } from './parsers'
 export { watchButtonClass, watchButtonTitle } from './watch'

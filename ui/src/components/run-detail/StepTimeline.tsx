@@ -1,18 +1,34 @@
 import { fmtDuration, stepLabel } from '@/lib/domain'
 import type { RunStep, StepStatus } from '@/types'
+import { Check, Circle, CircleDot, Minus, X } from 'lucide-react'
 
 interface StatusVisual {
-	icon: string
 	color: string
 	label: string
 }
 
 const statusVisual: Record<StepStatus, StatusVisual> = {
-	pending: { icon: '\u25cb', color: 'text-dim', label: 'Queued' },
-	running: { icon: '\u25cf', color: 'text-cyan live-pulse', label: 'In progress' },
-	succeeded: { icon: '\u2713', color: 'text-mineral', label: 'Done' },
-	failed: { icon: '\u2717', color: 'text-oxide', label: 'Failed' },
-	skipped: { icon: '\u2014', color: 'text-dim', label: 'Skipped' }
+	pending: { color: 'text-dim', label: 'Queued' },
+	running: { color: 'text-cyan live-pulse', label: 'In progress' },
+	succeeded: { color: 'text-mineral', label: 'Done' },
+	failed: { color: 'text-oxide', label: 'Failed' },
+	skipped: { color: 'text-dim', label: 'Skipped' }
+}
+
+function statusIcon(status: StepStatus) {
+	const props = { size: 14, strokeWidth: 1.9, 'aria-hidden': true }
+	switch (status) {
+		case 'pending':
+			return <Circle {...props} />
+		case 'running':
+			return <CircleDot {...props} />
+		case 'succeeded':
+			return <Check {...props} />
+		case 'failed':
+			return <X {...props} />
+		case 'skipped':
+			return <Minus {...props} />
+	}
 }
 
 function formatDuration(start: string | null, end: string | null): string {
@@ -36,7 +52,7 @@ export function StepTimeline({ steps }: { steps: RunStep[] }) {
 							isActive ? 'border-cyan/30 bg-cyan/5' : 'border-edge/50 bg-graphite/50'
 						}`}
 					>
-						<span className={`text-base ${visual.color}`}>{visual.icon}</span>
+						<span className={`inline-flex ${visual.color}`}>{statusIcon(step.status)}</span>
 						<span className="font-data w-28 text-[12px] text-fog">
 							{stepLabel[step.step_key] ?? step.step_key}
 						</span>

@@ -8,7 +8,14 @@ import type {
 	TurnEventEnvelope
 } from '@/types'
 
-import { BASE, TurnAlreadyStreamingError, throwGenericApiError } from './_shared'
+import {
+	BASE,
+	TurnAlreadyStreamingError,
+	apiErrorField,
+	apiErrorMessage,
+	readApiErrorBody,
+	throwGenericApiError
+} from './_shared'
 
 export async function createConversation(req: CreateConversationRequest): Promise<Conversation> {
 	const res = await fetch(`${BASE}/conversations`, {
@@ -50,11 +57,11 @@ export async function createTurn(
 		body: JSON.stringify(req)
 	})
 	if (!res.ok) {
-		const body = await res.json().catch(() => ({ error: `status ${res.status}` }))
-		if (res.status === 409 && body.code === 'turn_already_streaming') {
-			throw new TurnAlreadyStreamingError(body.error)
+		const body = await readApiErrorBody(res)
+		if (res.status === 409 && apiErrorField(body, 'code') === 'turn_already_streaming') {
+			throw new TurnAlreadyStreamingError(apiErrorField(body, 'error'))
 		}
-		throw new Error(body.error || `create turn failed: ${res.status}`)
+		throw new Error(apiErrorMessage(body, `create turn failed: ${res.status}`))
 	}
 	return res.json()
 }

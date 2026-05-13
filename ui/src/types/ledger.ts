@@ -10,7 +10,6 @@ export type LedgerCategory =
 	| 'error'
 
 export interface CategoryVisual {
-	icon: string
 	dot: string
 	ring: string
 	label: string

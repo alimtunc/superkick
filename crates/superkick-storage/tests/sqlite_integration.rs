@@ -338,6 +338,31 @@ async fn run_update() -> Result<()> {
 }
 
 #[tokio::test]
+async fn run_update_reports_missing_row() -> Result<()> {
+    let pool = setup().await?;
+    let repo = SqliteRunRepo::new(pool);
+
+    let run = Run::new(
+        "issue-missing".into(),
+        "SK-MISSING".into(),
+        "org/repo".into(),
+        TriggerSource::Manual,
+        ExecutionMode::FullAuto,
+        "main".into(),
+        true,
+        None,
+    );
+
+    let err = repo
+        .update(&run)
+        .await
+        .expect_err("updating a missing run must fail");
+    assert!(format!("{err:#}").contains("run"));
+    assert!(format!("{err:#}").contains("not found"));
+    Ok(())
+}
+
+#[tokio::test]
 async fn run_list_all() -> Result<()> {
     let pool = setup().await?;
     let repo = SqliteRunRepo::new(pool);
@@ -491,6 +516,21 @@ async fn step_update() -> Result<()> {
     let fetched = step_repo.get(step.id).await?.unwrap();
     assert_eq!(fetched.status, StepStatus::Running);
     assert!(fetched.started_at.is_some());
+    Ok(())
+}
+
+#[tokio::test]
+async fn step_update_reports_missing_row() -> Result<()> {
+    let pool = setup().await?;
+    let step_repo = SqliteRunStepRepo::new(pool);
+    let step = RunStep::new(RunId::new(), StepKey::Code, 1);
+
+    let err = step_repo
+        .update(&step)
+        .await
+        .expect_err("updating a missing step must fail");
+    assert!(format!("{err:#}").contains("run_step"));
+    assert!(format!("{err:#}").contains("not found"));
     Ok(())
 }
 
@@ -964,6 +1004,43 @@ async fn agent_session_update() -> Result<()> {
     let fetched = session_repo.get(session.id).await?.unwrap();
     assert_eq!(fetched.status, AgentStatus::Completed);
     assert_eq!(fetched.exit_code, Some(0));
+    Ok(())
+}
+
+#[tokio::test]
+async fn agent_session_update_reports_missing_row() -> Result<()> {
+    let pool = setup().await?;
+    let session_repo = SqliteAgentSessionRepo::new(pool);
+    let session = AgentSession {
+        id: AgentSessionId::new(),
+        run_id: RunId::new(),
+        run_step_id: StepId::new(),
+        provider: AgentProvider::Codex,
+        command: "codex run".into(),
+        pid: None,
+        status: AgentStatus::Running,
+        started_at: Utc::now(),
+        finished_at: None,
+        exit_code: None,
+        linear_context_mode: None,
+        mcp_servers_used: Vec::new(),
+        tools_allow_snapshot: None,
+        tool_approval_required: false,
+        tool_results_persisted: true,
+        role: None,
+        purpose: None,
+        parent_session_id: None,
+        launch_reason: None,
+        handoff_id: None,
+        provider_session_id: None,
+    };
+
+    let err = session_repo
+        .update(&session)
+        .await
+        .expect_err("updating a missing agent session must fail");
+    assert!(format!("{err:#}").contains("agent_session"));
+    assert!(format!("{err:#}").contains("not found"));
     Ok(())
 }
 

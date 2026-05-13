@@ -24,9 +24,8 @@ export function RaiseAttentionRequestForm({ runId, onCreated }: { runId: string;
 
 	return (
 		<form
-			onSubmit={(e) => {
-				e.preventDefault()
-				form.handleSubmit()
+			action={() => {
+				void form.handleSubmit()
 			}}
 			className="panel border border-edge p-3"
 		>

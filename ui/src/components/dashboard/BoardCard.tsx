@@ -11,6 +11,7 @@ import {
 import { useWatchedSessionsStore } from '@/stores/watchedSessions'
 import type { Run } from '@/types'
 import { Link } from '@tanstack/react-router'
+import { Eye, EyeOff } from 'lucide-react'
 
 export function BoardCard({ run, refTime }: { run: Run; refTime: number }) {
 	const sig = healthSignal(run, refTime)
@@ -54,7 +55,11 @@ export function BoardCard({ run, refTime }: { run: Run; refTime: number }) {
 				className={`font-data mt-1 shrink-0 text-[10px] ${watchButtonClass(watched, maxReached)}`}
 				title={watchButtonTitle(watched, maxReached)}
 			>
-				{watched ? '\u25C9' : '\u25CB'}
+				{watched ? (
+					<EyeOff size={12} strokeWidth={1.75} aria-hidden="true" />
+				) : (
+					<Eye size={12} strokeWidth={1.75} aria-hidden="true" />
+				)}
 			</Button>
 		</div>
 	)

@@ -3,6 +3,7 @@ import { StatusChip } from '@/components/issue-detail/StatusChip'
 import { Pill } from '@/components/ui/pill'
 import { priorityColor } from '@/lib/domain/priorityMeta'
 import type { LinearIssueListItem } from '@/types'
+import { ChevronRight } from 'lucide-react'
 
 export function IssuePreview({ issue }: { issue: LinearIssueListItem }) {
 	const pColor = priorityColor(issue.priority.value)
@@ -31,7 +32,14 @@ export function IssuePreview({ issue }: { issue: LinearIssueListItem }) {
 					{issue.parent ? (
 						<span className="font-data text-fog/60">{issue.parent.identifier}</span>
 					) : null}
-					{issue.parent && issue.project ? <span className="text-dim/40">&rsaquo;</span> : null}
+					{issue.parent && issue.project ? (
+						<ChevronRight
+							size={10}
+							strokeWidth={1.75}
+							className="text-dim/40"
+							aria-hidden="true"
+						/>
+					) : null}
 					{issue.project ? (
 						<span className="font-data text-dim/60">{issue.project.name}</span>
 					) : null}

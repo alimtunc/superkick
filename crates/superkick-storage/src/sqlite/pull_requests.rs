@@ -3,6 +3,7 @@ use sqlx::SqlitePool;
 use superkick_core::{PrState, PullRequest, PullRequestId, RunId};
 
 use super::codec::{deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::repo::PullRequestRepo;
 
 pub struct SqlitePullRequestRepo {
@@ -55,7 +56,7 @@ impl PullRequestRepo for SqlitePullRequestRepo {
     }
 
     async fn update(&self, pr: &PullRequest) -> Result<()> {
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE pull_requests SET state = ?1, title = ?2, head_branch = ?3, updated_at = ?4, merged_at = ?5 WHERE id = ?6",
         )
         .bind(serialize_enum(&pr.state)?)
@@ -67,6 +68,7 @@ impl PullRequestRepo for SqlitePullRequestRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("update pull_request {}", pr.id.0))?;
+        ensure_updated(result, "pull_request", pr.id.0)?;
         Ok(())
     }
 }
