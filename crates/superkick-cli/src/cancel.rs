@@ -9,7 +9,7 @@ pub struct CancelArgs {
 }
 
 pub fn run(args: CancelArgs) -> anyhow::Result<()> {
-    let base = format!("http://127.0.0.1:{}", args.port);
+    let base = format!("http://127.0.0.1:{}/api", args.port);
 
     crate::net::ensure_server_reachable(args.port)?;
 

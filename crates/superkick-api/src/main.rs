@@ -34,6 +34,7 @@ async fn main() -> anyhow::Result<()> {
         database_url,
         cache_dir,
         listener,
+        serve_ui: true,
     })
     .await;
 

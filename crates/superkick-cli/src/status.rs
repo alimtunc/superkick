@@ -8,7 +8,7 @@ pub struct StatusArgs {
 }
 
 fn check_health(port: u16) -> bool {
-    let url = format!("http://127.0.0.1:{port}/health");
+    let url = format!("http://127.0.0.1:{port}/api/health");
     match ureq::get(&url)
         .config()
         .timeout_global(Some(std::time::Duration::from_secs(2)))
@@ -25,7 +25,7 @@ fn check_health(port: u16) -> bool {
 }
 
 fn print_active_runs(port: u16) {
-    let url = format!("http://127.0.0.1:{port}/runs");
+    let url = format!("http://127.0.0.1:{port}/api/runs");
     let Ok(resp) = ureq::get(&url)
         .config()
         .timeout_global(Some(std::time::Duration::from_secs(2)))

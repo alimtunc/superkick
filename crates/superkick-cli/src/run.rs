@@ -164,20 +164,20 @@ fn handle_sse_line(event: &str, data: &str) {
 pub fn run(args: RunArgs) -> anyhow::Result<()> {
     let base_branch = load_base_branch()?;
     let repo_slug = get_repo_slug()?;
-    let base_url = format!("http://127.0.0.1:{}", args.port);
+    let dashboard_url = format!("http://127.0.0.1:{}", args.port);
+    let api_url = format!("{dashboard_url}/api");
 
     crate::net::ensure_server_reachable(args.port)?;
 
-    // Create the run
-    let run_id = create_run(&base_url, &repo_slug, &args.issue, &base_branch)?;
+    let run_id = create_run(&api_url, &repo_slug, &args.issue, &base_branch)?;
 
     println!();
     println!("  Run {run_id} created");
-    println!("  {base_url}/runs/{run_id}");
+    println!("  {dashboard_url}/runs/{run_id}");
     println!();
 
     if args.follow {
-        follow_events(&base_url, &run_id)?;
+        follow_events(&api_url, &run_id)?;
     }
 
     Ok(())

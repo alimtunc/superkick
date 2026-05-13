@@ -39,9 +39,10 @@ lint:
 superkick *args:
     cargo run -p superkick-cli -- {{args}}
 
-# Install local build as global binary
+# Install local build as global binary, bundling the dashboard
 install:
-    cargo install --path crates/superkick-cli
+    cd ui && pnpm install --frozen-lockfile && pnpm build
+    cargo install --path crates/superkick-cli --features embedded-ui --force
 
 # Fetch all dependencies (Rust + JS) in parallel
 deps:

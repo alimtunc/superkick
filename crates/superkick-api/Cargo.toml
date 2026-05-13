@@ -25,12 +25,18 @@ futures-util.workspace = true
 bytes = "1"
 dotenvy = "0.15"
 indexmap = { version = "2", features = ["serde"] }
+rust-embed = { version = "8", optional = true }
+mime_guess = { version = "2", optional = true }
 
 [features]
 # Exposes test-only helpers (e.g. router builders that wire isolated handler
 # slices). Off by default — enabled automatically by integration tests in this
 # crate so the public API surface stays minimal in production builds.
 test-support = []
+# Embeds the built dashboard assets from ui/dist/ into the binary and serves
+# them as a SPA fallback. Requires `pnpm build` to have run first; release
+# distribution builds (`just install`) enable this.
+embedded-ui = ["dep:rust-embed", "dep:mime_guess"]
 
 [dev-dependencies]
 sqlx.workspace = true

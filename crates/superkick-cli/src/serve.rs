@@ -19,6 +19,10 @@ pub struct ServeArgs {
     /// Cache directory for bare clones
     #[arg(long, default_value = ".superkick-cache")]
     pub cache_dir: String,
+
+    /// Skip serving the bundled dashboard (API only)
+    #[arg(long)]
+    pub no_ui: bool,
 }
 
 pub async fn run(args: ServeArgs) -> anyhow::Result<()> {
@@ -58,6 +62,7 @@ pub async fn run(args: ServeArgs) -> anyhow::Result<()> {
         database_url: args.db,
         cache_dir: args.cache_dir,
         listener,
+        serve_ui: !args.no_ui,
     })
     .await
 }

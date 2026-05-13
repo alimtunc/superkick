@@ -19,3 +19,9 @@ ctrlc = "3"
 tokio.workspace = true
 tracing-subscriber.workspace = true
 which = "8"
+
+[features]
+# Forward to superkick-api so `cargo install --features embedded-ui` ships a
+# binary that serves the bundled dashboard. Default off so debug builds /
+# workspace checks don't require `ui/dist/` to exist.
+embedded-ui = ["superkick-api/embedded-ui"]
