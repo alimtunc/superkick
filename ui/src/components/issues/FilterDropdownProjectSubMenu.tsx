@@ -18,12 +18,12 @@ export function FilterDropdownProjectSubMenu({
 					<Menu.Item
 						key={project}
 						onClick={() => onSelect(isActive ? null : project)}
-						className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-left transition-colors hover:bg-white/5 ${
-							isActive ? 'bg-white/3' : ''
+						className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-left transition-colors hover:bg-raised ${
+							isActive ? 'bg-raised' : ''
 						}`}
 					>
-						<Clock size={14} strokeWidth={1.75} className="text-dim" aria-hidden="true" />
-						<span className="font-data flex-1 text-[12px] text-silver">{project}</span>
+						<Clock size={14} strokeWidth={1.75} className="text-fg-dim" aria-hidden="true" />
+						<span className="flex-1 font-mono text-[12px] text-fg-muted">{project}</span>
 					</Menu.Item>
 				)
 			})}

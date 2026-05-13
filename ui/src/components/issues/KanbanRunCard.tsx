@@ -1,4 +1,5 @@
 import { LaunchRunBadges } from '@/components/launch-queue/LaunchRunBadges'
+import { Pill } from '@/components/ui/pill'
 import { fmtElapsed, stepLabel } from '@/lib/domain'
 import type { LaunchQueueItem } from '@/types'
 import { Link } from '@tanstack/react-router'
@@ -14,37 +15,32 @@ export function KanbanRunCard({ item, refTime }: KanbanRunCardProps) {
 	const linkedIdentifier = item.linked_issue?.identifier ?? run.issue_identifier
 
 	return (
-		<div
-			className="group flex flex-col gap-1 rounded-md border border-edge bg-slate-deep px-3 py-2.5 transition-colors focus-within:border-edge-bright hover:border-edge-bright hover:bg-slate-deep/80"
+		<Link
+			to="/runs/$runId"
+			params={{ runId: run.id }}
+			className="group flex flex-col gap-2.5 rounded-lg border border-border bg-raised p-3 transition-colors hover:border-border-strong focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
 			title={item.reason}
 		>
-			<Link
-				to="/runs/$runId"
-				params={{ runId: run.id }}
-				className="flex flex-col gap-1 rounded focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
-			>
-				<div className="flex items-center justify-between gap-2">
-					<span className="font-data text-[12px] font-medium text-fog transition-colors group-hover:text-neon-green">
-						{linkedIdentifier}
-					</span>
-					<LaunchRunBadges item={item} />
-				</div>
-				<div className="flex items-center gap-2">
-					<span className="font-data truncate text-[10px] text-ash">{run.repo_slug}</span>
-					{stepText ? <span className="font-data text-[10px] text-silver">{stepText}</span> : null}
-				</div>
-				<p className="font-data truncate text-[10px] text-silver">{item.reason}</p>
-				<div className="flex items-center justify-between">
-					<span className="font-data text-[10px] text-ash">
-						{fmtElapsed(run.started_at, refTime)}
-					</span>
-					{run.branch_name ? (
-						<span className="font-data max-w-28 truncate text-[10px] text-ash">
-							{run.branch_name}
-						</span>
-					) : null}
-				</div>
-			</Link>
-		</div>
+			<div className="flex items-center gap-2">
+				<span className="font-mono text-[11px] text-fg-dim">{linkedIdentifier}</span>
+				<span className="flex-1" />
+				<Pill tone="info" size="xs" mono>
+					Run
+				</Pill>
+			</div>
+
+			<p className="line-clamp-2 text-[12.5px] leading-snug font-medium text-fg">
+				{stepText ?? item.reason}
+			</p>
+
+			<div className="flex items-center gap-2">
+				<span className="truncate font-mono text-[10.5px] text-fg-muted">{run.repo_slug}</span>
+				<LaunchRunBadges item={item} />
+				<span className="flex-1" />
+				<span className="font-mono text-[10.5px] text-fg-dim">
+					{fmtElapsed(run.started_at, refTime)}
+				</span>
+			</div>
+		</Link>
 	)
 }

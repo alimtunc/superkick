@@ -1,10 +1,10 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 
-import { IssuesHeader } from '@/components/issues/IssuesHeader'
 import { IssuesKanbanView } from '@/components/issues/IssuesKanbanView'
 import { IssuesListView } from '@/components/issues/IssuesListView'
+import { IssuesPageActions } from '@/components/issues/IssuesPageActions'
 import { IssuesToolbar } from '@/components/issues/IssuesToolbar'
-import { IssuesViewToggle } from '@/components/issues/IssuesViewToggle'
+import { Pill } from '@/components/ui/pill'
 import { EmptyState } from '@/components/ui/state-empty'
 import { ErrorState } from '@/components/ui/state-error'
 import { LoadingState } from '@/components/ui/state-loading'
@@ -14,6 +14,7 @@ import { useIssueFilters } from '@/hooks/useIssueFilters'
 import { useIssues } from '@/hooks/useIssues'
 import { buildLabelColorMap } from '@/lib/issueLabels'
 import { issuesQuery, launchQueueQuery } from '@/lib/queries'
+import { usePageActions } from '@/shell/usePageActions'
 import { createRoute, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
 
@@ -53,74 +54,102 @@ function IssuesPage() {
 
 	const isInitialLoading = data.loading && data.issues.length === 0
 
+	const onViewChange = useCallback(
+		(next: 'list' | 'kanban'): void => {
+			navigate({
+				search: (prev) => ({ ...prev, view: next === 'list' ? undefined : next })
+			})
+		},
+		[navigate]
+	)
+
+	usePageActions({
+		sub: useMemo(
+			() => (
+				<Pill tone="neutral" mono size="xs">
+					{data.totalCount} open
+				</Pill>
+			),
+			[data.totalCount]
+		),
+		right: useMemo(
+			() => (
+				<IssuesPageActions
+					view={view}
+					onViewChange={onViewChange}
+					filters={filters}
+					derivations={{
+						allLabels: aggregations.allLabels,
+						labelColors,
+						labelCounts: aggregations.labelCounts,
+						allProjects: aggregations.allProjects
+					}}
+				/>
+			),
+			[
+				view,
+				onViewChange,
+				filters,
+				aggregations.allLabels,
+				aggregations.labelCounts,
+				aggregations.allProjects,
+				labelColors
+			]
+		)
+	})
+
 	return (
-		<div>
-			<IssuesHeader
-				totalCount={data.totalCount}
-				loading={data.loading}
-				lastRefresh={data.lastRefresh}
-				onRefresh={data.refresh}
-			/>
-
-			<div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-8">
-				<div className="flex items-center justify-between">
-					<h1 className="font-data text-[12px] tracking-wider text-fog uppercase">Issues</h1>
-					<IssuesViewToggle
-						value={view}
-						onChange={(next) =>
-							navigate({
-								search: (prev) => ({ ...prev, view: next === 'list' ? undefined : next })
-							})
-						}
-					/>
-				</div>
-
-				{data.error ? (
+		<div className="flex min-h-0 flex-1 flex-col">
+			{data.error ? (
+				<div className="px-6 py-4">
 					<ErrorState message={data.error} onRetry={data.refresh} density="compact" />
-				) : null}
+				</div>
+			) : null}
 
-				{isInitialLoading ? <LoadingState rows={5} /> : null}
+			{isInitialLoading ? (
+				<div className="px-6 py-4">
+					<LoadingState rows={5} />
+				</div>
+			) : null}
 
-				{!data.loading && data.issues.length === 0 ? <EmptyState title="No issues found." /> : null}
+			{!data.loading && data.issues.length === 0 ? (
+				<div className="px-6 py-4">
+					<EmptyState title="No issues found." />
+				</div>
+			) : null}
 
-				{data.issues.length > 0 ? (
-					<>
-						<IssuesToolbar
-							stateFilter={{
-								show: view === 'list',
-								active: filters.activeIssueState,
-								counts,
-								total: data.totalCount,
-								onSelect: filters.setActiveIssueState
-							}}
-							filters={filters}
-							derivations={{
-								allLabels: aggregations.allLabels,
-								labelColors,
-								labelCounts: aggregations.labelCounts,
-								allProjects: aggregations.allProjects
-							}}
+			{data.issues.length > 0 ? (
+				<>
+					<IssuesToolbar
+						stateFilter={{
+							show: view === 'list',
+							active: filters.activeIssueState,
+							counts,
+							total: data.totalCount,
+							onSelect: filters.setActiveIssueState
+						}}
+						filters={filters}
+						labelColors={labelColors}
+					/>
+
+					{view === 'kanban' ? (
+						<IssuesKanbanView
+							queueItems={filteredQueueItems}
+							activeCapacity={data.activeCapacity}
+							generatedAt={data.generatedAt}
+							recentUnblocks={data.recentUnblocks}
 						/>
-
-						{view === 'kanban' ? (
-							<IssuesKanbanView
-								queueItems={filteredQueueItems}
-								activeCapacity={data.activeCapacity}
-								generatedAt={data.generatedAt}
-								recentUnblocks={data.recentUnblocks}
-							/>
-						) : (
-							<IssuesListView
-								allIssues={data.issues}
-								queueItems={data.queueItems}
-								filteredIssues={filteredIssues}
-								grouped={grouped}
-								activeIssueState={filters.activeIssueState}
-							/>
-						)}
-					</>
-				) : null}
-			</div>
+					) : (
+						<IssuesListView
+							allIssues={data.issues}
+							queueItems={data.queueItems}
+							filteredIssues={filteredIssues}
+							grouped={grouped}
+							activeIssueState={filters.activeIssueState}
+						/>
+					)}
+				</>
+			) : null}
 		</div>
 	)
 }
