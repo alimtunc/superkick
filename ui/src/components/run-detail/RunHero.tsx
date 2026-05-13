@@ -68,15 +68,15 @@ export function RunHero({ run, pr, sessions, attentionRequests, interrupts, refT
 							{narrative.phase}
 						</span>
 						{run.execution_mode ? <ExecutionModeBadge mode={run.execution_mode} /> : null}
-						<span className="font-data text-[10px] text-dim">· running for {elapsed}</span>
+						<span className="font-data text-[10px] text-fg-dim">· running for {elapsed}</span>
 					</div>
 
-					<h1 className="text-[18px] leading-snug font-semibold text-fog">{headline}</h1>
+					<h1 className="text-[18px] leading-snug font-semibold text-fg">{headline}</h1>
 
-					<p className="font-data mt-1 text-[12px] text-silver/80">{nextHint}</p>
+					<p className="font-data mt-1 text-[12px] text-fg-muted/80">{nextHint}</p>
 
 					{run.error_message ? (
-						<p className="font-data mt-3 rounded border border-oxide/30 bg-oxide/5 px-3 py-2 text-[12px] text-oxide">
+						<p className="font-data mt-3 rounded border border-danger/30 bg-danger-soft px-3 py-2 text-[12px] text-danger">
 							{run.error_message}
 						</p>
 					) : null}
@@ -85,25 +85,27 @@ export function RunHero({ run, pr, sessions, attentionRequests, interrupts, refT
 				<dl className="flex shrink-0 flex-row gap-5 md:flex-col md:items-end md:gap-2 md:text-right">
 					{role ? (
 						<div>
-							<dt className="font-data text-[10px] tracking-wider text-dim uppercase">
+							<dt className="font-data text-[10px] tracking-wider text-fg-dim uppercase">
 								Active
 							</dt>
-							<dd className="font-data mt-0.5 text-[12px] text-fog">{role}</dd>
+							<dd className="font-data mt-0.5 text-[12px] text-fg">{role}</dd>
 						</div>
 					) : null}
 					<div>
-						<dt className="font-data text-[10px] tracking-wider text-dim uppercase">Attention</dt>
+						<dt className="font-data text-[10px] tracking-wider text-fg-dim uppercase">
+							Attention
+						</dt>
 						<dd className="font-data mt-0.5 text-[12px]">
 							{attention.total === 0 ? (
-								<span className="text-dim">None</span>
+								<span className="text-fg-dim">None</span>
 							) : (
-								<span className="text-gold">{formatAttention(attention)}</span>
+								<span className="text-warn">{formatAttention(attention)}</span>
 							)}
 						</dd>
 					</div>
 					{pr ? (
 						<div>
-							<dt className="font-data text-[10px] tracking-wider text-dim uppercase">
+							<dt className="font-data text-[10px] tracking-wider text-fg-dim uppercase">
 								Pull request
 							</dt>
 							<dd className="font-data mt-0.5 flex items-center gap-1.5 text-[12px]">
@@ -111,7 +113,7 @@ export function RunHero({ run, pr, sessions, attentionRequests, interrupts, refT
 									href={pr.url}
 									target="_blank"
 									rel="noopener noreferrer"
-									className="text-neon-green hover:text-neon-green/80"
+									className="text-success hover:text-success/80"
 								>
 									#{pr.number}
 								</a>
@@ -121,10 +123,10 @@ export function RunHero({ run, pr, sessions, attentionRequests, interrupts, refT
 					) : null}
 					{run.finished_at ? (
 						<div>
-							<dt className="font-data text-[10px] tracking-wider text-dim uppercase">
+							<dt className="font-data text-[10px] tracking-wider text-fg-dim uppercase">
 								Finished
 							</dt>
-							<dd className="font-data mt-0.5 text-[12px] text-silver/80">
+							<dd className="font-data mt-0.5 text-[12px] text-fg-muted/80">
 								{fmtRelativeTime(run.finished_at)}
 							</dd>
 						</div>
