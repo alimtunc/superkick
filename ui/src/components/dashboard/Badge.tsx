@@ -1,6 +1,6 @@
 import { Pill, type PillTone } from '@/components/ui/pill'
 
-export type BadgeTone = 'oxide' | 'gold' | 'violet'
+type BadgeTone = 'oxide' | 'gold' | 'violet'
 
 const toneMap: Record<BadgeTone, PillTone> = {
 	oxide: 'oxide',

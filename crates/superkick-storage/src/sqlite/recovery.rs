@@ -122,7 +122,8 @@ impl SqliteRecoveryEventRepo {
         )
         .bind(run_id.0.to_string())
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("get latest recovery event for run {run_id}"))?;
         row.map(RawRecoveryRow::into_domain).transpose()
     }
 
@@ -192,7 +193,8 @@ pub async fn list_recovery_candidates(pool: &SqlitePool) -> Result<Vec<RecoveryC
            AND trigger_source <> 'launch_task'",
     )
     .fetch_all(pool)
-    .await?;
+    .await
+    .context("list recovery candidates")?;
     rows.into_iter()
         .map(RecoveryCandidateRow::into_domain)
         .collect()

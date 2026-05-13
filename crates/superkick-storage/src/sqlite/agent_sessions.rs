@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{
     AgentProvider, AgentSession, AgentSessionId, AgentStatus, HandoffId, LaunchReason,
@@ -58,7 +58,8 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
         .bind(i64::from(session.tool_results_persisted))
         .bind(session.provider_session_id.as_ref())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("insert agent_session {}", session.id.0))?;
         Ok(())
     }
 
@@ -66,7 +67,8 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
         let row = sqlx::query_as::<_, SessionRow>("SELECT * FROM agent_sessions WHERE id = ?1")
             .bind(id.0.to_string())
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .with_context(|| format!("get agent_session {}", id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -76,7 +78,8 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
         )
         .bind(run_id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list agent_sessions for run {}", run_id.0))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -90,7 +93,8 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
         .bind(session.exit_code)
         .bind(session.id.0.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("update agent_session {}", session.id.0))?;
         Ok(())
     }
 
@@ -103,7 +107,8 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
             .bind(provider_session_id)
             .bind(id.0.to_string())
             .execute(&self.pool)
-            .await?;
+            .await
+            .with_context(|| format!("set provider_session_id for agent_session {}", id.0))?;
         Ok(())
     }
 
@@ -112,7 +117,8 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
             sqlx::query_as("SELECT provider_session_id FROM agent_sessions WHERE id = ?1")
                 .bind(id.0.to_string())
                 .fetch_optional(&self.pool)
-                .await?;
+                .await
+                .with_context(|| format!("get provider_session_id for agent_session {}", id.0))?;
         Ok(row.and_then(|(value,)| value))
     }
 }

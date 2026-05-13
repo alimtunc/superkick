@@ -1,16 +1,8 @@
 import { useState } from 'react'
 
 import { SessionRow } from '@/components/run-detail/SessionRow'
-import { providerLabel } from '@/lib/domain'
+import { agentStatusColor, providerLabel } from '@/lib/domain'
 import type { AgentSession, AgentStatus, ProviderGroupData, Run } from '@/types'
-
-const statusColor: Record<AgentStatus, string> = {
-	starting: 'text-dim',
-	running: 'text-cyan',
-	completed: 'text-mineral',
-	failed: 'text-oxide',
-	cancelled: 'text-dim'
-}
 
 function groupStatus(sessions: AgentSession[]): AgentStatus {
 	const priority: AgentStatus[] = ['running', 'starting', 'failed', 'cancelled', 'completed']
@@ -48,7 +40,7 @@ export function ProviderGroup({
 			>
 				<span className="font-data text-[11px] text-dim">{expanded ? '\u25BE' : '\u25B8'}</span>
 				<span className="font-data text-[12px] font-medium text-fog">{label}</span>
-				<span className={`font-data text-[10px] ${statusColor[status]}`}>
+				<span className={`font-data text-[10px] ${agentStatusColor[status]}`}>
 					{group.sessions.length} {group.sessions.length === 1 ? 'task' : 'tasks'}
 				</span>
 			</button>

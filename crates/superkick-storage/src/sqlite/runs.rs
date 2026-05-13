@@ -51,7 +51,8 @@ impl RunRepo for SqliteRunRepo {
         .bind(budget_grant_json)
         .bind(run.last_heartbeat_at.map(|t| t.to_rfc3339()))
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("insert run {}", run.id.0))?;
         Ok(())
     }
 
@@ -59,14 +60,16 @@ impl RunRepo for SqliteRunRepo {
         let row = sqlx::query_as::<_, RunRow>("SELECT * FROM runs WHERE id = ?1")
             .bind(id.0.to_string())
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .with_context(|| format!("get run {}", id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
     async fn list_all(&self) -> Result<Vec<Run>> {
         let rows = sqlx::query_as::<_, RunRow>("SELECT * FROM runs ORDER BY started_at DESC")
             .fetch_all(&self.pool)
-            .await?;
+            .await
+            .context("list all runs")?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -76,7 +79,8 @@ impl RunRepo for SqliteRunRepo {
         )
         .bind(issue_id)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list runs for issue_id {issue_id}"))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -86,7 +90,8 @@ impl RunRepo for SqliteRunRepo {
         )
         .bind(issue_identifier)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list runs for issue_identifier {issue_identifier}"))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -96,7 +101,8 @@ impl RunRepo for SqliteRunRepo {
         )
         .bind(issue_identifier)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("find active run by issue_identifier {issue_identifier}"))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -123,7 +129,8 @@ impl RunRepo for SqliteRunRepo {
         .bind(run.last_heartbeat_at.map(|t| t.to_rfc3339()))
         .bind(run.id.0.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("update run {}", run.id.0))?;
         Ok(())
     }
 

@@ -12,7 +12,7 @@ import type {
 	SessionPayload
 } from '@/types'
 
-import { resolveProviderLabel } from './labels'
+import { resolveProviderLabel } from './displayLabels'
 
 // Raw terminal streams (agent_output, command_output) are the supporting
 // evidence surface, not the ledger — keep them out of this set.

@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use sqlx::SqlitePool;
 use superkick_core::{
     AgentSessionId, Handoff, HandoffFailure, HandoffId, HandoffKind, HandoffPayload, HandoffResult,
@@ -43,7 +43,8 @@ impl HandoffRepo for SqliteHandoffRepo {
         .bind(h.delivered_at.map(|t| t.to_rfc3339()))
         .bind(h.completed_at.map(|t| t.to_rfc3339()))
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("insert handoff {}", h.id.0))?;
         Ok(())
     }
 
@@ -51,7 +52,8 @@ impl HandoffRepo for SqliteHandoffRepo {
         let row = sqlx::query_as::<_, HandoffRow>("SELECT * FROM handoffs WHERE id = ?1")
             .bind(id.0.to_string())
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .with_context(|| format!("get handoff {}", id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -61,7 +63,8 @@ impl HandoffRepo for SqliteHandoffRepo {
         )
         .bind(run_id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list handoffs for run {}", run_id.0))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -80,7 +83,8 @@ impl HandoffRepo for SqliteHandoffRepo {
         .bind(h.completed_at.map(|t| t.to_rfc3339()))
         .bind(h.id.0.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("update handoff {}", h.id.0))?;
         if result.rows_affected() == 0 {
             return Err(anyhow!("handoff {} not found", h.id.0));
         }

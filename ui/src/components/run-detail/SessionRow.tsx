@@ -3,24 +3,8 @@ import { useState } from 'react'
 import { AttachPanel } from '@/components/run-detail/AttachPanel'
 import { CopyValue } from '@/components/run-detail/CopyValue'
 import { useSessionAttach } from '@/hooks/useSessionAttach'
-import { fmtDuration } from '@/lib/domain'
+import { agentStatusColorPulsing, agentStatusIcon, fmtDuration } from '@/lib/domain'
 import type { AgentSession, AgentStatus, Run } from '@/types'
-
-const statusIcon: Record<AgentStatus, string> = {
-	starting: '\u25cb',
-	running: '\u25cf',
-	completed: '\u2713',
-	failed: '\u2717',
-	cancelled: '\u2014'
-}
-
-const statusColor: Record<AgentStatus, string> = {
-	starting: 'text-dim',
-	running: 'text-cyan live-pulse',
-	completed: 'text-mineral',
-	failed: 'text-oxide',
-	cancelled: 'text-dim'
-}
 
 const ATTACHABLE_STATUSES = new Set<AgentStatus>(['starting', 'running', 'failed'])
 
@@ -50,7 +34,9 @@ export function SessionRow({
 				onClick={() => setExpanded((prev) => !prev)}
 				className="-mx-1 flex w-full items-center gap-3 rounded px-1 text-left transition-colors hover:bg-edge/20"
 			>
-				<span className={`text-sm ${statusColor[session.status]}`}>{statusIcon[session.status]}</span>
+				<span className={`text-sm ${agentStatusColorPulsing[session.status]}`}>
+					{agentStatusIcon[session.status]}
+				</span>
 				<span className="font-data text-[11px] text-dim">{session.status}</span>
 				{session.exit_code !== null ? (
 					<span

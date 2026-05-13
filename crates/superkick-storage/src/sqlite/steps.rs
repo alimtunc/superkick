@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{RunId, RunStep, StepId, StepKey, StepStatus};
 
@@ -33,7 +33,8 @@ impl RunStepRepo for SqliteRunStepRepo {
         .bind(step.output_json.as_ref().map(|v| v.to_string()))
         .bind(&step.error_message)
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("insert run_step {}", step.id.0))?;
         Ok(())
     }
 
@@ -41,7 +42,8 @@ impl RunStepRepo for SqliteRunStepRepo {
         let row = sqlx::query_as::<_, StepRow>("SELECT * FROM run_steps WHERE id = ?1")
             .bind(id.0.to_string())
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .with_context(|| format!("get run_step {}", id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -51,7 +53,8 @@ impl RunStepRepo for SqliteRunStepRepo {
         )
         .bind(run_id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list run_steps for run {}", run_id.0))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -68,7 +71,8 @@ impl RunStepRepo for SqliteRunStepRepo {
         .bind(&step.error_message)
         .bind(step.id.0.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("update run_step {}", step.id.0))?;
         Ok(())
     }
 }

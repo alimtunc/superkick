@@ -35,7 +35,11 @@ impl SqliteLaunchTaskRepo {
 
 impl LaunchTaskRepo for SqliteLaunchTaskRepo {
     async fn insert_with_steps(&self, task: &LaunchTask, steps: &[LaunchTaskStep]) -> Result<()> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .context("begin transaction for insert_with_steps")?;
 
         sqlx::query(
             "INSERT INTO launch_tasks (\
@@ -52,7 +56,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         .bind(task.created_at.to_rfc3339())
         .bind(task.updated_at.to_rfc3339())
         .execute(&mut *tx)
-        .await?;
+        .await
+        .with_context(|| format!("insert launch_task {}", task.id.0))?;
 
         for step in steps {
             sqlx::query(
@@ -82,10 +87,13 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
             .bind(step.created_at.to_rfc3339())
             .bind(step.updated_at.to_rfc3339())
             .execute(&mut *tx)
-            .await?;
+            .await
+            .with_context(|| format!("insert launch_task_step {}", step.id.0))?;
         }
 
-        tx.commit().await?;
+        tx.commit()
+            .await
+            .context("commit transaction for insert_with_steps")?;
         Ok(())
     }
 
@@ -93,7 +101,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         let row = sqlx::query_as::<_, LaunchTaskRow>("SELECT * FROM launch_tasks WHERE id = ?1")
             .bind(id.0.to_string())
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .with_context(|| format!("get launch_task {}", id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -104,7 +113,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         )
         .bind(linear_issue_id)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("get launch_task by linear_issue_id {linear_issue_id}"))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -123,7 +133,11 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
             qb.push_bind(issue.to_string());
         }
         qb.push(" ORDER BY created_at");
-        let rows: Vec<LaunchTaskRow> = qb.build_query_as().fetch_all(&self.pool).await?;
+        let rows: Vec<LaunchTaskRow> = qb
+            .build_query_as()
+            .fetch_all(&self.pool)
+            .await
+            .context("list launch_tasks")?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -133,7 +147,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         )
         .bind(task_id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list launch_task_steps for launch_task {}", task_id.0))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -151,7 +166,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         )
         .bind(run_id.0.to_string())
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("find launch_task_step by linked_run {}", run_id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -160,11 +176,16 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         id: LaunchTaskId,
         new_status: LaunchTaskStatus,
     ) -> Result<()> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .context("begin transaction for update_task_status")?;
         let row = sqlx::query_as::<_, LaunchTaskRow>("SELECT * FROM launch_tasks WHERE id = ?1")
             .bind(id.0.to_string())
             .fetch_optional(&mut *tx)
-            .await?
+            .await
+            .with_context(|| format!("get launch_task {} for status update", id.0))?
             .ok_or_else(|| anyhow!("launch_task {} not found", id.0))?;
         let mut task = row.into_domain()?;
         let old_status = serialize_enum(&task.status)?;
@@ -179,7 +200,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         .bind(id.0.to_string())
         .bind(&old_status)
         .execute(&mut *tx)
-        .await?;
+        .await
+        .with_context(|| format!("update launch_task {} status", id.0))?;
         if result.rows_affected() == 0 {
             return Err(anyhow!(
                 "launch_task {} concurrent state change (no longer at {})",
@@ -187,7 +209,9 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
                 old_status
             ));
         }
-        tx.commit().await?;
+        tx.commit()
+            .await
+            .context("commit transaction for update_task_status")?;
         Ok(())
     }
 
@@ -196,12 +220,17 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         id: LaunchTaskStepId,
         new_status: LaunchTaskStepStatus,
     ) -> Result<()> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .context("begin transaction for update_step_status")?;
         let row =
             sqlx::query_as::<_, LaunchTaskStepRow>("SELECT * FROM launch_task_steps WHERE id = ?1")
                 .bind(id.0.to_string())
                 .fetch_optional(&mut *tx)
-                .await?
+                .await
+                .with_context(|| format!("get launch_task_step {} for status update", id.0))?
                 .ok_or_else(|| anyhow!("launch_task_step {} not found", id.0))?;
         let mut step = row.into_domain()?;
         let old_status = serialize_enum(&step.status)?;
@@ -216,7 +245,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         .bind(id.0.to_string())
         .bind(&old_status)
         .execute(&mut *tx)
-        .await?;
+        .await
+        .with_context(|| format!("update launch_task_step {} status", id.0))?;
         if result.rows_affected() == 0 {
             return Err(anyhow!(
                 "launch_task_step {} concurrent state change (no longer at {})",
@@ -224,7 +254,9 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
                 old_status
             ));
         }
-        tx.commit().await?;
+        tx.commit()
+            .await
+            .context("commit transaction for update_step_status")?;
         Ok(())
     }
 
@@ -236,7 +268,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
                 .bind(now)
                 .bind(id.0.to_string())
                 .execute(&self.pool)
-                .await?;
+                .await
+                .with_context(|| format!("set summary for launch_task_step {}", id.0))?;
         if result.rows_affected() == 0 {
             return Err(anyhow!("launch_task_step {} not found", id.0));
         }
@@ -254,7 +287,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
             sqlx::query_as::<_, LaunchTaskStepRow>("SELECT * FROM launch_task_steps WHERE id = ?1")
                 .bind(id.0.to_string())
                 .fetch_optional(&self.pool)
-                .await?
+                .await
+                .with_context(|| format!("get launch_task_step {} for add_links", id.0))?
                 .ok_or_else(|| anyhow!("launch_task_step {} not found", id.0))?;
         let mut step = row.into_domain()?;
         step.add_links(run_id, conversation_id, orchestrator_session_id);
@@ -273,7 +307,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         .bind(step.updated_at.to_rfc3339())
         .bind(id.0.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("update launch_task_step {} links", id.0))?;
         if result.rows_affected() == 0 {
             return Err(anyhow!("launch_task_step {} not found", id.0));
         }
@@ -285,13 +320,18 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         task_id: LaunchTaskId,
         step_id: Option<LaunchTaskStepId>,
     ) -> Result<()> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .context("begin transaction for set_current_step")?;
 
         let task_exists: Option<(String,)> =
             sqlx::query_as("SELECT id FROM launch_tasks WHERE id = ?1")
                 .bind(task_id.0.to_string())
                 .fetch_optional(&mut *tx)
-                .await?;
+                .await
+                .with_context(|| format!("check launch_task {} exists", task_id.0))?;
         if task_exists.is_none() {
             return Err(anyhow!("launch_task {} not found", task_id.0));
         }
@@ -303,7 +343,13 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
             .bind(step_id.0.to_string())
             .bind(task_id.0.to_string())
             .fetch_optional(&mut *tx)
-            .await?;
+            .await
+            .with_context(|| {
+                format!(
+                    "check launch_task_step {} belongs to task {}",
+                    step_id.0, task_id.0
+                )
+            })?;
             if step_exists.is_none() {
                 return Err(anyhow!(
                     "launch_task_step {} does not belong to launch_task {}",
@@ -318,19 +364,27 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
             .bind(chrono::Utc::now().to_rfc3339())
             .bind(task_id.0.to_string())
             .execute(&mut *tx)
-            .await?;
-        tx.commit().await?;
+            .await
+            .with_context(|| format!("set current_step for launch_task {}", task_id.0))?;
+        tx.commit()
+            .await
+            .context("commit transaction for set_current_step")?;
         Ok(())
     }
 
     async fn begin_retry(&self, task_id: LaunchTaskId, step_id: LaunchTaskStepId) -> Result<()> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .context("begin transaction for begin_retry")?;
 
         let step_row =
             sqlx::query_as::<_, LaunchTaskStepRow>("SELECT * FROM launch_task_steps WHERE id = ?1")
                 .bind(step_id.0.to_string())
                 .fetch_optional(&mut *tx)
-                .await?
+                .await
+                .with_context(|| format!("get launch_task_step {} for begin_retry", step_id.0))?
                 .ok_or_else(|| anyhow!("launch_task_step {} not found", step_id.0))?;
         let mut step = step_row.into_domain()?;
         if step.launch_task_id != task_id {
@@ -348,7 +402,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
             sqlx::query_as::<_, LaunchTaskRow>("SELECT * FROM launch_tasks WHERE id = ?1")
                 .bind(task_id.0.to_string())
                 .fetch_optional(&mut *tx)
-                .await?
+                .await
+                .with_context(|| format!("get launch_task {} for begin_retry", task_id.0))?
                 .ok_or_else(|| anyhow!("launch_task {} not found", task_id.0))?;
         let mut task = task_row.into_domain()?;
         let old_task_status = serialize_enum(&task.status)?;
@@ -364,7 +419,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         .bind(step_id.0.to_string())
         .bind(&old_step_status)
         .execute(&mut *tx)
-        .await?;
+        .await
+        .with_context(|| format!("update launch_task_step {} status (begin_retry)", step_id.0))?;
         if step_result.rows_affected() == 0 {
             return Err(anyhow!(
                 "launch_task_step {} concurrent state change (no longer at {})",
@@ -382,7 +438,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         .bind(task_id.0.to_string())
         .bind(&old_task_status)
         .execute(&mut *tx)
-        .await?;
+        .await
+        .with_context(|| format!("update launch_task {} status (begin_retry)", task_id.0))?;
         if task_result.rows_affected() == 0 {
             return Err(anyhow!(
                 "launch_task {} concurrent state change (no longer at {})",
@@ -396,9 +453,17 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
             .bind(chrono::Utc::now().to_rfc3339())
             .bind(task_id.0.to_string())
             .execute(&mut *tx)
-            .await?;
+            .await
+            .with_context(|| {
+                format!(
+                    "set current_step for launch_task {} (begin_retry)",
+                    task_id.0
+                )
+            })?;
 
-        tx.commit().await?;
+        tx.commit()
+            .await
+            .context("commit transaction for begin_retry")?;
         Ok(())
     }
 }

@@ -1,3 +1,5 @@
+import { DEFAULT_LABEL_COLOR } from '@/lib/issueLabels'
+
 export function FilterDropdownLabelsSubMenu({
 	allLabels,
 	labelColors,
@@ -33,7 +35,7 @@ export function FilterDropdownLabelsSubMenu({
 			</div>
 			<div className="max-h-64 overflow-y-auto py-1">
 				{filtered.map((label) => {
-					const color = labelColors.get(label) ?? '#6b7280'
+					const color = labelColors.get(label) ?? DEFAULT_LABEL_COLOR
 					const isActive = activeLabels.has(label)
 					const count = labelCounts.get(label) ?? 0
 					return (

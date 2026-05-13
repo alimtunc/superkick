@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{PrState, PullRequest, PullRequestId, RunId};
 
@@ -39,7 +39,8 @@ impl PullRequestRepo for SqlitePullRequestRepo {
         .bind(pr.updated_at.to_rfc3339())
         .bind(pr.merged_at.map(|t| t.to_rfc3339()))
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("upsert pull_request {} for run {}", pr.id.0, pr.run_id.0))?;
         Ok(())
     }
 
@@ -48,7 +49,8 @@ impl PullRequestRepo for SqlitePullRequestRepo {
             sqlx::query_as::<_, PullRequestRow>("SELECT * FROM pull_requests WHERE run_id = ?1")
                 .bind(run_id.0.to_string())
                 .fetch_optional(&self.pool)
-                .await?;
+                .await
+                .with_context(|| format!("get pull_request for run {}", run_id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -63,7 +65,8 @@ impl PullRequestRepo for SqlitePullRequestRepo {
         .bind(pr.merged_at.map(|t| t.to_rfc3339()))
         .bind(pr.id.0.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("update pull_request {}", pr.id.0))?;
         Ok(())
     }
 }

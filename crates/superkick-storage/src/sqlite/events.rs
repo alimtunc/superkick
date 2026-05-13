@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{EventId, EventKind, EventLevel, RunEvent, RunId, StepId};
 
@@ -30,7 +30,8 @@ impl RunEventRepo for SqliteRunEventRepo {
         .bind(&event.message)
         .bind(event.payload_json.as_ref().map(|v| v.to_string()))
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("insert run_event {}", event.id.0))?;
         Ok(())
     }
 
@@ -38,7 +39,8 @@ impl RunEventRepo for SqliteRunEventRepo {
         let row = sqlx::query_as::<_, EventRow>("SELECT * FROM run_events WHERE id = ?1")
             .bind(id.0.to_string())
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .with_context(|| format!("get run_event {}", id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -47,7 +49,8 @@ impl RunEventRepo for SqliteRunEventRepo {
             sqlx::query_as::<_, EventRow>("SELECT * FROM run_events WHERE run_id = ?1 ORDER BY ts")
                 .bind(run_id.0.to_string())
                 .fetch_all(&self.pool)
-                .await?;
+                .await
+                .with_context(|| format!("list run_events for run {}", run_id.0))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -58,7 +61,13 @@ impl RunEventRepo for SqliteRunEventRepo {
         .bind(run_id.0.to_string())
         .bind(offset as i64)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| {
+            format!(
+                "list run_events for run {} from offset {}",
+                run_id.0, offset
+            )
+        })?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 }

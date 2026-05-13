@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button'
 import {
 	fmtElapsed,
 	healthSignal,
+	healthSignalBg,
 	stepLabel,
 	stateIcon,
 	watchButtonClass,
@@ -11,12 +12,6 @@ import { useWatchedSessionsStore } from '@/stores/watchedSessions'
 import type { Run } from '@/types'
 import { Link } from '@tanstack/react-router'
 
-const healthBarColor = {
-	critical: 'bg-oxide',
-	warning: 'bg-gold',
-	ok: 'bg-mineral'
-} as const
-
 export function BoardCard({ run, refTime }: { run: Run; refTime: number }) {
 	const sig = healthSignal(run, refTime)
 	const { isWatched, toggleWatch, maxReached } = useWatchedSessionsStore()
@@ -24,7 +19,7 @@ export function BoardCard({ run, refTime }: { run: Run; refTime: number }) {
 
 	return (
 		<div className="group flex items-start gap-2.5 px-3 py-2.5 transition-colors hover:bg-slate-deep/50">
-			<span className={`status-bar mt-0.5 h-8 ${healthBarColor[sig]}`} />
+			<span className={`status-bar mt-0.5 h-8 ${healthSignalBg[sig]}`} />
 			<Link to="/runs/$runId" params={{ runId: run.id }} className="min-w-0 flex-1">
 				<div className="flex items-center justify-between">
 					<span className="font-data text-[12px] font-medium text-fog transition-colors group-hover:text-neon-green">

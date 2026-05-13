@@ -1,10 +1,8 @@
 import type { ReactNode } from 'react'
 
+import type { ActivityNodeKind, ActivityNodeRole } from '@/types'
 import { Bot, Check, FileText, Flag, GitCommit, GitPullRequest, User, Zap } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-
-export type ActivityNodeKind = 'agent' | 'user' | 'commit' | 'check' | 'flag' | 'system' | 'pr'
-export type ActivityNodeRole = 'neutral' | 'accent' | 'success' | 'warn' | 'danger' | 'info'
 
 interface ActivityNodeProps {
 	kind: ActivityNodeKind

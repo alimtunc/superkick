@@ -2,6 +2,7 @@ import { FilterPill } from '@/components/issues/FilterPill'
 import { PriorityIcon } from '@/components/issues/PriorityIcon'
 import { RemovablePill } from '@/components/issues/RemovablePill'
 import { PRIORITY_META } from '@/lib/domain/priorityMeta'
+import { DEFAULT_LABEL_COLOR } from '@/lib/issueLabels'
 
 export function ActiveFiltersBar({
 	activeLabels,
@@ -63,7 +64,7 @@ export function ActiveFiltersBar({
 				<FilterPill>
 					<span className="font-data text-[11px] text-dim">Labels is</span>
 					{[...activeLabels].map((name) => {
-						const color = labelColors.get(name) ?? '#6b7280'
+						const color = labelColors.get(name) ?? DEFAULT_LABEL_COLOR
 						return (
 							<span
 								key={name}

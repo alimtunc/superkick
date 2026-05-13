@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use sqlx::SqlitePool;
 use superkick_core::{
     AttentionKind, AttentionReply, AttentionRequest, AttentionRequestId, AttentionStatus, RunId,
@@ -46,7 +46,8 @@ impl AttentionRequestRepo for SqliteAttentionRequestRepo {
         .bind(request.created_at.to_rfc3339())
         .bind(request.replied_at.map(|t| t.to_rfc3339()))
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("insert attention_request {}", request.id.0))?;
         Ok(())
     }
 
@@ -55,7 +56,8 @@ impl AttentionRequestRepo for SqliteAttentionRequestRepo {
             sqlx::query_as::<_, AttentionRow>("SELECT * FROM attention_requests WHERE id = ?1")
                 .bind(id.0.to_string())
                 .fetch_optional(&self.pool)
-                .await?;
+                .await
+                .with_context(|| format!("get attention_request {}", id.0))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
@@ -65,7 +67,8 @@ impl AttentionRequestRepo for SqliteAttentionRequestRepo {
         )
         .bind(run_id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list attention_requests for run {}", run_id.0))?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -86,7 +89,8 @@ impl AttentionRequestRepo for SqliteAttentionRequestRepo {
         .bind(request.replied_at.map(|t| t.to_rfc3339()))
         .bind(request.id.0.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("update attention_request {}", request.id.0))?;
         if result.rows_affected() == 0 {
             return Err(anyhow!("attention request {} not found", request.id.0));
         }

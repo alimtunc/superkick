@@ -83,20 +83,17 @@ export function PtyTerminal({ runId, isTerminal, wsUrl, loadHistoryOnTerminal = 
 		if (!containerRef.current) return null
 
 		const styles = getComputedStyle(document.documentElement)
-		const readToken = (name: string, fallback: string): string => {
-			const value = styles.getPropertyValue(name).trim()
-			return value || fallback
-		}
+		const readToken = (name: string): string => styles.getPropertyValue(name).trim()
 
 		const terminal = new Terminal({
 			cursorBlink: true,
 			fontSize: 12,
 			fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
 			theme: {
-				background: readToken('--color-carbon', '#111214'),
-				foreground: readToken('--color-silver', '#b0ada6'),
-				cursor: readToken('--color-silver', '#b0ada6'),
-				selectionBackground: readToken('--color-slate-deep', '#1f2228')
+				background: readToken('--color-carbon'),
+				foreground: readToken('--color-silver'),
+				cursor: readToken('--color-silver'),
+				selectionBackground: readToken('--color-slate-deep')
 			},
 			scrollback: 10000,
 			convertEol: true

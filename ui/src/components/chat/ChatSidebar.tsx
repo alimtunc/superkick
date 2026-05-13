@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/state-empty'
 import { LoadingState } from '@/components/ui/state-loading'
 import { useNow } from '@/hooks/useNow'
-import { deriveConversationUxState } from '@/lib/domain'
+import { deriveConversationUxState, fmtRelativeShort } from '@/lib/domain'
 import { cn } from '@/lib/utils'
 import type { ConversationSummary, ConversationUxState } from '@/types'
 import { MessagesSquare, Plus } from 'lucide-react'
@@ -31,23 +31,6 @@ function truncate(text: string, max = MAX_TITLE_CHARS): string {
 	const trimmed = text.replaceAll(/\s+/g, ' ').trim()
 	if (trimmed.length <= max) return trimmed
 	return `${trimmed.slice(0, max - 1)}…`
-}
-
-function relativeTimeLabel(now: number, stamp: string): string {
-	const t = Date.parse(stamp)
-	if (Number.isNaN(t)) return ''
-	const delta = Math.max(0, now - t)
-	const sec = Math.floor(delta / 1000)
-	if (sec < 60) return `${sec}s`
-	const min = Math.floor(sec / 60)
-	if (min < 60) return `${min}m`
-	const hr = Math.floor(min / 60)
-	if (hr < 24) return `${hr}h`
-	const day = Math.floor(hr / 24)
-	if (day < 7) return `${day}d`
-	const weeks = Math.floor(day / 7)
-	if (weeks < 5) return `${weeks}w`
-	return new Date(t).toISOString().slice(0, 10)
 }
 
 function conversationTimestamp(conversation: ConversationSummary): string {
@@ -104,7 +87,7 @@ export function ChatSidebar({
 									{conversationTitle(conversation)}
 								</span>
 								<span className="font-data shrink-0 text-[10px] text-dim">
-									{relativeTimeLabel(now, conversationTimestamp(conversation))}
+									{fmtRelativeShort(conversationTimestamp(conversation), now)}
 								</span>
 							</div>
 							<div className="flex items-center justify-between gap-2">

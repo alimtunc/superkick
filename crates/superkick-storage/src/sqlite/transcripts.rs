@@ -1,6 +1,6 @@
 //! SQLite repository for durable terminal transcript chunks.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{RunId, TranscriptChunk, TranscriptChunkId};
 
@@ -28,7 +28,8 @@ impl TranscriptRepo for SqliteTranscriptRepo {
         .bind(chunk.ts.to_rfc3339())
         .bind(&chunk.payload)
         .execute(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("insert transcript chunk {}", chunk.id.0))?;
         Ok(())
     }
 
@@ -38,7 +39,8 @@ impl TranscriptRepo for SqliteTranscriptRepo {
         )
         .bind(run_id.0.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .with_context(|| format!("list transcripts for run {}", run_id.0))?;
         rows.into_iter().map(|row| row.into_domain()).collect()
     }
 }

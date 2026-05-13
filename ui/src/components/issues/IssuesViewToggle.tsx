@@ -1,6 +1,6 @@
 import { Kanban, List } from 'lucide-react'
 
-export type IssuesViewMode = 'list' | 'kanban'
+type IssuesViewMode = 'list' | 'kanban'
 
 interface IssuesViewToggleProps {
 	value: IssuesViewMode

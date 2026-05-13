@@ -5,10 +5,13 @@ export {
 	elapsedMs,
 	fmtElapsed,
 	fmtRelativeTime,
-	fmtSecondsCompact
+	fmtRelativeShort,
+	fmtSecondsCompact,
+	fmtSecondsVerbose
 } from './formatters'
-export { providerLabel, resolveProviderLabel, stepLabel, stateIcon, stateTone } from './labels'
-export { healthSignal, shouldShowInterrupts } from './health'
+export { providerLabel, resolveProviderLabel, stepLabel, stateIcon, stateTone } from './displayLabels'
+export { agentStatusIcon, agentStatusColor, agentStatusColorPulsing } from './agentStatus'
+export { healthSignal, healthSignalBg, shouldShowInterrupts } from './health'
 export { extractFormError, parseAnswer } from './parsers'
 export { watchButtonClass, watchButtonTitle } from './watch'
 export { classifyRuns } from './classify'

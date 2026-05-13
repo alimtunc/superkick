@@ -10,7 +10,7 @@ import { useLocation } from '@tanstack/react-router'
 import { FileDiff, FolderOpen, Terminal, Wrench } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
-export type WorkspaceTabId = 'changes' | 'shell' | 'tools' | 'context'
+type WorkspaceTabId = 'changes' | 'shell' | 'tools' | 'context'
 
 function tabFromHash(hash: string): WorkspaceTabId | null {
 	const stripped = hash.replace(/^#/, '')

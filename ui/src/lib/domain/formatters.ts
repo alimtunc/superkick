@@ -44,11 +44,6 @@ export function fmtElapsed(startedAt: string, refTime: number): string {
 	return `${h}h ${min % 60}m`
 }
 
-/**
- * Compact second-precision duration for inline annotations (SUP-73 stalled
- * badge). Sub-minute as `Ns`, sub-hour as `Nm`, otherwise `NhMm` (omitting
- * the `Mm` part when zero).
- */
 export function fmtSecondsCompact(seconds: number): string {
 	if (seconds < 60) return `${seconds}s`
 	if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
@@ -57,13 +52,23 @@ export function fmtSecondsCompact(seconds: number): string {
 	return minutes === 0 ? `${hours}h` : `${hours}h${minutes}m`
 }
 
-/**
- * Render a relative-time label like `2m ago`. Accepts ms-since-epoch, an
- * ISO/string the `Date` constructor understands, or a `Date` directly so
- * callers don't have to round-trip through `toISOString()`. Pass an explicit
- * `refTime` to keep the result stable across re-renders (avoids the implicit
- * `Date.now()` that fights TanStack Query / React Compiler memoisation).
- */
+export function fmtSecondsVerbose(seconds: number): string {
+	if (seconds < 60) return `${Math.round(seconds)}s`
+	if (seconds < 3600) {
+		const m = Math.floor(seconds / 60)
+		const s = Math.round(seconds % 60)
+		return s === 0 ? `${m}m` : `${m}m ${s}s`
+	}
+	if (seconds < 86_400) {
+		const h = Math.floor(seconds / 3600)
+		const m = Math.floor((seconds % 3600) / 60)
+		return m === 0 ? `${h}h` : `${h}h ${m}m`
+	}
+	const d = Math.floor(seconds / 86_400)
+	const h = Math.floor((seconds % 86_400) / 3600)
+	return h === 0 ? `${d}d` : `${d}d ${h}h`
+}
+
 export function fmtRelativeTime(value: number | string | Date, refTime: number = Date.now()): string {
 	const ts =
 		value instanceof Date
@@ -81,4 +86,26 @@ export function fmtRelativeTime(value: number | string | Date, refTime: number =
 	const d = Math.floor(h / 24)
 	if (d < 30) return `${d}d ago`
 	return new Date(ts).toLocaleDateString()
+}
+
+export function fmtRelativeShort(value: number | string | Date, refTime: number = Date.now()): string {
+	const ts =
+		value instanceof Date
+			? value.getTime()
+			: typeof value === 'number'
+				? value
+				: new Date(value).getTime()
+	if (Number.isNaN(ts)) return ''
+	const diff = Math.max(0, refTime - ts)
+	const sec = Math.floor(diff / 1000)
+	if (sec < 60) return `${sec}s`
+	const min = Math.floor(sec / 60)
+	if (min < 60) return `${min}m`
+	const hr = Math.floor(min / 60)
+	if (hr < 24) return `${hr}h`
+	const day = Math.floor(hr / 24)
+	if (day < 7) return `${day}d`
+	const weeks = Math.floor(day / 7)
+	if (weeks < 5) return `${weeks}w`
+	return new Date(ts).toISOString().slice(0, 10)
 }
