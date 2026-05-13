@@ -26,9 +26,11 @@ export function IssuesKanbanView({
 	const groups = useMemo(() => groupItemsByIssueState(queueItems), [queueItems])
 
 	return (
-		<div className="flex flex-col gap-4">
-			<CapacityBanner capacity={activeCapacity} generatedAt={generatedAt} />
-			<div className="flex gap-3 overflow-x-auto pb-2">
+		<div className="flex min-h-0 flex-1 flex-col">
+			<div className="px-6 pb-3">
+				<CapacityBanner capacity={activeCapacity} generatedAt={generatedAt} />
+			</div>
+			<div className="flex min-h-0 flex-1 items-stretch overflow-x-auto border-t border-border">
 				{ISSUE_STATE_ORDER.map((state) => (
 					<KanbanColumn
 						key={state}

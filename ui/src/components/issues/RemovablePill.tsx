@@ -12,7 +12,7 @@ export function RemovablePill({ onRemove, children }: { onRemove: () => void; ch
 				<button
 					type="button"
 					onClick={onRemove}
-					className="-mr-1 inline-flex h-4 w-4 cursor-pointer items-center justify-center rounded text-dim transition-colors hover:bg-edge hover:text-silver focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
+					className="-mr-1 inline-flex h-4 w-4 cursor-pointer items-center justify-center rounded text-fg-dim transition-colors hover:bg-border hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
 					aria-label="Remove"
 				>
 					<X size={11} strokeWidth={2} aria-hidden="true" />

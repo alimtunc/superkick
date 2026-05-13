@@ -1,5 +1,4 @@
 import { ActiveFiltersBar } from '@/components/issues/ActiveFiltersBar'
-import { FilterDropdown } from '@/components/issues/FilterDropdown'
 import { IssueFilters } from '@/components/issues/IssueFilters'
 import { SearchBar } from '@/components/issues/SearchBar'
 import { StatusBar } from '@/components/issues/StatusBar'
@@ -14,28 +13,19 @@ interface IssuesToolbarStateFilter {
 	onSelect: (next: IssueStateFilter) => void
 }
 
-interface IssuesToolbarDerivations {
-	allLabels: string[]
-	labelColors: Map<string, string>
-	labelCounts: Map<string, number>
-	allProjects: string[]
-}
-
 interface IssuesToolbarProps {
 	stateFilter: IssuesToolbarStateFilter
 	filters: IssueFiltersState
-	derivations: IssuesToolbarDerivations
+	labelColors: Map<string, string>
 }
 
-export function IssuesToolbar({ stateFilter, filters, derivations }: IssuesToolbarProps) {
-	const hasActiveFilters =
-		filters.activeLabels.size > 0 || filters.activeProject !== null || filters.activePriorities.size > 0
-
+export function IssuesToolbar({ stateFilter, filters, labelColors }: IssuesToolbarProps) {
 	return (
-		<div className="flex flex-col gap-4">
-			<StatusBar counts={stateFilter.counts} total={stateFilter.total} />
-
+		<div className="flex flex-col gap-3 px-6 py-3">
 			<div className="flex flex-wrap items-center gap-3">
+				<div className="min-w-64 flex-1">
+					<SearchBar value={filters.search} onChange={filters.setSearch} />
+				</div>
 				{stateFilter.show ? (
 					<IssueFilters
 						activeIssueState={stateFilter.active}
@@ -44,26 +34,13 @@ export function IssuesToolbar({ stateFilter, filters, derivations }: IssuesToolb
 						onSelect={stateFilter.onSelect}
 					/>
 				) : null}
-				<div className="ml-auto">
-					<FilterDropdown
-						allLabels={derivations.allLabels}
-						labelColors={derivations.labelColors}
-						labelCounts={derivations.labelCounts}
-						activeLabels={filters.activeLabels}
-						onToggleLabel={filters.toggleLabel}
-						allProjects={derivations.allProjects}
-						activeProject={filters.activeProject}
-						onSelectProject={filters.setActiveProject}
-						activePriorities={filters.activePriorities}
-						onTogglePriority={filters.togglePriority}
-						hasActiveFilters={hasActiveFilters}
-					/>
-				</div>
 			</div>
+
+			<StatusBar counts={stateFilter.counts} total={stateFilter.total} />
 
 			<ActiveFiltersBar
 				activeLabels={filters.activeLabels}
-				labelColors={derivations.labelColors}
+				labelColors={labelColors}
 				onToggleLabel={filters.toggleLabel}
 				activeProject={filters.activeProject}
 				onClearProject={() => filters.setActiveProject(null)}
@@ -71,8 +48,6 @@ export function IssuesToolbar({ stateFilter, filters, derivations }: IssuesToolb
 				onTogglePriority={filters.togglePriority}
 				onClearAll={filters.clearAllFilters}
 			/>
-
-			<SearchBar value={filters.search} onChange={filters.setSearch} />
 		</div>
 	)
 }

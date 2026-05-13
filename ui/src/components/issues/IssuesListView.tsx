@@ -1,10 +1,8 @@
 import { useState } from 'react'
 
-import { SectionTitle } from '@/components/dashboard/SectionTitle'
 import { IssueListRow } from '@/components/issues/IssueListRow'
+import { IssuesListColumnHeader } from '@/components/issues/IssuesListColumnHeader'
 import { EmptyState } from '@/components/ui/state-empty'
-import { useNow } from '@/hooks/useNow'
-import { issueStateAccent } from '@/lib/domain'
 import type {
 	GroupedIssues,
 	IssueGroup,
@@ -31,8 +29,6 @@ export function IssuesListView({
 	grouped,
 	activeIssueState
 }: IssuesListViewProps) {
-	const refTime = useNow()
-
 	const queueItemByIdentifier = new Map<string, LaunchQueueItem>()
 	for (const item of queueItems) {
 		if (item.kind === 'issue') queueItemByIdentifier.set(item.issue.identifier, item)
@@ -42,95 +38,90 @@ export function IssuesListView({
 	const stateByIssueId = new Map<string, IssueState>()
 	for (const item of allIssues) stateByIssueId.set(item.issue.id, item.state)
 
-	const sectionLabel = activeIssueState === 'all' ? 'All' : issueStateAccent[activeIssueState].label
+	const filterLabel = activeIssueState === 'all' ? 'all' : activeIssueState.replace('_', ' ')
 
 	return (
-		<section>
-			<SectionTitle title={sectionLabel} count={filteredIssues.length} />
+		<section className="flex flex-1 flex-col">
+			<IssuesListColumnHeader />
 			{filteredIssues.length > 0 ? (
-				<div className="space-y-0.5">
+				<div>
 					{grouped.groups.map((group) => (
-						<IssueListGroupCard
+						<IssueListGroup
 							key={group.parent.id}
 							group={group}
 							stateByIssueId={stateByIssueId}
 							queueItemByIdentifier={queueItemByIdentifier}
-							refTime={refTime}
 						/>
 					))}
 					{grouped.standalone.map((issue) => (
-						<div key={issue.id}>
-							<IssueListRowFromState
-								issue={issue}
-								indent={false}
-								stateByIssueId={stateByIssueId}
-								queueItemByIdentifier={queueItemByIdentifier}
-								refTime={refTime}
-							/>
-						</div>
+						<IndentedRow
+							key={issue.id}
+							issue={issue}
+							indent="standalone"
+							stateByIssueId={stateByIssueId}
+							queueItemByIdentifier={queueItemByIdentifier}
+						/>
 					))}
 				</div>
 			) : (
-				<EmptyState
-					icon={Inbox}
-					title={`No ${sectionLabel.toLowerCase()} issues`}
-					description="Try a different filter or wait for Linear to sync."
-				/>
+				<div className="px-6 py-12">
+					<EmptyState
+						icon={Inbox}
+						title={`No ${filterLabel} issues`}
+						description="Try a different filter or wait for Linear to sync."
+					/>
+				</div>
 			)}
 		</section>
 	)
 }
 
-interface IssueListRowFromStateProps {
-	issue: LinearIssueListItem
-	indent: boolean
-	stateByIssueId: ReadonlyMap<string, IssueState>
-	queueItemByIdentifier: ReadonlyMap<string, LaunchQueueItem>
-	refTime: number
+type RowIndent = 'standalone' | 'child'
+
+const INDENT_CLASS: Record<RowIndent, string> = {
+	standalone: 'w-6 shrink-0',
+	child: 'w-12 shrink-0'
 }
 
-function IssueListRowFromState({
-	issue,
-	indent,
-	stateByIssueId,
-	queueItemByIdentifier,
-	refTime
-}: IssueListRowFromStateProps) {
+interface IndentedRowProps {
+	issue: LinearIssueListItem
+	indent: RowIndent
+	stateByIssueId: ReadonlyMap<string, IssueState>
+	queueItemByIdentifier: ReadonlyMap<string, LaunchQueueItem>
+}
+
+function IndentedRow({ issue, indent, stateByIssueId, queueItemByIdentifier }: IndentedRowProps) {
 	const state = stateByIssueId.get(issue.id) ?? 'todo'
 	return (
-		<IssueListRow
-			issue={issue}
-			state={state}
-			queueItem={queueItemByIdentifier.get(issue.identifier)}
-			indent={indent}
-			refTime={refTime}
-		/>
+		<div className="flex items-stretch border-b border-border">
+			<span className={INDENT_CLASS[indent]} aria-hidden="true" />
+			<IssueListRow
+				issue={issue}
+				state={state}
+				queueItem={queueItemByIdentifier.get(issue.identifier)}
+			/>
+		</div>
 	)
 }
 
-interface IssueListGroupCardProps {
+interface IssueListGroupProps {
 	group: IssueGroup
 	stateByIssueId: ReadonlyMap<string, IssueState>
 	queueItemByIdentifier: ReadonlyMap<string, LaunchQueueItem>
-	refTime: number
 }
 
-function IssueListGroupCard({
-	group,
-	stateByIssueId,
-	queueItemByIdentifier,
-	refTime
-}: IssueListGroupCardProps) {
+function IssueListGroup({ group, stateByIssueId, queueItemByIdentifier }: IssueListGroupProps) {
 	const [expanded, setExpanded] = useState(true)
 	const childCount = group.children.length
+	const parentState = stateByIssueId.get(group.parent.id) ?? 'todo'
 
 	return (
 		<div>
-			<div className="flex items-center">
+			<div className="flex items-stretch border-b border-border">
 				<button
 					type="button"
 					onClick={() => setExpanded((value) => !value)}
-					className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-ash transition-colors hover:bg-slate-deep/50 hover:text-silver focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
+					className="flex w-6 shrink-0 cursor-pointer items-center justify-center text-fg-dim transition-colors hover:bg-raised hover:text-fg focus-visible:bg-raised focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
 					title={expanded ? 'Collapse sub-issues' : `Show ${childCount} sub-issues`}
 					aria-expanded={expanded}
 					aria-label={expanded ? 'Collapse sub-issues' : `Show ${childCount} sub-issues`}
@@ -141,36 +132,34 @@ function IssueListGroupCard({
 						<ChevronRight size={14} strokeWidth={1.75} aria-hidden="true" />
 					)}
 				</button>
-				<div className="min-w-0 flex-1">
-					<IssueListRowFromState
-						issue={group.parent}
-						indent={false}
-						stateByIssueId={stateByIssueId}
-						queueItemByIdentifier={queueItemByIdentifier}
-						refTime={refTime}
-					/>
-				</div>
+				<IssueListRow
+					issue={group.parent}
+					state={parentState}
+					queueItem={queueItemByIdentifier.get(group.parent.identifier)}
+				/>
 			</div>
 
 			{expanded ? (
-				<div className="ml-7">
+				<div className="relative">
+					<span
+						aria-hidden="true"
+						className="pointer-events-none absolute top-0 bottom-0 left-3 w-px bg-border-strong"
+					/>
 					{group.children.map((child) => (
-						<div key={child.id}>
-							<IssueListRowFromState
-								issue={child}
-								indent
-								stateByIssueId={stateByIssueId}
-								queueItemByIdentifier={queueItemByIdentifier}
-								refTime={refTime}
-							/>
-						</div>
+						<IndentedRow
+							key={child.id}
+							issue={child}
+							indent="child"
+							stateByIssueId={stateByIssueId}
+							queueItemByIdentifier={queueItemByIdentifier}
+						/>
 					))}
 				</div>
 			) : (
 				<button
 					type="button"
 					onClick={() => setExpanded(true)}
-					className="font-data ml-14 cursor-pointer rounded py-1 text-[10px] text-ash transition-colors hover:text-silver focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
+					className="cursor-pointer border-b border-border py-1.5 pl-12 text-left font-mono text-[11px] text-fg-dim transition-colors hover:text-fg focus-visible:bg-raised focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
 				>
 					{childCount} sub-issue{childCount > 1 ? 's' : ''} hidden
 				</button>

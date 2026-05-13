@@ -25,12 +25,12 @@ export function FilterDropdownPrioritySubMenu({
 						key={value}
 						onClick={() => onToggle(value)}
 						closeOnClick={false}
-						className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-left transition-colors hover:bg-white/5 ${
-							isActive ? 'bg-white/3' : ''
+						className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-left transition-colors hover:bg-raised ${
+							isActive ? 'bg-raised' : ''
 						}`}
 					>
 						<PriorityIcon value={value} />
-						<span className="font-data flex-1 text-[12px] text-silver">{label}</span>
+						<span className="flex-1 font-mono text-[12px] text-fg-muted">{label}</span>
 					</Menu.Item>
 				)
 			})}

@@ -54,22 +54,23 @@ export function FilterDropdown({
 	return (
 		<Menu.Root open={open} onOpenChange={handleOpenChange} modal={false}>
 			<Menu.Trigger
-				className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border transition-colors ${
+				className={`inline-flex h-[26px] cursor-pointer items-center gap-[7px] rounded-[7px] border bg-transparent px-[10px] text-[12.5px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none ${
 					hasActiveFilters || open
-						? 'border-edge-bright text-silver'
-						: 'border-edge text-dim hover:border-edge-bright hover:text-silver'
+						? 'border-border-strong text-fg'
+						: 'border-transparent text-fg-muted hover:bg-raised hover:text-fg'
 				}`}
 				title="Add filter"
 				aria-label="Add filter"
 			>
-				<Filter size={14} aria-hidden="true" />
+				<Filter size={14} strokeWidth={1.75} aria-hidden="true" />
+				Filters
 			</Menu.Trigger>
 
 			<Menu.Portal>
 				<Menu.Positioner sideOffset={4} align="end" className="z-50">
 					<Menu.Popup className="flex items-start gap-1 bg-transparent outline-none">
 						{activeCategory ? (
-							<div className="w-56 rounded-lg border border-edge bg-carbon shadow-xl">
+							<div className="w-56 rounded-lg border border-border bg-surface shadow-xl">
 								{activeCategory === 'priority' ? (
 									<FilterDropdownPrioritySubMenu
 										activePriorities={activePriorities}
@@ -97,9 +98,9 @@ export function FilterDropdown({
 							</div>
 						) : null}
 
-						<div className="w-48 rounded-lg border border-edge bg-carbon shadow-xl">
-							<div className="border-b border-edge px-3 py-2">
-								<span className="font-data text-[12px] text-dim">Add Filter&hellip;</span>
+						<div className="w-48 rounded-lg border border-border bg-surface shadow-xl">
+							<div className="border-b border-border px-3 py-2">
+								<span className="font-mono text-[12px] text-fg-dim">Add Filter&hellip;</span>
 							</div>
 							<div className="py-1">
 								<FilterDropdownCategoryRow
@@ -115,8 +116,8 @@ export function FilterDropdown({
 								/>
 								<FilterDropdownCategoryRow
 									icon={
-										<span className="flex size-3.5 items-center justify-center rounded border border-dim">
-											<span className="inline-block size-1.5 rounded-full bg-dim" />
+										<span className="flex size-3.5 items-center justify-center rounded border border-fg-dim">
+											<span className="inline-block size-1.5 rounded-full bg-fg-dim" />
 										</span>
 									}
 									label="Labels"
@@ -130,7 +131,7 @@ export function FilterDropdown({
 									}}
 								/>
 								<FilterDropdownCategoryRow
-									icon={<Clock size={14} strokeWidth={1.75} className="text-dim" />}
+									icon={<Clock size={14} strokeWidth={1.75} className="text-fg-dim" />}
 									label="Project"
 									active={activeCategory === 'project'}
 									hasValue={activeProject !== null}

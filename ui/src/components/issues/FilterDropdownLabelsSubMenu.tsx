@@ -24,14 +24,14 @@ export function FilterDropdownLabelsSubMenu({
 
 	return (
 		<>
-			<div className="border-b border-edge px-3 py-2">
+			<div className="border-b border-border px-3 py-2">
 				<input
 					type="text"
 					value={search}
 					onChange={(e) => onSearchChange(e.target.value)}
 					onKeyDown={(e) => e.stopPropagation()}
 					placeholder="Filter..."
-					className="font-data w-full bg-transparent text-[12px] text-silver outline-none placeholder:text-dim"
+					className="w-full bg-transparent font-mono text-[12px] text-fg-muted outline-none placeholder:text-fg-dim"
 				/>
 			</div>
 			<div className="max-h-64 overflow-y-auto py-1">
@@ -44,21 +44,21 @@ export function FilterDropdownLabelsSubMenu({
 							key={label}
 							onClick={() => onToggle(label)}
 							closeOnClick={false}
-							className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-left transition-colors hover:bg-white/5 ${
-								isActive ? 'bg-white/3' : ''
+							className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-left transition-colors hover:bg-raised ${
+								isActive ? 'bg-raised' : ''
 							}`}
 						>
 							<span
 								className="inline-block size-2.5 shrink-0 rounded-full"
 								style={{ backgroundColor: color }}
 							/>
-							<span className="font-data flex-1 text-[12px] text-silver">{label}</span>
-							<span className="font-data text-[11px] text-dim">{count}</span>
+							<span className="flex-1 font-mono text-[12px] text-fg-muted">{label}</span>
+							<span className="font-mono text-[11px] text-fg-dim">{count}</span>
 						</Menu.Item>
 					)
 				})}
 				{filtered.length === 0 ? (
-					<p className="font-data px-3 py-2 text-[11px] text-dim">No labels found.</p>
+					<p className="px-3 py-2 font-mono text-[11px] text-fg-dim">No labels found.</p>
 				) : null}
 			</div>
 		</>
