@@ -3,50 +3,23 @@ import { useCallback, useMemo } from 'react'
 import { cancelTurn, createTurn } from '@/api'
 import { conversationDetailQuery } from '@/lib/queries'
 import { queryKeys } from '@/lib/queryKeys'
-import type { ChatPermissionMode, Conversation, ConversationDetail, Turn } from '@/types'
+import type { ChatPermissionMode, Turn } from '@/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-export interface SendTurnOptions {
+interface SendTurnOptions {
 	mode?: ChatPermissionMode
 	model?: string
 }
 
-export interface UseConversationViewResult {
-	conversation: Conversation | null
-	turns: Turn[]
-	detail: ConversationDetail | null
-	loading: boolean
-	error: string | null
-	activeTurnId: string | null
-	send: (userText: string, options?: SendTurnOptions) => Promise<void>
-	sending: boolean
-	sendError: string | null
-	cancelActiveTurn: () => Promise<void>
-	cancelling: boolean
-	refetch: () => void
-	syncDetail: () => void
-}
-
 interface UseConversationViewArgs {
 	conversationId: string | null
-	/**
-	 * Sidebar list cache key to invalidate after sending a turn so the
-	 * "recent activity" sort updates without a manual refetch.
-	 */
 	listKey?: readonly unknown[]
 }
 
-// Stable empty-turns reference so downstream `useMemo([turns])` consumers
-// don't re-run on every render while the detail query is loading.
+// Stable empty ref to avoid downstream rerenders while detail query is loading.
 const EMPTY_TURNS: Turn[] = []
 
-/**
- * View a single conversation by id. Distinct from `useConversationsList`
- * (which feeds the sidebar) and from the old `useConversation` hook (which
- * also created on demand — SUP-107 split that responsibility into a
- * dedicated `+ New chat` flow).
- */
-export function useConversationView(args: UseConversationViewArgs): UseConversationViewResult {
+export function useConversationView(args: UseConversationViewArgs) {
 	const { conversationId, listKey } = args
 	const queryClient = useQueryClient()
 

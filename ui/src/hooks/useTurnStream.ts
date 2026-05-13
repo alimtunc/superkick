@@ -1,26 +1,13 @@
 import { useEffect, useReducer, useRef } from 'react'
 
 import { subscribeToTurnEvents } from '@/api'
-import type { TurnEvent, TurnEventEnvelope } from '@/types'
+import type { ToolCallEntry, TurnEvent, TurnEventEnvelope } from '@/types'
 
-export interface ToolCallEntry {
-	call_id: string
-	tool_name: string
-	input: unknown
-	output: unknown | null
-	is_error: boolean
-}
-
-export interface RenderedTurn {
-	/** Concatenated assistant text, ordered by `block_id` first appearance. */
+interface RenderedTurn {
 	text: string
-	/** Tool calls in the order they were started, results merged in. */
 	toolCalls: ToolCallEntry[]
-	/** Provider thinking blocks (concatenated by block_id). */
 	thinking: string
-	/** Whether the stream emitted a terminal event (completion / failure / cancel). */
 	terminal: boolean
-	/** Last seq observed; used to update SSE reconnect Last-Event-ID semantics. */
 	lastSeq: number
 }
 
@@ -150,37 +137,15 @@ function reducer(state: ReducerState, action: Action): ReducerState {
 	}
 }
 
-export interface UseTurnStreamArgs {
+interface UseTurnStreamArgs {
 	turnId: string | null
-	/** Persisted events to seed the reducer (replay on mount / detail refresh). */
 	historicalEvents?: TurnEvent[]
-	/** Subscribe live? Caller should disable once the turn is terminal. */
 	live?: boolean
-	/**
-	 * Called once when a terminal envelope (completion/failure/cancelled)
-	 * is observed in the live stream OR the SSE bus signals `done`. Used by
-	 * the parent to refetch persisted state — without this nudge the UI
-	 * keeps showing the last live status (`streaming`) even though the
-	 * runner has already updated the row to `completed`.
-	 */
 	onTerminal?: () => void
-	/**
-	 * Called for each live envelope as it arrives on the SSE stream (not for
-	 * the historical replay). The parent uses this to bump a tick counter
-	 * for effects that need to react mid-stream — e.g. auto-scrolling the
-	 * transcript as tokens stream in.
-	 */
 	onLiveEvent?: () => void
 }
 
-export interface UseTurnStreamResult extends RenderedTurn {
-	/** Becomes true when the SSE bus signals a graceful end. */
-	streamEnded: boolean
-	/** Last `lagged` skipped count (reset on any subsequent event). */
-	lagged: number
-}
-
-export function useTurnStream(args: UseTurnStreamArgs): UseTurnStreamResult {
+export function useTurnStream(args: UseTurnStreamArgs) {
 	const { turnId, historicalEvents = [], live = true, onTerminal, onLiveEvent } = args
 	const [state, dispatch] = useReducer(reducer, undefined, initialState)
 

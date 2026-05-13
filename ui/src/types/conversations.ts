@@ -159,3 +159,11 @@ export interface CreateTurnResponse {
 	conversation_id: string
 	status: TurnStatus
 }
+
+export interface ToolCallEntry {
+	call_id: string
+	tool_name: string
+	input: unknown
+	output: unknown | null
+	is_error: boolean
+}

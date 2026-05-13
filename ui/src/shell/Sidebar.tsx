@@ -1,12 +1,11 @@
 import { cn } from '@/lib/utils'
 import { useCommandBarStore } from '@/stores/commandBar'
+import type { ShellNavId } from '@/types'
 import type { SKIconName } from '@/types/icons'
 import { Avatar } from '@/ui/Avatar'
 import { Icon } from '@/ui/Icon'
 import { Kbd } from '@/ui/Kbd'
 import { Link } from '@tanstack/react-router'
-
-import type { ShellNavId } from './pathnameToTitle'
 
 interface SidebarProps {
 	active: ShellNavId
@@ -80,7 +79,7 @@ export function Sidebar({ active, counts }: SidebarProps) {
 	return (
 		<aside className="flex h-full w-56 shrink-0 flex-col gap-0.5 border-r border-border bg-surface px-3 py-3.5">
 			<div className="flex items-center gap-2.5 px-2 pt-1 pb-3">
-				<span className="flex h-[26px] w-[26px] items-center justify-center rounded-[7px] bg-accent text-[13px] font-bold text-white">
+				<span className="flex size-6.5 items-center justify-center rounded-[7px] bg-accent text-[13px] font-bold text-white">
 					S
 				</span>
 				<div className="flex min-w-0 flex-1 flex-col">
@@ -125,7 +124,7 @@ export function Sidebar({ active, counts }: SidebarProps) {
 					active={active === 'settings'}
 				/>
 			</nav>
-			<div className="mt-2 flex items-center gap-2.5 px-2 py-2">
+			<div className="mt-2 flex items-center gap-2.5 p-2">
 				<Avatar name="You" size={24} />
 				<div className="flex min-w-0 flex-1 flex-col">
 					<span className="text-[12.5px] font-medium text-fg">You</span>

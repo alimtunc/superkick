@@ -112,3 +112,10 @@ export interface IssueChipPickerValue {
 	identifier: string
 	title: string
 }
+
+export interface BlockingContext {
+	step: LaunchTaskStep | null
+	stepKind: LaunchStepKind | null
+	headline: string
+	hint: string
+}

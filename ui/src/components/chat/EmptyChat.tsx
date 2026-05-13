@@ -4,12 +4,6 @@ import { EmptyState } from '@/components/ui/state-empty'
 import { MessagesSquare } from 'lucide-react'
 
 interface EmptyChatProps {
-	/**
-	 * Bottom-anchored launcher (`NewChatLauncher`). Mirrors the conversation
-	 * view's "transcript on top, composer pinned to the bottom" rhythm so the
-	 * operator's eye lands in the same place when they switch between empty
-	 * and active conversations.
-	 */
 	launcher?: ReactNode
 }
 

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import type { AgentProvider, ChatPermissionMode } from '@/types'
 import { ClipboardList, CodeXml, Hand, Sparkles } from 'lucide-react'
 
-export interface ModelOption {
+interface ModelOption {
 	value: string | null
 	label: string
 }
@@ -25,7 +25,7 @@ export function modelOptionsFor(provider: AgentProvider): ModelOption[] {
 	return provider === 'claude' ? CLAUDE_MODELS : CODEX_MODELS
 }
 
-export interface ModeOption {
+interface ModeOption {
 	value: ChatPermissionMode
 	label: string
 	description: string

@@ -5,13 +5,6 @@ interface LaunchQueueBlockerListProps {
 	blockers: IssueBlockerRef[]
 }
 
-/**
- * Inline list of Linear blockers gating an issue (SUP-81). Rendered on
- * `Blocked` items so the operator reads "Blocked by SUP-77 (In Progress)"
- * without opening the issue detail. Terminal blockers are already filtered
- * server-side by the classifier reason; this renders the raw relation set so
- * the operator also sees resolved context when inspecting a card.
- */
 export function LaunchQueueBlockerList({ blockers }: LaunchQueueBlockerListProps) {
 	if (blockers.length === 0) return null
 	return (

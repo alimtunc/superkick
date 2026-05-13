@@ -11,11 +11,10 @@ import type {
 	GroupedIssues,
 	IssueState,
 	IssueStateFilter,
+	IssueWithState,
 	LaunchQueueItem,
 	LinearIssueListItem
 } from '@/types'
-
-import type { IssueWithState } from './useIssues'
 
 interface IssueFilterState {
 	activeIssueState: IssueStateFilter
@@ -31,7 +30,7 @@ interface UseFilteredIssuesInput {
 	filters: IssueFilterState
 }
 
-export type IssueStateCounts = Record<IssueState, number>
+type IssueStateCounts = Record<IssueState, number>
 
 const EMPTY_COUNTS: IssueStateCounts = {
 	backlog: 0,
@@ -42,29 +41,7 @@ const EMPTY_COUNTS: IssueStateCounts = {
 	done: 0
 }
 
-export interface FilteredIssues {
-	counts: IssueStateCounts
-	filteredIssues: LinearIssueListItem[]
-	grouped: GroupedIssues
-	filteredQueueItems: LaunchQueueItem[]
-}
-
-/**
- * Apply the same content filters (search / labels / project / priority) to
- * both the issue-first list view and the orchestration-first kanban view
- * (SUP-92). The issue-state filter is only applied to the list: the kanban's
- * columns are themselves the state lanes, so an additional filter on top
- * would be redundant.
- *
- * Counts reflect the content filters but ignore the state filter, so the
- * state pills always display the overall distribution and let the operator
- * see "what would happen if I clicked X".
- */
-export function useFilteredIssues({
-	allIssues,
-	queueItems,
-	filters
-}: UseFilteredIssuesInput): FilteredIssues {
+export function useFilteredIssues({ allIssues, queueItems, filters }: UseFilteredIssuesInput) {
 	const { activeIssueState, search, activeLabels, activeProject, activePriorities } = filters
 
 	const contentFiltered: IssueWithState[] = useMemo(() => {
@@ -113,9 +90,7 @@ export function useFilteredIssues({
 		return queueItems.filter((item) => {
 			if (item.kind === 'issue') return passing.has(item.issue.identifier)
 			const linked = item.linked_issue?.identifier
-			// Run with no Linear-side issue (cross-team, beyond fetch cap): keep
-			// when no content filter is set; hide it once any filter narrows the
-			// view, since we have no labels/project/priority on the run itself.
+			// Cross-team runs (no Linear metadata) only appear when no filters are active.
 			if (!linked) {
 				return (
 					!search.trim() &&

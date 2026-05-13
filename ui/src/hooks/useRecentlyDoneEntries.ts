@@ -13,10 +13,6 @@ interface RecentlyDoneEntriesResult {
 	refTime: number
 }
 
-/**
- * Compose the "Recently Done" Inbox section data: filters launch-queue
- * `done` + `in-pr` items to the 24 h window, sorted newest-first and capped.
- */
 export function useRecentlyDoneEntries(): RecentlyDoneEntriesResult {
 	const launchQueue = useLaunchQueue()
 	const refTime = useNow()

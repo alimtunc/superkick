@@ -1,27 +1,12 @@
-/**
- * Shell-level event brokers (SUP-84 / SUP-123).
- *
- * Each broker owns the single `EventSource` for one Superkick bus and fans the
- * stream out to per-page / per-rail subscribers, so the number of open
- * connections stays at exactly one per bus regardless of how many surfaces are
- * watching. The transport is hidden — subscribers pass a filter + callback and
- * never touch `EventSource`.
- *
- * Lifecycle (shared via the generic `SseBroker`):
- *   - `start()` opens the stream; idempotent so React effects can call it.
- *   - On `error`/`close`, exponential-backoff reconnect up to a cap.
- *   - On `lagged`, a synthetic `LaggedNotice` is broadcast to every subscriber
- *     regardless of filter — any of them may have missed events.
- *   - `stop()` closes the stream and drops every subscriber; call only on full
- *     app teardown.
- */
+// One EventSource per bus fans out to every subscriber so concurrent surfaces
+// share one connection. Lagged notices broadcast regardless of filter.
 
 import { subscribeToLaunchTaskEvents, subscribeToWorkspaceEvents } from '@/api'
-import type { SseHandlers } from '@/api'
 import type {
 	LaggedNotice,
 	LaunchTaskEvent,
 	LaunchTaskSubscriptionFilter,
+	SseHandlers,
 	SubscriptionFilter,
 	WorkspaceRunEvent
 } from '@/types'
@@ -29,7 +14,7 @@ import type {
 const RECONNECT_MIN_MS = 500
 const RECONNECT_MAX_MS = 10_000
 
-export type SubscribeFn<E> = (handlers: SseHandlers<E>) => () => void
+type SubscribeFn<E> = (handlers: SseHandlers<E>) => () => void
 
 interface SseBrokerOptions<Event, Filter> {
 	/** Open the underlying SSE stream. Swapped in tests for an in-memory harness. */
@@ -45,12 +30,6 @@ interface SubscriberEntry<Event, Filter> {
 	callback: (notice: Event | LaggedNotice) => void
 }
 
-/**
- * Generic event broker shared by every Superkick SSE bus. Parameterised over
- * the event shape and the per-subscriber filter shape so the workspace broker
- * (run events, `{runId, variant}` filter) and the launch-task broker
- * (launch-task events, `{linearIssueId}` filter) share one implementation.
- */
 export class SseBroker<Event, Filter> {
 	private readonly options: SseBrokerOptions<Event, Filter>
 	private subscribers = new Map<symbol, SubscriberEntry<Event, Filter>>()
@@ -96,10 +75,6 @@ export class SseBroker<Event, Filter> {
 		}
 	}
 
-	/**
-	 * Subscribe to connection-state changes. Fires synchronously with the
-	 * current value, then on every transition. Returns an unsubscribe.
-	 */
 	subscribeConnection(callback: (connected: boolean) => void): () => void {
 		this.connectionListeners.add(callback)
 		callback(this.connected)
@@ -216,8 +191,8 @@ export function createLaunchTaskBroker(
 	})
 }
 
-export type WorkspaceEventBroker = SseBroker<WorkspaceRunEvent, SubscriptionFilter>
-export type LaunchTaskEventBroker = SseBroker<LaunchTaskEvent, LaunchTaskSubscriptionFilter>
+type WorkspaceEventBroker = SseBroker<WorkspaceRunEvent, SubscriptionFilter>
+type LaunchTaskEventBroker = SseBroker<LaunchTaskEvent, LaunchTaskSubscriptionFilter>
 
 /** Process-wide instances — the shell provider calls `start()` on both. */
 export const workspaceEventBroker: WorkspaceEventBroker = createWorkspaceBroker()

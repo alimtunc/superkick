@@ -1,22 +1,9 @@
 import type { ChatPermissionMode } from '@/types'
 
-/**
- * Per-subject `localStorage` for the chat panel:
- *  - `superkick.chat.prefs.<subjectKey>` — JSON `{ mode, model }`
- *    (SUP-113). Layering is subject > agent default > global default; absence
- *    falls through to the next layer, which is why both fields are optional
- *    and `model: null` is a valid stored choice ("default provider model" —
- *    distinct from "no preference yet"). We only persist what the operator
- *    has explicitly chosen.
- *  - `superkick.chat.selectedId.<subjectKey>` — raw string (SUP-107) for
- *    the currently-selected conversation row.
- *
- * `localStorage` failures (private mode, quota, server-side render) are
- * swallowed silently in every helper — selection / prefs just don't persist
- * this session, which is acceptable.
- */
+// Both fields optional: `model: null` means "default provider model" (distinct
+// from "no preference yet") so only explicit operator choices get persisted.
 
-export interface ChatPrefs {
+interface ChatPrefs {
 	mode?: ChatPermissionMode
 	model?: string | null
 }

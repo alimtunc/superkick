@@ -5,11 +5,7 @@ interface RunPauseApprovalBannerProps {
 	run: Run
 }
 
-/**
- * Approval-checkpoint variant — non-blocking notification, polite live region
- * so the announcement doesn't interrupt other operator activity. Resolution
- * controls live in the "Needs your decision" attention panel below.
- */
+// Polite live region so the announcement doesn't interrupt other operator activity.
 export function RunPauseApprovalBanner({ run }: RunPauseApprovalBannerProps) {
 	return (
 		<div

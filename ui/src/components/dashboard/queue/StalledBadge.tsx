@@ -5,19 +5,6 @@ interface StalledBadgeProps {
 	run: QueueRunSummary
 }
 
-/**
- * SUP-73 — surfaces the recovery scheduler's "Stalled · {duration} · {reason}"
- * annotation on a queue card. The run still lives in its current bucket; this
- * is an annotation, not a re-classification. Renders nothing when the run is
- * healthy. Amber tone (gold-dim) marks operator attention without escalating
- * to oxide / red.
- *
- * Accessibility: rendered as a `role="status"` polite live region so
- * assistive tech announces the badge appearing asynchronously when the queue
- * refreshes. The compact visible label carries the duration; the structured
- * reason is exposed to screen readers via a `sr-only` span so `aria-label`
- * does not have to fight the visible text for precedence.
- */
 export function StalledBadge({ run }: StalledBadgeProps) {
 	const ageSecs = run.stalled_for_seconds
 	const reason = run.stalled_reason

@@ -75,7 +75,7 @@ function IssuesPage() {
 				{data.error ? <p className="font-data text-[11px] text-oxide">{data.error}</p> : null}
 
 				{isInitialLoading ? (
-					<p className="font-data py-10 text-center text-dim">Loading issues...</p>
+					<p className="font-data py-10 text-center text-dim">Loading issues…</p>
 				) : null}
 
 				{!data.loading && data.issues.length === 0 ? (

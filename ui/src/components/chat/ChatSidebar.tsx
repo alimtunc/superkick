@@ -16,12 +16,6 @@ interface ChatSidebarProps {
 	loading: boolean
 	onSelect: (id: string) => void
 	onNewChat: () => void
-	/**
-	 * Optional precomputed state per conversation id. ChatPanel populates
-	 * this for run subjects (run + active takeovers); when absent (or a
-	 * given id is missing) the sidebar falls back to deriving from the
-	 * `ConversationSummary` alone.
-	 */
 	statesById?: Record<string, ConversationUxState>
 }
 

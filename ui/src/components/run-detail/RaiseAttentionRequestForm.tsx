@@ -6,11 +6,6 @@ import type { AttentionKind } from '@/types'
 
 const KINDS: readonly AttentionKind[] = ['clarification', 'decision', 'approval']
 
-/**
- * Operator-side affordance to raise an attention request against a run — useful
- * for dogfooding and for manually escalating a question the agent didn't raise
- * itself. Agents can also POST to the same endpoint programmatically.
- */
 export function RaiseAttentionRequestForm({ runId, onCreated }: { runId: string; onCreated: () => void }) {
 	const { form, open, setOpen, close } = useRaiseAttentionRequest(runId, onCreated)
 

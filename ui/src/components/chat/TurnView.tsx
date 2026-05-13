@@ -22,9 +22,6 @@ interface UsageDisplay {
 }
 
 function formatUsage(turn: Turn): UsageDisplay | null {
-	// Match the Claude Code terminal: a single "N tokens" headline (the
-	// output count, which is what the operator paid attention bandwidth on)
-	// and the input / cache breakdown in the tooltip for the curious.
 	const u = turn.usage
 	if (!u) return null
 	const out = u.output_tokens ?? 0

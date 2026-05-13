@@ -11,9 +11,7 @@ interface RunLedgerProps {
 	attentionRequests: AttentionRequest[]
 }
 
-// Primary operator-visible orchestration thread. Raw agent_output /
-// command_output events are intentionally excluded and live under the
-// terminal-inspection surface as supporting evidence.
+// Orchestration events only; raw output/command events live in the terminal surface.
 export function RunLedger({ events, sessions, attentionRequests }: RunLedgerProps) {
 	const sessionById = indexById(sessions)
 	const attentionById = indexById(attentionRequests)

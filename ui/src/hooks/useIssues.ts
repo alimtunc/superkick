@@ -1,32 +1,11 @@
 import { useMemo } from 'react'
 
 import { issueStateFor } from '@/lib/domain/issueState'
-import type { IssueState, LaunchQueue, LaunchQueueItem, LinearIssueListItem } from '@/types'
+import type { IssueWithState, LaunchQueue, LaunchQueueItem } from '@/types'
 
 import { useIssuesQuery } from './useIssuesQuery'
 import { useLaunchQueue } from './useLaunchQueue'
 
-interface IssueWithState {
-	issue: LinearIssueListItem
-	state: IssueState
-	bucket: LaunchQueue | undefined
-	linkedRun: Extract<LaunchQueueItem, { kind: 'run' }> | undefined
-}
-
-/**
- * Unified issue feed (SUP-92).
- *
- * Two data planes are merged:
- * - The Linear issue list (`useIssuesQuery`) is the source of truth for the
- *   issue-first list view — it captures every Linear issue under the cap,
- *   including ones the launch-queue classifier hasn't seen yet.
- * - The launch queue (`useLaunchQueue`) provides the operator state via its
- *   bucket projection plus the linked-run summary used by the kanban and
- *   row-level run chip.
- *
- * The kanban consumes `queueItems` directly (orchestration-first); the list
- * consumes `issues` (every Linear issue with its operator-state verdict).
- */
 export function useIssues(limit = 200) {
 	const issuesQuery = useIssuesQuery(limit)
 	const queue = useLaunchQueue()
@@ -85,4 +64,3 @@ export function useIssues(limit = 200) {
 }
 
 export type IssuesData = ReturnType<typeof useIssues>
-export type { IssueWithState }

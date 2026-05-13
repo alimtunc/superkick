@@ -6,26 +6,13 @@ import { queryKeys } from '@/lib/queryKeys'
 import type { ConversationSubject, ConversationSummary } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 
-export interface UseConversationsListResult {
-	conversations: ConversationSummary[]
-	loading: boolean
-	error: string | null
-	refetch: () => void
-}
-
 function recencyTs(c: ConversationSummary): number {
 	const stamp = c.last_turn_at ?? c.updated_at ?? c.created_at
 	const t = Date.parse(stamp)
 	return Number.isNaN(t) ? 0 : t
 }
 
-/**
- * Lists every conversation attached to a chat subject (issue or run) and
- * sorts them by most recent activity. The server returns ASC by created_at;
- * the sidebar wants newest-first so we sort here rather than in storage to
- * keep the list endpoint stable for other consumers.
- */
-export function useConversationsList(subject: ConversationSubject): UseConversationsListResult {
+export function useConversationsList(subject: ConversationSubject) {
 	const key = subjectKey(subject)
 
 	const query = useQuery({

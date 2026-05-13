@@ -3,7 +3,7 @@ import type { Run, RunState } from '@/types'
 import { HEALTH_WARNING_THRESHOLD_MS } from '../constants'
 import { elapsedMs } from './formatters'
 
-export type HealthSignal = 'critical' | 'warning' | 'ok'
+type HealthSignal = 'critical' | 'warning' | 'ok'
 
 export function healthSignal(run: Run, refTime: number): HealthSignal {
 	if (run.state === 'waiting_human' || run.state === 'failed') return 'critical'

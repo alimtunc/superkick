@@ -19,7 +19,7 @@ export { toRunGroups } from './runGroups'
 export { pickRunReason, fmtRunElapsed } from './runCard'
 export { isTerminalRunState, isActiveRun, pickLatestRun } from './runState'
 export { deriveConversationUxState, conversationStateTone } from './conversationState'
-export { buildIssueActivity, type IssueActivityItem } from './issueActivity'
+export { buildIssueActivity } from './issueActivity'
 export { launchQueueAccent } from './launchQueueAccent'
 export {
 	ISSUE_STATE_ORDER,
@@ -30,11 +30,7 @@ export {
 } from './issueState'
 export { issueStateAccent } from './issueStateAccent'
 export { UNBLOCK_BADGE_WINDOW_MS, isWithinUnblockWindow } from './unblockBadge'
-export {
-	TERMINAL_LAUNCH_TASK_STATUSES,
-	findBlockingContext,
-	type BlockingContext
-} from './launchTaskBlocking'
+export { TERMINAL_LAUNCH_TASK_STATUSES, findBlockingContext } from './launchTaskBlocking'
 export {
 	LAUNCH_STEP_KIND_LABEL,
 	LAUNCH_TASK_STATUS_LABEL,

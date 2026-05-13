@@ -1,8 +1,4 @@
-import type { CommentNode, IssueComment, LinkedRunSummary } from '@/types'
-
-export type IssueActivityItem =
-	| { kind: 'comment'; node: CommentNode; ts: number; key: string }
-	| { kind: 'run'; run: LinkedRunSummary; ts: number; key: string }
+import type { CommentNode, IssueActivityItem, IssueComment, LinkedRunSummary } from '@/types'
 
 export function buildIssueActivity(comments: IssueComment[], runs: LinkedRunSummary[]): IssueActivityItem[] {
 	const tree = buildCommentTree(comments)

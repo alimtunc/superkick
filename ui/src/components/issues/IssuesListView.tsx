@@ -2,13 +2,13 @@ import { SectionTitle } from '@/components/dashboard/SectionTitle'
 import { IssueGroupCard } from '@/components/issues/IssueGroupCard'
 import { IssueListRow } from '@/components/issues/IssueListRow'
 import { EmptyState } from '@/components/ui/state-empty'
-import type { IssueWithState } from '@/hooks/useIssues'
 import { useNow } from '@/hooks/useNow'
 import { issueStateAccent } from '@/lib/domain'
 import type {
 	GroupedIssues,
 	IssueState,
 	IssueStateFilter,
+	IssueWithState,
 	LaunchQueueItem,
 	LinearIssueListItem
 } from '@/types'
