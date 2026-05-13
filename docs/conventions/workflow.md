@@ -15,7 +15,15 @@ Superkick tickets go through an explicit lifecycle:
 4. `/ticket-execute` runs in a worktree (see "Worktree initialization" below), stops at the handoff.
 5. Operator runs `/test-instructions`, `/pre-pr-review`, commits, then `/ship`.
 
-Review/ship skills (`/pre-pr-review`, `/ship`, `/test-instructions`) are never auto-chained — the operator always invokes those. See [docs/codex-workflow.md](../codex-workflow.md) for the Codex ↔ Claude contract and [the ticket skills](../../.claude/skills/) for details.
+Review/ship skills (`/pre-pr-review`, `/ship`, `/test-instructions`) are never auto-chained — the operator always invokes those. See [docs/codex-workflow.md](../codex-workflow.md) for the Codex ↔ Claude contract, [ticket-format.md](./ticket-format.md) for plan/handoff shapes, and [the Turkit skills](https://github.com/SuperTurk/turkit) for the generic process.
+
+## Triage guardrails
+
+Project-specific overrides on top of Turkit's generic triage:
+
+- **Cross-stack → never one-shot.** Pin the contract in a plan first.
+- Any ticket touching `crates/superkick-api` routes **and** `ui/src/` → treat as cross-stack.
+- Mentions "migration", "schema change", "storage", or crosses **>3 crates** → plan-then-execute even if one-sentence describable.
 
 ## Worktree initialization
 
