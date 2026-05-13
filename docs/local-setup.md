@@ -137,10 +137,10 @@ When a step fails and the interrupt policy is `ask_human`, the run pauses in `wa
 
 ```bash
 # List interrupts
-curl http://127.0.0.1:3100/runs/<run-id>/interrupts | jq
+curl http://127.0.0.1:3100/api/runs/<run-id>/interrupts | jq
 
 # Retry the failed step
-curl -X POST http://127.0.0.1:3100/runs/<run-id>/interrupts/<interrupt-id>/answer \
+curl -X POST http://127.0.0.1:3100/api/runs/<run-id>/interrupts/<interrupt-id>/answer \
   -H "Content-Type: application/json" \
   -d '"RetryStep"'
 ```

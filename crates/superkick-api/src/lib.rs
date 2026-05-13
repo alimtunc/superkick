@@ -30,6 +30,8 @@ use superkick_storage::{
 mod error;
 mod handlers;
 pub mod recovery_scheduler;
+#[cfg(feature = "embedded-ui")]
+mod ui_assets;
 
 /// Test-only helpers. Hidden behind the `test-support` feature so the public
 /// API surface stays clean in production builds.
@@ -241,6 +243,10 @@ pub struct ServerConfig {
     pub cache_dir: String,
     /// Pre-bound TCP listener. Avoids TOCTOU races on port availability.
     pub listener: tokio::net::TcpListener,
+    /// When true and the `embedded-ui` feature is enabled, serve the embedded
+    /// dashboard as a SPA fallback alongside the API. Ignored when the feature
+    /// is off.
+    pub serve_ui: bool,
 }
 
 // ── Public entry point ────────────────────────────────────────────────
@@ -448,7 +454,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         run_budget,
     };
 
-    let app = Router::new()
+    let api = Router::new()
         .route("/health", get(handlers::health::health))
         .route("/config", get(handlers::health::get_config))
         .route("/dashboard/queue", get(handlers::dashboard::get_queue))
@@ -602,6 +608,9 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         )
         .with_state(state);
 
+    let app = Router::new().nest("/api", api);
+    let app = attach_ui(app, cfg.serve_ui);
+
     let local_addr = cfg.listener.local_addr()?;
     tracing::info!(
         "Superkick server running on http://127.0.0.1:{}",
@@ -612,6 +621,20 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     axum::serve(cfg.listener, app).await?;
 
     Ok(())
+}
+
+#[cfg(feature = "embedded-ui")]
+fn attach_ui(app: Router, serve_ui: bool) -> Router {
+    if serve_ui {
+        app.merge(ui_assets::router())
+    } else {
+        app
+    }
+}
+
+#[cfg(not(feature = "embedded-ui"))]
+fn attach_ui(app: Router, _serve_ui: bool) -> Router {
+    app
 }
 
 /// Subscribe to every session lifecycle event on the shared `SessionBus` and
