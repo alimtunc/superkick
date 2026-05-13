@@ -1,4 +1,12 @@
-import { RuntimesSection } from '@/components/settings/RuntimesSection'
+import { useMemo, useState } from 'react'
+
+import { SETTINGS_NAV_ITEMS } from '@/components/settings/settingsNav'
+import { SettingsPaneComingSoon } from '@/components/settings/SettingsPaneComingSoon'
+import { SettingsPaneRules } from '@/components/settings/SettingsPaneRules'
+import { SettingsPaneRuntimes } from '@/components/settings/SettingsPaneRuntimes'
+import { SettingsShell } from '@/components/settings/SettingsShell'
+import { usePageActions } from '@/shell/usePageActions'
+import type { SettingsPaneId } from '@/types'
 import { createRoute } from '@tanstack/react-router'
 
 import { Route as shellRoute } from './route'
@@ -10,13 +18,29 @@ export const Route = createRoute({
 })
 
 function SettingsPage() {
+	const [active, setActive] = useState<SettingsPaneId>('rules')
+	const activeLabel = SETTINGS_NAV_ITEMS.find((item) => item.id === active)?.label ?? 'Settings'
+
+	usePageActions({
+		title: useMemo(
+			() => (
+				<>
+					Settings <span className="text-fg-dim">·</span> {activeLabel}
+				</>
+			),
+			[activeLabel]
+		)
+	})
+
 	return (
-		<div className="flex flex-1 flex-col gap-6 overflow-y-auto p-8">
-			<header>
-				<h1 className="font-data text-sm tracking-wider text-silver uppercase">Settings</h1>
-				<p className="text-[13px] text-dim">Superkick configuration.</p>
-			</header>
-			<RuntimesSection />
-		</div>
+		<SettingsShell activeId={active} onSelect={setActive}>
+			{renderPane(active, activeLabel)}
+		</SettingsShell>
 	)
+}
+
+function renderPane(id: SettingsPaneId, label: string) {
+	if (id === 'rules') return <SettingsPaneRules />
+	if (id === 'runtimes') return <SettingsPaneRuntimes />
+	return <SettingsPaneComingSoon label={label} />
 }
