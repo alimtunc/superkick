@@ -9,7 +9,6 @@ const ROOT_TITLES: Partial<Record<string, ShellTitle>> = {
 	'/tasks': { active: 'tasks', title: 'Tasks' },
 	'/runs': { active: 'runs', title: 'Runs' },
 	'/agents': { active: 'agents', title: 'Agents' },
-	'/sessions': { active: null, title: 'Sessions' },
 	'/attention': { active: null, title: 'Attention' },
 	'/settings': { active: 'settings', title: 'Settings' }
 }
