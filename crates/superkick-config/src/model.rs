@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 use superkick_core::{
-    AgentBackend, AgentCatalog, AgentProvider, CoreAgentDefinition as CoreAgent, LinearContextMode,
-    McpMode, RecoveryConfig, ResolvedMcpPolicy, ResolvedToolPolicy, RunBudget, RunPolicy, RunState,
-    StepKey,
+    AgentBackend, AgentCatalog, AgentProvider, BillingProfile, CoreAgentDefinition as CoreAgent,
+    LinearContextMode, McpMode, RecoveryConfig, ResolvedMcpPolicy, ResolvedToolPolicy, RunBudget,
+    RunPolicy, RunState, RunnerMode, StepKey,
 };
 
 /// Canonical name used by the legacy `linear_context: snapshot_plus_mcp`
@@ -85,7 +85,7 @@ impl IssueTrigger {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunnerConfig {
-    pub mode: RunnerMode,
+    pub mode: ProcessRunnerMode,
     #[serde(default = "default_repo_root")]
     pub repo_root: String,
     #[serde(default = "default_base_branch")]
@@ -108,9 +108,12 @@ fn default_worktree_prefix() -> String {
     "superkick".into()
 }
 
+/// Process-runner topology — where Superkick spawns subprocesses. Currently
+/// only the local supervisor is implemented; the enum is kept open for a
+/// future remote-runner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum RunnerMode {
+pub enum ProcessRunnerMode {
     Local,
 }
 
@@ -164,6 +167,17 @@ pub struct AgentDefinition {
     pub tool_policy: Option<AgentToolPolicy>,
     #[serde(default)]
     pub backend: Option<AgentBackend>,
+    /// Optional override for how the provider CLI is spawned. Defaults to
+    /// `interactive_pty` for Claude and `exec_json` for Codex when omitted
+    /// (see [`superkick_core::RunnerMode::default_for`]).
+    #[serde(default)]
+    pub runner_mode: Option<RunnerMode>,
+    /// Optional override for which credit pool the spawn consumes. Defaults
+    /// from `(provider, runner_mode)`. The Claude + `print_stream_json` pair
+    /// always resolves to `agent_sdk_credits` regardless of any explicit
+    /// override here.
+    #[serde(default)]
+    pub billing_profile: Option<BillingProfile>,
 }
 
 // ── MCP policy ──────────────────────────────────────────────────────
@@ -282,6 +296,8 @@ impl SuperkickConfig {
             mcp_policy: resolve_mcp_policy(def),
             tool_policy: resolve_tool_policy(def),
             backend: def.backend.clone(),
+            runner_mode: def.runner_mode,
+            billing_profile: def.billing_profile,
         }))
     }
 

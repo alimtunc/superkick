@@ -22,9 +22,9 @@ use chrono::Utc;
 use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
-    AgentProvider, AgentSession, AgentSessionId, AgentStatus, EventKind, EventLevel, HandoffId,
-    LaunchReason, LinearContextMode, RunEvent, RunId, SessionLifecycleEvent, SessionLifecyclePhase,
-    StepId,
+    AgentProvider, AgentSession, AgentSessionId, AgentStatus, BillingProfile, EventKind,
+    EventLevel, HandoffId, LaunchReason, LinearContextMode, RunEvent, RunId, RunnerMode,
+    SessionLifecycleEvent, SessionLifecyclePhase, StepId,
 };
 use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
 
@@ -68,6 +68,14 @@ pub struct AgentLaunchConfig {
     pub policy_audit: PolicyAudit,
     /// Lineage + intent metadata (SUP-46).
     pub session_launch: SessionLaunchInfo,
+    /// Prompt to write through the PTY master immediately after spawn,
+    /// instead of appending it as a positional argv. `None` for headless
+    /// modes that pass the prompt via `[--, prompt]`.
+    pub initial_stdin: Option<String>,
+    /// Audit-only; passed through to `agent_sessions.runner_mode`.
+    pub runner_mode: RunnerMode,
+    /// Audit-only; passed through to `agent_sessions.billing_profile`.
+    pub billing_profile: BillingProfile,
 }
 
 /// Audit snapshot of the MCP + tool policy that was actually applied to
@@ -200,6 +208,8 @@ where
             launch_reason: Some(config.session_launch.launch_reason),
             handoff_id: config.session_launch.handoff_id,
             provider_session_id: None,
+            runner_mode: Some(config.runner_mode),
+            billing_profile: Some(config.billing_profile),
         };
 
         self.session_repo.insert(&session).await?;
@@ -240,6 +250,7 @@ where
             config.args,
             config.workdir,
             config.timeout,
+            config.initial_stdin,
             cancel_token,
             deps,
         ));
@@ -452,6 +463,8 @@ mod tests {
             launch_reason: Some(superkick_core::LaunchReason::InitialStep),
             handoff_id: None,
             provider_session_id: None,
+            runner_mode: None,
+            billing_profile: None,
         }
     }
 

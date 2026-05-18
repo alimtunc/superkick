@@ -23,6 +23,7 @@ pub mod protocol_adapter;
 pub mod pty_io;
 pub mod pty_session;
 pub mod repo_cache;
+pub mod runner_mode;
 pub mod session_bus;
 pub mod step_engine;
 pub mod terminal_takeover;

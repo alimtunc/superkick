@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{
-    AgentProvider, AgentSession, AgentSessionId, AgentStatus, HandoffId, LaunchReason,
-    LinearContextMode, RunId, StepId,
+    AgentProvider, AgentSession, AgentSessionId, AgentStatus, BillingProfile, HandoffId,
+    LaunchReason, LinearContextMode, RunId, RunnerMode, StepId,
 };
 
 use super::codec::{deserialize_enum, serialize_enum};
@@ -27,9 +27,9 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
                  finished_at, exit_code, linear_context_mode, role, purpose, \
                  parent_session_id, launch_reason, handoff_id, mcp_servers_used, \
                  tools_allow_snapshot, tool_approval_required, tool_results_persisted, \
-                 provider_session_id\
+                 provider_session_id, runner_mode, billing_profile\
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, \
-                       ?17, ?18, ?19, ?20, ?21)",
+                       ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
         )
         .bind(session.id.0.to_string())
         .bind(session.run_id.0.to_string())
@@ -58,6 +58,8 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
         .bind(i64::from(session.tool_approval_required))
         .bind(i64::from(session.tool_results_persisted))
         .bind(session.provider_session_id.as_ref())
+        .bind(session.runner_mode.map(|m| m.audit_tag().to_string()))
+        .bind(session.billing_profile.map(|p| p.audit_tag().to_string()))
         .execute(&self.pool)
         .await
         .with_context(|| format!("insert agent_session {}", session.id.0))?;
@@ -150,6 +152,8 @@ struct SessionRow {
     tool_approval_required: i64,
     tool_results_persisted: i64,
     provider_session_id: Option<String>,
+    runner_mode: Option<String>,
+    billing_profile: Option<String>,
 }
 
 impl SessionRow {
@@ -208,6 +212,18 @@ impl SessionRow {
             tool_approval_required: self.tool_approval_required != 0,
             tool_results_persisted: self.tool_results_persisted != 0,
             provider_session_id: self.provider_session_id,
+            runner_mode: self
+                .runner_mode
+                .as_deref()
+                .map(str::parse::<RunnerMode>)
+                .transpose()
+                .map_err(anyhow::Error::msg)?,
+            billing_profile: self
+                .billing_profile
+                .as_deref()
+                .map(str::parse::<BillingProfile>)
+                .transpose()
+                .map_err(anyhow::Error::msg)?,
         })
     }
 }

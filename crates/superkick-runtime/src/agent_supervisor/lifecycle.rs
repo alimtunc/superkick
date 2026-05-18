@@ -38,6 +38,7 @@ pub(crate) async fn run_supervised<S, E, T>(
     args: Vec<String>,
     workdir: PathBuf,
     timeout: Duration,
+    initial_stdin: Option<String>,
     cancel_token: CancellationToken,
     deps: SupervisedDeps<S, E, T>,
 ) -> Result<AgentResult>
@@ -96,6 +97,22 @@ where
         format!("agent {} started (pid {:?})", session.provider, pid),
     )
     .await;
+
+    if let Some(payload) = initial_stdin {
+        // Tuned-by-hand: both `claude` and `codex` print a welcome banner
+        // before accepting input. Without this brief sleep the injected
+        // prefix lands inside the banner instead of the prompt box.
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        if let Err(e) = pty_session.write_input(payload.as_bytes()) {
+            warn!(
+                run_id = %run_id,
+                error = %e,
+                "failed to inject initial prompt into PTY — operator must retype"
+            );
+        }
+        // `\r` is the canonical Enter in raw mode; submits the typed line.
+        let _ = pty_session.write_input(b"\r");
+    }
 
     let output_task = spawn_output_reader(
         spawned.master_reader,

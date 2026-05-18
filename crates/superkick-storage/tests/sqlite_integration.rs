@@ -616,6 +616,8 @@ async fn agent_session_insert_and_list() -> Result<()> {
         launch_reason: None,
         handoff_id: None,
         provider_session_id: None,
+        runner_mode: None,
+        billing_profile: None,
     };
     let sid = session.id;
     session_repo.insert(&session).await?;
@@ -672,6 +674,8 @@ async fn agent_session_provider_session_id_round_trips() -> Result<()> {
         launch_reason: None,
         handoff_id: None,
         provider_session_id: None,
+        runner_mode: None,
+        billing_profile: None,
     };
     let sid = session.id;
     session_repo.insert(&session).await?;
@@ -756,6 +760,8 @@ async fn agent_session_linear_context_mode_round_trips() -> Result<()> {
         launch_reason: None,
         handoff_id: None,
         provider_session_id: None,
+        runner_mode: None,
+        billing_profile: None,
     };
     session_repo.insert(&session).await?;
 
@@ -764,6 +770,105 @@ async fn agent_session_linear_context_mode_round_trips() -> Result<()> {
         fetched.linear_context_mode,
         Some(LinearContextMode::SnapshotPlusMcp)
     );
+    Ok(())
+}
+
+#[tokio::test]
+async fn agent_session_runner_mode_and_billing_profile_round_trip() -> Result<()> {
+    let pool = setup().await?;
+    let run_repo = SqliteRunRepo::new(pool.clone());
+    let step_repo = SqliteRunStepRepo::new(pool.clone());
+    let session_repo = SqliteAgentSessionRepo::new(pool);
+
+    let run = Run::new(
+        "i".into(),
+        "SK-135".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        ExecutionMode::FullAuto,
+        "main".into(),
+        true,
+        None,
+    );
+    run_repo.insert(&run).await?;
+    let step = RunStep::new(run.id, StepKey::Plan, 0);
+    step_repo.insert(&step).await?;
+
+    let session = AgentSession {
+        id: AgentSessionId::new(),
+        run_id: run.id,
+        run_step_id: step.id,
+        provider: AgentProvider::Claude,
+        command: "claude".into(),
+        pid: None,
+        status: AgentStatus::Running,
+        started_at: Utc::now(),
+        finished_at: None,
+        exit_code: None,
+        linear_context_mode: None,
+        mcp_servers_used: Vec::new(),
+        tools_allow_snapshot: None,
+        tool_approval_required: false,
+        tool_results_persisted: true,
+        role: None,
+        purpose: None,
+        parent_session_id: None,
+        launch_reason: None,
+        handoff_id: None,
+        provider_session_id: None,
+        runner_mode: Some(RunnerMode::InteractivePty),
+        billing_profile: Some(BillingProfile::Subscription),
+    };
+    session_repo.insert(&session).await?;
+
+    let fetched = session_repo.get(session.id).await?.expect("session exists");
+    assert_eq!(fetched.runner_mode, Some(RunnerMode::InteractivePty));
+    assert_eq!(fetched.billing_profile, Some(BillingProfile::Subscription));
+    Ok(())
+}
+
+#[tokio::test]
+async fn agent_session_runner_mode_legacy_null_round_trips() -> Result<()> {
+    // Row written before migration 025: only the pre-025 columns are set.
+    let pool = setup().await?;
+    let run_repo = SqliteRunRepo::new(pool.clone());
+    let step_repo = SqliteRunStepRepo::new(pool.clone());
+    let session_repo = SqliteAgentSessionRepo::new(pool.clone());
+
+    let run = Run::new(
+        "i".into(),
+        "SK-135b".into(),
+        "o/r".into(),
+        TriggerSource::Manual,
+        ExecutionMode::FullAuto,
+        "main".into(),
+        true,
+        None,
+    );
+    run_repo.insert(&run).await?;
+    let step = RunStep::new(run.id, StepKey::Plan, 0);
+    step_repo.insert(&step).await?;
+
+    let legacy_id = AgentSessionId::new();
+    sqlx::query(
+        "INSERT INTO agent_sessions (\
+             id, run_id, run_step_id, provider, command, pid, status, started_at\
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+    )
+    .bind(legacy_id.0.to_string())
+    .bind(run.id.0.to_string())
+    .bind(step.id.0.to_string())
+    .bind(AgentProvider::Claude.to_string())
+    .bind("claude")
+    .bind::<Option<i64>>(None)
+    .bind("running")
+    .bind(Utc::now().to_rfc3339())
+    .execute(&pool)
+    .await?;
+
+    let fetched = session_repo.get(legacy_id).await?.expect("legacy row");
+    assert!(fetched.runner_mode.is_none());
+    assert!(fetched.billing_profile.is_none());
     Ok(())
 }
 
@@ -812,6 +917,8 @@ async fn agent_session_tool_policy_columns_round_trip() -> Result<()> {
         launch_reason: None,
         handoff_id: None,
         provider_session_id: None,
+        runner_mode: None,
+        billing_profile: None,
     };
     session_repo.insert(&session).await?;
 
@@ -872,6 +979,8 @@ async fn agent_session_tool_policy_defaults_when_absent() -> Result<()> {
         launch_reason: None,
         handoff_id: None,
         provider_session_id: None,
+        runner_mode: None,
+        billing_profile: None,
     };
     session_repo.insert(&session).await?;
 
@@ -993,6 +1102,8 @@ async fn agent_session_update() -> Result<()> {
         launch_reason: None,
         handoff_id: None,
         provider_session_id: None,
+        runner_mode: None,
+        billing_profile: None,
     };
     session_repo.insert(&session).await?;
 
@@ -1033,6 +1144,8 @@ async fn agent_session_update_reports_missing_row() -> Result<()> {
         launch_reason: None,
         handoff_id: None,
         provider_session_id: None,
+        runner_mode: None,
+        billing_profile: None,
     };
 
     let err = session_repo
@@ -1272,6 +1385,8 @@ async fn handoff_lifecycle_round_trip() -> Result<()> {
         launch_reason: Some(LaunchReason::Handoff),
         handoff_id: Some(handoff.id),
         provider_session_id: None,
+        runner_mode: None,
+        billing_profile: None,
     };
     session_repo.insert(&sess).await?;
     let sess_id = sess.id;
@@ -1343,6 +1458,8 @@ async fn agent_session_lineage_round_trips() -> Result<()> {
         launch_reason: Some(LaunchReason::InitialStep),
         handoff_id: None,
         provider_session_id: None,
+        runner_mode: None,
+        billing_profile: None,
     };
     session_repo.insert(&parent).await?;
     let parent_id = parent.id;
@@ -1369,6 +1486,8 @@ async fn agent_session_lineage_round_trips() -> Result<()> {
         launch_reason: Some(LaunchReason::Handoff),
         handoff_id: Some(handoff_id),
         provider_session_id: None,
+        runner_mode: None,
+        billing_profile: None,
     };
     session_repo.insert(&session).await?;
 
@@ -1421,6 +1540,8 @@ async fn seed_session_for_ownership(pool: sqlx::SqlitePool) -> Result<AgentSessi
         launch_reason: Some(LaunchReason::InitialStep),
         handoff_id: None,
         provider_session_id: None,
+        runner_mode: None,
+        billing_profile: None,
     };
     session_repo.insert(&session).await?;
     Ok(session.id)
@@ -1546,6 +1667,8 @@ async fn seed_session(pool: &sqlx::SqlitePool) -> Result<AgentSession> {
         launch_reason: Some(LaunchReason::InitialStep),
         handoff_id: None,
         provider_session_id: None,
+        runner_mode: None,
+        billing_profile: None,
     };
     session_repo.insert(&sess).await?;
     Ok(sess)

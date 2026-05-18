@@ -6,6 +6,10 @@ export type AgentStatus = 'starting' | 'running' | 'completed' | 'failed' | 'can
 
 export type LaunchReason = 'initial_step' | 'handoff' | 'review_fanout' | 'operator_escalation'
 
+export type RunnerMode = 'interactive_pty' | 'print_stream_json' | 'exec_json'
+
+export type BillingProfile = 'subscription' | 'agent_sdk_credits' | 'api_credits' | 'unknown'
+
 export interface AgentSession {
 	id: string
 	run_id: string
@@ -36,6 +40,8 @@ export interface Agent {
 	provider: AgentProvider
 	role: string | null
 	model: string | null
+	runner_mode: RunnerMode
+	billing_profile: BillingProfile
 }
 
 export interface AgentSummary {
@@ -49,6 +55,8 @@ export interface AgentSummary {
 	tags: string[]
 	tone: SKTone
 	status: 'active' | 'paused'
+	runner_mode: RunnerMode
+	billing_profile: BillingProfile
 }
 
 export interface AttachPayload {

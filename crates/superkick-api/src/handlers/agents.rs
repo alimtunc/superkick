@@ -10,7 +10,7 @@ use std::sync::Arc;
 use axum::extract::{FromRef, State};
 use axum::response::Json;
 use serde::Serialize;
-use superkick_core::{AgentCatalog, AgentProvider};
+use superkick_core::{AgentCatalog, AgentProvider, BillingProfile, RunnerMode};
 
 use crate::AppState;
 
@@ -35,6 +35,8 @@ pub(crate) struct AgentSummary {
     pub provider: AgentProvider,
     pub role: Option<String>,
     pub model: Option<String>,
+    pub runner_mode: RunnerMode,
+    pub billing_profile: BillingProfile,
 }
 
 #[derive(Serialize)]
@@ -46,11 +48,20 @@ pub async fn list_agents(State(state): State<AgentsState>) -> Json<ListAgentsRes
     let mut agents: Vec<AgentSummary> = state
         .catalog
         .definitions()
-        .map(|def| AgentSummary {
-            name: def.name.clone(),
-            provider: def.provider,
-            role: def.role.clone(),
-            model: def.model.clone(),
+        .map(|def| {
+            let runner_mode = def
+                .runner_mode
+                .unwrap_or_else(|| RunnerMode::default_for(def.provider));
+            let billing_profile =
+                BillingProfile::resolve(&def.name, def.provider, runner_mode, def.billing_profile);
+            AgentSummary {
+                name: def.name.clone(),
+                provider: def.provider,
+                role: def.role.clone(),
+                model: def.model.clone(),
+                runner_mode,
+                billing_profile,
+            }
         })
         .collect();
     agents.sort_by(|a, b| a.name.cmp(&b.name));

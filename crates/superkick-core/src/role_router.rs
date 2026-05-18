@@ -25,6 +25,7 @@ use serde::{Deserialize, Serialize};
 use crate::agent::AgentProvider;
 use crate::linear_context::LinearContextMode;
 use crate::mcp_policy::{ResolvedMcpPolicy, ResolvedToolPolicy};
+use crate::runner_mode::{BillingProfile, RunnerMode, RunnerModeError};
 
 /// Optional execution backend layered on top of the resolved provider command.
 /// See `docs/conventions/rust.md` (Agents & router) for the fallback contract
@@ -94,6 +95,17 @@ pub struct AgentDefinition {
     pub tool_policy: ResolvedToolPolicy,
     #[serde(default)]
     pub backend: Option<AgentBackend>,
+    /// How the provider CLI is spawned (`interactive_pty`,
+    /// `print_stream_json`, `exec_json`). `None` desugars at resolve-time
+    /// via [`RunnerMode::default_for`].
+    #[serde(default)]
+    pub runner_mode: Option<RunnerMode>,
+    /// Which credit pool the spawn consumes. `None` desugars at resolve-time
+    /// via [`BillingProfile::default_for`] (and is force-overridden to
+    /// `agent_sdk_credits` when `provider: claude` and
+    /// `runner_mode: print_stream_json`).
+    #[serde(default)]
+    pub billing_profile: Option<BillingProfile>,
 }
 
 impl AgentDefinition {
@@ -219,6 +231,13 @@ pub struct ResolvedAgent {
     /// Resolved tool policy snapshot. Audited as-is on the agent session.
     pub tool_policy: ResolvedToolPolicy,
     pub backend: Option<AgentBackend>,
+    /// How the provider CLI is spawned. Concrete here — defaults were baked
+    /// in by [`RoleRouter::resolve`].
+    pub runner_mode: RunnerMode,
+    /// Which credit pool the spawn consumes. Concrete here — defaults +
+    /// the `claude + print_stream_json → agent_sdk_credits` invariant were
+    /// baked in by [`RoleRouter::resolve`].
+    pub billing_profile: BillingProfile,
 }
 
 /// Errors the router can emit when a role cannot be launched.
@@ -228,6 +247,14 @@ pub enum RouterError {
     UnknownRole(String),
     #[error("agent role '{0}' is not authorised by the current run policy")]
     NotAllowed(String),
+    #[error(
+        "agent role '{role}' has an incompatible (provider, runner_mode) pair: {mode} on {provider}"
+    )]
+    IncompatibleRunnerMode {
+        role: String,
+        mode: RunnerMode,
+        provider: AgentProvider,
+    },
 }
 
 /// Router bound to a specific catalog + run policy. Build one per run and
@@ -261,6 +288,26 @@ impl<'a> RoleRouter<'a> {
             return Err(RouterError::NotAllowed(role_name.to_string()));
         }
 
+        let runner_mode = def
+            .runner_mode
+            .unwrap_or_else(|| RunnerMode::default_for(def.provider));
+        runner_mode.validate_with(def.provider).map_err(
+            |RunnerModeError::Incompatible { mode, provider }| {
+                RouterError::IncompatibleRunnerMode {
+                    role: def.name.clone(),
+                    mode,
+                    provider,
+                }
+            },
+        )?;
+
+        let billing_profile = BillingProfile::resolve(
+            def.name.as_str(),
+            def.provider,
+            runner_mode,
+            def.billing_profile,
+        );
+
         let (program, args) = provider_command(def.provider);
         Ok(ResolvedAgent {
             name: def.name.clone(),
@@ -276,6 +323,8 @@ impl<'a> RoleRouter<'a> {
             mcp_policy: def.mcp_policy.clone(),
             tool_policy: def.tool_policy.clone(),
             backend: def.backend.clone(),
+            runner_mode,
+            billing_profile,
         })
     }
 }
@@ -307,6 +356,8 @@ mod tests {
             mcp_policy: ResolvedMcpPolicy::default(),
             tool_policy: ResolvedToolPolicy::default(),
             backend: None,
+            runner_mode: None,
+            billing_profile: None,
         }
     }
 
@@ -431,6 +482,69 @@ mod tests {
             }
             .requires_claude()
         );
+    }
+
+    #[test]
+    fn resolve_carries_runner_mode_through() {
+        let mut d = def("planner", AgentProvider::Claude);
+        d.runner_mode = Some(RunnerMode::PrintStreamJson);
+        let cat = AgentCatalog::from_definitions([d]);
+        let policy = RunPolicy::allow_all();
+        let resolved = RoleRouter::new(&cat, &policy).resolve("planner").unwrap();
+        assert_eq!(resolved.runner_mode, RunnerMode::PrintStreamJson);
+    }
+
+    #[test]
+    fn resolve_defaults_runner_mode_per_provider() {
+        let cat = AgentCatalog::from_definitions([
+            def("a", AgentProvider::Claude),
+            def("b", AgentProvider::Codex),
+        ]);
+        let policy = RunPolicy::allow_all();
+        let r = RoleRouter::new(&cat, &policy);
+        assert_eq!(
+            r.resolve("a").unwrap().runner_mode,
+            RunnerMode::InteractivePty
+        );
+        assert_eq!(r.resolve("b").unwrap().runner_mode, RunnerMode::ExecJson);
+    }
+
+    #[test]
+    fn resolve_forces_agent_sdk_credits_for_claude_print() {
+        let mut d = def("p", AgentProvider::Claude);
+        d.runner_mode = Some(RunnerMode::PrintStreamJson);
+        d.billing_profile = Some(BillingProfile::Subscription); // attempted override
+        let cat = AgentCatalog::from_definitions([d]);
+        let policy = RunPolicy::allow_all();
+        let resolved = RoleRouter::new(&cat, &policy).resolve("p").unwrap();
+        assert_eq!(resolved.billing_profile, BillingProfile::AgentSdkCredits);
+    }
+
+    #[test]
+    fn resolve_rejects_incompatible_provider_mode_pair() {
+        let mut d = def("ghost", AgentProvider::Claude);
+        d.runner_mode = Some(RunnerMode::ExecJson);
+        let cat = AgentCatalog::from_definitions([d]);
+        let policy = RunPolicy::allow_all();
+        let err = RoleRouter::new(&cat, &policy).resolve("ghost").unwrap_err();
+        assert!(matches!(
+            err,
+            RouterError::IncompatibleRunnerMode {
+                provider: AgentProvider::Claude,
+                mode: RunnerMode::ExecJson,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn resolve_defaults_billing_for_codex_interactive_is_subscription() {
+        let mut d = def("c", AgentProvider::Codex);
+        d.runner_mode = Some(RunnerMode::InteractivePty);
+        let cat = AgentCatalog::from_definitions([d]);
+        let policy = RunPolicy::allow_all();
+        let r = RoleRouter::new(&cat, &policy).resolve("c").unwrap();
+        assert_eq!(r.billing_profile, BillingProfile::Subscription);
     }
 
     #[test]

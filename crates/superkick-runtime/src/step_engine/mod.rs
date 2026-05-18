@@ -1293,7 +1293,7 @@ mod gate_tests {
 
     use superkick_config::{
         BudgetConfig, InterruptsConfig, IssueProvider, IssueSourceConfig, IssueTrigger,
-        LaunchProfileConfig, OrchestrationConfig, RunnerConfig, RunnerMode, SuperkickConfig,
+        LaunchProfileConfig, OrchestrationConfig, ProcessRunnerMode, RunnerConfig, SuperkickConfig,
         WorkflowConfig,
     };
     use superkick_core::{
@@ -1352,7 +1352,7 @@ mod gate_tests {
                 trigger: IssueTrigger::InProgress,
             },
             runner: RunnerConfig {
-                mode: RunnerMode::Local,
+                mode: ProcessRunnerMode::Local,
                 repo_root: ".".into(),
                 base_branch: "main".into(),
                 worktree_prefix: "test".into(),

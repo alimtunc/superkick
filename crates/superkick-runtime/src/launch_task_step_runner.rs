@@ -25,9 +25,9 @@ use tracing::{error, info, warn};
 
 use superkick_config::SuperkickConfig;
 use superkick_core::{
-    AgentCatalog, AgentProvider, EventKind, LaunchReason, LaunchStepKind, LaunchTask, LaunchTaskId,
-    LaunchTaskStep, ResolvedAgent, RoleRouter, Run, RunId, RunPolicy, RunState, RunStep, StepId,
-    StepKey, StepStatus, TriggerSource,
+    AgentCatalog, EventKind, LaunchReason, LaunchStepKind, LaunchTask, LaunchTaskId,
+    LaunchTaskStep, RoleRouter, Run, RunId, RunPolicy, RunState, RunStep, StepId, StepKey,
+    StepStatus, TriggerSource,
 };
 use superkick_storage::repo::{
     AgentSessionRepo, LaunchTaskRepo, RunEventRepo, RunRepo, RunStepRepo, TranscriptRepo,
@@ -48,35 +48,6 @@ use crate::worktree::{WorktreeInfo, WorktreeManager, default_worktree_root};
 /// constant the playbook engine uses (`step_engine::DEFAULT_AGENT_TIMEOUT`)
 /// to keep the two paths interchangeable.
 const DEFAULT_AGENT_TIMEOUT: Duration = Duration::from_secs(600);
-
-/// Force a `ResolvedAgent` into provider-specific headless mode so the process
-/// exits after producing its response. The playbook `StepEngine` deliberately
-/// runs Claude/Codex interactively so an operator can attach to the PTY; for
-/// Launch Tasks there is no human in the loop, so we need the provider to
-/// terminate itself, otherwise the runner waits on a `JoinHandle` that never
-/// resolves and the recipe stays parked at the first step.
-fn force_headless(mut resolved: ResolvedAgent) -> ResolvedAgent {
-    match resolved.provider {
-        // `--print` runs claude in headless mode: it consumes the prompt,
-        // uses tools (read/write/bash) within the turn, and exits with the
-        // final assistant message on stdout. `--dangerously-skip-permissions`
-        // (already in the base args) keeps tool calls unattended.
-        AgentProvider::Claude => {
-            if !resolved.args.iter().any(|a| a == "--print" || a == "-p") {
-                resolved.args.push("--print".to_string());
-            }
-        }
-        // Codex headless lives behind the `exec` subcommand. Prepending it as
-        // the first arg keeps the rest of the argv builder identical (MCP
-        // flags then `-- <prompt>`).
-        AgentProvider::Codex => {
-            if resolved.args.first().map(String::as_str) != Some("exec") {
-                resolved.args.insert(0, "exec".to_string());
-            }
-        }
-    }
-    resolved
-}
 
 /// Cap on the persisted `LaunchTaskStep::summary`. The UI renders the column
 /// inline so longer payloads are mostly noise; the full transcript lives in
@@ -525,7 +496,7 @@ where
 
         let router = RoleRouter::new(&self.catalog, &self.policy);
         let resolved = match router.resolve(&step.agent_name) {
-            Ok(r) => force_headless(r),
+            Ok(r) => r,
             Err(e) => {
                 return Ok(StepOutcome::Failed {
                     reason: format!("agent role '{}' resolution failed: {e}", step.agent_name),
@@ -690,27 +661,7 @@ mod tests {
     use super::*;
 
     use chrono::Utc;
-    use superkick_core::{
-        LaunchRecipe, LaunchTaskStatus, LinearContextMode, ResolvedMcpPolicy, ResolvedToolPolicy,
-    };
-
-    fn agent(provider: AgentProvider, args: &[&str]) -> ResolvedAgent {
-        ResolvedAgent {
-            name: "test".into(),
-            role: "planner".into(),
-            provider,
-            model: None,
-            system_prompt: None,
-            program: "/usr/bin/true".into(),
-            args: args.iter().map(|s| (*s).to_string()).collect(),
-            timeout: None,
-            max_turns: None,
-            linear_context: LinearContextMode::None,
-            mcp_policy: ResolvedMcpPolicy::default(),
-            tool_policy: ResolvedToolPolicy::default(),
-            backend: None,
-        }
-    }
+    use superkick_core::{LaunchRecipe, LaunchTaskStatus};
 
     fn task(linear_issue_id: &str) -> LaunchTask {
         let now = Utc::now();
@@ -724,40 +675,6 @@ mod tests {
             created_at: now,
             updated_at: now,
         }
-    }
-
-    #[test]
-    fn force_headless_claude_adds_print_when_missing() {
-        let out = force_headless(agent(
-            AgentProvider::Claude,
-            &["--dangerously-skip-permissions"],
-        ));
-        assert!(out.args.iter().any(|a| a == "--print"));
-    }
-
-    #[test]
-    fn force_headless_claude_is_idempotent_for_long_flag() {
-        let out = force_headless(agent(AgentProvider::Claude, &["--print"]));
-        assert_eq!(out.args.iter().filter(|a| *a == "--print").count(), 1);
-    }
-
-    #[test]
-    fn force_headless_claude_is_idempotent_for_short_flag() {
-        let out = force_headless(agent(AgentProvider::Claude, &["-p"]));
-        assert!(!out.args.iter().any(|a| a == "--print"));
-        assert_eq!(out.args.iter().filter(|a| *a == "-p").count(), 1);
-    }
-
-    #[test]
-    fn force_headless_codex_prepends_exec_when_missing() {
-        let out = force_headless(agent(AgentProvider::Codex, &["--verbose"]));
-        assert_eq!(out.args.first().map(String::as_str), Some("exec"));
-    }
-
-    #[test]
-    fn force_headless_codex_is_idempotent() {
-        let out = force_headless(agent(AgentProvider::Codex, &["exec", "--verbose"]));
-        assert_eq!(out.args.iter().filter(|a| *a == "exec").count(), 1);
     }
 
     #[test]
