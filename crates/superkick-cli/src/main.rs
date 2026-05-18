@@ -37,6 +37,8 @@ enum Commands {
 }
 
 fn main() -> anyhow::Result<()> {
+    let _ = dotenvy::dotenv();
+
     let cli = Cli::parse();
 
     match cli.command {
