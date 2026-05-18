@@ -58,7 +58,7 @@ fn parse_full_config() {
     assert_eq!(config.version, 1);
     assert_eq!(config.issue_source.provider, IssueProvider::Linear);
     assert_eq!(config.issue_source.trigger, IssueTrigger::InProgress);
-    assert_eq!(config.runner.mode, RunnerMode::Local);
+    assert_eq!(config.runner.mode, ProcessRunnerMode::Local);
     assert_eq!(config.runner.base_branch, "main");
     assert_eq!(config.agents.len(), 2);
     assert_eq!(

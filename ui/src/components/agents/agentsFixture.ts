@@ -14,7 +14,9 @@ export const AGENTS_FIXTURE: AgentSummary[] = [
 		sparkline: ACTIVE_SPARK,
 		tags: ['repos: 4', 'PR-auto', 'budget $5'],
 		tone: 'info',
-		status: 'active'
+		status: 'active',
+		runner_mode: 'interactive_pty',
+		billing_profile: 'subscription'
 	},
 	{
 		id: 'review-bot',
@@ -26,7 +28,9 @@ export const AGENTS_FIXTURE: AgentSummary[] = [
 		sparkline: ACTIVE_SPARK,
 		tags: ['repos: all', 'read-only', 'fast'],
 		tone: 'success',
-		status: 'active'
+		status: 'active',
+		runner_mode: 'interactive_pty',
+		billing_profile: 'subscription'
 	},
 	{
 		id: 'senior-bot',
@@ -38,7 +42,9 @@ export const AGENTS_FIXTURE: AgentSummary[] = [
 		sparkline: ACTIVE_SPARK,
 		tags: ['after 2 retries', 'PR-auto', 'budget $25'],
 		tone: 'warn',
-		status: 'active'
+		status: 'active',
+		runner_mode: 'print_stream_json',
+		billing_profile: 'agent_sdk_credits'
 	},
 	{
 		id: 'docs-bot',
@@ -50,7 +56,9 @@ export const AGENTS_FIXTURE: AgentSummary[] = [
 		sparkline: ACTIVE_SPARK,
 		tags: ['docs/ only', 'PR-auto', 'budget $0.50'],
 		tone: 'accent',
-		status: 'active'
+		status: 'active',
+		runner_mode: 'interactive_pty',
+		billing_profile: 'subscription'
 	},
 	{
 		id: 'dep-bot',
@@ -62,7 +70,9 @@ export const AGENTS_FIXTURE: AgentSummary[] = [
 		sparkline: ACTIVE_SPARK,
 		tags: ['weekly cron', 'package.json + go.mod'],
 		tone: 'neutral',
-		status: 'active'
+		status: 'active',
+		runner_mode: 'interactive_pty',
+		billing_profile: 'subscription'
 	},
 	{
 		id: 'triage-bot',
@@ -74,7 +84,9 @@ export const AGENTS_FIXTURE: AgentSummary[] = [
 		sparkline: ACTIVE_SPARK,
 		tags: ['inbound issues', 'read-only', 'classify only'],
 		tone: 'info',
-		status: 'active'
+		status: 'active',
+		runner_mode: 'interactive_pty',
+		billing_profile: 'subscription'
 	},
 	{
 		id: 'legacy-bot',
@@ -86,7 +98,9 @@ export const AGENTS_FIXTURE: AgentSummary[] = [
 		sparkline: PAUSED_SPARK,
 		tags: ['paused 14d', 'budget $0'],
 		tone: 'neutral',
-		status: 'paused'
+		status: 'paused',
+		runner_mode: 'interactive_pty',
+		billing_profile: 'subscription'
 	},
 	{
 		id: 'nightly-bot',
@@ -98,6 +112,8 @@ export const AGENTS_FIXTURE: AgentSummary[] = [
 		sparkline: PAUSED_SPARK,
 		tags: ['paused', 'nightly cron'],
 		tone: 'neutral',
-		status: 'paused'
+		status: 'paused',
+		runner_mode: 'interactive_pty',
+		billing_profile: 'subscription'
 	}
 ]

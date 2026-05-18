@@ -61,6 +61,8 @@ function AgentsPage() {
 						sparkline={agent.sparkline}
 						tags={agent.tags}
 						tone={agent.tone}
+						runner_mode={agent.runner_mode}
+						billing_profile={agent.billing_profile}
 					/>
 				))}
 			</div>

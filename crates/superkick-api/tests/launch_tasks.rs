@@ -41,6 +41,8 @@ fn agent(name: &str, provider: AgentProvider, model: Option<&str>) -> CoreAgentD
         mcp_policy: ResolvedMcpPolicy::default(),
         tool_policy: ResolvedToolPolicy::default(),
         backend: None,
+        runner_mode: None,
+        billing_profile: None,
     }
 }
 

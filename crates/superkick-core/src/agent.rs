@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::id::{AgentSessionId, HandoffId, RunId, StepId};
 use crate::linear_context::LinearContextMode;
+use crate::runner_mode::{BillingProfile, RunnerMode};
 
 /// Why this session was launched. Makes lineage auditable without reading
 /// terminal transcripts or inferring intent from argv.
@@ -112,4 +113,9 @@ pub struct AgentSession {
     /// process can pick the right thread. `None` for sessions that ran on the
     /// PTY path (which has its own resume mechanics) and for legacy rows.
     pub provider_session_id: Option<String>,
+    /// How the provider CLI was spawned. `None` for legacy rows written
+    /// before this column existed.
+    pub runner_mode: Option<RunnerMode>,
+    /// Which credit pool this session consumed. `None` for legacy rows.
+    pub billing_profile: Option<BillingProfile>,
 }

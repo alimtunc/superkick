@@ -34,6 +34,7 @@ use superkick_storage::repo::RunEventRepo;
 use crate::agent_supervisor::{AgentLaunchConfig, PolicyAudit, SessionLaunchInfo};
 use crate::linear_context::{MCP_READONLY_DIRECTIVE, OptionalLinearClient, fetch_issue_context};
 use crate::mcp_policy::{resolve_servers, write_role_mcp_config};
+use crate::runner_mode::apply_runner_mode;
 use crate::step_engine::emit_event;
 
 /// Resolved delivery plan for a single child-agent spawn.
@@ -243,12 +244,19 @@ pub struct LaunchConfigInputs<'a> {
 }
 
 /// Compose an `AgentLaunchConfig` from a resolved spawn plan and run-side
-/// inputs. The argv is `[program, ...resolved.args, ...backend_extra_args,
-/// ...spawn_plan.extra_cli_args, "--", prompt]` — the `--` separator is
-/// required by the Claude argv parser when the prompt itself may start with
-/// `---`. Backend rewriting via [`apply_claude_backend`] runs after
-/// `force_headless` has already been applied, so it stays a pure function of
-/// the resolved agent and prompt.
+/// inputs.
+///
+/// argv layout:
+/// `[program, ...prepend_args, ...resolved.args, ...backend_extra_args,
+///  ...append_args, ...spawn_plan.extra_cli_args, (--, prompt)?]`
+///
+/// `prepend_args` / `append_args` come from
+/// [`apply_runner_mode`]; `(--, prompt)` is appended only when the runner
+/// mode does NOT inject the prompt via stdin (i.e. `stdin_payload.is_none()`).
+/// Backend rewriting via [`apply_claude_backend`] still applies — its
+/// directive prefix is folded into the prompt before it is either argv-
+/// appended or stdin-injected, so `claude_subagent` works the same way in
+/// interactive mode.
 pub fn build_launch_config(
     spawn_plan: &AgentSpawnPlan,
     inputs: LaunchConfigInputs<'_>,
@@ -265,13 +273,18 @@ pub fn build_launch_config(
     } = inputs;
 
     let (backend_extra_args, prompt) = apply_claude_backend(resolved, prompt);
+    let mode_applied = apply_runner_mode(resolved, prompt.clone());
 
     let mut args = vec![resolved.program.clone()];
+    args.extend(mode_applied.prepend_args.iter().cloned());
     args.extend(resolved.args.iter().cloned());
     args.extend(backend_extra_args);
+    args.extend(mode_applied.append_args.iter().cloned());
     args.extend(spawn_plan.extra_cli_args.iter().cloned());
-    args.push("--".to_string());
-    args.push(prompt);
+    if mode_applied.stdin_payload.is_none() {
+        args.push("--".to_string());
+        args.push(prompt);
+    }
 
     AgentLaunchConfig {
         run_id,
@@ -289,6 +302,9 @@ pub fn build_launch_config(
             launch_reason,
             handoff_id: None,
         },
+        initial_stdin: mode_applied.stdin_payload,
+        runner_mode: resolved.runner_mode,
+        billing_profile: resolved.billing_profile,
     }
 }
 
@@ -393,9 +409,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use superkick_core::{AgentBackend, ResolvedMcpPolicy, ResolvedToolPolicy};
+    use superkick_core::{
+        AgentBackend, BillingProfile, ResolvedMcpPolicy, ResolvedToolPolicy, RunnerMode,
+    };
 
     fn resolved(provider: AgentProvider, backend: Option<AgentBackend>) -> ResolvedAgent {
+        let runner_mode = RunnerMode::default_for(provider);
         ResolvedAgent {
             name: "test".into(),
             role: "test".into(),
@@ -413,6 +432,8 @@ mod tests {
             mcp_policy: ResolvedMcpPolicy::default(),
             tool_policy: ResolvedToolPolicy::default(),
             backend,
+            runner_mode,
+            billing_profile: BillingProfile::default_for(provider, runner_mode),
         }
     }
 
@@ -505,12 +526,15 @@ mod tests {
     fn build_launch_config_with_subagent_backend_lands_directive_after_dash_dash() {
         use superkick_core::{RunId, StepId};
 
-        let r = resolved(
+        let mut r = resolved(
             AgentProvider::Claude,
             Some(AgentBackend::ClaudeSubagent {
                 subagent_name: "planner".into(),
             }),
         );
+        // Pin headless mode so the argv `--`/prompt tail is exercised; interactive uses stdin (next test).
+        r.runner_mode = RunnerMode::PrintStreamJson;
+        r.billing_profile = BillingProfile::AgentSdkCredits;
         let plan = AgentSpawnPlan {
             effective_mode: LinearContextMode::None,
             snapshot_block: None,
@@ -550,5 +574,107 @@ mod tests {
             "spawn_plan.extra_cli_args still flow through: {:?}",
             cfg.args
         );
+    }
+
+    #[test]
+    fn build_launch_config_interactive_claude_drops_dash_dash_and_routes_prompt_to_stdin() {
+        use superkick_core::{RunId, StepId};
+
+        let r = resolved(AgentProvider::Claude, None);
+        // Defaults from resolved(): runner_mode = InteractivePty.
+        assert_eq!(r.runner_mode, RunnerMode::InteractivePty);
+
+        let plan = AgentSpawnPlan {
+            effective_mode: LinearContextMode::None,
+            snapshot_block: None,
+            extra_cli_args: vec!["--mcp-config".into(), "/tmp/mcp.json".into()],
+            policy_audit: PolicyAudit::default(),
+        };
+        let inputs = LaunchConfigInputs {
+            run_id: RunId::new(),
+            step_id: StepId::new(),
+            resolved: &r,
+            prompt: "go plan".into(),
+            workdir: std::path::PathBuf::from("/tmp"),
+            default_timeout: Duration::from_secs(60),
+            purpose: "test".into(),
+            launch_reason: LaunchReason::InitialStep,
+        };
+
+        let cfg = build_launch_config(&plan, inputs);
+
+        assert!(
+            !cfg.args.iter().any(|a| a == "--"),
+            "interactive mode: no `--`/prompt argv: {:?}",
+            cfg.args
+        );
+        assert_eq!(cfg.initial_stdin.as_deref(), Some("go plan"));
+        assert_eq!(cfg.runner_mode, RunnerMode::InteractivePty);
+        assert_eq!(cfg.billing_profile, BillingProfile::Subscription);
+    }
+
+    #[test]
+    fn build_launch_config_interactive_claude_with_subagent_directive_in_stdin() {
+        use superkick_core::{RunId, StepId};
+
+        let r = resolved(
+            AgentProvider::Claude,
+            Some(AgentBackend::ClaudeSubagent {
+                subagent_name: "planner".into(),
+            }),
+        );
+        let plan = AgentSpawnPlan {
+            effective_mode: LinearContextMode::None,
+            snapshot_block: None,
+            extra_cli_args: Vec::new(),
+            policy_audit: PolicyAudit::default(),
+        };
+        let inputs = LaunchConfigInputs {
+            run_id: RunId::new(),
+            step_id: StepId::new(),
+            resolved: &r,
+            prompt: "operator brief".into(),
+            workdir: std::path::PathBuf::from("/tmp"),
+            default_timeout: Duration::from_secs(60),
+            purpose: "test".into(),
+            launch_reason: LaunchReason::InitialStep,
+        };
+
+        let cfg = build_launch_config(&plan, inputs);
+
+        let stdin = cfg.initial_stdin.expect("interactive mode injects stdin");
+        assert!(stdin.starts_with(BACKEND_DIRECTIVE_MARKER));
+        assert!(stdin.contains("subagent_type=\"planner\""));
+        assert!(stdin.ends_with("operator brief"));
+    }
+
+    #[test]
+    fn build_launch_config_codex_exec_prepends_subcommand() {
+        use superkick_core::{RunId, StepId};
+
+        let r = resolved(AgentProvider::Codex, None);
+        assert_eq!(r.runner_mode, RunnerMode::ExecJson);
+        let plan = AgentSpawnPlan {
+            effective_mode: LinearContextMode::None,
+            snapshot_block: None,
+            extra_cli_args: Vec::new(),
+            policy_audit: PolicyAudit::default(),
+        };
+        let inputs = LaunchConfigInputs {
+            run_id: RunId::new(),
+            step_id: StepId::new(),
+            resolved: &r,
+            prompt: "p".into(),
+            workdir: std::path::PathBuf::from("/tmp"),
+            default_timeout: Duration::from_secs(60),
+            purpose: "test".into(),
+            launch_reason: LaunchReason::InitialStep,
+        };
+        let cfg = build_launch_config(&plan, inputs);
+        // argv = [codex, exec, --, p]
+        assert_eq!(cfg.args[0], "codex");
+        assert_eq!(cfg.args[1], "exec");
+        assert!(cfg.args.iter().any(|a| a == "--"));
+        assert!(cfg.initial_stdin.is_none());
     }
 }

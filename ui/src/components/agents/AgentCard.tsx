@@ -1,4 +1,6 @@
 import { Pill } from '@/components/ui/pill'
+import type { PillTone } from '@/components/ui/pill'
+import type { BillingProfile, RunnerMode } from '@/types/agents'
 import type { SKTone } from '@/types/icons'
 import { Avatar } from '@/ui/Avatar'
 import { Btn } from '@/ui/Btn'
@@ -13,9 +15,34 @@ interface AgentCardProps {
 	sparkline: number[]
 	tags: string[]
 	tone: SKTone
+	runner_mode: RunnerMode
+	billing_profile: BillingProfile
 }
 
-export function AgentCard({ name, role, model, runs, success, sparkline, tags, tone }: AgentCardProps) {
+function billingTone(profile: BillingProfile): PillTone {
+	switch (profile) {
+		case 'subscription':
+			return 'success'
+		case 'agent_sdk_credits':
+		case 'api_credits':
+			return 'warn'
+		case 'unknown':
+			return 'neutral'
+	}
+}
+
+export function AgentCard({
+	name,
+	role,
+	model,
+	runs,
+	success,
+	sparkline,
+	tags,
+	tone,
+	runner_mode,
+	billing_profile
+}: AgentCardProps) {
 	return (
 		<article className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
 			<header className="flex items-center gap-3">
@@ -47,6 +74,12 @@ export function AgentCard({ name, role, model, runs, success, sparkline, tags, t
 			</div>
 
 			<div className="flex flex-wrap items-center gap-1.5">
+				<Pill tone={billingTone(billing_profile)} size="xs">
+					{billing_profile}
+				</Pill>
+				<Pill tone="neutral" mono size="xs">
+					{runner_mode}
+				</Pill>
 				{tags.map((tag) => (
 					<Pill key={tag} tone="neutral" size="xs">
 						{tag}
