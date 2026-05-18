@@ -12,6 +12,7 @@ path = "src/main.rs"
 superkick-api = { path = "../superkick-api" }
 superkick-config = { path = "../superkick-config" }
 clap = { version = "4", features = ["derive"] }
+dotenvy = "0.15"
 anyhow.workspace = true
 serde_json.workspace = true
 ureq = "3"

@@ -157,6 +157,8 @@ curl -X POST http://127.0.0.1:3100/api/runs/<run-id>/interrupts/<interrupt-id>/a
 | `SUPERKICK_CACHE_DIR` | `.superkick-cache` | Bare clone cache directory |
 | `RUST_LOG` | (none) | Log level, e.g. `info` or `superkick_runtime=debug` |
 
+Both `superkick serve` and `superkick-api` auto-load a `.env` file from the current working directory at startup — so `LINEAR_API_KEY` and friends are picked up without `set -a && source .env`. This is the V1 behavior; the long-term direction is Superkick-managed secrets (per-project, stored by the server) so the CLI no longer needs to read `.env` directly.
+
 ---
 
 ## Demo and smoke tests
