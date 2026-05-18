@@ -3,7 +3,6 @@ import { EmptyState } from '@/components/ui/state-empty'
 import { issueStateAccent, issueStateTone } from '@/lib/domain'
 import type { IssueState, LaunchQueueItem, RecentUnblocks } from '@/types'
 import { Dot } from '@/ui/Dot'
-import { Icon } from '@/ui/Icon'
 
 interface KanbanColumnProps {
 	state: IssueState
@@ -40,8 +39,6 @@ export function KanbanColumn({
 				<Dot tone={issueStateTone[state]} size={8} />
 				<span className="text-[12px] font-semibold text-fg">{accent.label}</span>
 				<span className="font-mono text-[11px] text-fg-dim">{items.length}</span>
-				<span className="flex-1" />
-				<Icon name="more" size={14} className="text-fg-dim" />
 			</div>
 			{items.length === 0 ? (
 				<div className="px-3.5 pb-3.5">

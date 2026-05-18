@@ -31,7 +31,7 @@ export function KanbanIssueCard({
 	const assigneeName = item.issue.assignee?.name
 
 	return (
-		<div className="group flex flex-col gap-2.5 rounded-lg border border-border bg-raised p-3 transition-colors hover:border-border-strong">
+		<div className="flex flex-col gap-2.5 rounded-lg border border-border bg-raised p-3 transition-colors hover:border-border-strong">
 			<Link
 				to="/issues/$issueId"
 				params={{ issueId: item.issue.id }}
@@ -64,10 +64,7 @@ export function KanbanIssueCard({
 					variant="secondary"
 					size="xs"
 					disabled={dispatchPending}
-					onClick={(event) => {
-						event.stopPropagation()
-						onDispatch(item.issue.identifier)
-					}}
+					onClick={() => onDispatch(item.issue.identifier)}
 					className="self-start font-mono text-[11px]"
 					aria-label={`Dispatch ${item.issue.identifier}`}
 				>

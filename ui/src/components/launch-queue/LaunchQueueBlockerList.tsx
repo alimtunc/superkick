@@ -1,4 +1,5 @@
 import { StatusIcon } from '@/components/issues/StatusIcon'
+import { Pill } from '@/components/ui/pill'
 import type { IssueBlockerRef } from '@/types'
 
 interface LaunchQueueBlockerListProps {
@@ -8,17 +9,20 @@ interface LaunchQueueBlockerListProps {
 export function LaunchQueueBlockerList({ blockers }: LaunchQueueBlockerListProps) {
 	if (blockers.length === 0) return null
 	return (
-		<ul className="font-data flex flex-wrap gap-1 text-[10px] text-dim">
+		<ul className="flex flex-wrap gap-1">
 			{blockers.map((blocker) => (
-				<li
-					key={blocker.id}
-					className="inline-flex items-center gap-1 rounded border border-edge/60 bg-slate-deep/40 px-1.5 py-0.5"
-				>
-					<span className="text-silver">{blocker.identifier}</span>
-					<span className="flex w-3 shrink-0 items-center justify-center">
-						<StatusIcon stateType={blocker.status.state_type} color={blocker.status.color} />
-					</span>
-					<span>{blocker.status.name}</span>
+				<li key={blocker.id}>
+					<Pill
+						tone="neutral"
+						size="xs"
+						mono
+						title={blocker.status.name}
+						leading={
+							<StatusIcon stateType={blocker.status.state_type} color={blocker.status.color} />
+						}
+					>
+						{blocker.identifier}
+					</Pill>
 				</li>
 			))}
 		</ul>

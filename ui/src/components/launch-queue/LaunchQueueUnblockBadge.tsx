@@ -1,3 +1,4 @@
+import { Pill } from '@/components/ui/pill'
 import { fmtRelativeTime, isWithinUnblockWindow } from '@/lib/domain'
 
 interface LaunchQueueUnblockBadgeProps {
@@ -15,12 +16,8 @@ export function LaunchQueueUnblockBadge({ resolvedAt, refTime }: LaunchQueueUnbl
 	if (!isWithinUnblockWindow(resolvedAt, refTime)) return null
 
 	return (
-		<span
-			className="font-data inline-flex items-center gap-1 self-start rounded border border-neon-green/40 bg-neon-green/10 px-1.5 py-0.5 text-[10px] text-neon-green"
-			title={`Unblocked ${fmtRelativeTime(resolvedAt)}`}
-		>
-			<span className="h-1.5 w-1.5 rounded-full bg-neon-green" aria-hidden="true" />
+		<Pill tone="live" size="xs" dot pulse title={`Unblocked ${fmtRelativeTime(resolvedAt)}`}>
 			Unblocked
-		</span>
+		</Pill>
 	)
 }

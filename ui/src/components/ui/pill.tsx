@@ -1,7 +1,7 @@
 import type { ComponentProps, CSSProperties, ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
-import { Dot } from '@/ui/Dot'
+import { Dot, type DotTone } from '@/ui/Dot'
 import { cva, type VariantProps } from 'class-variance-authority'
 
 const pillVariants = cva(
@@ -58,15 +58,14 @@ const pillVariants = cva(
 export type PillTone = NonNullable<VariantProps<typeof pillVariants>['tone']>
 export type PillSize = NonNullable<VariantProps<typeof pillVariants>['size']>
 
-type SKToneSubset = 'neutral' | 'accent' | 'success' | 'warn' | 'danger' | 'info'
-
-function dotToneFor(tone: PillTone | null | undefined): SKToneSubset {
+function dotToneFor(tone: PillTone | null | undefined): DotTone {
 	switch (tone) {
 		case 'accent':
 		case 'success':
 		case 'warn':
 		case 'danger':
 		case 'info':
+		case 'live':
 			return tone
 		default:
 			return 'neutral'

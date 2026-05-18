@@ -18,7 +18,7 @@ export function KanbanRunCard({ item, refTime }: KanbanRunCardProps) {
 		<Link
 			to="/runs/$runId"
 			params={{ runId: run.id }}
-			className="group flex flex-col gap-2.5 rounded-lg border border-border bg-raised p-3 transition-colors hover:border-border-strong focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+			className="flex flex-col gap-2.5 rounded-lg border border-border bg-raised p-3 transition-colors hover:border-border-strong focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
 			title={item.reason}
 		>
 			<div className="flex items-center gap-2">

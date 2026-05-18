@@ -1,6 +1,8 @@
 import { LaunchQueueCard } from '@/components/launch-queue/LaunchQueueCard'
+import { EmptyState } from '@/components/ui/state-empty'
 import { launchQueueAccent } from '@/lib/domain'
 import type { LaunchQueue, LaunchQueueItem, RecentUnblocks } from '@/types'
+import { Dot } from '@/ui/Dot'
 
 interface LaunchQueueColumnProps {
 	queue: LaunchQueue
@@ -22,25 +24,22 @@ export function LaunchQueueColumn({
 	recentUnblocks
 }: LaunchQueueColumnProps) {
 	const accent = launchQueueAccent[queue]
-	const Icon = accent.icon
 	return (
-		<div className={`panel flex max-h-[70vh] flex-col overflow-hidden border-t-2 ${accent.border}`}>
-			<div className="flex items-start justify-between gap-2 border-b border-edge px-3 py-2">
-				<div className="min-w-0">
-					<p
-						className={`font-data flex items-center gap-1.5 text-[10px] tracking-wider uppercase ${accent.text}`}
-					>
-						<Icon size={11} aria-hidden="true" />
-						{accent.label}
-					</p>
-					<p className="font-data mt-0.5 truncate text-[10px] text-dim">{accent.description}</p>
-				</div>
-				<span className="font-data shrink-0 text-[11px] text-ash">{items.length}</span>
+		<div
+			className="flex w-65 shrink-0 flex-col border-r border-border last:border-r-0"
+			title={accent.description}
+		>
+			<div className="flex items-center gap-2 px-3.5 pt-3 pb-2.5">
+				<Dot tone={accent.tone} size={8} />
+				<span className="text-[12px] font-semibold text-fg">{accent.label}</span>
+				<span className="font-mono text-[11px] text-fg-dim">{items.length}</span>
 			</div>
 			{items.length === 0 ? (
-				<p className="font-data px-3 py-4 text-[11px] text-dim">Empty</p>
+				<div className="px-3.5 pb-3.5">
+					<EmptyState density="compact" title="Empty" />
+				</div>
 			) : (
-				<div className="flex-1 divide-y divide-edge/50 overflow-y-auto">
+				<div className="flex flex-1 flex-col gap-2 overflow-y-auto px-3.5 pb-3.5">
 					{items.map((item, index) => (
 						<LaunchQueueCard
 							key={keyForItem(item)}
