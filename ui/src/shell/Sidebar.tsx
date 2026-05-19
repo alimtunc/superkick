@@ -86,7 +86,6 @@ export function Sidebar({ active, counts }: SidebarProps) {
 					<span className="text-[13px] font-semibold text-fg">superkick</span>
 					<span className="text-[11px] text-fg-dim">local workspace</span>
 				</div>
-				<Icon name="chevDown" size={14} className="text-fg-dim" />
 			</div>
 
 			<button
@@ -130,7 +129,6 @@ export function Sidebar({ active, counts }: SidebarProps) {
 					<span className="text-[12.5px] font-medium text-fg">You</span>
 					<span className="text-[11px] text-fg-dim">local operator</span>
 				</div>
-				<Icon name="chevDown" size={13} className="text-fg-dim" />
 			</div>
 		</aside>
 	)

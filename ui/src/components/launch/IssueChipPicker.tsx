@@ -78,7 +78,13 @@ export function IssueChipPicker({ value, onChange, disabled }: IssueChipPickerPr
 				<Icon name="chevDown" size={11} className="text-fg-dim" />
 			</Combobox.Trigger>
 			<Combobox.Portal>
-				<Combobox.Positioner sideOffset={6} align="start" className="z-50">
+				<Combobox.Positioner
+					sideOffset={6}
+					align="start"
+					collisionPadding={8}
+					collisionAvoidance={{ side: 'flip', align: 'shift' }}
+					className="z-popover"
+				>
 					<Combobox.Popup className="flex w-90 flex-col gap-1 rounded-[7px] border border-border bg-surface p-2 shadow-lg">
 						<Combobox.Input
 							placeholder="Search issues…"

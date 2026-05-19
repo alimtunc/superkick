@@ -1,5 +1,6 @@
 import type { ReactElement, ReactNode } from 'react'
 
+import { PopoverPopup } from '@/components/ui/popover-shell'
 import { Popover } from '@base-ui/react/popover'
 
 const OPEN_DELAY = 400
@@ -15,13 +16,14 @@ export function HoverCard({ content, children }: { content: ReactNode; children:
 				delay={OPEN_DELAY}
 				closeDelay={CLOSE_DELAY}
 			/>
-			<Popover.Portal>
-				<Popover.Positioner sideOffset={4} align="end" className="z-50">
-					<Popover.Popup initialFocus={false} className="pointer-events-none outline-none">
-						{content}
-					</Popover.Popup>
-				</Popover.Positioner>
-			</Popover.Portal>
+			<PopoverPopup
+				align="end"
+				sideOffset={4}
+				initialFocus={false}
+				popupClassName="border-0 bg-transparent shadow-none"
+			>
+				{content}
+			</PopoverPopup>
 		</Popover.Root>
 	)
 }

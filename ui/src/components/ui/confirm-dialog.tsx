@@ -29,8 +29,8 @@ export function ConfirmDialog({
 	return (
 		<AlertDialog.Root open={open} onOpenChange={onOpenChange}>
 			<AlertDialog.Portal>
-				<AlertDialog.Backdrop className="fixed inset-0 z-50 bg-carbon/70 backdrop-blur-sm transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
-				<AlertDialog.Popup className="fixed top-1/2 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border border-edge bg-carbon p-5 shadow-xl transition-all duration-150 outline-none data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
+				<AlertDialog.Backdrop className="fixed inset-0 z-overlay bg-carbon/70 backdrop-blur-sm transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
+				<AlertDialog.Popup className="fixed top-1/2 left-1/2 z-dialog w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border border-edge bg-carbon p-5 shadow-xl transition-all duration-150 outline-none data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
 					<AlertDialog.Title className="text-[14px] font-semibold text-fog">
 						{title}
 					</AlertDialog.Title>
