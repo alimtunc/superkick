@@ -1,4 +1,5 @@
 import { isRecommendedAgent } from '@/components/launch/pickDefaultAgent'
+import { MenuPopup } from '@/components/ui/menu-shell'
 import { cn } from '@/lib/utils'
 import type { Agent, LaunchStepKind } from '@/types'
 import type { SKIconName } from '@/types/icons'
@@ -50,49 +51,42 @@ export function AgentPicker({
 				<span className={cn('font-medium', dim ? 'text-fg-dim' : 'text-fg')}>{valueText}</span>
 				<Icon name="chevDown" size={11} className="text-fg-dim" />
 			</Menu.Trigger>
-			<Menu.Portal>
-				<Menu.Positioner sideOffset={6} align="start" className="z-50">
-					<Menu.Popup className="w-72 overflow-hidden rounded-[7px] border border-border bg-surface shadow-lg">
-						<Menu.RadioGroup
-							value={value ?? ''}
-							onValueChange={(next) => onChange(next as string)}
-						>
-							{agents.map((agent) => {
-								const recommended = isRecommendedAgent(agent, recommendedFor)
-								return (
-									<Menu.RadioItem
-										key={agent.name}
-										value={agent.name}
-										className={cn(
-											'flex cursor-pointer items-start gap-2 px-3 py-2 text-[12.5px] outline-none',
-											'data-highlighted:bg-raised data-checked:bg-raised'
-										)}
-									>
-										<span className="flex-1">
-											<span className="flex items-center gap-2">
-												<span className="text-fg">{agent.name}</span>
-												{recommended ? (
-													<span className="rounded border border-border bg-raised px-1 py-px font-mono text-[9px] tracking-wider text-fg-dim uppercase">
-														Recommended
-													</span>
-												) : null}
+			<MenuPopup align="start" popupClassName="w-72">
+				<Menu.RadioGroup value={value ?? ''} onValueChange={(next) => onChange(next as string)}>
+					{agents.map((agent) => {
+						const recommended = isRecommendedAgent(agent, recommendedFor)
+						return (
+							<Menu.RadioItem
+								key={agent.name}
+								value={agent.name}
+								className={cn(
+									'flex cursor-pointer items-start gap-2 px-3 py-2 text-[12.5px] outline-none',
+									'data-highlighted:bg-raised data-checked:bg-raised'
+								)}
+							>
+								<span className="flex-1">
+									<span className="flex items-center gap-2">
+										<span className="text-fg">{agent.name}</span>
+										{recommended ? (
+											<span className="rounded border border-border bg-raised px-1 py-px font-mono text-[9px] tracking-wider text-fg-dim uppercase">
+												Recommended
 											</span>
-											<span className="block text-[10.5px] text-fg-dim">
-												{providerLabel(agent.provider)}
-												{agent.role ? ` · ${agent.role}` : ''}
-												{agent.model ? ` · ${agent.model}` : ''}
-											</span>
-										</span>
-										<Menu.RadioItemIndicator className="mt-0.5 text-fg">
-											<Icon name="check" size={13} />
-										</Menu.RadioItemIndicator>
-									</Menu.RadioItem>
-								)
-							})}
-						</Menu.RadioGroup>
-					</Menu.Popup>
-				</Menu.Positioner>
-			</Menu.Portal>
+										) : null}
+									</span>
+									<span className="block text-[10.5px] text-fg-dim">
+										{providerLabel(agent.provider)}
+										{agent.role ? ` · ${agent.role}` : ''}
+										{agent.model ? ` · ${agent.model}` : ''}
+									</span>
+								</span>
+								<Menu.RadioItemIndicator className="mt-0.5 text-fg">
+									<Icon name="check" size={13} />
+								</Menu.RadioItemIndicator>
+							</Menu.RadioItem>
+						)
+					})}
+				</Menu.RadioGroup>
+			</MenuPopup>
 		</Menu.Root>
 	)
 }

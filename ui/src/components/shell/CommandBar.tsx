@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 
+import { DialogPopup } from '@/components/ui/dialog-shell'
 import { runsQuery } from '@/lib/queries'
 import { useCommandBarStore } from '@/stores/commandBar'
+import { Dialog } from '@base-ui/react/dialog'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { Bot, Inbox, ListTodo, Play, Search, Settings } from 'lucide-react'
@@ -17,7 +18,7 @@ interface CommandItem {
 }
 
 export function CommandBar() {
-	const { open, closeBar, toggle } = useCommandBarStore()
+	const { open, closeBar, openBar, toggle } = useCommandBarStore()
 	const router = useRouter()
 	const { data: runs = [] } = useQuery({ ...runsQuery(), enabled: open })
 	const inputRef = useRef<HTMLInputElement>(null)
@@ -26,8 +27,7 @@ export function CommandBar() {
 
 	useEffect(() => {
 		function onKey(e: KeyboardEvent) {
-			const isK = e.key.toLowerCase() === 'k'
-			if (isK && (e.metaKey || e.ctrlKey)) {
+			if (e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey)) {
 				e.preventDefault()
 				toggle()
 			}
@@ -40,7 +40,6 @@ export function CommandBar() {
 		if (open) {
 			setQuery('')
 			setActiveIdx(0)
-			requestAnimationFrame(() => inputRef.current?.focus())
 		}
 	}, [open])
 
@@ -92,7 +91,6 @@ export function CommandBar() {
 		: []
 
 	const items = [...navItems, ...runItems]
-
 	const q = query.trim().toLowerCase()
 	const filtered = q
 		? items.filter(
@@ -106,19 +104,12 @@ export function CommandBar() {
 		if (activeIdx >= filtered.length) setActiveIdx(0)
 	}, [filtered, activeIdx])
 
-	if (!open) return null
-
 	function run(item: CommandItem) {
 		item.run()
 		closeBar()
 	}
 
 	function onKeyDown(e: React.KeyboardEvent) {
-		if (e.key === 'Escape') {
-			e.preventDefault()
-			closeBar()
-			return
-		}
 		if (e.key === 'ArrowDown') {
 			e.preventDefault()
 			setActiveIdx((i) => Math.min(filtered.length - 1, i + 1))
@@ -136,14 +127,14 @@ export function CommandBar() {
 		}
 	}
 
-	return createPortal(
-		<div className="fixed inset-0 z-[100] flex items-start justify-center pt-[12vh]">
-			<div
-				role="presentation"
-				className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-				onClick={closeBar}
-			/>
-			<div className="relative z-10 w-full max-w-xl overflow-hidden rounded-md border border-edge bg-panel shadow-2xl">
+	return (
+		<Dialog.Root open={open} onOpenChange={(value) => (value ? openBar() : closeBar())}>
+			<DialogPopup
+				align="top"
+				initialFocus={inputRef}
+				popupClassName="z-command w-full max-w-xl overflow-hidden rounded-md border border-edge bg-panel shadow-2xl"
+			>
+				<Dialog.Title className="sr-only">Command bar</Dialog.Title>
 				<div className="flex items-center gap-2 border-b border-edge px-3 py-2.5">
 					<Search size={14} strokeWidth={1.75} className="text-ash" aria-hidden="true" />
 					<input
@@ -152,6 +143,7 @@ export function CommandBar() {
 						onChange={(e) => setQuery(e.target.value)}
 						onKeyDown={onKeyDown}
 						placeholder="Navigate, open a run…"
+						aria-label="Search commands"
 						className="font-data flex-1 bg-transparent text-[12px] text-fog placeholder:text-ash focus:outline-none"
 					/>
 					<kbd className="font-data rounded border border-edge px-1.5 py-0.5 text-[9px] tracking-wider text-ash uppercase">
@@ -196,8 +188,7 @@ export function CommandBar() {
 						})
 					)}
 				</ul>
-			</div>
-		</div>,
-		document.body
+			</DialogPopup>
+		</Dialog.Root>
 	)
 }
