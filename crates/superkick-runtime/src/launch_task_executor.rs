@@ -32,8 +32,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 use superkick_core::{
-    ConversationId, CoreError, LaunchTask, LaunchTaskId, LaunchTaskStatus, LaunchTaskStep,
-    LaunchTaskStepId, LaunchTaskStepStatus, OrchestratorSessionId, RunId,
+    ConversationId, CoreError, FailureClassification, FailureDisposition, LaunchTask, LaunchTaskId,
+    LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus,
+    OrchestratorSessionId, RunId,
 };
 use superkick_storage::repo::LaunchTaskRepo;
 
@@ -89,14 +90,28 @@ pub struct RetryOutcome {
 
 /// Outcome of a single step from the runner's point of view. The executor
 /// translates these into persisted state transitions.
+///
+/// `NeedsHuman` and `Failed` both carry the runtime classifier verdict
+/// ([`FailureClassification`]) so the executor can branch on disposition
+/// (retryable vs. terminal) and the storage layer can persist the typed
+/// reason on the step row.
 #[derive(Debug)]
 pub enum StepOutcome {
     Completed {
         summary: Option<String>,
         links: StepLinks,
     },
+    /// Retryable failure — the executor parks the step at `NeedsHuman` so
+    /// SUP-120's `retry_needs_human_step` can re-enter it.
+    NeedsHuman {
+        classification: FailureClassification,
+        links: StepLinks,
+    },
+    /// Terminal failure — the executor flips both step and task to
+    /// `Failed`. No in-place retry; recovery requires a fresh task.
     Failed {
-        reason: String,
+        classification: FailureClassification,
+        links: StepLinks,
     },
     Cancelled,
 }
@@ -343,7 +358,7 @@ where
                      crash recovery is not implemented in V1",
                     step.id, step.status
                 );
-                self.move_task_to_needs_human(task, Some(step.id), reason)
+                self.move_task_to_status(task, LaunchTaskStatus::NeedsHuman, Some(step.id), reason)
                     .await?;
                 return Ok(());
             }
@@ -403,7 +418,8 @@ where
     }
 
     /// Fold a runner result into persisted state + bus events. Returns
-    /// `Ok(true)` to continue, `Ok(false)` on halt (NeedsHuman / Cancelled).
+    /// `Ok(true)` to continue, `Ok(false)` on halt (NeedsHuman / Failed /
+    /// Cancelled).
     async fn handle_step_outcome(
         &self,
         task: &LaunchTask,
@@ -422,6 +438,11 @@ where
                     )
                     .await
                     .with_context(|| format!("step {} link recording", step.id))?;
+                // Successful retry path clears any prior classifier verdict.
+                self.repo
+                    .set_step_failure_classification(step.id, None)
+                    .await
+                    .with_context(|| format!("step {} classification clear", step.id))?;
                 self.repo
                     .set_step_summary(step.id, summary.clone())
                     .await
@@ -444,38 +465,96 @@ where
                 self.halt_step_cancelled(task, step).await?;
                 Ok(false)
             }
-            Ok(StepOutcome::Failed { reason }) => {
-                self.halt_step_failed_or_cancelled(task, step, reason, cancel)
+            Ok(StepOutcome::NeedsHuman {
+                classification,
+                links,
+            }) => {
+                self.record_step_links(step, &links).await?;
+                self.route_classified_halt(task, step, classification, cancel)
+                    .await?;
+                Ok(false)
+            }
+            Ok(StepOutcome::Failed {
+                classification,
+                links,
+            }) => {
+                self.record_step_links(step, &links).await?;
+                self.route_classified_halt(task, step, classification, cancel)
                     .await?;
                 Ok(false)
             }
             Err(e) => {
-                let reason = format!("step runner error: {e:#}");
-                self.halt_step_failed_or_cancelled(task, step, reason, cancel)
+                // Programming-level errors (storage I/O, bugs) have no
+                // typed classification. Route through SpawnError so the row
+                // still gets a stable discriminant rather than a bare string.
+                let classification = FailureClassification::SpawnError {
+                    detail: format!("step runner error: {e:#}"),
+                };
+                self.route_classified_halt(task, step, classification, cancel)
                     .await?;
                 Ok(false)
             }
         }
     }
 
-    /// Park a step as `NeedsHuman` for operator review, unless cancellation
-    /// was already signalled — in that case route through the cancel
-    /// terminal path so operator intent wins over the runner's protest.
-    async fn halt_step_failed_or_cancelled(
+    /// Park a step using the disposition of the supplied classification —
+    /// `NeedsHuman` for retryable verdicts, terminal `Failed` for the rest.
+    /// Cancellation always wins over either path. The classification is
+    /// serialised onto the `failure_classification` column **and** projected
+    /// to a human-readable summary so legacy UI (pre-SUP-141) keeps
+    /// rendering.
+    async fn route_classified_halt(
         &self,
         task: &LaunchTask,
         step: &LaunchTaskStep,
-        reason: String,
+        classification: FailureClassification,
         cancel: &CancellationToken,
     ) -> Result<()> {
         if cancel.is_cancelled() {
-            self.halt_step_cancelled(task, step).await
-        } else {
-            self.block_step_for_human(task, step, reason.clone())
-                .await?;
-            self.move_task_to_needs_human(task, Some(step.id), reason)
-                .await
+            return self.halt_step_cancelled(task, step).await;
         }
+        let (step_status, task_status) = match classification.disposition() {
+            FailureDisposition::NeedsHuman => (
+                LaunchTaskStepStatus::NeedsHuman,
+                LaunchTaskStatus::NeedsHuman,
+            ),
+            FailureDisposition::Failed => (LaunchTaskStepStatus::Failed, LaunchTaskStatus::Failed),
+        };
+        let reason = classification.human_summary();
+        self.repo
+            .set_step_failure_classification(step.id, Some(classification))
+            .await
+            .with_context(|| format!("step {} classification persist ({step_status})", step.id))?;
+        self.repo
+            .set_step_summary(step.id, Some(reason.clone()))
+            .await
+            .with_context(|| format!("step {} summary persist ({step_status})", step.id))?;
+        self.repo
+            .update_step_status(step.id, step_status)
+            .await
+            .with_context(|| format!("step {} → {step_status}", step.id))?;
+        self.publish(LaunchTaskEvent::StepFinished {
+            task_id: task.id,
+            linear_issue_id: task.linear_issue_id.clone(),
+            step_id: step.id,
+            step_kind: step.step_kind,
+            status: step_status,
+            summary: Some(reason.clone()),
+        });
+        self.move_task_to_status(task, task_status, Some(step.id), reason)
+            .await
+    }
+
+    async fn record_step_links(&self, step: &LaunchTaskStep, links: &StepLinks) -> Result<()> {
+        self.repo
+            .add_step_links(
+                step.id,
+                links.run_id,
+                links.conversation_id,
+                links.orchestrator_session_id,
+            )
+            .await
+            .with_context(|| format!("step {} link recording", step.id))
     }
 
     async fn halt_step_cancelled(&self, task: &LaunchTask, step: &LaunchTaskStep) -> Result<()> {
@@ -599,37 +678,6 @@ where
         })
     }
 
-    /// Park a step that the runner reported as `Failed` so it can be picked
-    /// up by the SUP-120 retry path. Putting the step in `NeedsHuman` (rather
-    /// than the terminal `Failed`) means `retry_needs_human_step` has a
-    /// non-terminal source state to transition back to `Running`. Truly
-    /// unrecoverable failures (storage I/O, programming bugs) bypass this
-    /// and propagate up as `Result::Err` from the executor.
-    async fn block_step_for_human(
-        &self,
-        task: &LaunchTask,
-        step: &LaunchTaskStep,
-        reason: String,
-    ) -> Result<()> {
-        self.repo
-            .set_step_summary(step.id, Some(reason.clone()))
-            .await
-            .with_context(|| format!("step {} summary persist (NeedsHuman)", step.id))?;
-        self.repo
-            .update_step_status(step.id, LaunchTaskStepStatus::NeedsHuman)
-            .await
-            .with_context(|| format!("step {} → NeedsHuman", step.id))?;
-        self.publish(LaunchTaskEvent::StepFinished {
-            task_id: task.id,
-            linear_issue_id: task.linear_issue_id.clone(),
-            step_id: step.id,
-            step_kind: step.step_kind,
-            status: LaunchTaskStepStatus::NeedsHuman,
-            summary: Some(reason),
-        });
-        Ok(())
-    }
-
     async fn cancel_step(&self, task: &LaunchTask, step: &LaunchTaskStep) -> Result<()> {
         self.repo
             .update_step_status(step.id, LaunchTaskStepStatus::Cancelled)
@@ -646,20 +694,24 @@ where
         Ok(())
     }
 
-    async fn move_task_to_needs_human(
+    /// Flip the parent task to a terminal-ish status (`NeedsHuman` or
+    /// `Failed`) with a reason. Cancellation has its own `move_task_to_cancelled`
+    /// because it does not carry a reason payload.
+    async fn move_task_to_status(
         &self,
         task: &LaunchTask,
-        step_id: Option<superkick_core::LaunchTaskStepId>,
+        status: LaunchTaskStatus,
+        step_id: Option<LaunchTaskStepId>,
         reason: String,
     ) -> Result<()> {
         self.repo
-            .update_task_status(task.id, LaunchTaskStatus::NeedsHuman)
+            .update_task_status(task.id, status)
             .await
-            .with_context(|| format!("launch_task {} → NeedsHuman", task.id))?;
+            .with_context(|| format!("launch_task {} → {status}", task.id))?;
         self.publish(LaunchTaskEvent::TaskStatusChanged {
             task_id: task.id,
             linear_issue_id: task.linear_issue_id.clone(),
-            status: LaunchTaskStatus::NeedsHuman,
+            status,
             current_step_id: step_id,
             reason: Some(reason),
         });
@@ -761,6 +813,7 @@ mod tests {
             linked_orchestrator_session_id: None,
             summary: None,
             structured_result: None,
+            failure_classification: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };

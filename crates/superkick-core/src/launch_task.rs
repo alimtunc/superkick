@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::CoreError;
 use crate::id::{ConversationId, LaunchTaskId, LaunchTaskStepId, OrchestratorSessionId, RunId};
 use crate::role_router::AgentCatalog;
-use crate::step_result::StepResult;
+use crate::step_result::{FailureClassification, StepResult};
 
 /// Recipe identifier. Stored as a string column so adding a new recipe later
 /// does not need a SQL migration. V1 only ships `PlanImplementReview`.
@@ -236,6 +236,10 @@ pub struct LaunchTaskStep {
     /// Structured marker payload; `None` for legacy rows or pre-marker runs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub structured_result: Option<StepResult>,
+    /// Runtime classifier verdict; `None` for steps that completed cleanly or
+    /// legacy rows persisted before SUP-140.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure_classification: Option<FailureClassification>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -416,6 +420,7 @@ fn build_step(
         linked_orchestrator_session_id: None,
         summary: None,
         structured_result: None,
+        failure_classification: None,
         created_at: now,
         updated_at: now,
     })

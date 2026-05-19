@@ -24,8 +24,9 @@ use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
     AgentCatalog, AgentProvider, CoreAgentDefinition, ExecutionMode, LaunchStepKind,
-    LaunchTaskStepStatus, LinearContextMode, PlanImplementReviewAgents, ResolvedMcpPolicy,
-    ResolvedToolPolicy, Run, RunId, RunState, RunStep, StepKey, StepStatus, TriggerSource,
+    LaunchTaskStatus, LaunchTaskStepStatus, LinearContextMode, PlanImplementReviewAgents,
+    ResolvedMcpPolicy, ResolvedToolPolicy, Run, RunId, RunState, RunStep, StepKey, StepStatus,
+    TriggerSource,
 };
 use superkick_runtime::{
     LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry, StepLinks, StepOutcome, StepRunner,
@@ -230,8 +231,12 @@ impl StepRunner for AlwaysFailRunner {
         _step: &superkick_core::LaunchTaskStep,
         _cancel: CancellationToken,
     ) -> Result<StepOutcome> {
-        Ok(StepOutcome::Failed {
-            reason: "planner exited with code 2".into(),
+        Ok(StepOutcome::NeedsHuman {
+            classification: superkick_core::FailureClassification::AgentNonZeroExit {
+                exit_code: 2,
+                role: "planner".into(),
+            },
+            links: StepLinks::default(),
         })
     }
 }
@@ -264,8 +269,306 @@ async fn executor_persists_failure_reason_into_step_summary() -> Result<()> {
     assert_eq!(plan_step.status, LaunchTaskStepStatus::NeedsHuman);
     assert_eq!(
         plan_step.summary.as_deref(),
-        Some("planner exited with code 2"),
-        "NeedsHuman summary must echo the runner's reason"
+        Some("planner agent exited with code 2"),
+        "NeedsHuman summary must echo the classification's human_summary()",
+    );
+    assert!(
+        matches!(
+            plan_step.failure_classification,
+            Some(superkick_core::FailureClassification::AgentNonZeroExit { .. })
+        ),
+        "failure_classification column must carry the classifier verdict",
+    );
+    Ok(())
+}
+
+// ── 5. SUP-140 — classification persistence on each failure path ─────────
+
+/// Scripted runner: emits an arbitrary `StepOutcome` for the Plan step.
+/// All subsequent steps short-circuit to `Completed` so the test focuses on
+/// the first step's persisted classification.
+struct ScriptedClassifierRunner {
+    plan_outcome: std::sync::Mutex<Option<StepOutcome>>,
+}
+
+impl ScriptedClassifierRunner {
+    fn new(outcome: StepOutcome) -> Self {
+        Self {
+            plan_outcome: std::sync::Mutex::new(Some(outcome)),
+        }
+    }
+}
+
+impl StepRunner for ScriptedClassifierRunner {
+    async fn run_step(
+        &self,
+        _task: &superkick_core::LaunchTask,
+        step: &superkick_core::LaunchTaskStep,
+        _cancel: CancellationToken,
+    ) -> Result<StepOutcome> {
+        if matches!(step.step_kind, LaunchStepKind::Plan) {
+            if let Some(outcome) = self.plan_outcome.lock().unwrap().take() {
+                return Ok(outcome);
+            }
+        }
+        Ok(StepOutcome::Completed {
+            summary: None,
+            links: StepLinks::default(),
+        })
+    }
+}
+
+async fn run_with_plan_outcome(outcome: StepOutcome) -> Result<superkick_core::LaunchTaskStep> {
+    let pool = connect("sqlite::memory:").await?;
+    let repo = Arc::new(SqliteLaunchTaskRepo::new(pool));
+    let (task, steps) =
+        superkick_core::LaunchTask::new_with_v1_recipe("SUP-140", agents(), &catalog())?;
+    repo.insert_with_steps(&task, &steps).await?;
+
+    let bus = LaunchTaskEventBus::new();
+    let exec = LaunchTaskExecutor::new(
+        Arc::clone(&repo),
+        Arc::clone(&bus),
+        Arc::new(LaunchTaskRegistry::new()),
+        Arc::new(ScriptedClassifierRunner::new(outcome)),
+    );
+
+    exec.run(task.id).await?;
+
+    let plan = repo
+        .list_steps(task.id)
+        .await?
+        .into_iter()
+        .find(|s| matches!(s.step_kind, LaunchStepKind::Plan))
+        .expect("plan step persists");
+    Ok(plan)
+}
+
+#[tokio::test]
+async fn completed_outcome_clears_failure_classification() -> Result<()> {
+    let plan = run_with_plan_outcome(StepOutcome::Completed {
+        summary: Some("done".into()),
+        links: StepLinks::default(),
+    })
+    .await?;
+    assert_eq!(plan.status, LaunchTaskStepStatus::Completed);
+    assert!(
+        plan.failure_classification.is_none(),
+        "successful run must leave failure_classification clear: {:?}",
+        plan.failure_classification
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn missing_marker_persists_classification_and_parks_needs_human() -> Result<()> {
+    let plan = run_with_plan_outcome(StepOutcome::NeedsHuman {
+        classification: superkick_core::FailureClassification::MissingMarker,
+        links: StepLinks::default(),
+    })
+    .await?;
+
+    assert_eq!(plan.status, LaunchTaskStepStatus::NeedsHuman);
+    assert!(matches!(
+        plan.failure_classification,
+        Some(superkick_core::FailureClassification::MissingMarker)
+    ));
+    assert!(
+        plan.summary.is_some(),
+        "human-readable summary must persist"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn missing_marker_routes_parent_task_to_needs_human() -> Result<()> {
+    let pool = connect("sqlite::memory:").await?;
+    let repo = Arc::new(SqliteLaunchTaskRepo::new(pool));
+    let (task, steps) =
+        superkick_core::LaunchTask::new_with_v1_recipe("SUP-140-A", agents(), &catalog())?;
+    repo.insert_with_steps(&task, &steps).await?;
+
+    let runner = Arc::new(ScriptedClassifierRunner::new(StepOutcome::NeedsHuman {
+        classification: superkick_core::FailureClassification::MissingMarker,
+        links: StepLinks::default(),
+    }));
+    let exec = LaunchTaskExecutor::new(
+        Arc::clone(&repo),
+        LaunchTaskEventBus::new(),
+        Arc::new(LaunchTaskRegistry::new()),
+        runner,
+    );
+    exec.run(task.id).await?;
+
+    let reloaded = repo.get(task.id).await?.expect("task persists");
+    assert_eq!(reloaded.status, LaunchTaskStatus::NeedsHuman);
+    Ok(())
+}
+
+#[tokio::test]
+async fn auth_required_hint_persists_with_provider_and_parks_needs_human() -> Result<()> {
+    let plan = run_with_plan_outcome(StepOutcome::NeedsHuman {
+        classification: superkick_core::FailureClassification::AuthRequired {
+            provider: AgentProvider::Claude,
+        },
+        links: StepLinks::default(),
+    })
+    .await?;
+
+    assert_eq!(plan.status, LaunchTaskStepStatus::NeedsHuman);
+    assert_eq!(
+        plan.failure_classification,
+        Some(superkick_core::FailureClassification::AuthRequired {
+            provider: AgentProvider::Claude,
+        })
+    );
+    let summary = plan.summary.unwrap_or_default();
+    assert!(
+        summary.to_lowercase().contains("claude") && summary.to_lowercase().contains("auth"),
+        "human_summary must mention provider + auth, got {summary:?}",
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn timeout_classification_persists_and_parks_needs_human() -> Result<()> {
+    use std::time::Duration;
+
+    let plan = run_with_plan_outcome(StepOutcome::NeedsHuman {
+        classification: superkick_core::FailureClassification::Timeout {
+            after: Duration::from_secs(600),
+        },
+        links: StepLinks::default(),
+    })
+    .await?;
+
+    assert_eq!(plan.status, LaunchTaskStepStatus::NeedsHuman);
+    assert!(matches!(
+        plan.failure_classification,
+        Some(superkick_core::FailureClassification::Timeout { .. })
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn terminal_failure_routes_parent_task_to_failed() -> Result<()> {
+    let pool = connect("sqlite::memory:").await?;
+    let repo = Arc::new(SqliteLaunchTaskRepo::new(pool));
+    let (task, steps) =
+        superkick_core::LaunchTask::new_with_v1_recipe("SUP-140-B", agents(), &catalog())?;
+    repo.insert_with_steps(&task, &steps).await?;
+
+    let outcome = StepOutcome::Failed {
+        classification: superkick_core::FailureClassification::CliMissing {
+            binary: "claude".into(),
+            install_hint: "see README".into(),
+        },
+        links: StepLinks::default(),
+    };
+    let runner = Arc::new(ScriptedClassifierRunner::new(outcome));
+    let exec = LaunchTaskExecutor::new(
+        Arc::clone(&repo),
+        LaunchTaskEventBus::new(),
+        Arc::new(LaunchTaskRegistry::new()),
+        runner,
+    );
+    exec.run(task.id).await?;
+
+    let reloaded = repo.get(task.id).await?.expect("task persists");
+    assert_eq!(
+        reloaded.status,
+        LaunchTaskStatus::Failed,
+        "Failed-disposition step must propagate to task → Failed, not NeedsHuman",
+    );
+
+    let plan = repo
+        .list_steps(task.id)
+        .await?
+        .into_iter()
+        .find(|s| matches!(s.step_kind, LaunchStepKind::Plan))
+        .expect("plan step persists");
+    assert_eq!(plan.status, LaunchTaskStepStatus::Failed);
+    assert!(matches!(
+        plan.failure_classification,
+        Some(superkick_core::FailureClassification::CliMissing { .. })
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn retry_clearing_classification_on_subsequent_completion() -> Result<()> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let pool = connect("sqlite::memory:").await?;
+    let repo = Arc::new(SqliteLaunchTaskRepo::new(pool));
+    let (task, steps) =
+        superkick_core::LaunchTask::new_with_v1_recipe("SUP-140-C", agents(), &catalog())?;
+    repo.insert_with_steps(&task, &steps).await?;
+
+    // First call: park NeedsHuman with MissingMarker. Second call (retry):
+    // return Completed — the executor must wipe the persisted classification.
+    struct RetryRunner {
+        calls: AtomicUsize,
+    }
+    impl StepRunner for RetryRunner {
+        async fn run_step(
+            &self,
+            _task: &superkick_core::LaunchTask,
+            step: &superkick_core::LaunchTaskStep,
+            _cancel: CancellationToken,
+        ) -> Result<StepOutcome> {
+            if !matches!(step.step_kind, LaunchStepKind::Plan) {
+                return Ok(StepOutcome::Completed {
+                    summary: None,
+                    links: StepLinks::default(),
+                });
+            }
+            let n = self.calls.fetch_add(1, Ordering::SeqCst);
+            if n == 0 {
+                Ok(StepOutcome::NeedsHuman {
+                    classification: superkick_core::FailureClassification::MissingMarker,
+                    links: StepLinks::default(),
+                })
+            } else {
+                Ok(StepOutcome::Completed {
+                    summary: Some("retry succeeded".into()),
+                    links: StepLinks::default(),
+                })
+            }
+        }
+    }
+
+    let runner = Arc::new(RetryRunner {
+        calls: AtomicUsize::new(0),
+    });
+    let exec = LaunchTaskExecutor::new(
+        Arc::clone(&repo),
+        LaunchTaskEventBus::new(),
+        Arc::new(LaunchTaskRegistry::new()),
+        runner,
+    );
+
+    exec.run(task.id).await?;
+    let after_first = repo
+        .list_steps(task.id)
+        .await?
+        .into_iter()
+        .find(|s| matches!(s.step_kind, LaunchStepKind::Plan))
+        .unwrap();
+    assert!(after_first.failure_classification.is_some());
+
+    exec.retry_needs_human_step(task.id).await.unwrap();
+    let after_retry = repo
+        .list_steps(task.id)
+        .await?
+        .into_iter()
+        .find(|s| matches!(s.step_kind, LaunchStepKind::Plan))
+        .unwrap();
+    assert_eq!(after_retry.status, LaunchTaskStepStatus::Completed);
+    assert!(
+        after_retry.failure_classification.is_none(),
+        "successful retry must clear failure_classification, got {:?}",
+        after_retry.failure_classification,
     );
     Ok(())
 }

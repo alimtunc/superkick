@@ -15,9 +15,12 @@ mod claude;
 mod claude_stream;
 mod codex;
 mod codex_stream;
+mod failure_hints;
 mod step_result_marker;
 mod stub;
 
+pub(crate) use failure_hints::FailureHintScanner;
+pub use failure_hints::TranscriptHints;
 pub use step_result_marker::MarkerError;
 pub(crate) use step_result_marker::StepResultScanner;
 
