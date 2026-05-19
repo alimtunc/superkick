@@ -11,7 +11,8 @@ use superkick_core::{
     LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus, OrchestratorCheckpoint,
     OrchestratorCheckpointId, OrchestratorSession, OrchestratorSessionId, OrchestratorStatus,
     OwnershipEvent, ProtocolEventEnvelope, PullRequest, Run, RunEvent, RunId, RunStep,
-    SessionLifecycleEvent, StepId, TranscriptChunk, Turn, TurnEvent, TurnId, UsageSnapshot,
+    SessionLifecycleEvent, StepId, StepResult, TranscriptChunk, Turn, TurnEvent, TurnId,
+    UsageSnapshot,
 };
 
 /// Repository for `Run` entities.
@@ -548,5 +549,12 @@ pub trait LaunchTaskRepo: Send + Sync {
         &self,
         id: LaunchTaskStepId,
         summary: Option<String>,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    /// Persist the structured `StepResult`; `None` clears the column.
+    fn set_step_structured_result(
+        &self,
+        id: LaunchTaskStepId,
+        result: Option<StepResult>,
     ) -> impl Future<Output = Result<()>> + Send;
 }

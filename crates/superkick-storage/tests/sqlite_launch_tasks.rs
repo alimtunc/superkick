@@ -323,3 +323,94 @@ async fn set_current_step_rejects_step_from_other_task() -> Result<()> {
     assert!(reloaded.current_step_id.is_none());
     Ok(())
 }
+
+#[tokio::test]
+async fn set_step_structured_result_round_trips() -> Result<()> {
+    use superkick_core::{StepResult, StepResultStatus};
+
+    let repo = setup().await?;
+    let (task, steps) = LaunchTask::new_with_v1_recipe("SUP-139", agents(), &catalog())?;
+    repo.insert_with_steps(&task, &steps).await?;
+
+    let plan = &steps[0];
+    let payload = StepResult {
+        status: StepResultStatus::Completed,
+        summary: "wrote the plan".into(),
+        changed_files: vec![".claude/plans/SUP-139.md".into()],
+        questions: vec![],
+    };
+    repo.set_step_structured_result(plan.id, Some(payload.clone()))
+        .await?;
+
+    let reloaded = repo
+        .list_steps(task.id)
+        .await?
+        .into_iter()
+        .find(|s| s.id == plan.id)
+        .expect("plan step persists");
+    assert_eq!(reloaded.structured_result.as_ref(), Some(&payload));
+
+    repo.set_step_structured_result(plan.id, None).await?;
+    let cleared = repo
+        .list_steps(task.id)
+        .await?
+        .into_iter()
+        .find(|s| s.id == plan.id)
+        .unwrap();
+    assert!(cleared.structured_result.is_none());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn malformed_structured_result_json_decodes_as_none() -> Result<()> {
+    let pool = connect("sqlite::memory:").await?;
+    let repo = SqliteLaunchTaskRepo::new(pool.clone());
+    let (task, steps) = LaunchTask::new_with_v1_recipe("SUP-139", agents(), &catalog())?;
+    repo.insert_with_steps(&task, &steps).await?;
+
+    let plan_id = steps[0].id;
+    sqlx::query("UPDATE launch_task_steps SET structured_result = ?1 WHERE id = ?2")
+        .bind("not json at all")
+        .bind(plan_id.0.to_string())
+        .execute(&pool)
+        .await?;
+
+    let reloaded = repo
+        .list_steps(task.id)
+        .await?
+        .into_iter()
+        .find(|s| s.id == plan_id)
+        .unwrap();
+    assert!(
+        reloaded.structured_result.is_none(),
+        "malformed JSON must decode as None, not crash the read path"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn structured_result_round_trips_via_insert() -> Result<()> {
+    use superkick_core::{StepResult, StepResultStatus};
+
+    let repo = setup().await?;
+    let (task, mut steps) = LaunchTask::new_with_v1_recipe("SUP-139", agents(), &catalog())?;
+    let preloaded = StepResult {
+        status: StepResultStatus::NeedsHuman,
+        summary: "agent paused mid-flight".into(),
+        changed_files: vec![],
+        questions: vec!["Where are the integration tests?".into()],
+    };
+    let plan_id = steps[0].id;
+    steps[0].structured_result = Some(preloaded.clone());
+    repo.insert_with_steps(&task, &steps).await?;
+
+    let reloaded = repo
+        .list_steps(task.id)
+        .await?
+        .into_iter()
+        .find(|s| s.id == plan_id)
+        .unwrap();
+    assert_eq!(reloaded.structured_result.as_ref(), Some(&preloaded));
+    Ok(())
+}

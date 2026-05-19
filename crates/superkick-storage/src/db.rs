@@ -153,6 +153,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "025_agent_session_runner_mode",
             include_str!("../migrations/025_agent_session_runner_mode.sql"),
         ),
+        (
+            "026_launch_task_steps_structured_result",
+            include_str!("../migrations/026_launch_task_steps_structured_result.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

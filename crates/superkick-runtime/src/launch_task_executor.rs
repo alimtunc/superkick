@@ -760,6 +760,7 @@ mod tests {
             linked_conversation_id: None,
             linked_orchestrator_session_id: None,
             summary: None,
+            structured_result: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };

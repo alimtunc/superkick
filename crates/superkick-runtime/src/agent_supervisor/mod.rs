@@ -24,10 +24,11 @@ use tokio_util::sync::CancellationToken;
 use superkick_core::{
     AgentProvider, AgentSession, AgentSessionId, AgentStatus, BillingProfile, EventKind,
     EventLevel, HandoffId, LaunchReason, LinearContextMode, RunEvent, RunId, RunnerMode,
-    SessionLifecycleEvent, SessionLifecyclePhase, StepId,
+    SessionLifecycleEvent, SessionLifecyclePhase, StepId, StepResult,
 };
 use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
 
+use crate::protocol_adapter::MarkerError;
 use crate::pty_session::PtySessionRegistry;
 use crate::session_bus::SessionBus;
 
@@ -99,6 +100,8 @@ pub struct PolicyAudit {
 #[derive(Debug)]
 pub struct AgentResult {
     pub session: AgentSession,
+    /// Verdict from scanning the PTY output for the step result marker pair.
+    pub step_result: Result<Option<StepResult>, MarkerError>,
 }
 
 /// Handle to a running agent session, used for cancellation.

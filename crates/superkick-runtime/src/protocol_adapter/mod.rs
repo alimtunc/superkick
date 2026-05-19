@@ -15,7 +15,11 @@ mod claude;
 mod claude_stream;
 mod codex;
 mod codex_stream;
+mod step_result_marker;
 mod stub;
+
+pub use step_result_marker::MarkerError;
+pub(crate) use step_result_marker::StepResultScanner;
 
 use std::future::Future;
 

@@ -6,41 +6,58 @@
 
 use std::sync::Arc;
 
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::warn;
 
-use superkick_core::{EventKind, EventLevel, RunEvent, RunId, StepId, TranscriptChunk};
+use superkick_core::{EventKind, EventLevel, RunEvent, RunId, StepId, StepResult, TranscriptChunk};
 use superkick_storage::repo::{RunEventRepo, TranscriptRepo};
 
+use crate::protocol_adapter::{MarkerError, StepResultScanner};
 use crate::pty_io::read_pty_raw;
 use crate::pty_session::PtySession;
 
-/// Spawn a PTY output reader that broadcasts raw bytes and persists transcript chunks.
-///
-/// Returns a `JoinHandle` that completes when the PTY master reaches EOF.
+/// Outcome the supervisor consumes from the output pipeline.
+pub(crate) struct OutputPipeline {
+    pub persist_join: tokio::task::JoinHandle<()>,
+    /// Await after the child exits so the PTY EOF is guaranteed.
+    pub step_result_rx: oneshot::Receiver<Result<Option<StepResult>, MarkerError>>,
+}
+
+/// Spawn a PTY output reader that broadcasts raw bytes, persists transcript
+/// chunks, and feeds the step-result marker scanner.
 pub(crate) fn spawn_output_reader<T>(
     reader: Box<dyn std::io::Read + Send>,
     run_id: RunId,
     session: Arc<PtySession>,
     broadcast_tx: broadcast::Sender<Vec<u8>>,
     transcript_repo: Arc<T>,
-) -> tokio::task::JoinHandle<()>
+) -> OutputPipeline
 where
     T: TranscriptRepo + 'static,
 {
-    let (tx, rx) = mpsc::channel::<Vec<u8>>(256);
+    let (persist_tx, persist_rx) = mpsc::channel::<Vec<u8>>(256);
+    let (scan_tx, scan_rx) = mpsc::channel::<Vec<u8>>(256);
+    let (step_result_tx, step_result_rx) = oneshot::channel();
 
-    // Async task: drain raw chunks, persist to transcript storage.
-    let emitter = tokio::spawn(persist_chunks(rx, run_id, transcript_repo));
+    let persist_join = tokio::spawn(persist_chunks(persist_rx, run_id, transcript_repo));
+    tokio::spawn(scan_marker(scan_rx, step_result_tx));
 
-    // Blocking task: read PTY master and broadcast + send for persistence.
     tokio::task::spawn_blocking(move || {
-        read_pty_raw(reader, &session, &broadcast_tx, Some(&tx));
-        drop(tx);
+        read_pty_raw(
+            reader,
+            &session,
+            &broadcast_tx,
+            Some(&persist_tx),
+            Some(&scan_tx),
+        );
+        drop(persist_tx);
+        drop(scan_tx);
     });
 
-    // Return a handle that waits for the persistence task.
-    emitter
+    OutputPipeline {
+        persist_join,
+        step_result_rx,
+    }
 }
 
 /// Emit a single run event, logging on failure.
@@ -72,4 +89,16 @@ async fn persist_chunks<T: TranscriptRepo>(
         }
         sequence += 1;
     }
+}
+
+/// Drain raw PTY chunks into a scanner and send the verdict when the sender closes.
+async fn scan_marker(
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    result_tx: oneshot::Sender<Result<Option<StepResult>, MarkerError>>,
+) {
+    let mut scanner = StepResultScanner::new();
+    while let Some(bytes) = rx.recv().await {
+        scanner.feed(&bytes);
+    }
+    let _ = result_tx.send(scanner.finish());
 }

@@ -18,6 +18,7 @@ use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 use superkick_core::{
     ConversationId, LaunchRecipe, LaunchStepKind, LaunchTask, LaunchTaskId, LaunchTaskStatus,
     LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus, OrchestratorSessionId, RunId,
+    StepResult,
 };
 
 use super::codec::{deserialize_enum, serialize_enum};
@@ -31,6 +32,16 @@ impl SqliteLaunchTaskRepo {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
+}
+
+fn encode_structured_result(
+    id: LaunchTaskStepId,
+    result: Option<&StepResult>,
+) -> Result<Option<String>> {
+    result
+        .map(serde_json::to_string)
+        .transpose()
+        .with_context(|| format!("encode structured_result for launch_task_step {}", id.0))
 }
 
 impl LaunchTaskRepo for SqliteLaunchTaskRepo {
@@ -60,13 +71,15 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         .with_context(|| format!("insert launch_task {}", task.id.0))?;
 
         for step in steps {
+            let structured_json =
+                encode_structured_result(step.id, step.structured_result.as_ref())?;
             sqlx::query(
                 "INSERT INTO launch_task_steps (\
                      id, launch_task_id, sequence, step_kind, agent_name, \
                      provider, model, mode, status, \
                      linked_run_id, linked_conversation_id, linked_orchestrator_session_id, \
-                     summary, created_at, updated_at\
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                     summary, structured_result, created_at, updated_at\
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
             )
             .bind(step.id.0.to_string())
             .bind(step.launch_task_id.0.to_string())
@@ -84,6 +97,7 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
                     .map(|id| id.0.to_string()),
             )
             .bind(step.summary.clone())
+            .bind(structured_json)
             .bind(step.created_at.to_rfc3339())
             .bind(step.updated_at.to_rfc3339())
             .execute(&mut *tx)
@@ -271,6 +285,28 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
                 .await
                 .with_context(|| format!("set summary for launch_task_step {}", id.0))?;
         if result.rows_affected() == 0 {
+            return Err(anyhow!("launch_task_step {} not found", id.0));
+        }
+        Ok(())
+    }
+
+    async fn set_step_structured_result(
+        &self,
+        id: LaunchTaskStepId,
+        result: Option<StepResult>,
+    ) -> Result<()> {
+        let encoded = encode_structured_result(id, result.as_ref())?;
+        let now = chrono::Utc::now().to_rfc3339();
+        let outcome = sqlx::query(
+            "UPDATE launch_task_steps SET structured_result = ?1, updated_at = ?2 WHERE id = ?3",
+        )
+        .bind(encoded)
+        .bind(now)
+        .bind(id.0.to_string())
+        .execute(&self.pool)
+        .await
+        .with_context(|| format!("set structured_result for launch_task_step {}", id.0))?;
+        if outcome.rows_affected() == 0 {
             return Err(anyhow!("launch_task_step {} not found", id.0));
         }
         Ok(())
@@ -515,12 +551,23 @@ struct LaunchTaskStepRow {
     linked_conversation_id: Option<String>,
     linked_orchestrator_session_id: Option<String>,
     summary: Option<String>,
+    structured_result: Option<String>,
     created_at: String,
     updated_at: String,
 }
 
 impl LaunchTaskStepRow {
     fn into_domain(self) -> Result<LaunchTaskStep> {
+        // Malformed JSON degrades to `None` so the read path keeps working.
+        let structured_result = self.structured_result.as_deref().and_then(|raw| {
+            StepResult::try_from_json(raw).or_else(|| {
+                tracing::warn!(
+                    launch_task_step_id = %self.id,
+                    "malformed structured_result JSON — dropping"
+                );
+                None
+            })
+        });
         Ok(LaunchTaskStep {
             id: LaunchTaskStepId(uuid::Uuid::parse_str(&self.id)?),
             launch_task_id: LaunchTaskId(uuid::Uuid::parse_str(&self.launch_task_id)?),
@@ -552,6 +599,7 @@ impl LaunchTaskStepRow {
                 .transpose()?
                 .map(OrchestratorSessionId),
             summary: self.summary,
+            structured_result,
             created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
             updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)?.to_utc(),
         })

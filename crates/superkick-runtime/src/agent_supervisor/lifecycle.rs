@@ -114,13 +114,17 @@ where
         let _ = pty_session.write_input(b"\r");
     }
 
-    let output_task = spawn_output_reader(
+    let output_pipeline = spawn_output_reader(
         spawned.master_reader,
         run_id,
         Arc::clone(&pty_session),
         broadcast_tx,
         transcript_repo,
     );
+    let crate::agent_supervisor::output::OutputPipeline {
+        persist_join: output_task,
+        step_result_rx,
+    } = output_pipeline;
 
     // child.wait() is blocking (portable-pty API), so wrap in spawn_blocking.
     let wait_handle = tokio::task::spawn_blocking(move || child.wait());
@@ -142,6 +146,7 @@ where
                 format!("agent {} timed out after {timeout:?}", session.provider),
             ).await;
             let _ = output_task.await;
+            let step_result = step_result_rx.await.unwrap_or(Ok(None));
             session_repo.update(&session).await?;
             record_lifecycle(
                 lifecycle_bus.as_deref(),
@@ -151,7 +156,7 @@ where
             )
             .await;
             schedule_cleanup(registry, run_id);
-            return Ok(AgentResult { session });
+            return Ok(AgentResult { session, step_result });
         }
         _ = cancel_token.cancelled() => {
             warn!(pid = ?pid, "agent cancelled, killing");
@@ -164,6 +169,7 @@ where
                 format!("agent {} cancelled", session.provider),
             ).await;
             let _ = output_task.await;
+            let step_result = step_result_rx.await.unwrap_or(Ok(None));
             session_repo.update(&session).await?;
             record_lifecycle(
                 lifecycle_bus.as_deref(),
@@ -173,12 +179,14 @@ where
             )
             .await;
             schedule_cleanup(registry, run_id);
-            return Ok(AgentResult { session });
+            return Ok(AgentResult { session, step_result });
         }
     };
 
     // Flush remaining output from the PTY master.
     let _ = output_task.await;
+    // Degrade a dropped scanner task to "no marker observed" rather than crashing.
+    let step_result = step_result_rx.await.unwrap_or(Ok(None));
 
     finalize_session(&mut session, &exit_status, &event_repo, &session_repo).await?;
     let terminal_phase = if exit_status.success() {
@@ -199,7 +207,10 @@ where
     )
     .await;
     schedule_cleanup(registry, run_id);
-    Ok(AgentResult { session })
+    Ok(AgentResult {
+        session,
+        step_result,
+    })
 }
 
 /// Result of spawning a PTY child process.

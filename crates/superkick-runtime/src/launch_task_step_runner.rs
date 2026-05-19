@@ -25,9 +25,9 @@ use tracing::{error, info, warn};
 
 use superkick_config::SuperkickConfig;
 use superkick_core::{
-    AgentCatalog, EventKind, LaunchReason, LaunchStepKind, LaunchTask, LaunchTaskId,
-    LaunchTaskStep, RoleRouter, Run, RunId, RunPolicy, RunState, RunStep, StepId, StepKey,
-    StepStatus, TriggerSource,
+    AgentCatalog, EventKind, EventLevel, LaunchReason, LaunchStepKind, LaunchTask, LaunchTaskId,
+    LaunchTaskStep, LaunchTaskStepId, RoleRouter, Run, RunId, RunPolicy, RunState, RunStep, StepId,
+    StepKey, StepResult, StepResultStatus, StepStatus, TriggerSource,
 };
 use superkick_storage::repo::{
     AgentSessionRepo, LaunchTaskRepo, RunEventRepo, RunRepo, RunStepRepo, TranscriptRepo,
@@ -352,9 +352,7 @@ where
         Ok(step.id)
     }
 
-    /// Fetch the previous step's persisted summary so Implement/Review can
-    /// see what the prior agent produced. `None` when the prior step has no
-    /// summary recorded yet (first invocation, or runner returned empty).
+    /// Previous step's summary: prefers `structured_result.summary`, falls back to the legacy `summary` column.
     async fn previous_step_summary(
         &self,
         task_id: LaunchTaskId,
@@ -369,7 +367,7 @@ where
         let prev = steps
             .into_iter()
             .find(|s| s.sequence + 1 == current_sequence);
-        Ok(prev.and_then(|s| s.summary))
+        Ok(prev.and_then(|s| s.structured_result.map(|sr| sr.summary).or(s.summary)))
     }
 
     /// Build the base prompt for one step. The body wording lives in
@@ -394,32 +392,116 @@ where
         prompt
     }
 
-    /// Extract a short summary from the run-event log produced by the spawn.
-    /// Concatenates the trailing `AgentOutput` lines for this run_step, then
-    /// truncates to `SUMMARY_MAX_CHARS`. Returns `None` when no output was
-    /// captured — the caller substitutes a generic completion sentence.
-    async fn capture_summary(&self, run_id: RunId, run_step_id: StepId) -> Result<Option<String>> {
-        let events = self
-            .event_repo
-            .list_by_run(run_id)
+    /// Persist the structured result; on failure, log and emit a `Warn` run event so operators see the drift in the timeline.
+    async fn persist_structured_result(
+        &self,
+        run_id: RunId,
+        run_step_id: StepId,
+        launch_step_id: LaunchTaskStepId,
+        result: StepResult,
+    ) {
+        let Err(e) = self
+            .launch_task_repo
+            .set_step_structured_result(launch_step_id, Some(result))
             .await
-            .with_context(|| format!("failed to list events for run {run_id}"))?;
-        let outputs: Vec<&str> = events
-            .iter()
-            .filter(|e| {
-                e.run_step_id == Some(run_step_id)
-                    && matches!(e.kind, EventKind::AgentOutput)
-                    && !e.message.is_empty()
-            })
-            .map(|e| e.message.as_str())
-            .collect();
-        if outputs.is_empty() {
-            return Ok(None);
+        else {
+            return;
+        };
+        warn!(
+            launch_task_step_id = %launch_step_id,
+            error = %e,
+            "failed to persist structured_result — step status will still flip"
+        );
+        crate::agent_supervisor::output::emit_event(
+            &*self.event_repo,
+            run_id,
+            run_step_id,
+            EventKind::Error,
+            EventLevel::Warn,
+            format!("structured_result persist failed: {e}"),
+        )
+        .await;
+    }
+
+    async fn fail_step(&self, run_step_id: StepId, reason: String) -> StepOutcome {
+        self.finish_run_step(run_step_id, StepStatus::Failed, Some(reason.clone()))
+            .await;
+        StepOutcome::Failed { reason }
+    }
+
+    async fn process_completion(
+        &self,
+        task: &LaunchTask,
+        step: &LaunchTaskStep,
+        run: &mut Run,
+        run_step_id: StepId,
+        result: crate::agent_supervisor::AgentResult,
+        role: &str,
+    ) -> Result<StepOutcome> {
+        let shadow_run_id = run.id;
+        let exit_code = result.session.exit_code.unwrap_or(-1);
+        if exit_code != 0 {
+            return Ok(self
+                .fail_step(run_step_id, format!("{role} exited with code {exit_code}"))
+                .await);
         }
-        Ok(Some(truncate_tail_chars(
-            &outputs.join("\n"),
-            SUMMARY_MAX_CHARS,
-        )))
+        let step_result = match result.step_result {
+            Ok(opt) => opt,
+            Err(err) => {
+                return Ok(self
+                    .fail_step(run_step_id, format!("step result marker malformed: {err}"))
+                    .await);
+            }
+        };
+        let Some(step_result) = step_result else {
+            return Ok(self
+                .fail_step(
+                    run_step_id,
+                    format!("{role} exited 0 but never emitted SUPERKICK_STEP_RESULT_BEGIN..END"),
+                )
+                .await);
+        };
+
+        // Persist before the status flip so a mid-flight crash still leaves a record.
+        self.persist_structured_result(shadow_run_id, run_step_id, step.id, step_result.clone())
+            .await;
+
+        // TODO(SUP-136b): split needs_human vs failed branches; for now both fold into Failed.
+        if !matches!(step_result.status, StepResultStatus::Completed) {
+            return Ok(self
+                .fail_step(
+                    run_step_id,
+                    format!(
+                        "{role} reported status={:?}: {}",
+                        step_result.status, step_result.summary
+                    ),
+                )
+                .await);
+        }
+
+        self.finish_run_step(run_step_id, StepStatus::Succeeded, None)
+            .await;
+        if matches!(step.step_kind, LaunchStepKind::Review)
+            && let Err(e) = self
+                .set_shadow_run_state(task, run, RunState::Completed)
+                .await
+        {
+            warn!(
+                shadow_run_id = %shadow_run_id,
+                error = %e,
+                "failed to mark shadow run completed — dashboard may stay on Reviewing"
+            );
+        }
+
+        let summary = truncate_tail_chars(&step_result.summary, SUMMARY_MAX_CHARS);
+        Ok(StepOutcome::Completed {
+            summary: Some(summary),
+            links: StepLinks {
+                run_id: Some(shadow_run_id),
+                conversation_id: None,
+                orchestrator_session_id: None,
+            },
+        })
     }
 }
 
@@ -598,59 +680,14 @@ where
         };
 
         match session_outcome {
-            Err(reason) => {
-                self.finish_run_step(run_step_id, StepStatus::Failed, Some(reason.clone()))
-                    .await;
-                // Shadow Run state stays at the current step's phase — the
-                // LaunchTaskExecutor parks the Launch Task in NeedsHuman so
-                // an operator retry can re-enter this same step. Terminal
-                // Run.state is only reached on cancel or successful Review.
-                Ok(StepOutcome::Failed { reason })
-            }
+            // Shadow Run state stays at the current step's phase — the
+            // LaunchTaskExecutor parks the Launch Task in NeedsHuman so an
+            // operator retry can re-enter this same step. Terminal Run.state
+            // is only reached on cancel or successful Review.
+            Err(reason) => Ok(self.fail_step(run_step_id, reason).await),
             Ok(result) => {
-                let exit_code = result.session.exit_code.unwrap_or(-1);
-                if exit_code != 0 {
-                    let reason = format!("{} exited with code {exit_code}", resolved.role);
-                    self.finish_run_step(run_step_id, StepStatus::Failed, Some(reason.clone()))
-                        .await;
-                    return Ok(StepOutcome::Failed { reason });
-                }
-                self.finish_run_step(run_step_id, StepStatus::Succeeded, None)
-                    .await;
-                if matches!(step.step_kind, LaunchStepKind::Review) {
-                    if let Err(e) = self
-                        .set_shadow_run_state(task, &mut run, RunState::Completed)
-                        .await
-                    {
-                        warn!(
-                            shadow_run_id = %shadow_run_id,
-                            error = %e,
-                            "failed to mark shadow run completed — dashboard may stay on Reviewing"
-                        );
-                    }
-                }
-                let summary = self
-                    .capture_summary(shadow_run_id, run_step_id)
+                self.process_completion(task, step, &mut run, run_step_id, result, &resolved.role)
                     .await
-                    .unwrap_or_else(|e| {
-                        warn!(
-                            run_id = %shadow_run_id,
-                            run_step_id = %run_step_id,
-                            error = %e,
-                            "failed to read run events for summary — falling back"
-                        );
-                        None
-                    })
-                    .or_else(|| Some(format!("{} completed (exit 0)", resolved.role)));
-
-                Ok(StepOutcome::Completed {
-                    summary,
-                    links: StepLinks {
-                        run_id: Some(shadow_run_id),
-                        conversation_id: None,
-                        orchestrator_session_id: None,
-                    },
-                })
             }
         }
     }
