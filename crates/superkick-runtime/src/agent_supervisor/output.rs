@@ -9,10 +9,14 @@ use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::warn;
 
-use superkick_core::{EventKind, EventLevel, RunEvent, RunId, StepId, StepResult, TranscriptChunk};
+use superkick_core::{
+    AgentProvider, EventKind, EventLevel, RunEvent, RunId, StepId, StepResult, TranscriptChunk,
+};
 use superkick_storage::repo::{RunEventRepo, TranscriptRepo};
 
-use crate::protocol_adapter::{MarkerError, StepResultScanner};
+use crate::protocol_adapter::{
+    FailureHintScanner, MarkerError, StepResultScanner, TranscriptHints,
+};
 use crate::pty_io::read_pty_raw;
 use crate::pty_session::PtySession;
 
@@ -21,13 +25,18 @@ pub(crate) struct OutputPipeline {
     pub persist_join: tokio::task::JoinHandle<()>,
     /// Await after the child exits so the PTY EOF is guaranteed.
     pub step_result_rx: oneshot::Receiver<Result<Option<StepResult>, MarkerError>>,
+    /// Provider-aware free-form hint scanner output. Independent of
+    /// `step_result_rx`: both drain from the same PTY byte fan-out task.
+    pub transcript_hints_rx: oneshot::Receiver<TranscriptHints>,
 }
 
 /// Spawn a PTY output reader that broadcasts raw bytes, persists transcript
-/// chunks, and feeds the step-result marker scanner.
+/// chunks, and feeds both the step-result marker scanner and the failure-hint
+/// scanner from the same byte fan-out.
 pub(crate) fn spawn_output_reader<T>(
     reader: Box<dyn std::io::Read + Send>,
     run_id: RunId,
+    provider: AgentProvider,
     session: Arc<PtySession>,
     broadcast_tx: broadcast::Sender<Vec<u8>>,
     transcript_repo: Arc<T>,
@@ -38,9 +47,10 @@ where
     let (persist_tx, persist_rx) = mpsc::channel::<Vec<u8>>(256);
     let (scan_tx, scan_rx) = mpsc::channel::<Vec<u8>>(256);
     let (step_result_tx, step_result_rx) = oneshot::channel();
+    let (hints_tx, transcript_hints_rx) = oneshot::channel();
 
     let persist_join = tokio::spawn(persist_chunks(persist_rx, run_id, transcript_repo));
-    tokio::spawn(scan_marker(scan_rx, step_result_tx));
+    tokio::spawn(scan_chunks(scan_rx, provider, step_result_tx, hints_tx));
 
     tokio::task::spawn_blocking(move || {
         read_pty_raw(
@@ -57,6 +67,7 @@ where
     OutputPipeline {
         persist_join,
         step_result_rx,
+        transcript_hints_rx,
     }
 }
 
@@ -91,14 +102,20 @@ async fn persist_chunks<T: TranscriptRepo>(
     }
 }
 
-/// Drain raw PTY chunks into a scanner and send the verdict when the sender closes.
-async fn scan_marker(
+/// Drain raw PTY chunks into both the marker scanner and the provider-aware
+/// failure-hint scanner, then forward each verdict when the sender closes.
+async fn scan_chunks(
     mut rx: mpsc::Receiver<Vec<u8>>,
+    provider: AgentProvider,
     result_tx: oneshot::Sender<Result<Option<StepResult>, MarkerError>>,
+    hints_tx: oneshot::Sender<TranscriptHints>,
 ) {
-    let mut scanner = StepResultScanner::new();
+    let mut marker = StepResultScanner::new();
+    let mut hints = FailureHintScanner::new(provider);
     while let Some(bytes) = rx.recv().await {
-        scanner.feed(&bytes);
+        marker.feed(&bytes);
+        hints.feed(&bytes);
     }
-    let _ = result_tx.send(scanner.finish());
+    let _ = result_tx.send(marker.finish());
+    let _ = hints_tx.send(hints.into_hints());
 }

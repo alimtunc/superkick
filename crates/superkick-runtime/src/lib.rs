@@ -26,6 +26,7 @@ pub mod repo_cache;
 pub mod runner_mode;
 pub mod session_bus;
 pub mod step_engine;
+pub mod step_failure_classifier;
 pub mod terminal_takeover;
 pub mod turn_event_bus;
 pub mod workspace_bus;
@@ -71,6 +72,9 @@ pub use pty_session::{PtySession, PtySessionRegistry, TakeoverEntry, WriterHolde
 pub use repo_cache::RepoCache;
 pub use session_bus::SessionBus;
 pub use step_engine::{StepEngine, StepEngineDeps};
+pub use step_failure_classifier::{
+    ClassifyInputs, DiffProbe, GitDiffProbe, classify, classify_spawn_error,
+};
 pub use terminal_takeover::{SpawnedTakeover, TerminalTakeoverService};
 pub use turn_event_bus::TurnEventBus;
 pub use workspace_bus::{PublishingRunEventRepo, WorkspaceEventBus};

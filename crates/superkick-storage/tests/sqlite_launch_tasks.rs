@@ -414,3 +414,66 @@ async fn structured_result_round_trips_via_insert() -> Result<()> {
     assert_eq!(reloaded.structured_result.as_ref(), Some(&preloaded));
     Ok(())
 }
+
+#[tokio::test]
+async fn set_step_failure_classification_round_trips() -> Result<()> {
+    use superkick_core::{AgentProvider, FailureClassification};
+
+    let repo = setup().await?;
+    let (task, steps) = LaunchTask::new_with_v1_recipe("SUP-140", agents(), &catalog())?;
+    repo.insert_with_steps(&task, &steps).await?;
+
+    let plan = &steps[0];
+    let payload = FailureClassification::QuotaExceeded {
+        provider: AgentProvider::Claude,
+        reset_at: Some("3:42pm".into()),
+    };
+    repo.set_step_failure_classification(plan.id, Some(payload.clone()))
+        .await?;
+
+    let reloaded = repo
+        .list_steps(task.id)
+        .await?
+        .into_iter()
+        .find(|s| s.id == plan.id)
+        .expect("plan step persists");
+    assert_eq!(reloaded.failure_classification.as_ref(), Some(&payload));
+
+    repo.set_step_failure_classification(plan.id, None).await?;
+    let cleared = repo
+        .list_steps(task.id)
+        .await?
+        .into_iter()
+        .find(|s| s.id == plan.id)
+        .unwrap();
+    assert!(cleared.failure_classification.is_none());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn malformed_failure_classification_json_decodes_as_none() -> Result<()> {
+    let pool = connect("sqlite::memory:").await?;
+    let repo = SqliteLaunchTaskRepo::new(pool.clone());
+    let (task, steps) = LaunchTask::new_with_v1_recipe("SUP-140", agents(), &catalog())?;
+    repo.insert_with_steps(&task, &steps).await?;
+
+    let plan_id = steps[0].id;
+    sqlx::query("UPDATE launch_task_steps SET failure_classification = ?1 WHERE id = ?2")
+        .bind("not json at all")
+        .bind(plan_id.0.to_string())
+        .execute(&pool)
+        .await?;
+
+    let reloaded = repo
+        .list_steps(task.id)
+        .await?
+        .into_iter()
+        .find(|s| s.id == plan_id)
+        .unwrap();
+    assert!(
+        reloaded.failure_classification.is_none(),
+        "malformed JSON must decode as None, not crash the read path"
+    );
+    Ok(())
+}
