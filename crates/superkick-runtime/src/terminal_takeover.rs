@@ -103,7 +103,7 @@ where
         tokio::spawn(async move {
             let session_clone = Arc::clone(&session_for_reader);
             let reader_handle = tokio::task::spawn_blocking(move || {
-                read_pty_raw(reader, &session_clone, &broadcast_tx, None);
+                read_pty_raw(reader, &session_clone, &broadcast_tx, None, None);
             });
 
             // portable-pty's `wait()` is blocking — drive it on a blocking

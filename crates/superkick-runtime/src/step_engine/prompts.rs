@@ -2,8 +2,11 @@
 //!
 //! Used by both the playbook `StepEngine` (`execute_agent`) and the Launch
 //! Task `RealStepRunner`. Keeping the wording in one place prevents guardrail
-//! drift — every body must carry the "Do NOT update the issue status" rule,
-//! and two callers maintaining their own copies silently diverged before.
+//! drift — every body must carry the "Do NOT update the issue status" rule
+//! and the step-completion contract, and two callers maintaining their own
+//! copies silently diverged before.
+
+use superkick_core::{STEP_RESULT_BEGIN, STEP_RESULT_END};
 
 /// Selects which body wording to render. The caller supplies its own
 /// preamble; this enum only picks the body.
@@ -20,11 +23,25 @@ pub enum PromptStepKind {
 pub const NO_LINEAR_UPDATE_GUARDRAIL: &str = "IMPORTANT: Do NOT update the issue status in Linear or any external tracker. \
      Do NOT mark the issue as done, closed, or resolved.";
 
+/// Operator-facing block telling the agent how to declare completion. The marker literals are interpolated from the parser's constants so the two cannot drift.
+fn step_result_contract_prompt() -> String {
+    format!(
+        "--- Step completion contract ---\n\
+         When and only when this step is fully done, print the following block on its own lines, \
+         with nothing before BEGIN and nothing after END on those lines:\n\n\
+         {STEP_RESULT_BEGIN}\n\
+         {{\"status\":\"completed|needs_human|failed\",\"summary\":\"...\",\"changed_files\":[\"...\"],\"questions\":[\"...\"]}}\n\
+         {STEP_RESULT_END}\n\n\
+         Without this block the step will not be marked complete and an operator will be paged."
+    )
+}
+
 /// Render the body for one step kind. Callers prepend their own preamble
 /// (e.g. "You are working on issue X (id: …)") so the same body works for
-/// both playbook runs and Launch Tasks.
+/// both playbook runs and Launch Tasks. Every body appends the completion
+/// contract so the runtime can parse the marker block.
 pub fn step_body_for(kind: PromptStepKind) -> String {
-    match kind {
+    let body = match kind {
         PromptStepKind::Plan => format!(
             "Analyze the codebase and produce a detailed implementation plan. \
              Describe the files to change, the approach, and any risks. \
@@ -43,7 +60,8 @@ pub fn step_body_for(kind: PromptStepKind) -> String {
              say 'LGTM'. If there are issues, list them clearly. \
              {NO_LINEAR_UPDATE_GUARDRAIL} Only review code."
         ),
-    }
+    };
+    format!("{body}\n\n{}", step_result_contract_prompt())
 }
 
 #[cfg(test)]
@@ -77,5 +95,24 @@ mod tests {
     #[test]
     fn review_body_directs_only_review() {
         assert!(step_body_for(PromptStepKind::Review).contains("Only review code"));
+    }
+
+    #[test]
+    fn every_body_includes_the_step_result_contract() {
+        for kind in [
+            PromptStepKind::Plan,
+            PromptStepKind::Implement,
+            PromptStepKind::Review,
+        ] {
+            let body = step_body_for(kind);
+            assert!(
+                body.contains(superkick_core::STEP_RESULT_BEGIN),
+                "{kind:?} body missing BEGIN marker"
+            );
+            assert!(
+                body.contains(superkick_core::STEP_RESULT_END),
+                "{kind:?} body missing END marker"
+            );
+        }
     }
 }

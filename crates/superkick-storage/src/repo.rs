@@ -6,12 +6,13 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use superkick_core::{
     AgentSession, AgentSessionId, Artifact, ArtifactId, AttentionRequest, AttentionRequestId,
-    Conversation, ConversationId, ConversationStatus, ConversationSubject, EventId, Handoff,
-    HandoffId, Interrupt, InterruptId, IssueBlocker, LaunchTask, LaunchTaskId, LaunchTaskStatus,
-    LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus, OrchestratorCheckpoint,
-    OrchestratorCheckpointId, OrchestratorSession, OrchestratorSessionId, OrchestratorStatus,
-    OwnershipEvent, ProtocolEventEnvelope, PullRequest, Run, RunEvent, RunId, RunStep,
-    SessionLifecycleEvent, StepId, TranscriptChunk, Turn, TurnEvent, TurnId, UsageSnapshot,
+    Conversation, ConversationId, ConversationStatus, ConversationSubject, EventId,
+    FailureClassification, Handoff, HandoffId, Interrupt, InterruptId, IssueBlocker, LaunchTask,
+    LaunchTaskId, LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus,
+    OrchestratorCheckpoint, OrchestratorCheckpointId, OrchestratorSession, OrchestratorSessionId,
+    OrchestratorStatus, OwnershipEvent, ProtocolEventEnvelope, PullRequest, Run, RunEvent, RunId,
+    RunStep, SessionLifecycleEvent, StepId, StepResult, TranscriptChunk, Turn, TurnEvent, TurnId,
+    UsageSnapshot,
 };
 
 /// Repository for `Run` entities.
@@ -548,5 +549,22 @@ pub trait LaunchTaskRepo: Send + Sync {
         &self,
         id: LaunchTaskStepId,
         summary: Option<String>,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    /// Persist the structured `StepResult`; `None` clears the column.
+    fn set_step_structured_result(
+        &self,
+        id: LaunchTaskStepId,
+        result: Option<StepResult>,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    /// Persist the runtime classifier verdict; `None` clears the column on
+    /// successful retries (SUP-120). Orthogonal to `set_step_structured_result`
+    /// — the two columns capture the agent's report vs. the runtime's verdict
+    /// independently.
+    fn set_step_failure_classification(
+        &self,
+        id: LaunchTaskStepId,
+        classification: Option<FailureClassification>,
     ) -> impl Future<Output = Result<()>> + Send;
 }

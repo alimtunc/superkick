@@ -15,9 +15,10 @@ use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
-    AgentCatalog, AgentProvider, CoreAgentDefinition, CoreError, LaunchStepKind, LaunchTask,
-    LaunchTaskId, LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepStatus, LinearContextMode,
-    PlanImplementReviewAgents, ResolvedMcpPolicy, ResolvedToolPolicy, RunId,
+    AgentCatalog, AgentProvider, CoreAgentDefinition, CoreError, FailureClassification,
+    LaunchStepKind, LaunchTask, LaunchTaskId, LaunchTaskStatus, LaunchTaskStep,
+    LaunchTaskStepStatus, LinearContextMode, PlanImplementReviewAgents, ResolvedMcpPolicy,
+    ResolvedToolPolicy, RunId,
 };
 use superkick_runtime::{
     LaunchTaskEvent, LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry, RetryError,
@@ -198,7 +199,19 @@ impl StepRunner for FakeStepRunner {
                     ..StepLinks::default()
                 },
             }),
-            ScriptedAction::Fail { reason } => Ok(StepOutcome::Failed { reason }),
+            ScriptedAction::Fail { reason } => {
+                // Default fake-runner failure parks the step at NeedsHuman
+                // (retryable) — mirrors the original test contract while
+                // exercising the new classification-aware executor path.
+                let classification = FailureClassification::AgentReported {
+                    status: superkick_core::StepResultStatus::NeedsHuman,
+                    summary: reason,
+                };
+                Ok(StepOutcome::NeedsHuman {
+                    classification,
+                    links: StepLinks::default(),
+                })
+            }
             ScriptedAction::WaitThenCheck { release } => {
                 tokio::select! {
                     _ = release.notified() => {

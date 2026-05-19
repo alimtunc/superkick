@@ -29,6 +29,7 @@ pub mod runner_mode;
 pub mod runtime;
 pub mod session_lifecycle;
 pub mod step;
+pub mod step_result;
 pub mod terminal_takeover;
 pub mod transcript;
 pub mod workspace_event;
@@ -106,6 +107,10 @@ pub use runtime::{
 };
 pub use session_lifecycle::{SessionLifecycleEvent, SessionLifecyclePhase};
 pub use step::{RunStep, StepKey, StepStatus};
+pub use step_result::{
+    FailureClassification, FailureDisposition, STEP_RESULT_BEGIN, STEP_RESULT_END, StepResult,
+    StepResultStatus,
+};
 pub use terminal_takeover::{
     ActiveTakeover, ForceTakeoverSubMode, OpenedTakeover, TakeoverMode, TakeoverModeAvailability,
     TakeoverModeKind,

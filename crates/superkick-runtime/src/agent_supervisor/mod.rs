@@ -24,10 +24,11 @@ use tokio_util::sync::CancellationToken;
 use superkick_core::{
     AgentProvider, AgentSession, AgentSessionId, AgentStatus, BillingProfile, EventKind,
     EventLevel, HandoffId, LaunchReason, LinearContextMode, RunEvent, RunId, RunnerMode,
-    SessionLifecycleEvent, SessionLifecyclePhase, StepId,
+    SessionLifecycleEvent, SessionLifecyclePhase, StepId, StepResult,
 };
 use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
 
+use crate::protocol_adapter::{MarkerError, TranscriptHints};
 use crate::pty_session::PtySessionRegistry;
 use crate::session_bus::SessionBus;
 
@@ -99,6 +100,23 @@ pub struct PolicyAudit {
 #[derive(Debug)]
 pub struct AgentResult {
     pub session: AgentSession,
+    /// Verdict from scanning the PTY output for the step result marker pair.
+    pub step_result: Result<Option<StepResult>, MarkerError>,
+    /// Terminal lifecycle phase recorded by the supervisor. The classifier
+    /// (SUP-140) uses this to disambiguate timeout from clean exit when the
+    /// marker is missing.
+    pub lifecycle_phase: SessionLifecyclePhase,
+    /// The wall-clock budget that elapsed when `lifecycle_phase ==
+    /// TimedOut`; `None` for every other phase. The classifier turns this
+    /// into `FailureClassification::Timeout { after }` so operators see the
+    /// actual budget that was exceeded rather than a hard-coded zero.
+    pub timeout_after: Option<std::time::Duration>,
+    /// Free-form transcript hints (auth required, quota exhausted, tests
+    /// failed) accumulated by the [`FailureHintScanner`]. Empty when the
+    /// scanner observed nothing notable.
+    ///
+    /// [`FailureHintScanner`]: crate::protocol_adapter::FailureHintScanner
+    pub transcript_hints: TranscriptHints,
 }
 
 /// Handle to a running agent session, used for cancellation.
