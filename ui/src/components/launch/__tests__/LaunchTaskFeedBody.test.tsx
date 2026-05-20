@@ -68,7 +68,7 @@ describe('LaunchTaskFeedBody routing', () => {
 		expect(container.textContent ?? '').not.toMatch(/raw error string/i)
 	})
 
-	it('falls back to the legacy evidence row when the step has no classification', () => {
+	it('renders the free-form summary in the timeline row when no classification is set', () => {
 		const steps = [
 			step({
 				id: 'plan',

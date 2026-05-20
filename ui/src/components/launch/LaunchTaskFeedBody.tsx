@@ -1,7 +1,6 @@
-import { LaunchStepEvidenceRow } from '@/components/issue-detail/launch-task-feed/LaunchStepEvidenceRow'
-import { LaunchStepFailureRow } from '@/components/issue-detail/launch-task-feed/LaunchStepFailureRow'
 import { LaunchTaskCancelButton } from '@/components/issue-detail/launch-task-feed/LaunchTaskCancelButton'
 import { LaunchTaskNeedsHumanCallout } from '@/components/issue-detail/launch-task-feed/LaunchTaskNeedsHumanCallout'
+import { StepTimelineRow } from '@/components/issue-detail/launch-task-feed/StepTimelineRow'
 import { IssueContextPanel } from '@/components/issues/IssueContextPanel'
 import { LaunchPlanStrip } from '@/components/launch/LaunchPlanStrip'
 import { findBlockingContext, getDisposition, TERMINAL_LAUNCH_TASK_STATUSES } from '@/lib/domain'
@@ -41,17 +40,9 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 						canRetry={canRetry}
 					/>
 				) : null}
-				{steps.map((step) =>
-					step.failure_classification ? (
-						<LaunchStepFailureRow
-							key={step.id}
-							step={step}
-							classification={step.failure_classification}
-						/>
-					) : (
-						<LaunchStepEvidenceRow key={step.id} step={step} />
-					)
-				)}
+				{steps.map((step) => (
+					<StepTimelineRow key={step.id} step={step} task={task} />
+				))}
 				{!isTerminal ? (
 					<div className="mt-2 flex items-center justify-end">
 						<LaunchTaskCancelButton linearIssueId={task.linear_issue_id} taskId={task.id} />
