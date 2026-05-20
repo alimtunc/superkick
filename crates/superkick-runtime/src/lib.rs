@@ -11,6 +11,7 @@ pub mod handoff_service;
 pub mod heartbeat;
 pub mod interrupt_service;
 pub mod launch_queue_blockers;
+pub mod launch_task_context;
 pub mod launch_task_event_bus;
 pub mod launch_task_executor;
 pub mod launch_task_registry;

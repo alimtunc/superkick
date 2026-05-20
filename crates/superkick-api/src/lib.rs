@@ -154,9 +154,8 @@ pub fn launch_task_test_router(
 /// internals.
 #[cfg(feature = "test-support")]
 pub mod test_handlers {
-    pub use crate::handlers::issue_context::{
-        IssueContextState, IssueLookup, IssueWorkspaceContextRepoDyn, MemoryEntryRepoDyn,
-    };
+    pub use crate::handlers::issue_context::{IssueContextState, IssueLookup};
+    pub use superkick_storage::repo::{IssueWorkspaceContextRepoDyn, MemoryEntryRepoDyn};
 }
 
 /// Test-only router builder for the SUP-148 issue-context + memory routes.
@@ -373,6 +372,10 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         session_repo: Arc::clone(&session_repo),
         transcript_repo: Arc::clone(&transcript_repo),
         launch_task_repo: Arc::clone(&launch_task_repo),
+        issue_workspace_context_repo: Arc::clone(&issue_workspace_context_repo)
+            as Arc<dyn superkick_storage::repo::IssueWorkspaceContextRepoDyn>,
+        memory_repo: Arc::clone(&memory_repo)
+            as Arc<dyn superkick_storage::repo::MemoryEntryRepoDyn>,
         registry: Arc::clone(&pty_registry),
         session_bus: Some(Arc::clone(&session_bus)),
         launch_task_bus: Arc::clone(&launch_task_event_bus),

@@ -26,15 +26,21 @@ use tracing::{error, info, warn};
 use superkick_config::SuperkickConfig;
 use superkick_core::{
     AgentCatalog, EventKind, EventLevel, FailureClassification, FailureDisposition, LaunchReason,
-    LaunchStepKind, LaunchTask, LaunchTaskId, LaunchTaskStep, LaunchTaskStepId, RoleRouter, Run,
-    RunId, RunPolicy, RunState, RunStep, StepId, StepKey, StepResult, StepStatus, TriggerSource,
+    LaunchStepKind, LaunchTask, LaunchTaskId, LaunchTaskStep, LaunchTaskStepId, MemoryEntryId,
+    RoleRouter, Run, RunId, RunPolicy, RunState, RunStep, StepId, StepKey, StepResult, StepStatus,
+    TriggerSource,
 };
 use superkick_storage::repo::{
-    AgentSessionRepo, LaunchTaskRepo, RunEventRepo, RunRepo, RunStepRepo, TranscriptRepo,
+    AgentSessionRepo, IssueWorkspaceContextRepoDyn, LaunchTaskRepo, MemoryEntryRepoDyn,
+    RunEventRepo, RunRepo, RunStepRepo, TranscriptRepo,
 };
 
 use crate::agent_spawn::{LaunchConfigInputs, build_launch_config, resolve_spawn_plan};
 use crate::agent_supervisor::AgentSupervisor;
+use crate::launch_task_context::{
+    AppendError, LoadedWorkspaceContext, append_step_memory_entry, render_workspace_block,
+    try_load_workspace_context,
+};
 use crate::launch_task_event_bus::{LaunchTaskEvent, LaunchTaskEventBus};
 use crate::launch_task_executor::{StepLinks, StepOutcome, StepRunner};
 use crate::linear_context::OptionalLinearClient;
@@ -103,6 +109,8 @@ where
     pub session_repo: Arc<A>,
     pub transcript_repo: Arc<T>,
     pub launch_task_repo: Arc<L>,
+    pub issue_workspace_context_repo: Arc<dyn IssueWorkspaceContextRepoDyn>,
+    pub memory_repo: Arc<dyn MemoryEntryRepoDyn>,
     pub registry: Arc<crate::pty_session::PtySessionRegistry>,
     pub session_bus: Option<Arc<SessionBus>>,
     pub launch_task_bus: Arc<LaunchTaskEventBus>,
@@ -128,6 +136,8 @@ where
     step_repo: Arc<ST>,
     event_repo: Arc<E>,
     launch_task_repo: Arc<L>,
+    issue_workspace_context_repo: Arc<dyn IssueWorkspaceContextRepoDyn>,
+    memory_repo: Arc<dyn MemoryEntryRepoDyn>,
     launch_task_bus: Arc<LaunchTaskEventBus>,
     supervisor: AgentSupervisor<A, E, T>,
     repo_cache: RepoCache,
@@ -171,6 +181,8 @@ where
             step_repo: deps.step_repo,
             event_repo: deps.event_repo,
             launch_task_repo: deps.launch_task_repo,
+            issue_workspace_context_repo: deps.issue_workspace_context_repo,
+            memory_repo: deps.memory_repo,
             launch_task_bus: deps.launch_task_bus,
             supervisor,
             repo_cache: deps.repo_cache,
@@ -427,16 +439,83 @@ where
         .await;
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /// Warn-not-fail: validation / storage errors here downgrade to a Warn
+    /// event on the shadow run timeline; the step itself has already
+    /// succeeded and we don't want to lose that.
+    async fn append_ledger_for_step(
+        &self,
+        ctx: &StepCompletionContext<'_>,
+        shadow_run_id: RunId,
+        summary: &str,
+    ) -> Vec<MemoryEntryId> {
+        let Some(context_id) = ctx.workspace_context_id else {
+            return Vec::new();
+        };
+        let result = append_step_memory_entry(
+            &self.memory_repo,
+            context_id,
+            ctx.step.step_kind,
+            Some(ctx.role.to_string()),
+            summary,
+        )
+        .await;
+        let (event_kind, ui_msg) = match result {
+            Ok(Some(id)) => return vec![id],
+            Ok(None) => return Vec::new(),
+            Err(AppendError::CredentialLikely { kind }) => {
+                warn!(
+                    launch_task_step_id = %ctx.step.id,
+                    redaction_kind = %kind,
+                    "memory ledger write skipped — credential-shape text in step summary"
+                );
+                (
+                    EventKind::AgentOutput,
+                    format!(
+                        "memory ledger write skipped: credential-shape text ({kind}) in step summary"
+                    ),
+                )
+            }
+            Err(AppendError::Validation(msg)) => {
+                warn!(
+                    launch_task_step_id = %ctx.step.id,
+                    error = %msg,
+                    "memory ledger write skipped — validation error"
+                );
+                (
+                    EventKind::AgentOutput,
+                    format!("memory ledger write skipped: {msg}"),
+                )
+            }
+            Err(AppendError::Storage(e)) => {
+                warn!(
+                    launch_task_step_id = %ctx.step.id,
+                    error = %e,
+                    "memory ledger write failed — step still considered Completed"
+                );
+                (
+                    EventKind::Error,
+                    format!("memory ledger write failed: {e:#}"),
+                )
+            }
+        };
+        crate::agent_supervisor::output::emit_event(
+            &*self.event_repo,
+            shadow_run_id,
+            ctx.run_step_id,
+            event_kind,
+            EventLevel::Warn,
+            ui_msg,
+        )
+        .await;
+        Vec::new()
+    }
+
     async fn process_completion(
         &self,
         task: &LaunchTask,
-        step: &LaunchTaskStep,
         run: &mut Run,
-        run_step_id: StepId,
         result: crate::agent_supervisor::AgentResult,
-        role: &str,
-        worktree: &std::path::Path,
+        ctx: StepCompletionContext<'_>,
     ) -> Result<StepOutcome> {
         let shadow_run_id = run.id;
         let links = StepLinks {
@@ -453,15 +532,20 @@ where
         if let Ok(Some(sr)) = &marker_outcome {
             // Persist the agent's self-report before any classification side
             // effects so a mid-flight crash still leaves the row populated.
-            self.persist_structured_result(shadow_run_id, run_step_id, step.id, (*sr).clone())
-                .await;
+            self.persist_structured_result(
+                shadow_run_id,
+                ctx.run_step_id,
+                ctx.step.id,
+                (*sr).clone(),
+            )
+            .await;
         }
 
-        let diff_probe = GitDiffProbe::new(worktree.to_path_buf());
+        let diff_probe = GitDiffProbe::new(ctx.worktree.to_path_buf());
         let classification = classify(ClassifyInputs {
             provider,
-            role,
-            step_kind: step.step_kind,
+            role: ctx.role,
+            step_kind: ctx.step.step_kind,
             session_exit_code: result.session.exit_code,
             lifecycle_phase: &result.lifecycle_phase,
             timeout_after: result.timeout_after,
@@ -477,9 +561,9 @@ where
                     Ok(Some(sr)) => truncate_tail_chars(&sr.summary, SUMMARY_MAX_CHARS),
                     _ => String::new(),
                 };
-                self.finish_run_step(run_step_id, StepStatus::Succeeded, None)
+                self.finish_run_step(ctx.run_step_id, StepStatus::Succeeded, None)
                     .await;
-                if matches!(step.step_kind, LaunchStepKind::Review)
+                if matches!(ctx.step.step_kind, LaunchStepKind::Review)
                     && let Err(e) = self
                         .set_shadow_run_state(task, run, RunState::Completed)
                         .await
@@ -490,9 +574,13 @@ where
                         "failed to mark shadow run completed — dashboard may stay on Reviewing"
                     );
                 }
+                let memory_entry_ids = self
+                    .append_ledger_for_step(&ctx, shadow_run_id, &summary)
+                    .await;
                 Ok(StepOutcome::Completed {
                     summary: Some(summary),
                     links,
+                    memory_entry_ids,
                 })
             }
             Some(c) => {
@@ -500,7 +588,7 @@ where
                 // dashboard shows the step as terminal-failed in either
                 // disposition; the executor decides the parent-task path.
                 let reason = c.human_summary();
-                self.finish_run_step(run_step_id, StepStatus::Failed, Some(reason))
+                self.finish_run_step(ctx.run_step_id, StepStatus::Failed, Some(reason))
                     .await;
                 Ok(match c.disposition() {
                     FailureDisposition::NeedsHuman => StepOutcome::NeedsHuman {
@@ -515,6 +603,48 @@ where
             }
         }
     }
+
+    async fn resolve_workspace_context(
+        &self,
+        task: &LaunchTask,
+    ) -> (Option<LoadedWorkspaceContext>, Option<String>) {
+        let loaded = match try_load_workspace_context(
+            &self.issue_workspace_context_repo,
+            &self.memory_repo,
+            &task.linear_issue_id,
+        )
+        .await
+        {
+            Ok(opt) => opt,
+            Err(e) => {
+                warn!(
+                    launch_task_id = %task.id,
+                    error = %e,
+                    "failed to load workspace context — falling back to fresh-fetch snapshot"
+                );
+                None
+            }
+        };
+        let block = loaded.as_ref().map(
+            |LoadedWorkspaceContext {
+                 context,
+                 excerpts,
+                 memory_entries,
+             }| { render_workspace_block(context, excerpts, memory_entries) },
+        );
+        (loaded, block)
+    }
+}
+
+/// Bundles per-step references that `process_completion` and the ledger
+/// helper both consume — keeps both signatures under the
+/// `clippy::too_many_arguments` threshold.
+struct StepCompletionContext<'a> {
+    step: &'a LaunchTaskStep,
+    run_step_id: StepId,
+    role: &'a str,
+    worktree: &'a std::path::Path,
+    workspace_context_id: Option<superkick_core::IssueWorkspaceContextId>,
 }
 
 impl<R, ST, E, A, T, L> StepRunner for RealStepRunner<R, ST, E, A, T, L>
@@ -650,6 +780,11 @@ where
                 None
             });
 
+        let (loaded_context, structured_block) = self.resolve_workspace_context(task).await;
+        let context_block_for_prompt: Option<&str> = structured_block
+            .as_deref()
+            .or(spawn_plan.snapshot_block.as_deref());
+
         let base_prompt =
             Self::build_base_prompt(task, step.step_kind, previous_summary.as_deref());
         let default_instructions = &self.config.launch_profile.default_instructions;
@@ -659,7 +794,7 @@ where
             None,
             None,
             resolved.system_prompt.as_deref(),
-            spawn_plan.snapshot_block.as_deref(),
+            context_block_for_prompt,
         );
 
         let launch_cfg = build_launch_config(
@@ -727,16 +862,14 @@ where
                 })
             }
             Ok(result) => {
-                self.process_completion(
-                    task,
+                let ctx = StepCompletionContext {
                     step,
-                    &mut run,
                     run_step_id,
-                    result,
-                    &resolved.role,
-                    &worktree,
-                )
-                .await
+                    role: &resolved.role,
+                    worktree: &worktree,
+                    workspace_context_id: loaded_context.as_ref().map(|lc| lc.context.id),
+                };
+                self.process_completion(task, &mut run, result, ctx).await
             }
         }
     }

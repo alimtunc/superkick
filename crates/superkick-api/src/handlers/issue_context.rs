@@ -22,12 +22,11 @@ use axum::response::{IntoResponse, Json};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use superkick_core::{
-    IssueWorkspaceContext, IssueWorkspaceContextCommentExcerpt, IssueWorkspaceContextId,
-    IssueWorkspaceContextLink, IssueWorkspaceContextLinkKind, IssueWorkspaceContextSnapshot,
+    IssueWorkspaceContext, IssueWorkspaceContextLinkKind, IssueWorkspaceContextSnapshot,
     MemoryCursor, MemoryEntry, MemoryEntryId, MemoryPage,
 };
 use superkick_integrations::linear::{LinearClient, LinearError};
-use superkick_storage::repo::{IssueWorkspaceContextRepo, MemoryEntryRepo};
+use superkick_storage::repo::{IssueWorkspaceContextRepoDyn, MemoryEntryRepoDyn};
 
 use crate::error::AppError;
 
@@ -96,138 +95,6 @@ impl IssueLookup for LinearClient {
                 snapshot_status_name: detail.status.name,
             })
         })
-    }
-}
-
-/// Object-safe shim over the `IssueWorkspaceContextRepo` trait. The original
-/// trait uses `impl Future` in return position (not object-safe). Production
-/// wires the concrete `Arc<SqliteIssueWorkspaceContextRepo>`; the shim is
-/// only used to keep `IssueContextState` agnostic to the concrete repo.
-pub trait IssueWorkspaceContextRepoDyn: Send + Sync {
-    fn find_latest_by_linear_issue_id<'a>(
-        &'a self,
-        linear_issue_id: &'a str,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Option<IssueWorkspaceContext>>> + Send + 'a>>;
-
-    fn list_by_issue_identifier<'a>(
-        &'a self,
-        identifier: &'a str,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Vec<IssueWorkspaceContext>>> + Send + 'a>>;
-
-    fn insert_with_children<'a>(
-        &'a self,
-        context: &'a IssueWorkspaceContext,
-        excerpts: &'a [IssueWorkspaceContextCommentExcerpt],
-        links: &'a [IssueWorkspaceContextLink],
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'a>>;
-
-    fn list_excerpts<'a>(
-        &'a self,
-        workspace_context_id: IssueWorkspaceContextId,
-    ) -> Pin<
-        Box<
-            dyn Future<Output = anyhow::Result<Vec<IssueWorkspaceContextCommentExcerpt>>>
-                + Send
-                + 'a,
-        >,
-    >;
-
-    fn list_links<'a>(
-        &'a self,
-        workspace_context_id: IssueWorkspaceContextId,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Vec<IssueWorkspaceContextLink>>> + Send + 'a>>;
-}
-
-impl<T: IssueWorkspaceContextRepo + ?Sized> IssueWorkspaceContextRepoDyn for T {
-    fn find_latest_by_linear_issue_id<'a>(
-        &'a self,
-        linear_issue_id: &'a str,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Option<IssueWorkspaceContext>>> + Send + 'a>>
-    {
-        Box::pin(IssueWorkspaceContextRepo::find_latest_by_linear_issue_id(
-            self,
-            linear_issue_id,
-        ))
-    }
-
-    fn list_by_issue_identifier<'a>(
-        &'a self,
-        identifier: &'a str,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Vec<IssueWorkspaceContext>>> + Send + 'a>> {
-        Box::pin(IssueWorkspaceContextRepo::list_by_issue_identifier(
-            self, identifier,
-        ))
-    }
-
-    fn insert_with_children<'a>(
-        &'a self,
-        context: &'a IssueWorkspaceContext,
-        excerpts: &'a [IssueWorkspaceContextCommentExcerpt],
-        links: &'a [IssueWorkspaceContextLink],
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'a>> {
-        Box::pin(IssueWorkspaceContextRepo::insert_with_children(
-            self, context, excerpts, links,
-        ))
-    }
-
-    fn list_excerpts<'a>(
-        &'a self,
-        workspace_context_id: IssueWorkspaceContextId,
-    ) -> Pin<
-        Box<
-            dyn Future<Output = anyhow::Result<Vec<IssueWorkspaceContextCommentExcerpt>>>
-                + Send
-                + 'a,
-        >,
-    > {
-        Box::pin(IssueWorkspaceContextRepo::list_excerpts(
-            self,
-            workspace_context_id,
-        ))
-    }
-
-    fn list_links<'a>(
-        &'a self,
-        workspace_context_id: IssueWorkspaceContextId,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Vec<IssueWorkspaceContextLink>>> + Send + 'a>>
-    {
-        Box::pin(IssueWorkspaceContextRepo::list_links(
-            self,
-            workspace_context_id,
-        ))
-    }
-}
-
-/// Object-safe shim over the `MemoryEntryRepo` trait.
-pub trait MemoryEntryRepoDyn: Send + Sync {
-    fn append<'a>(
-        &'a self,
-        entry: &'a MemoryEntry,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'a>>;
-
-    fn list_page<'a>(
-        &'a self,
-        context_id: IssueWorkspaceContextId,
-        cursor: Option<MemoryCursor>,
-        limit: u32,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<MemoryPage>> + Send + 'a>>;
-}
-
-impl<T: MemoryEntryRepo + ?Sized> MemoryEntryRepoDyn for T {
-    fn append<'a>(
-        &'a self,
-        entry: &'a MemoryEntry,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'a>> {
-        Box::pin(MemoryEntryRepo::append(self, entry))
-    }
-
-    fn list_page<'a>(
-        &'a self,
-        context_id: IssueWorkspaceContextId,
-        cursor: Option<MemoryCursor>,
-        limit: u32,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<MemoryPage>> + Send + 'a>> {
-        Box::pin(MemoryEntryRepo::list_page(self, context_id, cursor, limit))
     }
 }
 

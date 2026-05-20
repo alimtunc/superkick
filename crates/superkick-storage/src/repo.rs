@@ -1,6 +1,7 @@
 //! Repository trait definitions.
 
 use std::future::Future;
+use std::pin::Pin;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -658,4 +659,125 @@ pub trait MemoryEntryRepo: Send + Sync {
         cursor: Option<MemoryCursor>,
         limit: u32,
     ) -> impl Future<Output = Result<MemoryPage>> + Send;
+}
+
+/// Object-safe shim over [`IssueWorkspaceContextRepo`]. The parent trait
+/// uses `impl Future` in return position so it is not object-safe; this
+/// alias boxes each future so callers can pass an
+/// `Arc<dyn IssueWorkspaceContextRepoDyn>` instead of carrying the concrete
+/// generic parameter through their state.
+pub trait IssueWorkspaceContextRepoDyn: Send + Sync {
+    fn find_latest_by_linear_issue_id<'a>(
+        &'a self,
+        linear_issue_id: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<IssueWorkspaceContext>>> + Send + 'a>>;
+
+    fn list_by_issue_identifier<'a>(
+        &'a self,
+        identifier: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<IssueWorkspaceContext>>> + Send + 'a>>;
+
+    fn insert_with_children<'a>(
+        &'a self,
+        context: &'a IssueWorkspaceContext,
+        excerpts: &'a [IssueWorkspaceContextCommentExcerpt],
+        links: &'a [IssueWorkspaceContextLink],
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
+
+    fn list_excerpts<'a>(
+        &'a self,
+        workspace_context_id: IssueWorkspaceContextId,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<IssueWorkspaceContextCommentExcerpt>>> + Send + 'a>>;
+
+    fn list_links<'a>(
+        &'a self,
+        workspace_context_id: IssueWorkspaceContextId,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<IssueWorkspaceContextLink>>> + Send + 'a>>;
+}
+
+impl<T: IssueWorkspaceContextRepo + ?Sized> IssueWorkspaceContextRepoDyn for T {
+    fn find_latest_by_linear_issue_id<'a>(
+        &'a self,
+        linear_issue_id: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<IssueWorkspaceContext>>> + Send + 'a>> {
+        Box::pin(IssueWorkspaceContextRepo::find_latest_by_linear_issue_id(
+            self,
+            linear_issue_id,
+        ))
+    }
+
+    fn list_by_issue_identifier<'a>(
+        &'a self,
+        identifier: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<IssueWorkspaceContext>>> + Send + 'a>> {
+        Box::pin(IssueWorkspaceContextRepo::list_by_issue_identifier(
+            self, identifier,
+        ))
+    }
+
+    fn insert_with_children<'a>(
+        &'a self,
+        context: &'a IssueWorkspaceContext,
+        excerpts: &'a [IssueWorkspaceContextCommentExcerpt],
+        links: &'a [IssueWorkspaceContextLink],
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        Box::pin(IssueWorkspaceContextRepo::insert_with_children(
+            self, context, excerpts, links,
+        ))
+    }
+
+    fn list_excerpts<'a>(
+        &'a self,
+        workspace_context_id: IssueWorkspaceContextId,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<IssueWorkspaceContextCommentExcerpt>>> + Send + 'a>>
+    {
+        Box::pin(IssueWorkspaceContextRepo::list_excerpts(
+            self,
+            workspace_context_id,
+        ))
+    }
+
+    fn list_links<'a>(
+        &'a self,
+        workspace_context_id: IssueWorkspaceContextId,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<IssueWorkspaceContextLink>>> + Send + 'a>> {
+        Box::pin(IssueWorkspaceContextRepo::list_links(
+            self,
+            workspace_context_id,
+        ))
+    }
+}
+
+/// Object-safe shim over [`MemoryEntryRepo`]. Same rationale as
+/// [`IssueWorkspaceContextRepoDyn`].
+pub trait MemoryEntryRepoDyn: Send + Sync {
+    fn append<'a>(
+        &'a self,
+        entry: &'a MemoryEntry,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
+
+    fn list_page<'a>(
+        &'a self,
+        context_id: IssueWorkspaceContextId,
+        cursor: Option<MemoryCursor>,
+        limit: u32,
+    ) -> Pin<Box<dyn Future<Output = Result<MemoryPage>> + Send + 'a>>;
+}
+
+impl<T: MemoryEntryRepo + ?Sized> MemoryEntryRepoDyn for T {
+    fn append<'a>(
+        &'a self,
+        entry: &'a MemoryEntry,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        Box::pin(MemoryEntryRepo::append(self, entry))
+    }
+
+    fn list_page<'a>(
+        &'a self,
+        context_id: IssueWorkspaceContextId,
+        cursor: Option<MemoryCursor>,
+        limit: u32,
+    ) -> Pin<Box<dyn Future<Output = Result<MemoryPage>> + Send + 'a>> {
+        Box::pin(MemoryEntryRepo::list_page(self, context_id, cursor, limit))
+    }
 }
