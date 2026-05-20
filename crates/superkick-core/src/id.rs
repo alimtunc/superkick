@@ -49,3 +49,6 @@ define_id!(TurnEventId);
 define_id!(TakeoverSessionId);
 define_id!(LaunchTaskId);
 define_id!(LaunchTaskStepId);
+define_id!(IssueWorkspaceContextId);
+define_id!(IssueWorkspaceContextCommentExcerptId);
+define_id!(IssueWorkspaceContextLinkId);

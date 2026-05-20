@@ -7,8 +7,10 @@ use chrono::{DateTime, Utc};
 use superkick_core::{
     AgentSession, AgentSessionId, Artifact, ArtifactId, AttentionRequest, AttentionRequestId,
     Conversation, ConversationId, ConversationStatus, ConversationSubject, EventId,
-    FailureClassification, Handoff, HandoffId, Interrupt, InterruptId, IssueBlocker, LaunchTask,
-    LaunchTaskId, LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus,
+    FailureClassification, Handoff, HandoffId, Interrupt, InterruptId, IssueBlocker,
+    IssueWorkspaceContext, IssueWorkspaceContextCommentExcerpt, IssueWorkspaceContextId,
+    IssueWorkspaceContextLink, IssueWorkspaceContextLinkKind, LaunchTask, LaunchTaskId,
+    LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus,
     OrchestratorCheckpoint, OrchestratorCheckpointId, OrchestratorSession, OrchestratorSessionId,
     OrchestratorStatus, OwnershipEvent, ProtocolEventEnvelope, PullRequest, Run, RunEvent, RunId,
     RunStep, SessionLifecycleEvent, StepId, StepResult, TranscriptChunk, Turn, TurnEvent, TurnId,
@@ -567,4 +569,66 @@ pub trait LaunchTaskRepo: Send + Sync {
         id: LaunchTaskStepId,
         classification: Option<FailureClassification>,
     ) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// Repository for `IssueWorkspaceContext` aggregates (SUP-147).
+///
+/// The parent + comment excerpts + links are always written in a single
+/// transaction (`insert_with_children`) so a partially-attached workspace
+/// can never appear to a reader. `add_link` is idempotent on
+/// `(workspace_context_id, link_kind, target_id)` — relying on the SQL
+/// UNIQUE constraint as the source of truth so a concurrent double-attach
+/// resolves cleanly without leaking domain errors out of the storage layer.
+pub trait IssueWorkspaceContextRepo: Send + Sync {
+    fn insert_with_children(
+        &self,
+        context: &IssueWorkspaceContext,
+        excerpts: &[IssueWorkspaceContextCommentExcerpt],
+        links: &[IssueWorkspaceContextLink],
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    fn get(
+        &self,
+        id: IssueWorkspaceContextId,
+    ) -> impl Future<Output = Result<Option<IssueWorkspaceContext>>> + Send;
+
+    /// Workspaces attached to one Linear issue, ordered `captured_at DESC`.
+    /// Re-attaching an issue creates a fresh workspace — the index returns
+    /// every historic attempt with the most recent first.
+    fn list_by_issue_identifier(
+        &self,
+        identifier: &str,
+    ) -> impl Future<Output = Result<Vec<IssueWorkspaceContext>>> + Send;
+
+    fn list_excerpts(
+        &self,
+        workspace_context_id: IssueWorkspaceContextId,
+    ) -> impl Future<Output = Result<Vec<IssueWorkspaceContextCommentExcerpt>>> + Send;
+
+    fn list_links(
+        &self,
+        workspace_context_id: IssueWorkspaceContextId,
+    ) -> impl Future<Output = Result<Vec<IssueWorkspaceContextLink>>> + Send;
+
+    /// Attach a link, idempotently. Re-attaching `(kind, target_id)` returns
+    /// the existing row instead of erroring — the storage layer's contract
+    /// is "ensure attached", upheld by the SQL UNIQUE constraint.
+    fn add_link(
+        &self,
+        workspace_context_id: IssueWorkspaceContextId,
+        link_kind: IssueWorkspaceContextLinkKind,
+        target_id: &str,
+    ) -> impl Future<Output = Result<IssueWorkspaceContextLink>> + Send;
+
+    /// Replace the memory ledger pointer. `None` clears the column.
+    fn set_memory_ledger_pointer(
+        &self,
+        id: IssueWorkspaceContextId,
+        pointer: Option<String>,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    /// Delete the workspace and cascade to its children. Tests use this to
+    /// assert the cascade-delete behaviour; production callers should think
+    /// twice before reaching for it.
+    fn delete(&self, id: IssueWorkspaceContextId) -> impl Future<Output = Result<()>> + Send;
 }
