@@ -1,47 +1,54 @@
-import type {
-	IssueCommentExcerpt,
-	IssueDetailResponse,
-	IssueLinkedItemRef,
-	IssueSnapshot,
-	IssueWorkspaceContext,
-	MemoryEntriesPage
-} from '@/types'
+import type { IssueWorkspaceContext, MemoryEntriesPage, MemoryEntry } from '@/types'
 
-import { fetchIssueDetail } from './issues'
+import { BASE, throwGenericApiError } from './_shared'
 
-// TODO(SUP-147): swap for the aggregate `GET /api/issues/:id/context` endpoint.
+const DEFAULT_MEMORY_LIMIT = 50
+
 export async function fetchIssueWorkspaceContext(issueId: string): Promise<IssueWorkspaceContext> {
-	const detail = await fetchIssueDetail(issueId)
-	return deriveContextFromDetail(detail)
-}
-
-// TODO(SUP-148): swap for the paginated `GET /api/issues/:id/context/memory` endpoint.
-export async function fetchIssueMemoryEntries(
-	_issueId: string,
-	_cursor: string | null
-): Promise<MemoryEntriesPage> {
-	return { entries: [], next_cursor: null }
-}
-
-function deriveContextFromDetail(detail: IssueDetailResponse): IssueWorkspaceContext {
-	const snapshot: IssueSnapshot = {
-		id: detail.id,
-		identifier: detail.identifier,
-		title: detail.title,
-		description: detail.description,
-		status: detail.status,
-		captured_at: detail.updated_at
+	const res = await fetch(`${BASE}/issues/${encodeURIComponent(issueId)}/context`)
+	if (!res.ok) {
+		await throwGenericApiError(res, 'Failed to load workspace context')
 	}
+	return (await res.json()) as IssueWorkspaceContext
+}
 
-	const comment_excerpts: IssueCommentExcerpt[] = []
+export async function fetchIssueMemoryEntries(
+	issueId: string,
+	cursor: string | null
+): Promise<MemoryEntriesPage> {
+	const params = new URLSearchParams()
+	params.set('limit', String(DEFAULT_MEMORY_LIMIT))
+	if (cursor !== null) {
+		params.set('cursor', cursor)
+	}
+	const res = await fetch(
+		`${BASE}/issues/${encodeURIComponent(issueId)}/context/memory?${params.toString()}`
+	)
+	if (!res.ok) {
+		await throwGenericApiError(res, 'Failed to load memory entries')
+	}
+	return (await res.json()) as MemoryEntriesPage
+}
 
-	const linked_items: IssueLinkedItemRef[] = detail.linked_runs.map((run) => ({
-		kind: 'run' as const,
-		id: run.id,
-		label: `Run · ${run.id.slice(0, 8)}`,
-		state: run.state,
-		captured_at: run.started_at
-	}))
+export interface AppendIssueMemoryEntryInput {
+	role: string
+	author?: string | null
+	text: string
+}
 
-	return { snapshot, comment_excerpts, linked_items }
+/** Exposed for SUP-149 / SUP-150 callers (LaunchTask + chat). No component in
+ *  this ticket calls it. */
+export async function appendIssueMemoryEntry(
+	issueId: string,
+	body: AppendIssueMemoryEntryInput
+): Promise<MemoryEntry> {
+	const res = await fetch(`${BASE}/issues/${encodeURIComponent(issueId)}/context/memory`, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(body)
+	})
+	if (!res.ok) {
+		await throwGenericApiError(res, 'Failed to append memory entry')
+	}
+	return (await res.json()) as MemoryEntry
 }

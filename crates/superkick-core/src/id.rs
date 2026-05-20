@@ -52,3 +52,4 @@ define_id!(LaunchTaskStepId);
 define_id!(IssueWorkspaceContextId);
 define_id!(IssueWorkspaceContextCommentExcerptId);
 define_id!(IssueWorkspaceContextLinkId);
+define_id!(MemoryEntryId);

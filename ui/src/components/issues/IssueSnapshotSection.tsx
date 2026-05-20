@@ -35,8 +35,8 @@ export function IssueSnapshotSection({ issueId }: IssueSnapshotSectionProps) {
 						<Pill mono size="xs">
 							{snapshot.identifier}
 						</Pill>
-						<Pill tone="neutral" size="xs" style={{ color: snapshot.status.color }}>
-							{snapshot.status.name}
+						<Pill tone="neutral" size="xs">
+							{snapshot.status_name}
 						</Pill>
 						<span className="font-data text-[11px] text-fg-dim">
 							captured {fmtRelativeTime(snapshot.captured_at)}

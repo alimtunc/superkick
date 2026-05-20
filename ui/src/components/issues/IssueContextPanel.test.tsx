@@ -16,7 +16,7 @@ const CONTEXT: IssueWorkspaceContext = {
 		identifier: ISSUE_ID,
 		title: 'Surface workspace context',
 		description: 'Render snapshot + memory in the issue page.',
-		status: { state_type: 'started', name: 'In Progress', color: '#5b6ef2' },
+		status_name: 'In Progress',
 		captured_at: '2026-05-19T08:00:00Z'
 	},
 	comment_excerpts: [],

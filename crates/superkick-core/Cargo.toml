@@ -11,3 +11,5 @@ thiserror.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 tracing.workspace = true
+regex.workspace = true
+base64 = "0.22"

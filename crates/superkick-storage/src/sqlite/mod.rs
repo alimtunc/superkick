@@ -16,6 +16,7 @@ mod interrupts;
 mod issue_blockers;
 mod issue_workspace_contexts;
 mod launch_tasks;
+mod memory_entries;
 mod orchestrator_sessions;
 mod pull_requests;
 mod recovery;
@@ -36,6 +37,7 @@ pub use interrupts::SqliteInterruptRepo;
 pub use issue_blockers::SqliteIssueBlockerRepo;
 pub use issue_workspace_contexts::SqliteIssueWorkspaceContextRepo;
 pub use launch_tasks::SqliteLaunchTaskRepo;
+pub use memory_entries::SqliteMemoryEntryRepo;
 pub use orchestrator_sessions::SqliteOrchestratorSessionRepo;
 pub use pull_requests::SqlitePullRequestRepo;
 pub use recovery::{

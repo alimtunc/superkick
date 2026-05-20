@@ -51,13 +51,17 @@ export function IssueLinkedItemsSection({ issueId }: IssueLinkedItemsSectionProp
 
 function LinkedItemRow({ item }: { item: IssueLinkedItemRef }) {
 	const href = linkedItemHref(item)
+	// Frozen-by-design: the context aggregate only persists `{ kind, id,
+	// captured_at }`, so we render the short id rather than join against the
+	// live run / launch-task state (which would defeat the snapshot semantics
+	// and add per-row queries).
+	const shortId = item.id.length > 8 ? `${item.id.slice(0, 8)}…` : item.id
 	const label = (
 		<span className="flex flex-wrap items-center gap-2 text-[12.5px]">
 			<Pill tone="neutral" size="xs">
 				{KIND_LABEL[item.kind]}
 			</Pill>
-			<span className="truncate font-medium text-fg">{item.label}</span>
-			{item.state ? <span className="font-data text-[11px] text-fg-dim">{item.state}</span> : null}
+			<span className="font-data truncate text-[12px] text-fg">{shortId}</span>
 			<span className="font-data ml-auto text-[11px] text-fg-dim">
 				{fmtRelativeTime(item.captured_at)}
 			</span>

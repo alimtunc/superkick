@@ -1,4 +1,3 @@
-import { AuthorAvatar } from '@/components/issue-detail/AuthorAvatar'
 import { ContextSection } from '@/components/issues/ContextSection'
 import { useIssueWorkspaceContext } from '@/hooks/useIssueWorkspaceContext'
 import { fmtRelativeTime } from '@/lib/domain'
@@ -30,21 +29,18 @@ export function IssueCommentExcerptsSection({ issueId }: IssueCommentExcerptsSec
 		>
 			<ul className="space-y-2.5">
 				{excerpts.map((excerpt) => {
-					const authorName = excerpt.author?.name ?? 'Unknown'
+					const authorName = excerpt.author ?? 'Unknown'
 					return (
-						<li key={excerpt.id} className="flex gap-2.5">
-							<AuthorAvatar name={authorName} avatarUrl={excerpt.author?.avatar_url ?? null} />
-							<div className="min-w-0 flex-1">
-								<div className="flex items-baseline gap-2 text-[12px]">
-									<span className="font-medium text-fg">{authorName}</span>
-									<span className="font-data text-[11px] text-fg-dim">
-										{fmtRelativeTime(excerpt.captured_at)}
-									</span>
-								</div>
-								<pre className="font-sans text-[12.5px] leading-relaxed whitespace-pre-wrap text-fg-muted">
-									{excerpt.text}
-								</pre>
+						<li key={excerpt.id} className="min-w-0">
+							<div className="flex items-baseline gap-2 text-[12px]">
+								<span className="font-medium text-fg">{authorName}</span>
+								<span className="font-data text-[11px] text-fg-dim">
+									{fmtRelativeTime(excerpt.captured_at)}
+								</span>
 							</div>
+							<pre className="font-sans text-[12.5px] leading-relaxed whitespace-pre-wrap text-fg-muted">
+								{excerpt.text}
+							</pre>
 						</li>
 					)
 				})}

@@ -10,11 +10,11 @@ use superkick_core::{
     FailureClassification, Handoff, HandoffId, Interrupt, InterruptId, IssueBlocker,
     IssueWorkspaceContext, IssueWorkspaceContextCommentExcerpt, IssueWorkspaceContextId,
     IssueWorkspaceContextLink, IssueWorkspaceContextLinkKind, LaunchTask, LaunchTaskId,
-    LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus,
-    OrchestratorCheckpoint, OrchestratorCheckpointId, OrchestratorSession, OrchestratorSessionId,
-    OrchestratorStatus, OwnershipEvent, ProtocolEventEnvelope, PullRequest, Run, RunEvent, RunId,
-    RunStep, SessionLifecycleEvent, StepId, StepResult, TranscriptChunk, Turn, TurnEvent, TurnId,
-    UsageSnapshot,
+    LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus, MemoryCursor,
+    MemoryEntry, MemoryPage, OrchestratorCheckpoint, OrchestratorCheckpointId, OrchestratorSession,
+    OrchestratorSessionId, OrchestratorStatus, OwnershipEvent, ProtocolEventEnvelope, PullRequest,
+    Run, RunEvent, RunId, RunStep, SessionLifecycleEvent, StepId, StepResult, TranscriptChunk,
+    Turn, TurnEvent, TurnId, UsageSnapshot,
 };
 
 /// Repository for `Run` entities.
@@ -600,6 +600,16 @@ pub trait IssueWorkspaceContextRepo: Send + Sync {
         identifier: &str,
     ) -> impl Future<Output = Result<Vec<IssueWorkspaceContext>>> + Send;
 
+    /// Most recent workspace attached to `linear_issue_id` (Linear UUID), or
+    /// `None` if the issue has never been attached. The API layer's
+    /// `ensure_context_for_issue` helper probes this after the Linear lookup
+    /// to avoid a duplicate insert when a concurrent caller attached the same
+    /// issue under a different `:id` form (identifier vs. UUID) in between.
+    fn find_latest_by_linear_issue_id(
+        &self,
+        linear_issue_id: &str,
+    ) -> impl Future<Output = Result<Option<IssueWorkspaceContext>>> + Send;
+
     fn list_excerpts(
         &self,
         workspace_context_id: IssueWorkspaceContextId,
@@ -631,4 +641,21 @@ pub trait IssueWorkspaceContextRepo: Send + Sync {
     /// assert the cascade-delete behaviour; production callers should think
     /// twice before reaching for it.
     fn delete(&self, id: IssueWorkspaceContextId) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// Repository for `MemoryEntry` rows (SUP-148).
+///
+/// Append-only by contract — there is no `update`, no `delete`. Pagination is
+/// cursor-based and newest-first; the implementation uses the `limit + 1`
+/// lookahead trick to populate `MemoryPage::next_cursor` without a second
+/// `COUNT(*)` round-trip.
+pub trait MemoryEntryRepo: Send + Sync {
+    fn append(&self, entry: &MemoryEntry) -> impl Future<Output = Result<()>> + Send;
+
+    fn list_page(
+        &self,
+        context_id: IssueWorkspaceContextId,
+        cursor: Option<MemoryCursor>,
+        limit: u32,
+    ) -> impl Future<Output = Result<MemoryPage>> + Send;
 }

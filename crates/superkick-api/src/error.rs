@@ -22,6 +22,10 @@ pub enum AppError {
     /// Maps to 409 with an explicit error code so the UI can render a clear
     /// "wait for the current turn" hint without parsing the message string.
     TurnAlreadyStreaming,
+    /// 422 — the request was syntactically valid but the contents failed a
+    /// semantic guard. Today this is used by the SUP-148 memory-entry
+    /// redaction layer; the body always carries the `error` string.
+    Unprocessable(String),
     ServiceUnavailable(&'static str),
 }
 
@@ -121,6 +125,9 @@ impl From<CoreError> for AppError {
                 message: format!("invalid launch task step transition: {from} -> {to}"),
                 run: None,
             },
+            CoreError::CredentialLikely { kind } => AppError::Unprocessable(format!(
+                "redacted credential-like content matched pattern: {kind}"
+            )),
             other => AppError::Internal(other.into()),
         }
     }
@@ -161,6 +168,11 @@ impl IntoResponse for AppError {
                     "error": "another turn is already streaming on this conversation",
                     "code": "turn_already_streaming",
                 })),
+            )
+                .into_response(),
+            AppError::Unprocessable(msg) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({ "error": msg })),
             )
                 .into_response(),
             AppError::ServiceUnavailable(msg) => (
