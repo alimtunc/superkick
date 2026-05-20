@@ -4,6 +4,7 @@ import { IssueContextStrip } from '@/components/issue-detail/IssueContextStrip'
 import { IssueFeed } from '@/components/issue-detail/IssueFeed'
 import { IssueReplyComposer } from '@/components/issue-detail/IssueReplyComposer'
 import { StatusChip } from '@/components/issue-detail/StatusChip'
+import { IssueContextPanel } from '@/components/issues/IssueContextPanel'
 import { Pill } from '@/components/ui/pill'
 import { EmptyState } from '@/components/ui/state-empty'
 import { ErrorState } from '@/components/ui/state-error'
@@ -129,6 +130,9 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 		<>
 			<IssueContextStrip issue={issue} />
 			<div className="mx-auto w-full max-w-4xl px-6 py-6">
+				<div className="mb-5">
+					<IssueContextPanel issueId={issue.identifier} variant="inline" />
+				</div>
 				<IssueFeed issue={issue} />
 				<div className="mt-2">
 					<IssueReplyComposer />

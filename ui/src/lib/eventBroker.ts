@@ -154,6 +154,8 @@ function runIdForEvent(event: WorkspaceRunEvent): string | undefined {
 		case 'run_recovered':
 			return event.run_id
 		case 'issue_event':
+		case 'memory_appended':
+		case 'context_updated':
 			return undefined
 		default: {
 			const _exhaustive: never = event

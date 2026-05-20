@@ -1,0 +1,54 @@
+import { AuthorAvatar } from '@/components/issue-detail/AuthorAvatar'
+import { ContextSection } from '@/components/issues/ContextSection'
+import { useIssueWorkspaceContext } from '@/hooks/useIssueWorkspaceContext'
+import { fmtRelativeTime } from '@/lib/domain'
+import { MessageSquare } from 'lucide-react'
+
+interface IssueCommentExcerptsSectionProps {
+	issueId: string
+}
+
+export function IssueCommentExcerptsSection({ issueId }: IssueCommentExcerptsSectionProps) {
+	const { data, isLoading, isError, error, refetch } = useIssueWorkspaceContext(issueId)
+	const excerpts = data?.comment_excerpts ?? []
+
+	return (
+		<ContextSection
+			ariaLabel="Comment excerpts"
+			heading="Comment excerpts"
+			isLoading={isLoading}
+			error={isError ? (error ?? new Error('Failed to load excerpts.')) : null}
+			errorTitle="Comments unavailable"
+			errorFallback="Failed to load excerpts."
+			onRetry={() => {
+				refetch()
+			}}
+			isEmpty={excerpts.length === 0}
+			emptyIcon={MessageSquare}
+			emptyTitle="No comment excerpts"
+			emptyDescription="The agent has not selected any comments yet."
+		>
+			<ul className="space-y-2.5">
+				{excerpts.map((excerpt) => {
+					const authorName = excerpt.author?.name ?? 'Unknown'
+					return (
+						<li key={excerpt.id} className="flex gap-2.5">
+							<AuthorAvatar name={authorName} avatarUrl={excerpt.author?.avatar_url ?? null} />
+							<div className="min-w-0 flex-1">
+								<div className="flex items-baseline gap-2 text-[12px]">
+									<span className="font-medium text-fg">{authorName}</span>
+									<span className="font-data text-[11px] text-fg-dim">
+										{fmtRelativeTime(excerpt.captured_at)}
+									</span>
+								</div>
+								<pre className="font-sans text-[12.5px] leading-relaxed whitespace-pre-wrap text-fg-muted">
+									{excerpt.text}
+								</pre>
+							</div>
+						</li>
+					)
+				})}
+			</ul>
+		</ContextSection>
+	)
+}

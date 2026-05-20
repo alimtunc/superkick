@@ -106,8 +106,27 @@ export interface RunRecoveredPayload {
 }
 
 /**
- * Workspace-level run event envelope (SUP-84 + SUP-81 + SUP-73). The shell
- * broker subscribes once to `GET /api/events` and receives every event
+ * SUP-151 — emitted when an `IssueWorkspaceContext` memory entry is appended
+ * (subject to SUP-148's POST endpoint). Carries the affected issue so cache
+ * invalidation can target a single key.
+ */
+export interface MemoryAppendedPayload {
+	issue_id: string
+	entry_id: string
+}
+
+/**
+ * SUP-151 — emitted when the aggregate context (snapshot / comment excerpts /
+ * linked items) is refreshed. Coarse-grained: the UI re-fetches the whole
+ * aggregate rather than reconciling deltas.
+ */
+export interface ContextUpdatedPayload {
+	issue_id: string
+}
+
+/**
+ * Workspace-level run event envelope (SUP-84 + SUP-81 + SUP-73 + SUP-151). The
+ * shell broker subscribes once to `GET /api/events` and receives every event
  * produced process-wide wrapped in this tagged union. The Rust backend
  * flattens the inner event fields alongside the `type` discriminant.
  */
@@ -117,6 +136,8 @@ export type WorkspaceRunEvent =
 	| ({ type: 'issue_event' } & IssueEvent)
 	| ({ type: 'run_stalled' } & RunStalledPayload)
 	| ({ type: 'run_recovered' } & RunRecoveredPayload)
+	| ({ type: 'memory_appended' } & MemoryAppendedPayload)
+	| ({ type: 'context_updated' } & ContextUpdatedPayload)
 
 /**
  * Shell broker subscription filter. Omit fields to match everything — the
