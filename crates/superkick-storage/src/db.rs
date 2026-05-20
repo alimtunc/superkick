@@ -169,6 +169,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "029_memory_entries",
             include_str!("../migrations/029_memory_entries.sql"),
         ),
+        (
+            "030_launch_task_interventions",
+            include_str!("../migrations/030_launch_task_interventions.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

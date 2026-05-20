@@ -22,9 +22,9 @@ use superkick_core::{
     AgentCatalog, AgentProvider, CoreAgentDefinition, CoreError, LaunchTaskId, LaunchTaskStatus,
     LaunchTaskStepStatus, LinearContextMode, ResolvedMcpPolicy, ResolvedToolPolicy,
 };
-use superkick_storage::SqliteLaunchTaskRepo;
 use superkick_storage::connect;
-use superkick_storage::repo::LaunchTaskRepo;
+use superkick_storage::repo::{LaunchTaskInterventionRepo, LaunchTaskRepo};
+use superkick_storage::{SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo};
 use tower::ServiceExt;
 
 fn agent(name: &str, provider: AgentProvider, model: Option<&str>) -> CoreAgentDefinition {
@@ -65,8 +65,9 @@ fn catalog() -> AgentCatalog {
 
 async fn router() -> axum::Router {
     let pool = connect("sqlite::memory:").await.expect("pool");
-    let repo = Arc::new(SqliteLaunchTaskRepo::new(pool));
-    launch_task_test_router(repo, Arc::new(catalog()))
+    let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
+    let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool));
+    launch_task_test_router(repo, interventions, Arc::new(catalog()))
 }
 
 /// Variant of `router()` that returns the repo handle alongside the router so
@@ -74,9 +75,29 @@ async fn router() -> axum::Router {
 /// without a real executor loop.
 async fn router_with_repo() -> (axum::Router, Arc<SqliteLaunchTaskRepo>) {
     let pool = connect("sqlite::memory:").await.expect("pool");
-    let repo = Arc::new(SqliteLaunchTaskRepo::new(pool));
-    let router = launch_task_test_router(Arc::clone(&repo), Arc::new(catalog()));
+    let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
+    let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool));
+    let router = launch_task_test_router(Arc::clone(&repo), interventions, Arc::new(catalog()));
     (router, repo)
+}
+
+/// Variant of `router_with_repo` that also surfaces the intervention repo so
+/// SUP-154 tests can seed pre-existing interventions and assert against
+/// `mark_consumed` round-trips without going through the handler.
+async fn router_with_intervention_repo() -> (
+    axum::Router,
+    Arc<SqliteLaunchTaskRepo>,
+    Arc<SqliteLaunchTaskInterventionRepo>,
+) {
+    let pool = connect("sqlite::memory:").await.expect("pool");
+    let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
+    let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool));
+    let router = launch_task_test_router(
+        Arc::clone(&repo),
+        Arc::clone(&interventions),
+        Arc::new(catalog()),
+    );
+    (router, repo, interventions)
 }
 
 async fn post_no_body(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
@@ -390,4 +411,206 @@ async fn invalid_transitions_map_to_409() {
         })
         .into_response();
     assert_eq!(response.status(), StatusCode::CONFLICT);
+}
+
+// ── SUP-154 operator intervention channel ─────────────────────────────
+
+async fn create_intervention_request(
+    app: &axum::Router,
+    task_id: &str,
+    body: Value,
+) -> (StatusCode, Value) {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/launch-tasks/{task_id}/interventions"))
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .expect("request"),
+        )
+        .await
+        .expect("send");
+    let status = response.status();
+    (status, read_json(response.into_body()).await)
+}
+
+#[tokio::test]
+async fn create_intervention_persists_and_returns_201() {
+    let (app, _, interventions) = router_with_intervention_repo().await;
+    let (_, created) = create_request(
+        &app,
+        json!({
+            "linear_issue_id": "SUP-154",
+            "planner_agent": "planner",
+            "coder_agent": "coder",
+            "reviewer_agent": "reviewer"
+        }),
+    )
+    .await;
+    let task_id = created["task"]["id"].as_str().unwrap();
+
+    let (status, body) = create_intervention_request(
+        &app,
+        task_id,
+        json!({ "body": "  watch the failing tests  " }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {body}");
+    assert_eq!(body["body"], "watch the failing tests", "trim applied");
+    assert_eq!(body["author"], "operator", "default author");
+    assert!(body["consumed_at"].is_null(), "pending");
+
+    // Persisted via the dedicated GET.
+    let (status, list) = get_json(&app, &format!("/launch-tasks/{task_id}/interventions")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list.as_array().unwrap().len(), 1);
+
+    // And reachable via the repo directly.
+    let task_uuid = uuid::Uuid::parse_str(task_id).unwrap();
+    let rows = interventions
+        .list_by_task(superkick_core::LaunchTaskId(task_uuid))
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].body, "watch the failing tests");
+}
+
+#[tokio::test]
+async fn create_intervention_with_empty_body_is_400() {
+    let app = router().await;
+    let (_, created) = create_request(
+        &app,
+        json!({
+            "linear_issue_id": "SUP-154",
+            "planner_agent": "planner",
+            "coder_agent": "coder",
+            "reviewer_agent": "reviewer"
+        }),
+    )
+    .await;
+    let task_id = created["task"]["id"].as_str().unwrap();
+    let (status, _) = create_intervention_request(&app, task_id, json!({ "body": "   " })).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn create_intervention_on_unknown_task_is_404() {
+    let app = router().await;
+    let unknown = uuid::Uuid::new_v4();
+    let (status, _) =
+        create_intervention_request(&app, &unknown.to_string(), json!({ "body": "hello" })).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn list_interventions_on_unknown_task_is_404() {
+    let app = router().await;
+    let unknown = uuid::Uuid::new_v4();
+    let (status, _) = get_json(&app, &format!("/launch-tasks/{unknown}/interventions")).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn list_interventions_returns_chronological_order() {
+    let app = router().await;
+    let (_, created) = create_request(
+        &app,
+        json!({
+            "linear_issue_id": "SUP-154",
+            "planner_agent": "planner",
+            "coder_agent": "coder",
+            "reviewer_agent": "reviewer"
+        }),
+    )
+    .await;
+    let task_id = created["task"]["id"].as_str().unwrap();
+    let _ = create_intervention_request(&app, task_id, json!({ "body": "first" })).await;
+    let _ = create_intervention_request(&app, task_id, json!({ "body": "second" })).await;
+    let _ = create_intervention_request(&app, task_id, json!({ "body": "third" })).await;
+
+    let (status, list) = get_json(&app, &format!("/launch-tasks/{task_id}/interventions")).await;
+    assert_eq!(status, StatusCode::OK);
+    let arr = list.as_array().unwrap();
+    assert_eq!(arr.len(), 3);
+    assert_eq!(arr[0]["body"], "first");
+    assert_eq!(arr[1]["body"], "second");
+    assert_eq!(arr[2]["body"], "third");
+}
+
+// ── Storage layer round-trip — mark_consumed semantics ────────────────
+
+#[tokio::test]
+async fn intervention_repo_lists_pending_for_step_and_marks_consumed() {
+    use chrono::Utc;
+
+    let (app, repo, interventions) = router_with_intervention_repo().await;
+    let (_, created) = create_request(
+        &app,
+        json!({
+            "linear_issue_id": "SUP-154",
+            "planner_agent": "planner",
+            "coder_agent": "coder",
+            "reviewer_agent": "reviewer"
+        }),
+    )
+    .await;
+    let task_uuid = uuid::Uuid::parse_str(created["task"]["id"].as_str().unwrap()).unwrap();
+    let task_id = superkick_core::LaunchTaskId(task_uuid);
+    let steps = repo.list_steps(task_id).await.unwrap();
+    let plan_step = &steps[0];
+    let implement_step = &steps[1];
+
+    // One intervention targeting no specific step (applies to next), one
+    // targeted at the implement step. The plan step should only see the
+    // null-target one.
+    let untargeted =
+        superkick_core::LaunchTaskIntervention::new(task_id, None, None, "any step".into())
+            .unwrap();
+    let targeted = superkick_core::LaunchTaskIntervention::new(
+        task_id,
+        Some(implement_step.id),
+        None,
+        "implement only".into(),
+    )
+    .unwrap();
+    interventions.insert(&untargeted).await.unwrap();
+    interventions.insert(&targeted).await.unwrap();
+
+    let pending_plan = interventions
+        .list_pending_for_step(task_id, plan_step.id)
+        .await
+        .unwrap();
+    assert_eq!(pending_plan.len(), 1);
+    assert_eq!(pending_plan[0].body, "any step");
+
+    let pending_impl = interventions
+        .list_pending_for_step(task_id, implement_step.id)
+        .await
+        .unwrap();
+    assert_eq!(pending_impl.len(), 2);
+
+    // Mark only the untargeted one consumed.
+    let now = Utc::now();
+    let updated = interventions
+        .mark_consumed(&[untargeted.id], now)
+        .await
+        .unwrap();
+    assert_eq!(updated, vec![untargeted.id]);
+
+    // A second mark_consumed for the same id is a no-op (returns empty).
+    let updated_again = interventions
+        .mark_consumed(&[untargeted.id], now)
+        .await
+        .unwrap();
+    assert!(updated_again.is_empty());
+
+    // The targeted-implement one is still pending for the implement step.
+    let pending_impl = interventions
+        .list_pending_for_step(task_id, implement_step.id)
+        .await
+        .unwrap();
+    assert_eq!(pending_impl.len(), 1);
+    assert_eq!(pending_impl[0].body, "implement only");
 }

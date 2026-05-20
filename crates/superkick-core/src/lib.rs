@@ -15,6 +15,7 @@ pub mod issue_event;
 pub mod issue_workspace_context;
 pub mod launch_queue;
 pub mod launch_task;
+pub mod launch_task_intervention;
 pub mod linear_context;
 pub mod mcp_policy;
 pub mod memory_entry;
@@ -54,10 +55,10 @@ pub use handoff::{
 pub use id::{
     AgentSessionId, ArtifactId, AttentionRequestId, ConversationId, EventId, HandoffId,
     InterruptId, IssueWorkspaceContextCommentExcerptId, IssueWorkspaceContextId,
-    IssueWorkspaceContextLinkId, LaunchTaskId, LaunchTaskStepId, MemoryEntryId,
-    OrchestratorCheckpointId, OrchestratorSessionId, OwnershipEventId, PullRequestId, RunId,
-    RuntimeId, RuntimeProviderId, SessionLifecycleEventId, StepId, TakeoverSessionId,
-    TranscriptChunkId, TurnEventId, TurnId,
+    IssueWorkspaceContextLinkId, LaunchTaskId, LaunchTaskInterventionId, LaunchTaskStepId,
+    MemoryEntryId, OrchestratorCheckpointId, OrchestratorSessionId, OwnershipEventId,
+    PullRequestId, RunId, RuntimeId, RuntimeProviderId, SessionLifecycleEventId, StepId,
+    TakeoverSessionId, TranscriptChunkId, TurnEventId, TurnId,
 };
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
 pub use issue_event::{DependencyResolvedPayload, IssueEvent};
@@ -75,6 +76,7 @@ pub use launch_task::{
     LaunchRecipe, LaunchStepKind, LaunchTask, LaunchTaskStatus, LaunchTaskStep,
     LaunchTaskStepStatus, PlanImplementReviewAgents,
 };
+pub use launch_task_intervention::{DEFAULT_INTERVENTION_AUTHOR, LaunchTaskIntervention};
 pub use linear_context::{
     ISSUE_COMMENT_CHAR_LIMIT, ISSUE_COMMENT_MAX_COUNT, ISSUE_DESCRIPTION_CHAR_LIMIT, IssueContext,
     IssueContextComment, IssueContextParent, LinearContextMode,

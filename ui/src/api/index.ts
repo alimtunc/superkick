@@ -20,8 +20,10 @@ export { listAgents } from './agents'
 export {
 	cancelLaunchTask,
 	createLaunchTask,
+	createLaunchTaskIntervention,
 	fetchLaunchTask,
 	fetchLaunchTaskSteps,
+	listLaunchTaskInterventions,
 	listLaunchTasksForIssue,
 	retryLaunchTask
 } from './launchTasks'

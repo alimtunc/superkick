@@ -11,11 +11,12 @@ use superkick_core::{
     FailureClassification, Handoff, HandoffId, Interrupt, InterruptId, IssueBlocker,
     IssueWorkspaceContext, IssueWorkspaceContextCommentExcerpt, IssueWorkspaceContextId,
     IssueWorkspaceContextLink, IssueWorkspaceContextLinkKind, LaunchTask, LaunchTaskId,
-    LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus, MemoryCursor,
-    MemoryEntry, MemoryPage, OrchestratorCheckpoint, OrchestratorCheckpointId, OrchestratorSession,
-    OrchestratorSessionId, OrchestratorStatus, OwnershipEvent, ProtocolEventEnvelope, PullRequest,
-    Run, RunEvent, RunId, RunStep, SessionLifecycleEvent, StepId, StepResult, TranscriptChunk,
-    Turn, TurnEvent, TurnId, UsageSnapshot,
+    LaunchTaskIntervention, LaunchTaskInterventionId, LaunchTaskStatus, LaunchTaskStep,
+    LaunchTaskStepId, LaunchTaskStepStatus, MemoryCursor, MemoryEntry, MemoryPage,
+    OrchestratorCheckpoint, OrchestratorCheckpointId, OrchestratorSession, OrchestratorSessionId,
+    OrchestratorStatus, OwnershipEvent, ProtocolEventEnvelope, PullRequest, Run, RunEvent, RunId,
+    RunStep, SessionLifecycleEvent, StepId, StepResult, TranscriptChunk, Turn, TurnEvent, TurnId,
+    UsageSnapshot,
 };
 
 /// Repository for `Run` entities.
@@ -780,4 +781,52 @@ impl<T: MemoryEntryRepo + ?Sized> MemoryEntryRepoDyn for T {
     ) -> Pin<Box<dyn Future<Output = Result<MemoryPage>> + Send + 'a>> {
         Box::pin(MemoryEntryRepo::list_page(self, context_id, cursor, limit))
     }
+}
+
+/// Repository for `LaunchTaskIntervention` rows (SUP-154).
+///
+/// Kept as a sibling of `LaunchTaskRepo` rather than folded into it: the
+/// SUP-118 launch-task contract is already large, and interventions are a
+/// distinct lifecycle (insert / list-pending / mark-consumed) with their own
+/// table. The read+mark-consumed split is deliberate — the runtime injects
+/// pending rows into the prompt *before* spawning, then marks them consumed
+/// only after the agent process is up. Combining the two operations into
+/// one transaction would silently drop interventions when spawn fails.
+pub trait LaunchTaskInterventionRepo: Send + Sync {
+    fn insert(
+        &self,
+        intervention: &LaunchTaskIntervention,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    fn get(
+        &self,
+        id: LaunchTaskInterventionId,
+    ) -> impl Future<Output = Result<Option<LaunchTaskIntervention>>> + Send;
+
+    /// Every intervention attached to a task, ordered by `created_at` ascending.
+    /// Used by the API aggregate to render the operator-facing history.
+    fn list_by_task(
+        &self,
+        task_id: LaunchTaskId,
+    ) -> impl Future<Output = Result<Vec<LaunchTaskIntervention>>> + Send;
+
+    /// Read-only: every pending intervention applicable to `step_id` (rows
+    /// with `consumed_at IS NULL` whose `target_step_id` is NULL or equals
+    /// `step_id`), ordered by `created_at`. Called at step-start to build
+    /// the prompt before spawning.
+    fn list_pending_for_step(
+        &self,
+        task_id: LaunchTaskId,
+        step_id: LaunchTaskStepId,
+    ) -> impl Future<Output = Result<Vec<LaunchTaskIntervention>>> + Send;
+
+    /// Atomically stamp `consumed_at = at` on the rows whose ids are in
+    /// `ids`. The `WHERE consumed_at IS NULL` guard prevents double-consume
+    /// if a concurrent writer (e.g. retry path) beat us. Returns the rows
+    /// actually updated so callers can publish the matching SSE events.
+    fn mark_consumed(
+        &self,
+        ids: &[LaunchTaskInterventionId],
+        at: DateTime<Utc>,
+    ) -> impl Future<Output = Result<Vec<LaunchTaskInterventionId>>> + Send;
 }

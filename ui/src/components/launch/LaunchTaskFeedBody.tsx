@@ -2,10 +2,12 @@ import { LaunchTaskCancelButton } from '@/components/issue-detail/launch-task-fe
 import { LaunchTaskNeedsHumanCallout } from '@/components/issue-detail/launch-task-feed/LaunchTaskNeedsHumanCallout'
 import { StepTimelineRow } from '@/components/issue-detail/launch-task-feed/StepTimelineRow'
 import { IssueContextPanel } from '@/components/issues/IssueContextPanel'
+import { InterventionComposer } from '@/components/launch/InterventionComposer'
+import { InterventionRow } from '@/components/launch/InterventionRow'
 import { LaunchPlanStrip } from '@/components/launch/LaunchPlanStrip'
 import { WorktreeActions } from '@/components/workspace/WorktreeActions'
 import { findBlockingContext, getDisposition, TERMINAL_LAUNCH_TASK_STATUSES } from '@/lib/domain'
-import { runDetailQuery } from '@/lib/queries'
+import { launchTaskInterventionsQuery, runDetailQuery } from '@/lib/queries'
 import type { LaunchTask, LaunchTaskStep } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 
@@ -28,6 +30,11 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 	const worktreePath = runDetail.data?.run.worktree_path ?? null
 	const branchName = runDetail.data?.run.branch_name ?? null
 
+	const interventions = useQuery(launchTaskInterventionsQuery(task.id))
+	const interventionRows = interventions.data ?? []
+	const deliveredInterventions = interventionRows.filter((i) => i.consumed_at != null)
+	const pendingInterventions = interventionRows.filter((i) => i.consumed_at == null)
+
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			{hasLinearIssue ? (
@@ -39,6 +46,11 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 			{linkedRunId ? (
 				<WorktreeActions runId={linkedRunId} worktreePath={worktreePath} branchName={branchName} />
 			) : null}
+			<InterventionComposer
+				linearIssueId={task.linear_issue_id}
+				taskId={task.id}
+				disabled={isTerminal}
+			/>
 			<div className="flex-1 overflow-y-auto px-6 py-5">
 				{blocking ? (
 					<LaunchTaskNeedsHumanCallout
@@ -51,9 +63,29 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 						canRetry={canRetry}
 					/>
 				) : null}
+				{deliveredInterventions.length > 0 ? (
+					<div className="mb-4">
+						<div className="font-data mb-2 text-[11px] tracking-wide text-dim uppercase">
+							Delivered interventions
+						</div>
+						{deliveredInterventions.map((i) => (
+							<InterventionRow key={i.id} intervention={i} />
+						))}
+					</div>
+				) : null}
 				{steps.map((step) => (
 					<StepTimelineRow key={step.id} step={step} task={task} />
 				))}
+				{pendingInterventions.length > 0 ? (
+					<div className="mt-4">
+						<div className="font-data mb-2 text-[11px] tracking-wide text-dim uppercase">
+							Queued for next step
+						</div>
+						{pendingInterventions.map((i) => (
+							<InterventionRow key={i.id} intervention={i} />
+						))}
+					</div>
+				) : null}
 				{!isTerminal ? (
 					<div className="mt-2 flex items-center justify-end">
 						<LaunchTaskCancelButton linearIssueId={task.linear_issue_id} taskId={task.id} />
