@@ -2,7 +2,9 @@ import {
 	fetchConversation,
 	fetchDashboardQueue,
 	fetchIssueDetail,
+	fetchIssueMemoryEntries,
 	fetchIssues,
+	fetchIssueWorkspaceContext,
 	fetchLaunchQueue,
 	fetchLaunchTask,
 	fetchLaunchTaskSteps,
@@ -11,7 +13,7 @@ import {
 	fetchRuntimes,
 	listAgents
 } from '@/api'
-import { queryOptions, skipToken } from '@tanstack/react-query'
+import { infiniteQueryOptions, queryOptions, skipToken } from '@tanstack/react-query'
 
 import { queryKeys } from './queryKeys'
 
@@ -26,6 +28,24 @@ export const issueDetailQuery = (id: string) =>
 	queryOptions({
 		queryKey: queryKeys.issues.detail(id),
 		queryFn: () => fetchIssueDetail(id),
+		staleTime: 15_000
+	})
+
+export const issueWorkspaceContextQuery = (id: string | null) =>
+	queryOptions({
+		queryKey: id ? queryKeys.issues.workspaceContext(id) : ['issues', 'pending', 'workspace-context'],
+		queryFn: id ? () => fetchIssueWorkspaceContext(id) : skipToken,
+		staleTime: 15_000
+	})
+
+export const issueMemoryEntriesQuery = (id: string | null) =>
+	infiniteQueryOptions({
+		queryKey: id ? queryKeys.issues.memory(id) : ['issues', 'pending', 'memory'],
+		queryFn: id
+			? ({ pageParam }: { pageParam: string | null }) => fetchIssueMemoryEntries(id, pageParam)
+			: skipToken,
+		initialPageParam: null as string | null,
+		getNextPageParam: (lastPage) => lastPage.next_cursor,
 		staleTime: 15_000
 	})
 

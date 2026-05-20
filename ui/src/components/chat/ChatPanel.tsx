@@ -1,14 +1,17 @@
 import { useCallback, useState } from 'react'
 
+import { ChatContextRailToggle } from '@/components/chat/ChatContextRailToggle'
 import { ChatConversationView } from '@/components/chat/ChatConversationView'
 import { ChatSidebar } from '@/components/chat/ChatSidebar'
 import { EmptyChat } from '@/components/chat/EmptyChat'
 import { NewChatLauncher } from '@/components/chat/NewChatLauncher'
+import { IssueContextPanel } from '@/components/issues/IssueContextPanel'
 import { useChatSubjectPrefs } from '@/hooks/useChatSubjectPrefs'
 import { useChatSubjectSelection } from '@/hooks/useChatSubjectSelection'
 import { useChatSubjectStates } from '@/hooks/useChatSubjectStates'
 import { useConversationsList } from '@/hooks/useConversationsList'
 import { subjectKey } from '@/lib/conversations'
+import { useWorkspaceContextRailStore } from '@/stores/workspaceContextRail'
 import type { ConversationSubject } from '@/types'
 
 interface ChatPanelProps {
@@ -28,6 +31,9 @@ export function ChatPanel({ subject }: ChatPanelProps) {
 	const subjectStates = useChatSubjectStates(subject, list.conversations, selectedId)
 
 	const [pendingFirstMessage, setPendingFirstMessage] = useState<string | null>(null)
+	const railOpen = useWorkspaceContextRailStore((s) => s.open)
+	const isIssueSubject = subject.kind === 'issue'
+	const showRailPanel = isIssueSubject && railOpen
 
 	const handleSelect = (id: string) => setSelectedId(id)
 	const handleNewChat = () => setSelectedId(null)
@@ -48,33 +54,39 @@ export function ChatPanel({ subject }: ChatPanelProps) {
 				onNewChat={handleNewChat}
 				statesById={subjectStates}
 			/>
-			<main className="flex-1 overflow-hidden">
-				{selectedId ? (
-					<ChatConversationView
-						conversationId={selectedId}
-						subject={subject}
-						mode={mode}
-						model={model}
-						onModeChange={setMode}
-						onModelChange={setModel}
-						pendingFirstMessage={pendingFirstMessage}
-						onPendingFirstMessageConsumed={consumePendingFirstMessage}
-					/>
-				) : (
-					<EmptyChat
-						launcher={
-							<NewChatLauncher
-								subject={subject}
-								mode={mode}
-								model={model}
-								onModeChange={setMode}
-								onModelChange={setModel}
-								onCreated={handleCreated}
-							/>
-						}
-					/>
-				)}
+			<main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+				{isIssueSubject ? <ChatContextRailToggle /> : null}
+				<div className="min-h-0 flex-1 overflow-hidden">
+					{selectedId ? (
+						<ChatConversationView
+							conversationId={selectedId}
+							subject={subject}
+							mode={mode}
+							model={model}
+							onModeChange={setMode}
+							onModelChange={setModel}
+							pendingFirstMessage={pendingFirstMessage}
+							onPendingFirstMessageConsumed={consumePendingFirstMessage}
+						/>
+					) : (
+						<EmptyChat
+							launcher={
+								<NewChatLauncher
+									subject={subject}
+									mode={mode}
+									model={model}
+									onModeChange={setMode}
+									onModelChange={setModel}
+									onCreated={handleCreated}
+								/>
+							}
+						/>
+					)}
+				</div>
 			</main>
+			{showRailPanel && subject.kind === 'issue' ? (
+				<IssueContextPanel issueId={subject.identifier} variant="rail" />
+			) : null}
 		</section>
 	)
 }

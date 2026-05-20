@@ -86,6 +86,16 @@ export function invalidateForWorkspaceNotice(queryClient: QueryClient, notice: B
 	if (notice.type === 'run_stalled' || notice.type === 'run_recovered') {
 		queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.queue })
 		queryClient.invalidateQueries({ queryKey: queryKeys.runs.detail(notice.run_id) })
+		return
+	}
+
+	if (notice.type === 'memory_appended') {
+		queryClient.invalidateQueries({ queryKey: queryKeys.issues.memory(notice.issue_id) })
+		return
+	}
+
+	if (notice.type === 'context_updated') {
+		queryClient.invalidateQueries({ queryKey: queryKeys.issues.workspaceContext(notice.issue_id) })
 	}
 }
 

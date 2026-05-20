@@ -2,6 +2,7 @@ import { LaunchStepEvidenceRow } from '@/components/issue-detail/launch-task-fee
 import { LaunchStepFailureRow } from '@/components/issue-detail/launch-task-feed/LaunchStepFailureRow'
 import { LaunchTaskCancelButton } from '@/components/issue-detail/launch-task-feed/LaunchTaskCancelButton'
 import { LaunchTaskNeedsHumanCallout } from '@/components/issue-detail/launch-task-feed/LaunchTaskNeedsHumanCallout'
+import { IssueContextPanel } from '@/components/issues/IssueContextPanel'
 import { LaunchPlanStrip } from '@/components/launch/LaunchPlanStrip'
 import { findBlockingContext, getDisposition, TERMINAL_LAUNCH_TASK_STATUSES } from '@/lib/domain'
 import type { LaunchTask, LaunchTaskStep } from '@/types'
@@ -18,8 +19,15 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 		task.status === 'needs_human' &&
 		(blocking?.classification ? getDisposition(blocking.classification) === 'needs_human' : true)
 
+	const hasLinearIssue = task.linear_issue_id.trim().length > 0
+
 	return (
 		<div className="flex h-full min-h-0 flex-col">
+			{hasLinearIssue ? (
+				<div className="border-b border-edge px-6 py-4">
+					<IssueContextPanel issueId={task.linear_issue_id} variant="inline" />
+				</div>
+			) : null}
 			<LaunchPlanStrip task={task} steps={steps} />
 			<div className="flex-1 overflow-y-auto px-6 py-5">
 				{blocking ? (
