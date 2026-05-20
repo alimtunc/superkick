@@ -1,5 +1,6 @@
 import type { BlockingContext, LaunchStepKind, LaunchTask, LaunchTaskStatus, LaunchTaskStep } from '@/types'
 
+import { getFailureCopy } from './failureClassification'
 import { LAUNCH_STEP_KIND_LABEL } from './launchTaskLabels'
 
 export const TERMINAL_LAUNCH_TASK_STATUSES = new Set<LaunchTaskStatus>(['completed', 'failed', 'cancelled'])
@@ -25,11 +26,23 @@ export function findBlockingContext(task: LaunchTask, steps: LaunchTaskStep[]): 
 	const stepNeedsHuman = steps.find((s) => s.status === 'needs_human') ?? null
 	if (stepNeedsHuman) {
 		const kind = stepNeedsHuman.step_kind
+		const classification = stepNeedsHuman.failure_classification ?? null
+		if (classification) {
+			const copy = getFailureCopy(classification)
+			return {
+				step: stepNeedsHuman,
+				stepKind: kind,
+				headline: copy.headline,
+				hint: copy.hint,
+				classification
+			}
+		}
 		return {
 			step: stepNeedsHuman,
 			stepKind: kind,
 			headline: pickHeadline(kind),
-			hint: stepNeedsHuman.summary?.trim() || STEP_KIND_HINT[kind]
+			hint: stepNeedsHuman.summary?.trim() || STEP_KIND_HINT[kind],
+			classification: null
 		}
 	}
 	if (task.status === 'needs_human') {
@@ -41,7 +54,8 @@ export function findBlockingContext(task: LaunchTask, steps: LaunchTaskStep[]): 
 			step: current,
 			stepKind: kind,
 			headline: pickHeadline(kind),
-			hint: task.summary?.trim() || pickHint(kind)
+			hint: task.summary?.trim() || pickHint(kind),
+			classification: null
 		}
 	}
 	return null

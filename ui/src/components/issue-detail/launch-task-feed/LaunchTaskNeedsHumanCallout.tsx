@@ -1,5 +1,7 @@
+import { getDisposition } from '@/lib/domain'
+import { cn } from '@/lib/utils'
 import { useWorkspaceChatStore } from '@/stores/workspaceChat'
-import type { LaunchTaskStep } from '@/types'
+import type { FailureClassification, LaunchTaskStep } from '@/types'
 import { Icon } from '@/ui/Icon'
 import { Link } from '@tanstack/react-router'
 
@@ -11,6 +13,7 @@ interface LaunchTaskNeedsHumanCalloutProps {
 	headline: string
 	hint: string
 	blockingStep: LaunchTaskStep | null
+	classification: FailureClassification | null
 	canRetry: boolean
 }
 
@@ -20,15 +23,25 @@ export function LaunchTaskNeedsHumanCallout({
 	headline,
 	hint,
 	blockingStep,
+	classification,
 	canRetry
 }: LaunchTaskNeedsHumanCalloutProps) {
 	const openChat = useWorkspaceChatStore((s) => s.openChat)
 	const linkedRunId = blockingStep?.linked_run_id ?? null
+	const isTerminal = classification ? getDisposition(classification) === 'failed' : false
+
+	const containerClass = isTerminal
+		? 'mb-4 rounded-md border border-danger/40 bg-danger-soft px-3.5 py-3'
+		: 'mb-4 rounded-md border border-warn/40 bg-warn-soft px-3.5 py-3'
+	const headlineClass = isTerminal
+		? 'text-[13px] font-medium text-danger'
+		: 'text-[13px] font-medium text-warn'
+	const ctaClass = cn(
+		'inline-flex items-center gap-1 font-mono text-[11.5px] hover:underline focus-visible:ring-2 focus-visible:outline-none',
+		isTerminal ? 'text-danger focus-visible:ring-danger/40' : 'text-warn focus-visible:ring-warn/40'
+	)
 
 	const ctaLabel = linkedRunId ? 'Open run' : 'Open chat'
-	const ctaClass =
-		'inline-flex items-center gap-1 font-mono text-[11.5px] text-warn hover:underline focus-visible:ring-2 focus-visible:ring-warn/40 focus-visible:outline-none'
-
 	const cta = linkedRunId ? (
 		<Link to="/runs/$runId" params={{ runId: linkedRunId }} className={ctaClass}>
 			{ctaLabel}
@@ -42,10 +55,10 @@ export function LaunchTaskNeedsHumanCallout({
 	)
 
 	return (
-		<div className="mb-4 rounded-md border border-warn/40 bg-warn-soft px-3.5 py-3">
+		<div className={containerClass}>
 			<div className="flex items-center justify-between gap-3">
 				<div className="flex flex-col">
-					<span className="text-[13px] font-medium text-warn">{headline}</span>
+					<span className={headlineClass}>{headline}</span>
 					<span className="font-mono text-[11.5px] text-fg-muted">{hint}</span>
 				</div>
 				<div className="flex items-center gap-2">

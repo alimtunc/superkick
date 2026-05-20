@@ -458,6 +458,7 @@ where
                     step_kind: step.step_kind,
                     status: LaunchTaskStepStatus::Completed,
                     summary,
+                    failure_classification: None,
                 });
                 Ok(true)
             }
@@ -522,7 +523,7 @@ where
         };
         let reason = classification.human_summary();
         self.repo
-            .set_step_failure_classification(step.id, Some(classification))
+            .set_step_failure_classification(step.id, Some(classification.clone()))
             .await
             .with_context(|| format!("step {} classification persist ({step_status})", step.id))?;
         self.repo
@@ -540,6 +541,7 @@ where
             step_kind: step.step_kind,
             status: step_status,
             summary: Some(reason.clone()),
+            failure_classification: Some(classification),
         });
         self.move_task_to_status(task, task_status, Some(step.id), reason)
             .await
@@ -690,6 +692,7 @@ where
             step_kind: step.step_kind,
             status: LaunchTaskStepStatus::Cancelled,
             summary: None,
+            failure_classification: None,
         });
         Ok(())
     }
