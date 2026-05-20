@@ -3,8 +3,11 @@ import { LaunchTaskNeedsHumanCallout } from '@/components/issue-detail/launch-ta
 import { StepTimelineRow } from '@/components/issue-detail/launch-task-feed/StepTimelineRow'
 import { IssueContextPanel } from '@/components/issues/IssueContextPanel'
 import { LaunchPlanStrip } from '@/components/launch/LaunchPlanStrip'
+import { WorktreeActions } from '@/components/workspace/WorktreeActions'
 import { findBlockingContext, getDisposition, TERMINAL_LAUNCH_TASK_STATUSES } from '@/lib/domain'
+import { runDetailQuery } from '@/lib/queries'
 import type { LaunchTask, LaunchTaskStep } from '@/types'
+import { useQuery } from '@tanstack/react-query'
 
 interface LaunchTaskFeedBodyProps {
 	task: LaunchTask
@@ -20,6 +23,11 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 
 	const hasLinearIssue = task.linear_issue_id.trim().length > 0
 
+	const linkedRunId = steps.find((s) => s.linked_run_id)?.linked_run_id ?? null
+	const runDetail = useQuery(runDetailQuery(linkedRunId))
+	const worktreePath = runDetail.data?.run.worktree_path ?? null
+	const branchName = runDetail.data?.run.branch_name ?? null
+
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			{hasLinearIssue ? (
@@ -28,6 +36,9 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 				</div>
 			) : null}
 			<LaunchPlanStrip task={task} steps={steps} />
+			{linkedRunId ? (
+				<WorktreeActions runId={linkedRunId} worktreePath={worktreePath} branchName={branchName} />
+			) : null}
 			<div className="flex-1 overflow-y-auto px-6 py-5">
 				{blocking ? (
 					<LaunchTaskNeedsHumanCallout
