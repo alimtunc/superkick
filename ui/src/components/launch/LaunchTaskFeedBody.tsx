@@ -1,4 +1,5 @@
 import { LaunchTaskCancelButton } from '@/components/issue-detail/launch-task-feed/LaunchTaskCancelButton'
+import { LaunchTaskCompletionSummary } from '@/components/issue-detail/launch-task-feed/LaunchTaskCompletionSummary'
 import { LaunchTaskNeedsHumanCallout } from '@/components/issue-detail/launch-task-feed/LaunchTaskNeedsHumanCallout'
 import { StepTimelineRow } from '@/components/issue-detail/launch-task-feed/StepTimelineRow'
 import { IssueContextPanel } from '@/components/issues/IssueContextPanel'
@@ -6,7 +7,13 @@ import { InterventionComposer } from '@/components/launch/InterventionComposer'
 import { InterventionRow } from '@/components/launch/InterventionRow'
 import { LaunchPlanStrip } from '@/components/launch/LaunchPlanStrip'
 import { WorktreeActions } from '@/components/workspace/WorktreeActions'
-import { findBlockingContext, getDisposition, TERMINAL_LAUNCH_TASK_STATUSES } from '@/lib/domain'
+import {
+	findBlockingContext,
+	getDisposition,
+	pickFinalStep,
+	pickTerminalKind,
+	TERMINAL_LAUNCH_TASK_STATUSES
+} from '@/lib/domain'
 import { launchTaskInterventionsQuery, runDetailQuery } from '@/lib/queries'
 import type { LaunchTask, LaunchTaskStep } from '@/types'
 import { useQuery } from '@tanstack/react-query'
@@ -30,6 +37,11 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 	const worktreePath = runDetail.data?.run.worktree_path ?? null
 	const branchName = runDetail.data?.run.branch_name ?? null
 
+	const finalStep = pickFinalStep(steps)
+	const finalClassification = finalStep?.failure_classification ?? null
+	const terminalKind = pickTerminalKind(task, finalClassification)
+	const hideCallout = terminalKind === 'failure'
+
 	const interventions = useQuery(launchTaskInterventionsQuery(task.id))
 	const interventionRows = interventions.data ?? []
 	const deliveredInterventions = interventionRows.filter((i) => i.consumed_at != null)
@@ -43,7 +55,17 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 				</div>
 			) : null}
 			<LaunchPlanStrip task={task} steps={steps} />
-			{linkedRunId ? (
+			{terminalKind ? (
+				<LaunchTaskCompletionSummary
+					kind={terminalKind}
+					task={task}
+					finalStep={finalStep}
+					classification={finalClassification}
+					linkedRunId={linkedRunId}
+					worktreePath={worktreePath}
+					branchName={branchName}
+				/>
+			) : linkedRunId ? (
 				<WorktreeActions runId={linkedRunId} worktreePath={worktreePath} branchName={branchName} />
 			) : null}
 			<InterventionComposer
@@ -52,7 +74,7 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 				disabled={isTerminal}
 			/>
 			<div className="flex-1 overflow-y-auto px-6 py-5">
-				{blocking ? (
+				{blocking && !hideCallout ? (
 					<LaunchTaskNeedsHumanCallout
 						linearIssueId={task.linear_issue_id}
 						taskId={task.id}

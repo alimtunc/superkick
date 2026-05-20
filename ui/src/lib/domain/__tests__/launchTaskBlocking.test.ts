@@ -1,7 +1,7 @@
 import type { FailureClassification, LaunchTask, LaunchTaskStep } from '@/types'
 import { describe, expect, it } from 'vitest'
 
-import { findBlockingContext } from '../launchTaskBlocking'
+import { findBlockingContext, pickFinalStep, pickTerminalKind } from '../launchTaskBlocking'
 
 function step(overrides: Partial<LaunchTaskStep>): LaunchTaskStep {
 	return {
@@ -89,5 +89,55 @@ describe('findBlockingContext', () => {
 		const ctx = findBlockingContext(t, [step({ status: 'pending' })])
 		expect(ctx?.classification).toBeNull()
 		expect(ctx?.headline).toBeTruthy()
+	})
+})
+
+describe('pickFinalStep', () => {
+	it('picks the last non-pending, non-skipped step', () => {
+		const steps = [
+			step({ id: 'a', status: 'completed', sequence: 1 }),
+			step({ id: 'b', status: 'completed', sequence: 2 }),
+			step({ id: 'c', status: 'skipped', sequence: 3 }),
+			step({ id: 'd', status: 'pending', sequence: 4 })
+		]
+		expect(pickFinalStep(steps)?.id).toBe('b')
+	})
+
+	it('returns null when every step is still pending or skipped', () => {
+		expect(pickFinalStep([step({ status: 'pending' })])).toBeNull()
+	})
+})
+
+describe('pickTerminalKind', () => {
+	it('returns success for completed tasks', () => {
+		expect(pickTerminalKind(task({ status: 'completed' }), null)).toBe('success')
+	})
+
+	it('returns failure for failed and cancelled tasks regardless of classification', () => {
+		expect(pickTerminalKind(task({ status: 'failed' }), null)).toBe('failure')
+		expect(pickTerminalKind(task({ status: 'cancelled' }), null)).toBe('failure')
+	})
+
+	it('returns failure for needs_human only when the classification is terminal (Failed disposition)', () => {
+		const terminal: FailureClassification = {
+			kind: 'cli_missing',
+			binary: 'claude',
+			install_hint: 'brew install …'
+		}
+		expect(pickTerminalKind(task({ status: 'needs_human' }), terminal)).toBe('failure')
+	})
+
+	it('returns null for needs_human when the classification is recoverable (auth_required)', () => {
+		const recoverable: FailureClassification = { kind: 'auth_required', provider: 'claude' }
+		expect(pickTerminalKind(task({ status: 'needs_human' }), recoverable)).toBeNull()
+	})
+
+	it('returns null for needs_human with no classification (legacy pause)', () => {
+		expect(pickTerminalKind(task({ status: 'needs_human' }), null)).toBeNull()
+	})
+
+	it('returns null for pending and running tasks', () => {
+		expect(pickTerminalKind(task({ status: 'pending' }), null)).toBeNull()
+		expect(pickTerminalKind(task({ status: 'running' }), null)).toBeNull()
 	})
 })

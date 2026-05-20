@@ -149,6 +149,8 @@ export interface BlockingContext {
 	classification: FailureClassification | null
 }
 
+export type TerminalKind = 'success' | 'failure'
+
 // SUP-154 — operator intervention on a running Launch Task.
 
 export interface LaunchTaskIntervention {

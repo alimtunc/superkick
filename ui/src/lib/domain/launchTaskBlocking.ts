@@ -1,6 +1,14 @@
-import type { BlockingContext, LaunchStepKind, LaunchTask, LaunchTaskStatus, LaunchTaskStep } from '@/types'
+import type {
+	BlockingContext,
+	FailureClassification,
+	LaunchStepKind,
+	LaunchTask,
+	LaunchTaskStatus,
+	LaunchTaskStep,
+	TerminalKind
+} from '@/types'
 
-import { getFailureCopy } from './failureClassification'
+import { getDisposition, getFailureCopy } from './failureClassification'
 import { LAUNCH_STEP_KIND_LABEL } from './launchTaskLabels'
 
 export const TERMINAL_LAUNCH_TASK_STATUSES = new Set<LaunchTaskStatus>(['completed', 'failed', 'cancelled'])
@@ -59,4 +67,35 @@ export function findBlockingContext(task: LaunchTask, steps: LaunchTaskStep[]): 
 		}
 	}
 	return null
+}
+
+export function pickFinalStep(steps: readonly LaunchTaskStep[]): LaunchTaskStep | null {
+	for (let index = steps.length - 1; index >= 0; index -= 1) {
+		const step = steps[index]
+		if (step.status !== 'pending' && step.status !== 'skipped') {
+			return step
+		}
+	}
+	return null
+}
+
+// `needs_human` only counts as terminal when the classification has a `failed` disposition (retry impossible).
+export function pickTerminalKind(
+	task: LaunchTask,
+	finalStepClassification: FailureClassification | null
+): TerminalKind | null {
+	switch (task.status) {
+		case 'completed':
+			return 'success'
+		case 'failed':
+		case 'cancelled':
+			return 'failure'
+		case 'needs_human':
+			if (finalStepClassification && getDisposition(finalStepClassification) === 'failed') {
+				return 'failure'
+			}
+			return null
+		default:
+			return null
+	}
 }
