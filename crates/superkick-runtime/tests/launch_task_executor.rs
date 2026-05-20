@@ -194,6 +194,7 @@ impl StepRunner for FakeStepRunner {
             ScriptedAction::Complete { summary } => Ok(StepOutcome::Completed {
                 summary,
                 links: StepLinks::default(),
+                memory_entry_ids: Vec::new(),
             }),
             ScriptedAction::CompleteWithRun { run_id } => Ok(StepOutcome::Completed {
                 summary: None,
@@ -201,6 +202,7 @@ impl StepRunner for FakeStepRunner {
                     run_id: Some(run_id),
                     ..StepLinks::default()
                 },
+                memory_entry_ids: Vec::new(),
             }),
             ScriptedAction::Fail { reason } => {
                 // Default fake-runner failure parks the step at NeedsHuman
@@ -239,6 +241,7 @@ impl StepRunner for FakeStepRunner {
                             Ok(StepOutcome::Completed {
                                 summary: None,
                                 links: StepLinks::default(),
+                                memory_entry_ids: Vec::new(),
                             })
                         }
                     }

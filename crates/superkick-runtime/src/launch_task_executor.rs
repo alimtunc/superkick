@@ -33,7 +33,7 @@ use tracing::{info, warn};
 
 use superkick_core::{
     ConversationId, CoreError, FailureClassification, FailureDisposition, LaunchTask, LaunchTaskId,
-    LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus,
+    LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus, MemoryEntryId,
     OrchestratorSessionId, RunId,
 };
 use superkick_storage::repo::LaunchTaskRepo;
@@ -100,6 +100,9 @@ pub enum StepOutcome {
     Completed {
         summary: Option<String>,
         links: StepLinks,
+        /// Empty for stub/fallback runners and for skipped writes so existing
+        /// payloads stay stable.
+        memory_entry_ids: Vec<MemoryEntryId>,
     },
     /// Retryable failure — the executor parks the step at `NeedsHuman` so
     /// SUP-120's `retry_needs_human_step` can re-enter it.
@@ -182,6 +185,7 @@ impl StepRunner for StubStepRunner {
         Ok(StepOutcome::Completed {
             summary: Some(format!("[V1 stub] {} step completed", step.step_kind)),
             links: StepLinks::default(),
+            memory_entry_ids: Vec::new(),
         })
     }
 }
@@ -428,7 +432,11 @@ where
         cancel: &CancellationToken,
     ) -> Result<bool> {
         match runner_result {
-            Ok(StepOutcome::Completed { summary, links }) => {
+            Ok(StepOutcome::Completed {
+                summary,
+                links,
+                memory_entry_ids,
+            }) => {
                 self.repo
                     .add_step_links(
                         step.id,
@@ -459,6 +467,7 @@ where
                     status: LaunchTaskStepStatus::Completed,
                     summary,
                     failure_classification: None,
+                    memory_entry_ids,
                 });
                 Ok(true)
             }
@@ -542,6 +551,7 @@ where
             status: step_status,
             summary: Some(reason.clone()),
             failure_classification: Some(classification),
+            memory_entry_ids: Vec::new(),
         });
         self.move_task_to_status(task, task_status, Some(step.id), reason)
             .await
@@ -693,6 +703,7 @@ where
             status: LaunchTaskStepStatus::Cancelled,
             summary: None,
             failure_classification: None,
+            memory_entry_ids: Vec::new(),
         });
         Ok(())
     }
@@ -782,6 +793,7 @@ mod tests {
             Ok(StepOutcome::Completed {
                 summary: Some(format!("ok {}", step.step_kind)),
                 links: StepLinks::default(),
+                memory_entry_ids: Vec::new(),
             })
         }
     }

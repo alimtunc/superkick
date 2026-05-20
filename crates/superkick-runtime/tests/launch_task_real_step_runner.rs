@@ -169,6 +169,7 @@ impl StepRunner for SummaryEmittingRunner {
                 conversation_id: None,
                 orchestrator_session_id: None,
             },
+            memory_entry_ids: Vec::new(),
         })
     }
 }
@@ -314,6 +315,7 @@ impl StepRunner for ScriptedClassifierRunner {
         Ok(StepOutcome::Completed {
             summary: None,
             links: StepLinks::default(),
+            memory_entry_ids: Vec::new(),
         })
     }
 }
@@ -349,6 +351,7 @@ async fn completed_outcome_clears_failure_classification() -> Result<()> {
     let plan = run_with_plan_outcome(StepOutcome::Completed {
         summary: Some("done".into()),
         links: StepLinks::default(),
+        memory_entry_ids: Vec::new(),
     })
     .await?;
     assert_eq!(plan.status, LaunchTaskStepStatus::Completed);
@@ -521,6 +524,7 @@ async fn retry_clearing_classification_on_subsequent_completion() -> Result<()> 
                 return Ok(StepOutcome::Completed {
                     summary: None,
                     links: StepLinks::default(),
+                    memory_entry_ids: Vec::new(),
                 });
             }
             let n = self.calls.fetch_add(1, Ordering::SeqCst);
@@ -533,6 +537,7 @@ async fn retry_clearing_classification_on_subsequent_completion() -> Result<()> 
                 Ok(StepOutcome::Completed {
                     summary: Some("retry succeeded".into()),
                     links: StepLinks::default(),
+                    memory_entry_ids: Vec::new(),
                 })
             }
         }

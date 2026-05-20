@@ -18,7 +18,7 @@ use tracing::{debug, trace};
 
 use superkick_core::{
     FailureClassification, LaunchStepKind, LaunchTaskId, LaunchTaskStatus, LaunchTaskStepId,
-    LaunchTaskStepStatus, RunId, RunState,
+    LaunchTaskStepStatus, MemoryEntryId, RunId, RunState,
 };
 
 const BUS_CAPACITY: usize = 1024;
@@ -46,6 +46,10 @@ pub enum LaunchTaskEvent {
         summary: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         failure_classification: Option<FailureClassification>,
+        /// Empty on non-success paths; lets clients correlate the event
+        /// with rows in the workspace memory panel.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        memory_entry_ids: Vec<MemoryEntryId>,
     },
     TaskStatusChanged {
         task_id: LaunchTaskId,
