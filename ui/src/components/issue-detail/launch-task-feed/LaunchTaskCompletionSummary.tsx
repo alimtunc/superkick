@@ -1,9 +1,7 @@
-import { CopyValue } from '@/components/run-detail/CopyValue'
 import { Pill } from '@/components/ui/pill'
-import { Tooltip } from '@/components/ui/tooltip'
-import { useOpenTakeover } from '@/hooks/useTerminalTakeover'
+import { WorktreeFooterRow } from '@/components/workspace/WorktreeFooterRow'
 import { getFailureCopy } from '@/lib/domain'
-import { middleTruncate } from '@/lib/path'
+import { CHANGED_FILES_VISIBLE } from '@/lib/launch/display'
 import type {
 	FailureClassification,
 	LaunchTask,
@@ -11,11 +9,6 @@ import type {
 	LaunchTaskStep,
 	TerminalKind
 } from '@/types'
-import { TerminalSquare } from 'lucide-react'
-import { toast } from 'sonner'
-
-const CHANGED_FILES_VISIBLE = 6
-const PATH_MAX = 56
 
 const FAILURE_FALLBACK_HEADLINE: Record<LaunchTaskStatus, string> = {
 	pending: 'Launch task ended',
@@ -45,8 +38,6 @@ export function LaunchTaskCompletionSummary({
 	worktreePath,
 	branchName
 }: LaunchTaskCompletionSummaryProps) {
-	const openTakeover = useOpenTakeover(linkedRunId ?? '')
-
 	const isFailure = kind === 'failure'
 	const result = finalStep?.structured_result ?? null
 	const changedFiles = result?.changed_files ?? []
@@ -71,19 +62,7 @@ export function LaunchTaskCompletionSummary({
 		? 'text-[13px] font-medium text-danger'
 		: 'text-[13px] font-medium text-success'
 
-	const handleOpenTerminal = () => {
-		if (!linkedRunId) return
-		openTakeover
-			.mutateAsync({ mode: 'inspect' })
-			.then(() => toast('Shell opened — open the Shell tab to attach'))
-			.catch((error: unknown) => {
-				const message = error instanceof Error ? error.message : 'Failed to open shell'
-				toast.error(message)
-			})
-	}
-
 	const showWorktreeRow = worktreePath !== null || !isFailure
-	const truncatedPath = worktreePath ? middleTruncate(worktreePath, PATH_MAX) : null
 
 	return (
 		<section className="border-b border-edge bg-surface px-6 py-4">
@@ -111,46 +90,13 @@ export function LaunchTaskCompletionSummary({
 					</div>
 				) : null}
 				{showWorktreeRow ? (
-					<div className="mt-3 flex items-center gap-3 border-t border-edge pt-2.5">
-						<span className="text-[11px] font-semibold tracking-wider text-fg-dim uppercase">
-							Worktree
-						</span>
-						{worktreePath && truncatedPath ? (
-							<Tooltip label={worktreePath}>
-								<CopyValue
-									value={worktreePath}
-									display={
-										<span className="truncate font-mono text-[12px] text-fg">
-											{truncatedPath}
-										</span>
-									}
-								/>
-							</Tooltip>
-						) : (
-							<span className="font-mono text-[12px] text-fg-muted">
-								No worktree was created
-							</span>
-						)}
-						{worktreePath && branchName ? (
-							<>
-								<span aria-hidden="true" className="text-fg-dim">
-									·
-								</span>
-								<span className="font-mono text-[11.5px] text-fg-muted">{branchName}</span>
-							</>
-						) : null}
-						<span className="flex-1" />
-						{worktreePath && linkedRunId ? (
-							<button
-								type="button"
-								onClick={handleOpenTerminal}
-								disabled={openTakeover.isPending}
-								className="inline-flex items-center gap-1.5 rounded-md border border-border bg-raised px-2.5 py-1 text-[11.5px] text-fg transition-colors hover:bg-raised/70 focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none disabled:opacity-50"
-							>
-								<TerminalSquare size={12} strokeWidth={1.75} />
-								Open terminal here
-							</button>
-						) : null}
+					<div className="mt-3 border-t border-edge pt-2.5">
+						<WorktreeFooterRow
+							runId={linkedRunId}
+							worktreePath={worktreePath}
+							branchName={branchName}
+							emptyLabel="No worktree was created"
+						/>
 					</div>
 				) : null}
 			</div>

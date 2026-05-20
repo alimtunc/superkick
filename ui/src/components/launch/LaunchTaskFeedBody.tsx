@@ -7,16 +7,8 @@ import { InterventionComposer } from '@/components/launch/InterventionComposer'
 import { InterventionRow } from '@/components/launch/InterventionRow'
 import { LaunchPlanStrip } from '@/components/launch/LaunchPlanStrip'
 import { WorktreeActions } from '@/components/workspace/WorktreeActions'
-import {
-	findBlockingContext,
-	getDisposition,
-	pickFinalStep,
-	pickTerminalKind,
-	TERMINAL_LAUNCH_TASK_STATUSES
-} from '@/lib/domain'
-import { launchTaskInterventionsQuery, runDetailQuery } from '@/lib/queries'
-import type { LaunchTask, LaunchTaskStep } from '@/types'
-import { useQuery } from '@tanstack/react-query'
+import { useLaunchTaskFeedState } from '@/hooks/useLaunchTaskFeedState'
+import type { LaunchTask, LaunchTaskIntervention, LaunchTaskStep } from '@/types'
 
 interface LaunchTaskFeedBodyProps {
 	task: LaunchTask
@@ -24,28 +16,21 @@ interface LaunchTaskFeedBodyProps {
 }
 
 export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
-	const blocking = findBlockingContext(task, [...steps])
-	const isTerminal = TERMINAL_LAUNCH_TASK_STATUSES.has(task.status)
-	const canRetry =
-		task.status === 'needs_human' &&
-		(blocking?.classification ? getDisposition(blocking.classification) === 'needs_human' : true)
+	const {
+		blocking,
+		canRetry,
+		isTerminal,
+		terminalKind,
+		hideCallout,
+		finalStep,
+		finalClassification,
+		linkedRunId,
+		worktreePath,
+		branchName,
+		interventions
+	} = useLaunchTaskFeedState(task, steps)
 
 	const hasLinearIssue = task.linear_issue_id.trim().length > 0
-
-	const linkedRunId = steps.find((s) => s.linked_run_id)?.linked_run_id ?? null
-	const runDetail = useQuery(runDetailQuery(linkedRunId))
-	const worktreePath = runDetail.data?.run.worktree_path ?? null
-	const branchName = runDetail.data?.run.branch_name ?? null
-
-	const finalStep = pickFinalStep(steps)
-	const finalClassification = finalStep?.failure_classification ?? null
-	const terminalKind = pickTerminalKind(task, finalClassification)
-	const hideCallout = terminalKind === 'failure'
-
-	const interventions = useQuery(launchTaskInterventionsQuery(task.id))
-	const interventionRows = interventions.data ?? []
-	const deliveredInterventions = interventionRows.filter((i) => i.consumed_at != null)
-	const pendingInterventions = interventionRows.filter((i) => i.consumed_at == null)
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -85,35 +70,40 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 						canRetry={canRetry}
 					/>
 				) : null}
-				{deliveredInterventions.length > 0 ? (
-					<div className="mb-4">
-						<div className="font-data mb-2 text-[11px] tracking-wide text-dim uppercase">
-							Delivered interventions
-						</div>
-						{deliveredInterventions.map((i) => (
-							<InterventionRow key={i.id} intervention={i} />
-						))}
-					</div>
-				) : null}
+				<InterventionList
+					label="Delivered interventions"
+					rows={interventions.delivered}
+					variant="above"
+				/>
 				{steps.map((step) => (
 					<StepTimelineRow key={step.id} step={step} task={task} />
 				))}
-				{pendingInterventions.length > 0 ? (
-					<div className="mt-4">
-						<div className="font-data mb-2 text-[11px] tracking-wide text-dim uppercase">
-							Queued for next step
-						</div>
-						{pendingInterventions.map((i) => (
-							<InterventionRow key={i.id} intervention={i} />
-						))}
-					</div>
-				) : null}
+				<InterventionList label="Queued for next step" rows={interventions.pending} variant="below" />
 				{!isTerminal ? (
 					<div className="mt-2 flex items-center justify-end">
 						<LaunchTaskCancelButton linearIssueId={task.linear_issue_id} taskId={task.id} />
 					</div>
 				) : null}
 			</div>
+		</div>
+	)
+}
+
+interface InterventionListProps {
+	label: string
+	rows: LaunchTaskIntervention[]
+	variant: 'above' | 'below'
+}
+
+function InterventionList({ label, rows, variant }: InterventionListProps) {
+	if (rows.length === 0) return null
+	const spacing = variant === 'above' ? 'mb-4' : 'mt-4'
+	return (
+		<div className={spacing}>
+			<div className="font-data mb-2 text-[11px] tracking-wide text-dim uppercase">{label}</div>
+			{rows.map((i) => (
+				<InterventionRow key={i.id} intervention={i} />
+			))}
 		</div>
 	)
 }

@@ -113,11 +113,6 @@ pub struct CreateLaunchTaskRequest {
 pub struct LaunchTaskWithSteps {
     pub task: LaunchTask,
     pub steps: Vec<LaunchTaskStep>,
-    /// SUP-154 — every operator intervention attached to this task, ordered
-    /// by `created_at`. Empty on create; populated on read once the operator
-    /// drops requests in.
-    #[serde(default)]
-    pub interventions: Vec<LaunchTaskIntervention>,
 }
 
 pub async fn create_launch_task<S: StepRunner>(
@@ -148,11 +143,7 @@ pub async fn create_launch_task<S: StepRunner>(
 
     Ok((
         StatusCode::CREATED,
-        Json(LaunchTaskWithSteps {
-            task,
-            steps,
-            interventions: Vec::new(),
-        }),
+        Json(LaunchTaskWithSteps { task, steps }),
     ))
 }
 
@@ -187,10 +178,7 @@ pub async fn get_launch_task<S: StepRunner>(
     Ok(Json(task))
 }
 
-/// SUP-154 — read every intervention attached to a task. The aggregate
-/// `GET /launch-tasks/{id}` does include interventions, but the dedicated
-/// endpoint keeps the contract explicit for clients that already hold the
-/// task locally.
+/// SUP-154 — read every intervention attached to a task.
 pub async fn list_launch_task_interventions<S: StepRunner>(
     State(state): State<LaunchTaskState<S>>,
     Path(id): Path<uuid::Uuid>,

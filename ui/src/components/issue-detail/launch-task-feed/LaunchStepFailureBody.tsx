@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import { Pill } from '@/components/ui/pill'
 import { getFailureCopy, providerLabel } from '@/lib/domain'
 import type { FailureClassification, LaunchTaskStep } from '@/types'
@@ -33,18 +35,22 @@ interface FailureChipsProps {
 }
 
 function FailureChips({ classification }: FailureChipsProps) {
+	const chips = chipsFor(classification)
+	if (chips === null) return null
+	return <div className="flex flex-wrap items-center gap-1.5">{chips}</div>
+}
+
+function chipsFor(classification: FailureClassification): ReactNode | null {
 	switch (classification.kind) {
 		case 'auth_required':
 			return (
-				<div className="flex flex-wrap items-center gap-1.5">
-					<Pill tone="warn" size="sm">
-						{providerLabel[classification.provider]}
-					</Pill>
-				</div>
+				<Pill tone="warn" size="sm">
+					{providerLabel[classification.provider]}
+				</Pill>
 			)
 		case 'quota_exceeded':
 			return (
-				<div className="flex flex-wrap items-center gap-1.5">
+				<>
 					<Pill tone="warn" size="sm">
 						{providerLabel[classification.provider]}
 					</Pill>
@@ -53,15 +59,13 @@ function FailureChips({ classification }: FailureChipsProps) {
 							resets at {classification.reset_at}
 						</span>
 					) : null}
-				</div>
+				</>
 			)
 		case 'cli_missing':
 			return (
-				<div className="flex flex-wrap items-center gap-1.5">
-					<Pill tone="danger" size="sm" mono>
-						{classification.binary}
-					</Pill>
-				</div>
+				<Pill tone="danger" size="sm" mono>
+					{classification.binary}
+				</Pill>
 			)
 		default:
 			return null

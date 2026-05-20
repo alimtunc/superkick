@@ -1,7 +1,6 @@
 import { Pill } from '@/components/ui/pill'
+import { CHANGED_FILES_VISIBLE } from '@/lib/launch/display'
 import type { LaunchTaskStepStatus, StepResult } from '@/types'
-
-const CHANGED_FILES_VISIBLE = 6
 
 interface StepSummaryCardProps {
 	result: StepResult
@@ -32,8 +31,8 @@ export function StepSummaryCard({ result, status }: StepSummaryCardProps) {
 			) : null}
 			{showQuestions ? (
 				<ul className="flex list-disc flex-col gap-1 pl-4 text-fg-muted">
-					{result.questions.map((question, index) => (
-						<li key={`${index}-${question}`} className="leading-normal">
+					{result.questions.map((question) => (
+						<li key={question} className="leading-normal">
 							{question}
 						</li>
 					))}
