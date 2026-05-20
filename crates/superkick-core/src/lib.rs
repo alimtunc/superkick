@@ -12,6 +12,7 @@ pub mod handoff;
 pub mod id;
 pub mod interrupt;
 pub mod issue_event;
+pub mod issue_workspace_context;
 pub mod launch_queue;
 pub mod launch_task;
 pub mod linear_context;
@@ -50,12 +51,19 @@ pub use handoff::{
 };
 pub use id::{
     AgentSessionId, ArtifactId, AttentionRequestId, ConversationId, EventId, HandoffId,
-    InterruptId, LaunchTaskId, LaunchTaskStepId, OrchestratorCheckpointId, OrchestratorSessionId,
-    OwnershipEventId, PullRequestId, RunId, RuntimeId, RuntimeProviderId, SessionLifecycleEventId,
-    StepId, TakeoverSessionId, TranscriptChunkId, TurnEventId, TurnId,
+    InterruptId, IssueWorkspaceContextCommentExcerptId, IssueWorkspaceContextId,
+    IssueWorkspaceContextLinkId, LaunchTaskId, LaunchTaskStepId, OrchestratorCheckpointId,
+    OrchestratorSessionId, OwnershipEventId, PullRequestId, RunId, RuntimeId, RuntimeProviderId,
+    SessionLifecycleEventId, StepId, TakeoverSessionId, TranscriptChunkId, TurnEventId, TurnId,
 };
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
 pub use issue_event::{DependencyResolvedPayload, IssueEvent};
+pub use issue_workspace_context::{
+    IssueWorkspaceContext, IssueWorkspaceContextCommentExcerpt, IssueWorkspaceContextLink,
+    IssueWorkspaceContextLinkKind, IssueWorkspaceContextSnapshot,
+    NewCommentExcerpt as IssueWorkspaceContextNewCommentExcerpt,
+    NewLink as IssueWorkspaceContextNewLink,
+};
 pub use launch_queue::{
     ClassifiedIssue, ClassifiedRun, LaunchQueue, LaunchQueueClassification, OrchestrationInputs,
     QueueIssueBlocker, QueueIssueInput, QueueRunInput, classify_launch_queue,

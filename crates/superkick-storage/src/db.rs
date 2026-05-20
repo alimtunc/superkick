@@ -161,6 +161,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "027_launch_task_steps_failure_classification",
             include_str!("../migrations/027_launch_task_steps_failure_classification.sql"),
         ),
+        (
+            "028_issue_workspace_contexts",
+            include_str!("../migrations/028_issue_workspace_contexts.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {
