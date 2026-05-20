@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Superkick · Issues + Search rework</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#0b0d0f; font-family:"DM Sans", system-ui, sans-serif; }
+  #cover { position:fixed; inset:0; background:#0b0d0f; display:flex; align-items:center; justify-content:center;
+    z-index:9999; transition:opacity .35s ease; }
+  #cover.gone { opacity:0; pointer-events:none; }
+  #cover .lo { font-family:"DM Sans"; font-weight:600; font-size:18px; color:#e7e9ec; }
+  #cover .lo b { color:#5b6ef2; }
+  #cover .sub { margin-top:8px; font-size:12px; color:#9aa0a8; }
+  @keyframes sk-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  @keyframes sk-blink {
+    0%, 50% { opacity: 1; }
+    50.01%, 100% { opacity: 0; }
+  }
+</style>
+</head>
+<body>
+  <div id="cover">
+    <div style="text-align:center">
+      <div class="lo">Superkick · <b>Issues + Search rework</b></div>
+      <div class="sub">loading canvas…</div>
+    </div>
+  </div>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <!-- Reuse tokens + primitives + shell from the v1 canvas -->
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="screens/sk-tokens.jsx"></script>
+  <script type="text/babel" src="screens/sk-primitives.jsx"></script>
+  <script type="text/babel" src="screens/sk-shell.jsx"></script>
+
+  <!-- New components for this rework -->
+  <script type="text/babel" src="screens-v2/sk-icons.jsx"></script>
+  <script type="text/babel" src="screens-v2/sk-issues-bits.jsx"></script>
+  <script type="text/babel" src="screens-v2/sk-issues-list.jsx"></script>
+  <script type="text/babel" src="screens-v2/sk-issues-kanban.jsx"></script>
+  <script type="text/babel" src="screens-v2/sk-search.jsx"></script>
+  <script type="text/babel" src="screens-v2/sk-proposal.jsx"></script>
+
+  <script type="text/babel" data-presets="env,react">
+    const { useEffect } = React;
+    function App() {
+      useEffect(() => {
+        const t = setTimeout(() => document.getElementById('cover').classList.add('gone'), 380);
+        return () => clearTimeout(t);
+      }, []);
+      return (
+        <>
+          <SKStyles/>
+          <DesignCanvas>
+            <DCSection id="brief" title="Issues + Search rework — read me first"
+              subtitle="Linear-style UX patterns rendered in Superkick's voice. 3 variants of /issues, kanban triage, 3 states of ⌘K, plus component notes.">
+              <DCPostIt top={20} left={20} width={280}>
+                <b>Scope</b><br/>
+                /issues list + kanban · issue rows · filters · default views · global ⌘K · comment/context preview.<br/><br/>
+                <b>Not touched</b> — Issue Detail, Launch Task feed, Chat, Terminal, Settings.
+              </DCPostIt>
+              <DCArtboard id="brief-1" label="01 · The brief" width={1280} height={720}>
+                <ProposalIntro theme="dark"/>
+              </DCArtboard>
+              <DCArtboard id="brief-2" label="02 · Information architecture" width={1280} height={720}>
+                <ProposalStructure theme="dark"/>
+              </DCArtboard>
+              <DCArtboard id="brief-3" label="03 · Component notes & non-goals" width={1280} height={780}>
+                <ProposalNotes theme="dark"/>
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="issues-list" title="04 · /issues — list, three variants"
+              subtitle='Default is "My open work" grouped by lifecycle bucket (Needs you → Active → Launchable → Open). Done hidden. Linear-style 32px rows with a Superkick task-state badge.'>
+              <DCArtboard id="iss-default" label="Default · My open work · grouped" width={1280} height={800}>
+                <IssuesListDefault theme="dark"/>
+              </DCArtboard>
+              <DCArtboard id="iss-hover" label="Hover preview · body + last comment + linked run" width={1280} height={800}>
+                <IssuesListWithHover theme="dark"/>
+              </DCArtboard>
+              <DCArtboard id="iss-allopen" label="All open · + Filter dropdown" width={1280} height={800}>
+                <IssuesListAllOpen theme="dark"/>
+              </DCArtboard>
+              <DCArtboard id="iss-light" label="Default · light theme" width={1280} height={800}>
+                <IssuesListDefault theme="light"/>
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="issues-kanban" title="05 · /issues — kanban triage"
+              subtitle="Drag issues across statuses. Drop target highlights, ghost placeholder shows the landing slot.">
+              <DCArtboard id="kanban-drag" label="Kanban · mid-drag" width={1280} height={800}>
+                <IssuesKanbanTriage theme="dark"/>
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="search" title="06 · ⌘K global search — three states"
+              subtitle='Empty defaults to "needs you" + quick actions. Typing searches across issues, comments, files, runs, actions. Scope chips narrow the result type.'>
+              <DCArtboard id="search-empty" label="Empty · Quick actions + Needs you" width={660} height={620}>
+                <SearchEmpty theme="dark"/>
+              </DCArtboard>
+              <DCArtboard id="search-typing" label='Typing "webhook" · cross-type' width={660} height={620}>
+                <SearchTyping theme="dark"/>
+              </DCArtboard>
+              <DCArtboard id="search-scoped" label='Scoped to Issues · body + comment snippets' width={660} height={620}>
+                <SearchScoped theme="dark"/>
+              </DCArtboard>
+            </DCSection>
+
+          </DesignCanvas>
+        </>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>
