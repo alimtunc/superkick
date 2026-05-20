@@ -1,18 +1,9 @@
-import { LaunchStepLinks } from '@/components/issue-detail/launch-task-feed/LaunchStepLinks'
+import { LaunchStepEvidenceRow } from '@/components/issue-detail/launch-task-feed/LaunchStepEvidenceRow'
+import { LaunchStepFailureRow } from '@/components/issue-detail/launch-task-feed/LaunchStepFailureRow'
 import { LaunchTaskCancelButton } from '@/components/issue-detail/launch-task-feed/LaunchTaskCancelButton'
 import { LaunchTaskNeedsHumanCallout } from '@/components/issue-detail/launch-task-feed/LaunchTaskNeedsHumanCallout'
-import { Evidence } from '@/components/launch/Evidence'
 import { LaunchPlanStrip } from '@/components/launch/LaunchPlanStrip'
-import { Pill } from '@/components/ui/pill'
-import {
-	findBlockingContext,
-	LAUNCH_STEP_KIND_LABEL,
-	LAUNCH_STEP_MUTED_STATUSES,
-	LAUNCH_STEP_STATUS_LABEL,
-	LAUNCH_STEP_STATUS_TONE,
-	TERMINAL_LAUNCH_TASK_STATUSES
-} from '@/lib/domain'
-import { evidenceKindForStep, evidenceMetaForStep } from '@/lib/launch/evidence'
+import { findBlockingContext, getDisposition, TERMINAL_LAUNCH_TASK_STATUSES } from '@/lib/domain'
 import type { LaunchTask, LaunchTaskStep } from '@/types'
 
 interface LaunchTaskFeedBodyProps {
@@ -23,7 +14,9 @@ interface LaunchTaskFeedBodyProps {
 export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 	const blocking = findBlockingContext(task, [...steps])
 	const isTerminal = TERMINAL_LAUNCH_TASK_STATUSES.has(task.status)
-	const canRetry = task.status === 'needs_human'
+	const canRetry =
+		task.status === 'needs_human' &&
+		(blocking?.classification ? getDisposition(blocking.classification) === 'needs_human' : true)
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -36,44 +29,21 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 						headline={blocking.headline}
 						hint={blocking.hint}
 						blockingStep={blocking.step}
+						classification={blocking.classification}
 						canRetry={canRetry}
 					/>
 				) : null}
-				{steps.map((step) => {
-					const summary = step.summary?.trim()
-					const meta = evidenceMetaForStep(step)
-					const showLinks =
-						step.linked_run_id ||
-						step.linked_conversation_id ||
-						step.linked_orchestrator_session_id
-					return (
-						<Evidence
+				{steps.map((step) =>
+					step.failure_classification ? (
+						<LaunchStepFailureRow
 							key={step.id}
-							kind={evidenceKindForStep(step)}
-							title={`${LAUNCH_STEP_KIND_LABEL[step.step_kind]} · ${step.agent_name}`}
-							meta={meta}
-							badge={
-								<Pill
-									tone={LAUNCH_STEP_STATUS_TONE[step.status]}
-									size="sm"
-									dot
-									pulse={step.status === 'running'}
-								>
-									{LAUNCH_STEP_STATUS_LABEL[step.status]}
-								</Pill>
-							}
-							muted={LAUNCH_STEP_MUTED_STATUSES.has(step.status)}
-							body={
-								summary || showLinks ? (
-									<>
-										{summary ? <p className="mb-2 leading-normal">{summary}</p> : null}
-										{showLinks ? <LaunchStepLinks step={step} /> : null}
-									</>
-								) : null
-							}
+							step={step}
+							classification={step.failure_classification}
 						/>
+					) : (
+						<LaunchStepEvidenceRow key={step.id} step={step} />
 					)
-				})}
+				)}
 				{!isTerminal ? (
 					<div className="mt-2 flex items-center justify-end">
 						<LaunchTaskCancelButton linearIssueId={task.linear_issue_id} taskId={task.id} />

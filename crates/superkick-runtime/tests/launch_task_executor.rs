@@ -119,6 +119,9 @@ enum ScriptedAction {
     Fail {
         reason: String,
     },
+    FailWith {
+        classification: FailureClassification,
+    },
     /// Park forever until the supplied notify fires, then check the cancel
     /// token. Used by the cancellation test.
     WaitThenCheck {
@@ -211,6 +214,19 @@ impl StepRunner for FakeStepRunner {
                     classification,
                     links: StepLinks::default(),
                 })
+            }
+            ScriptedAction::FailWith { classification } => {
+                let outcome = match classification.disposition() {
+                    superkick_core::FailureDisposition::NeedsHuman => StepOutcome::NeedsHuman {
+                        classification,
+                        links: StepLinks::default(),
+                    },
+                    superkick_core::FailureDisposition::Failed => StepOutcome::Failed {
+                        classification,
+                        links: StepLinks::default(),
+                    },
+                };
+                Ok(outcome)
             }
             ScriptedAction::WaitThenCheck { release } => {
                 tokio::select! {
@@ -447,6 +463,117 @@ async fn reviewer_failure_drives_task_to_needs_human() -> Result<()> {
         step_status(&repo, task.id, LaunchStepKind::Review).await,
         LaunchTaskStepStatus::NeedsHuman
     );
+    Ok(())
+}
+
+#[tokio::test]
+async fn step_finished_event_carries_failure_classification_on_halt() -> Result<()> {
+    let repo = fresh_repo().await?;
+    let (task, _) = create_task(&repo, "TEAM-141").await?;
+
+    let runner = Arc::new(FakeStepRunner::new());
+    runner.script(
+        LaunchStepKind::Plan,
+        ScriptedAction::FailWith {
+            classification: FailureClassification::MissingMarker,
+        },
+    );
+
+    let (exec, bus, _) = build_executor(Arc::clone(&repo), Arc::clone(&runner));
+    let mut rx = bus.subscribe();
+    exec.run(task.id).await?;
+
+    let events = drain_events(&mut rx).await;
+    let finished = events
+        .iter()
+        .find_map(|e| match e {
+            LaunchTaskEvent::StepFinished {
+                status: LaunchTaskStepStatus::NeedsHuman,
+                failure_classification,
+                ..
+            } => Some(failure_classification.clone()),
+            _ => None,
+        })
+        .expect("expected a StepFinished(NeedsHuman) event");
+    assert_eq!(
+        finished,
+        Some(FailureClassification::MissingMarker),
+        "executor must publish the live classification, not a round-tripped null",
+    );
+
+    let any_clean_carried = events.iter().any(|e| {
+        matches!(
+            e,
+            LaunchTaskEvent::StepFinished {
+                status: LaunchTaskStepStatus::Completed | LaunchTaskStepStatus::Cancelled,
+                failure_classification: Some(_),
+                ..
+            }
+        )
+    });
+    assert!(
+        !any_clean_carried,
+        "non-failure StepFinished events must not carry a classification"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn cli_missing_classification_routes_step_and_task_to_failed() -> Result<()> {
+    let repo = fresh_repo().await?;
+    let (task, _) = create_task(&repo, "TEAM-141-CLI").await?;
+
+    let classification = FailureClassification::CliMissing {
+        binary: "claude".into(),
+        install_hint: "brew install anthropics/cli/claude".into(),
+    };
+    let runner = Arc::new(FakeStepRunner::new());
+    runner.script(
+        LaunchStepKind::Plan,
+        ScriptedAction::FailWith {
+            classification: classification.clone(),
+        },
+    );
+
+    let (exec, bus, _) = build_executor(Arc::clone(&repo), Arc::clone(&runner));
+    let mut rx = bus.subscribe();
+    exec.run(task.id).await?;
+
+    let reloaded = repo.get(task.id).await?.unwrap();
+    assert_eq!(reloaded.status, LaunchTaskStatus::Failed);
+    assert_eq!(
+        step_status(&repo, task.id, LaunchStepKind::Plan).await,
+        LaunchTaskStepStatus::Failed,
+        "CliMissing disposition is Failed (terminal), not NeedsHuman",
+    );
+
+    let persisted = repo
+        .list_steps(task.id)
+        .await?
+        .into_iter()
+        .find(|s| s.step_kind == LaunchStepKind::Plan)
+        .expect("planner step exists");
+    assert_eq!(
+        persisted.failure_classification,
+        Some(classification.clone())
+    );
+
+    let events = drain_events(&mut rx).await;
+    let on_wire = events.iter().find_map(|e| match e {
+        LaunchTaskEvent::StepFinished {
+            status: LaunchTaskStepStatus::Failed,
+            failure_classification,
+            ..
+        } => Some(failure_classification.clone()),
+        _ => None,
+    });
+    assert_eq!(
+        on_wire,
+        Some(Some(classification)),
+        "SSE event must carry the terminal classification verbatim",
+    );
+
     Ok(())
 }
 

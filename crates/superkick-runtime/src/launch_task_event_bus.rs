@@ -17,8 +17,8 @@ use tokio::sync::broadcast;
 use tracing::{debug, trace};
 
 use superkick_core::{
-    LaunchStepKind, LaunchTaskId, LaunchTaskStatus, LaunchTaskStepId, LaunchTaskStepStatus, RunId,
-    RunState,
+    FailureClassification, LaunchStepKind, LaunchTaskId, LaunchTaskStatus, LaunchTaskStepId,
+    LaunchTaskStepStatus, RunId, RunState,
 };
 
 const BUS_CAPACITY: usize = 1024;
@@ -44,6 +44,8 @@ pub enum LaunchTaskEvent {
         step_kind: LaunchStepKind,
         status: LaunchTaskStepStatus,
         summary: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        failure_classification: Option<FailureClassification>,
     },
     TaskStatusChanged {
         task_id: LaunchTaskId,

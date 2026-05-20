@@ -47,6 +47,32 @@ export type LaunchTaskStepStatus =
 	| 'skipped'
 	| 'cancelled'
 
+export type StepResultStatus = 'completed' | 'needs_human' | 'failed'
+
+export interface StepResult {
+	status: StepResultStatus
+	summary: string
+	changed_files: string[]
+	questions: string[]
+}
+
+// `timeout.after` is milliseconds; `reset_at` is a free-form provider wall-clock string.
+export type FailureClassification =
+	| { kind: 'missing_marker' }
+	| { kind: 'malformed_marker'; detail: string }
+	| { kind: 'agent_reported'; status: StepResultStatus; summary: string }
+	| { kind: 'auth_required'; provider: AgentProvider }
+	| { kind: 'quota_exceeded'; provider: AgentProvider; reset_at?: string | null }
+	| { kind: 'cli_missing'; binary: string; install_hint: string }
+	| { kind: 'timeout'; after: number }
+	| { kind: 'no_diff' }
+	| { kind: 'tests_failed'; summary: string }
+	| { kind: 'spawn_error'; detail: string }
+	| { kind: 'agent_non_zero_exit'; exit_code: number; role: string }
+
+// Mirror of `superkick_core::FailureDisposition`; computed via `getDisposition`.
+export type FailureDisposition = 'needs_human' | 'failed'
+
 export interface LaunchTaskStep {
 	id: string
 	launch_task_id: string
@@ -61,6 +87,8 @@ export interface LaunchTaskStep {
 	linked_conversation_id?: string | null
 	linked_orchestrator_session_id?: string | null
 	summary?: string | null
+	structured_result?: StepResult | null
+	failure_classification?: FailureClassification | null
 	created_at: string
 	updated_at: string
 }
@@ -118,4 +146,5 @@ export interface BlockingContext {
 	stepKind: LaunchStepKind | null
 	headline: string
 	hint: string
+	classification: FailureClassification | null
 }

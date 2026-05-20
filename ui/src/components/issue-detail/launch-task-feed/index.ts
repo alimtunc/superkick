@@ -1,4 +1,6 @@
 export { LaunchTaskFeed } from './LaunchTaskFeed'
 export { LaunchStepLinks } from './LaunchStepLinks'
+export { LaunchStepEvidenceRow } from './LaunchStepEvidenceRow'
+export { LaunchStepFailureRow } from './LaunchStepFailureRow'
 export { LaunchTaskNeedsHumanCallout } from './LaunchTaskNeedsHumanCallout'
 export { LaunchTaskEmptyState } from './LaunchTaskEmptyState'

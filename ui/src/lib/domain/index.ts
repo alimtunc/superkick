@@ -31,6 +31,8 @@ export {
 export { issueStateAccent, issueStateTone } from './issueStateAccent'
 export { UNBLOCK_BADGE_WINDOW_MS, isWithinUnblockWindow } from './unblockBadge'
 export { TERMINAL_LAUNCH_TASK_STATUSES, findBlockingContext } from './launchTaskBlocking'
+export { getDisposition, getFailureCopy } from './failureClassification'
+export type { FailureCopy } from './failureClassification'
 export {
 	LAUNCH_STEP_KIND_LABEL,
 	LAUNCH_TASK_STATUS_LABEL,

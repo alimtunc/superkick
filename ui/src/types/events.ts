@@ -1,4 +1,4 @@
-import type { LaunchStepKind, LaunchTaskStatus, LaunchTaskStepStatus } from './launch'
+import type { FailureClassification, LaunchStepKind, LaunchTaskStatus, LaunchTaskStepStatus } from './launch'
 import type { RunState } from './runs'
 
 export type EventKind =
@@ -171,6 +171,7 @@ export type LaunchTaskEvent =
 			step_kind: LaunchStepKind
 			status: LaunchTaskStepStatus
 			summary: string | null
+			failure_classification?: FailureClassification | null
 	  }
 	| {
 			kind: 'task_status_changed'
