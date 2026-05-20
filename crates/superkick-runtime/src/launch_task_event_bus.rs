@@ -16,9 +16,11 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tracing::{debug, trace};
 
+use chrono::{DateTime, Utc};
+
 use superkick_core::{
-    FailureClassification, LaunchStepKind, LaunchTaskId, LaunchTaskStatus, LaunchTaskStepId,
-    LaunchTaskStepStatus, MemoryEntryId, RunId, RunState,
+    FailureClassification, LaunchStepKind, LaunchTaskId, LaunchTaskInterventionId,
+    LaunchTaskStatus, LaunchTaskStepId, LaunchTaskStepStatus, MemoryEntryId, RunId, RunState,
 };
 
 const BUS_CAPACITY: usize = 1024;
@@ -69,6 +71,25 @@ pub enum LaunchTaskEvent {
         run_id: RunId,
         state: RunState,
     },
+    /// SUP-154 — operator left a free-text intervention for the task.
+    /// Published from the POST handler so the feed updates without polling.
+    InterventionAdded {
+        task_id: LaunchTaskId,
+        linear_issue_id: String,
+        intervention_id: LaunchTaskInterventionId,
+        target_step_id: Option<LaunchTaskStepId>,
+        body: String,
+        created_at: DateTime<Utc>,
+    },
+    /// SUP-154 — an intervention was just injected into a step's prompt and
+    /// stamped consumed. Published from the runtime at step-start.
+    InterventionConsumed {
+        task_id: LaunchTaskId,
+        linear_issue_id: String,
+        intervention_id: LaunchTaskInterventionId,
+        step_id: LaunchTaskStepId,
+        consumed_at: DateTime<Utc>,
+    },
 }
 
 impl LaunchTaskEvent {
@@ -77,7 +98,9 @@ impl LaunchTaskEvent {
             Self::StepStarted { task_id, .. }
             | Self::StepFinished { task_id, .. }
             | Self::TaskStatusChanged { task_id, .. }
-            | Self::ShadowRunStateChanged { task_id, .. } => *task_id,
+            | Self::ShadowRunStateChanged { task_id, .. }
+            | Self::InterventionAdded { task_id, .. }
+            | Self::InterventionConsumed { task_id, .. } => *task_id,
         }
     }
 
@@ -93,6 +116,12 @@ impl LaunchTaskEvent {
                 linear_issue_id, ..
             }
             | Self::ShadowRunStateChanged {
+                linear_issue_id, ..
+            }
+            | Self::InterventionAdded {
+                linear_issue_id, ..
+            }
+            | Self::InterventionConsumed {
                 linear_issue_id, ..
             } => linear_issue_id,
         }

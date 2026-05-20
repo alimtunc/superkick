@@ -26,13 +26,13 @@ use tracing::{error, info, warn};
 use superkick_config::SuperkickConfig;
 use superkick_core::{
     AgentCatalog, EventKind, EventLevel, FailureClassification, FailureDisposition, LaunchReason,
-    LaunchStepKind, LaunchTask, LaunchTaskId, LaunchTaskStep, LaunchTaskStepId, MemoryEntryId,
-    RoleRouter, Run, RunId, RunPolicy, RunState, RunStep, StepId, StepKey, StepResult, StepStatus,
-    TriggerSource,
+    LaunchStepKind, LaunchTask, LaunchTaskId, LaunchTaskIntervention, LaunchTaskStep,
+    LaunchTaskStepId, MemoryEntryId, RoleRouter, Run, RunId, RunPolicy, RunState, RunStep, StepId,
+    StepKey, StepResult, StepStatus, TriggerSource,
 };
 use superkick_storage::repo::{
-    AgentSessionRepo, IssueWorkspaceContextRepoDyn, LaunchTaskRepo, MemoryEntryRepoDyn,
-    RunEventRepo, RunRepo, RunStepRepo, TranscriptRepo,
+    AgentSessionRepo, IssueWorkspaceContextRepoDyn, LaunchTaskInterventionRepo, LaunchTaskRepo,
+    MemoryEntryRepoDyn, RunEventRepo, RunRepo, RunStepRepo, TranscriptRepo,
 };
 
 use crate::agent_spawn::{LaunchConfigInputs, build_launch_config, resolve_spawn_plan};
@@ -94,7 +94,7 @@ struct ShadowTaskState {
 /// Construction dependencies for `RealStepRunner`. Mirrors the
 /// `StepEngineDeps` pattern so the wiring stays one struct literal per call
 /// site.
-pub struct RealStepRunnerDeps<R, ST, E, A, T, L>
+pub struct RealStepRunnerDeps<R, ST, E, A, T, L, I>
 where
     R: RunRepo + 'static,
     ST: RunStepRepo + 'static,
@@ -102,6 +102,7 @@ where
     A: AgentSessionRepo + 'static,
     T: TranscriptRepo + 'static,
     L: LaunchTaskRepo + 'static,
+    I: LaunchTaskInterventionRepo + 'static,
 {
     pub run_repo: Arc<R>,
     pub step_repo: Arc<ST>,
@@ -111,6 +112,7 @@ where
     pub launch_task_repo: Arc<L>,
     pub issue_workspace_context_repo: Arc<dyn IssueWorkspaceContextRepoDyn>,
     pub memory_repo: Arc<dyn MemoryEntryRepoDyn>,
+    pub intervention_repo: Arc<I>,
     pub registry: Arc<crate::pty_session::PtySessionRegistry>,
     pub session_bus: Option<Arc<SessionBus>>,
     pub launch_task_bus: Arc<LaunchTaskEventBus>,
@@ -123,7 +125,7 @@ where
 
 /// Production `StepRunner` that spawns a real agent for every Launch Task
 /// step.
-pub struct RealStepRunner<R, ST, E, A, T, L>
+pub struct RealStepRunner<R, ST, E, A, T, L, I>
 where
     R: RunRepo + 'static,
     ST: RunStepRepo + 'static,
@@ -131,6 +133,7 @@ where
     A: AgentSessionRepo + 'static,
     T: TranscriptRepo + 'static,
     L: LaunchTaskRepo + 'static,
+    I: LaunchTaskInterventionRepo + 'static,
 {
     run_repo: Arc<R>,
     step_repo: Arc<ST>,
@@ -138,6 +141,7 @@ where
     launch_task_repo: Arc<L>,
     issue_workspace_context_repo: Arc<dyn IssueWorkspaceContextRepoDyn>,
     memory_repo: Arc<dyn MemoryEntryRepoDyn>,
+    intervention_repo: Arc<I>,
     launch_task_bus: Arc<LaunchTaskEventBus>,
     supervisor: AgentSupervisor<A, E, T>,
     repo_cache: RepoCache,
@@ -154,7 +158,7 @@ where
     shadow_runs: Mutex<HashMap<LaunchTaskId, ShadowTaskState>>,
 }
 
-impl<R, ST, E, A, T, L> RealStepRunner<R, ST, E, A, T, L>
+impl<R, ST, E, A, T, L, I> RealStepRunner<R, ST, E, A, T, L, I>
 where
     R: RunRepo + 'static,
     ST: RunStepRepo + 'static,
@@ -162,8 +166,9 @@ where
     A: AgentSessionRepo + 'static,
     T: TranscriptRepo + 'static,
     L: LaunchTaskRepo + 'static,
+    I: LaunchTaskInterventionRepo + 'static,
 {
-    pub fn new(deps: RealStepRunnerDeps<R, ST, E, A, T, L>) -> Self {
+    pub fn new(deps: RealStepRunnerDeps<R, ST, E, A, T, L, I>) -> Self {
         let mut supervisor = AgentSupervisor::new(
             deps.session_repo,
             Arc::clone(&deps.event_repo),
@@ -183,6 +188,7 @@ where
             launch_task_repo: deps.launch_task_repo,
             issue_workspace_context_repo: deps.issue_workspace_context_repo,
             memory_repo: deps.memory_repo,
+            intervention_repo: deps.intervention_repo,
             launch_task_bus: deps.launch_task_bus,
             supervisor,
             repo_cache: deps.repo_cache,
@@ -406,6 +412,32 @@ where
             prompt.push_str(summary);
         }
         prompt
+    }
+
+    /// Append a clearly-labelled block listing every pending operator
+    /// intervention. The heading is unambiguous so the agent treats the body
+    /// as operator guidance rather than as part of the prior summary. Each
+    /// entry is fenced with a numbered marker so two adjacent interventions
+    /// remain distinguishable when the operator's body contains its own
+    /// section headings.
+    fn append_interventions(base: &mut String, interventions: &[LaunchTaskIntervention]) {
+        if interventions.is_empty() {
+            return;
+        }
+        base.push_str("\n\n--- Operator interventions ---\n");
+        base.push_str(
+            "The operator left the following requests for this step. Treat them as \
+             authoritative additions to the brief above.\n",
+        );
+        for (idx, i) in interventions.iter().enumerate() {
+            base.push_str(&format!(
+                "\n[{}] from {} at {}:\n{}\n",
+                idx + 1,
+                i.author,
+                i.created_at.to_rfc3339(),
+                i.body
+            ));
+        }
     }
 
     /// Persist the structured result; on failure, log and emit a `Warn` run event so operators see the drift in the timeline.
@@ -647,7 +679,7 @@ struct StepCompletionContext<'a> {
     workspace_context_id: Option<superkick_core::IssueWorkspaceContextId>,
 }
 
-impl<R, ST, E, A, T, L> StepRunner for RealStepRunner<R, ST, E, A, T, L>
+impl<R, ST, E, A, T, L, I> StepRunner for RealStepRunner<R, ST, E, A, T, L, I>
 where
     R: RunRepo + 'static,
     ST: RunStepRepo + 'static,
@@ -655,6 +687,7 @@ where
     A: AgentSessionRepo + 'static,
     T: TranscriptRepo + 'static,
     L: LaunchTaskRepo + 'static,
+    I: LaunchTaskInterventionRepo + 'static,
 {
     async fn run_step(
         &self,
@@ -785,8 +818,23 @@ where
             .as_deref()
             .or(spawn_plan.snapshot_block.as_deref());
 
-        let base_prompt =
+        let pending_interventions = self
+            .intervention_repo
+            .list_pending_for_step(task.id, step.id)
+            .await
+            .unwrap_or_else(|e| {
+                warn!(
+                    launch_task_id = %task.id,
+                    step_id = %step.id,
+                    error = %e,
+                    "failed to load pending interventions — continuing without them"
+                );
+                Vec::new()
+            });
+
+        let mut base_prompt =
             Self::build_base_prompt(task, step.step_kind, previous_summary.as_deref());
+        Self::append_interventions(&mut base_prompt, &pending_interventions);
         let default_instructions = &self.config.launch_profile.default_instructions;
         let prompt = build_full_prompt(
             &base_prompt,
@@ -823,6 +871,35 @@ where
                 });
             }
         };
+
+        // Spawn succeeded → the agent process has the prompt. Mark every
+        // injected intervention consumed. Doing this post-spawn (not
+        // pre-prompt) keeps pending interventions queryable for retry if
+        // the launch failed instead.
+        if !pending_interventions.is_empty() {
+            let ids: Vec<_> = pending_interventions.iter().map(|i| i.id).collect();
+            let now = Utc::now();
+            match self.intervention_repo.mark_consumed(&ids, now).await {
+                Ok(updated) => {
+                    for id in updated {
+                        self.launch_task_bus
+                            .publish(LaunchTaskEvent::InterventionConsumed {
+                                task_id: task.id,
+                                linear_issue_id: task.linear_issue_id.clone(),
+                                intervention_id: id,
+                                step_id: step.id,
+                                consumed_at: now,
+                            });
+                    }
+                }
+                Err(e) => warn!(
+                    launch_task_id = %task.id,
+                    step_id = %step.id,
+                    error = %e,
+                    "failed to mark interventions consumed — they will re-inject on the next step"
+                ),
+            }
+        }
 
         let session_outcome = tokio::select! {
             res = join => match res {
@@ -906,6 +983,7 @@ mod tests {
                 superkick_storage::SqliteAgentSessionRepo,
                 superkick_storage::SqliteTranscriptRepo,
                 superkick_storage::SqliteLaunchTaskRepo,
+                superkick_storage::SqliteLaunchTaskInterventionRepo,
             >::shadow_run_state_for_step(LaunchStepKind::Plan),
             RunState::Planning
         );
@@ -917,6 +995,7 @@ mod tests {
                 superkick_storage::SqliteAgentSessionRepo,
                 superkick_storage::SqliteTranscriptRepo,
                 superkick_storage::SqliteLaunchTaskRepo,
+                superkick_storage::SqliteLaunchTaskInterventionRepo,
             >::shadow_run_state_for_step(LaunchStepKind::Implement),
             RunState::Coding
         );
@@ -928,6 +1007,7 @@ mod tests {
                 superkick_storage::SqliteAgentSessionRepo,
                 superkick_storage::SqliteTranscriptRepo,
                 superkick_storage::SqliteLaunchTaskRepo,
+                superkick_storage::SqliteLaunchTaskInterventionRepo,
             >::shadow_run_state_for_step(LaunchStepKind::Review),
             RunState::Reviewing
         );
@@ -968,6 +1048,7 @@ mod tests {
                 superkick_storage::SqliteAgentSessionRepo,
                 superkick_storage::SqliteTranscriptRepo,
                 superkick_storage::SqliteLaunchTaskRepo,
+                superkick_storage::SqliteLaunchTaskInterventionRepo,
             >::build_base_prompt(&t, kind, None);
             assert!(p.contains("SUP-999"), "{kind:?} missing issue id");
             assert!(
@@ -988,6 +1069,7 @@ mod tests {
             superkick_storage::SqliteAgentSessionRepo,
             superkick_storage::SqliteTranscriptRepo,
             superkick_storage::SqliteLaunchTaskRepo,
+            superkick_storage::SqliteLaunchTaskInterventionRepo,
         >::build_base_prompt(&t, LaunchStepKind::Implement, Some("PLAN_OUTPUT"));
         assert!(p.contains("--- Previous step summary ---"));
         assert!(p.contains("PLAN_OUTPUT"));
@@ -1003,6 +1085,7 @@ mod tests {
             superkick_storage::SqliteAgentSessionRepo,
             superkick_storage::SqliteTranscriptRepo,
             superkick_storage::SqliteLaunchTaskRepo,
+            superkick_storage::SqliteLaunchTaskInterventionRepo,
         >::build_base_prompt(&t, LaunchStepKind::Implement, Some(""));
         assert!(!p.contains("--- Previous step summary ---"));
     }
@@ -1020,6 +1103,49 @@ mod tests {
     #[test]
     fn truncate_tail_chars_keeps_tail_when_over_cap() {
         assert_eq!(truncate_tail_chars("abcdef", 3), "def");
+    }
+
+    fn intervention(body: &str) -> LaunchTaskIntervention {
+        LaunchTaskIntervention::new(LaunchTaskId::new(), None, None, body.into()).unwrap()
+    }
+
+    #[test]
+    fn append_interventions_is_no_op_for_empty_list() {
+        let mut base = String::from("BASE");
+        RealStepRunner::<
+            superkick_storage::SqliteRunRepo,
+            superkick_storage::SqliteRunStepRepo,
+            superkick_storage::SqliteRunEventRepo,
+            superkick_storage::SqliteAgentSessionRepo,
+            superkick_storage::SqliteTranscriptRepo,
+            superkick_storage::SqliteLaunchTaskRepo,
+            superkick_storage::SqliteLaunchTaskInterventionRepo,
+        >::append_interventions(&mut base, &[]);
+        assert_eq!(base, "BASE");
+    }
+
+    #[test]
+    fn append_interventions_writes_a_labelled_block() {
+        let mut base = String::from("BASE");
+        let items = vec![
+            intervention("watch the migrations"),
+            intervention("rerun lint"),
+        ];
+        RealStepRunner::<
+            superkick_storage::SqliteRunRepo,
+            superkick_storage::SqliteRunStepRepo,
+            superkick_storage::SqliteRunEventRepo,
+            superkick_storage::SqliteAgentSessionRepo,
+            superkick_storage::SqliteTranscriptRepo,
+            superkick_storage::SqliteLaunchTaskRepo,
+            superkick_storage::SqliteLaunchTaskInterventionRepo,
+        >::append_interventions(&mut base, &items);
+        assert!(base.starts_with("BASE"));
+        assert!(base.contains("--- Operator interventions ---"));
+        assert!(base.contains("watch the migrations"));
+        assert!(base.contains("rerun lint"));
+        assert!(base.contains("[1]"));
+        assert!(base.contains("[2]"));
     }
 
     #[test]

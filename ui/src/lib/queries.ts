@@ -11,7 +11,8 @@ import {
 	fetchRun,
 	fetchRuns,
 	fetchRuntimes,
-	listAgents
+	listAgents,
+	listLaunchTaskInterventions
 } from '@/api'
 import { infiniteQueryOptions, queryOptions, skipToken } from '@tanstack/react-query'
 
@@ -109,5 +110,14 @@ export const launchTaskDetailQuery = (taskId: string | null) =>
 	queryOptions({
 		queryKey: taskId ? queryKeys.launchTasks.detail(taskId) : ['launch-tasks', 'pending', 'detail'],
 		queryFn: taskId ? () => fetchLaunchTask(taskId) : skipToken,
+		staleTime: 3_000
+	})
+
+export const launchTaskInterventionsQuery = (taskId: string | null) =>
+	queryOptions({
+		queryKey: taskId
+			? queryKeys.launchTasks.interventions(taskId)
+			: ['launch-tasks', 'pending', 'interventions'],
+		queryFn: taskId ? () => listLaunchTaskInterventions(taskId) : skipToken,
 		staleTime: 3_000
 	})

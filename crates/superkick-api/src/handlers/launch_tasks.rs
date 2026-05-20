@@ -20,15 +20,15 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::error::RecvError;
 
 use superkick_core::{
-    AgentCatalog, LaunchTask, LaunchTaskId, LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId,
-    PlanImplementReviewAgents, RunId,
+    AgentCatalog, LaunchTask, LaunchTaskId, LaunchTaskIntervention, LaunchTaskStatus,
+    LaunchTaskStep, LaunchTaskStepId, PlanImplementReviewAgents, RunId,
 };
 use superkick_runtime::launch_task::RealStepRunner;
-use superkick_runtime::{LaunchTaskEventBus, LaunchTaskExecutor, StepRunner};
-use superkick_storage::repo::LaunchTaskRepo;
+use superkick_runtime::{LaunchTaskEvent, LaunchTaskEventBus, LaunchTaskExecutor, StepRunner};
+use superkick_storage::repo::{LaunchTaskInterventionRepo, LaunchTaskRepo};
 use superkick_storage::{
-    SqliteAgentSessionRepo, SqliteLaunchTaskRepo, SqliteRunRepo, SqliteRunStepRepo,
-    SqliteTranscriptRepo,
+    SqliteAgentSessionRepo, SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo, SqliteRunRepo,
+    SqliteRunStepRepo, SqliteTranscriptRepo,
 };
 
 use crate::error::AppError;
@@ -39,7 +39,9 @@ const TASK_NOT_FOUND: &str = "launch task not found";
 /// Production wiring of the executor. SUP-124 swapped the V1 `StubStepRunner`
 /// for `RealStepRunner`, which spawns a real agent process per step. Held as
 /// a concrete type alias so the handlers can name it without dragging the
-/// generic parameters across the HTTP layer.
+/// generic parameters across the HTTP layer. SUP-154 added the intervention
+/// repo as the 7th generic so the runner can inject operator interventions
+/// at step start.
 pub type ProdRealStepRunner = RealStepRunner<
     SqliteRunRepo,
     SqliteRunStepRepo,
@@ -47,6 +49,7 @@ pub type ProdRealStepRunner = RealStepRunner<
     SqliteAgentSessionRepo,
     SqliteTranscriptRepo,
     SqliteLaunchTaskRepo,
+    SqliteLaunchTaskInterventionRepo,
 >;
 pub type ProdLaunchTaskExecutor = LaunchTaskExecutor<SqliteLaunchTaskRepo, ProdRealStepRunner>;
 
@@ -57,6 +60,7 @@ pub type ProdLaunchTaskExecutor = LaunchTaskExecutor<SqliteLaunchTaskRepo, ProdR
 /// deterministic stub while production runs the real agent spawn loop.
 pub struct LaunchTaskState<S: StepRunner> {
     pub repo: Arc<SqliteLaunchTaskRepo>,
+    pub intervention_repo: Arc<SqliteLaunchTaskInterventionRepo>,
     pub catalog: Arc<AgentCatalog>,
     pub bus: Arc<LaunchTaskEventBus>,
     pub executor: Arc<LaunchTaskExecutor<SqliteLaunchTaskRepo, S>>,
@@ -75,6 +79,7 @@ impl<S: StepRunner> Clone for LaunchTaskState<S> {
     fn clone(&self) -> Self {
         Self {
             repo: Arc::clone(&self.repo),
+            intervention_repo: Arc::clone(&self.intervention_repo),
             catalog: Arc::clone(&self.catalog),
             bus: Arc::clone(&self.bus),
             executor: Arc::clone(&self.executor),
@@ -87,6 +92,7 @@ impl FromRef<AppState> for LaunchTaskState<ProdRealStepRunner> {
     fn from_ref(state: &AppState) -> Self {
         Self {
             repo: Arc::clone(&state.launch_task_repo),
+            intervention_repo: Arc::clone(&state.launch_task_intervention_repo),
             catalog: Arc::clone(&state.agent_catalog),
             bus: Arc::clone(&state.launch_task_event_bus),
             executor: Arc::clone(&state.launch_task_executor),
@@ -170,6 +176,63 @@ pub async fn get_launch_task<S: StepRunner>(
         .await?
         .ok_or(AppError::NotFound(TASK_NOT_FOUND))?;
     Ok(Json(task))
+}
+
+/// SUP-154 — read every intervention attached to a task.
+pub async fn list_launch_task_interventions<S: StepRunner>(
+    State(state): State<LaunchTaskState<S>>,
+    Path(id): Path<uuid::Uuid>,
+) -> Result<Json<Vec<LaunchTaskIntervention>>, AppError> {
+    let task_id = LaunchTaskId(id);
+    if state.repo.get(task_id).await?.is_none() {
+        return Err(AppError::NotFound(TASK_NOT_FOUND));
+    }
+    let rows = state.intervention_repo.list_by_task(task_id).await?;
+    Ok(Json(rows))
+}
+
+#[derive(Deserialize)]
+pub struct CreateInterventionRequest {
+    pub body: String,
+    #[serde(default)]
+    pub target_step_id: Option<uuid::Uuid>,
+    #[serde(default)]
+    pub author: Option<String>,
+}
+
+/// SUP-154 — POST a free-text intervention against a running Launch Task.
+/// Persisted immediately and published on the SSE bus; injected into the
+/// next step's prompt by the runtime. Does not interrupt the active step.
+pub async fn create_launch_task_intervention<S: StepRunner>(
+    State(state): State<LaunchTaskState<S>>,
+    Path(id): Path<uuid::Uuid>,
+    Json(body): Json<CreateInterventionRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let task_id = LaunchTaskId(id);
+    let task = state
+        .repo
+        .get(task_id)
+        .await?
+        .ok_or(AppError::NotFound(TASK_NOT_FOUND))?;
+
+    let intervention = LaunchTaskIntervention::new(
+        task_id,
+        body.target_step_id.map(LaunchTaskStepId),
+        body.author,
+        body.body,
+    )?;
+    state.intervention_repo.insert(&intervention).await?;
+
+    state.bus.publish(LaunchTaskEvent::InterventionAdded {
+        task_id: task.id,
+        linear_issue_id: task.linear_issue_id.clone(),
+        intervention_id: intervention.id,
+        target_step_id: intervention.target_step_id,
+        body: intervention.body.clone(),
+        created_at: intervention.created_at,
+    });
+
+    Ok((StatusCode::CREATED, Json(intervention)))
 }
 
 pub async fn list_launch_task_steps<S: StepRunner>(

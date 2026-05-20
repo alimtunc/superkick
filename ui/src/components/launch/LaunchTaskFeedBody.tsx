@@ -1,11 +1,14 @@
-import { LaunchStepEvidenceRow } from '@/components/issue-detail/launch-task-feed/LaunchStepEvidenceRow'
-import { LaunchStepFailureRow } from '@/components/issue-detail/launch-task-feed/LaunchStepFailureRow'
 import { LaunchTaskCancelButton } from '@/components/issue-detail/launch-task-feed/LaunchTaskCancelButton'
+import { LaunchTaskCompletionSummary } from '@/components/issue-detail/launch-task-feed/LaunchTaskCompletionSummary'
 import { LaunchTaskNeedsHumanCallout } from '@/components/issue-detail/launch-task-feed/LaunchTaskNeedsHumanCallout'
+import { StepTimelineRow } from '@/components/issue-detail/launch-task-feed/StepTimelineRow'
 import { IssueContextPanel } from '@/components/issues/IssueContextPanel'
+import { InterventionComposer } from '@/components/launch/InterventionComposer'
+import { InterventionRow } from '@/components/launch/InterventionRow'
 import { LaunchPlanStrip } from '@/components/launch/LaunchPlanStrip'
-import { findBlockingContext, getDisposition, TERMINAL_LAUNCH_TASK_STATUSES } from '@/lib/domain'
-import type { LaunchTask, LaunchTaskStep } from '@/types'
+import { WorktreeActions } from '@/components/workspace/WorktreeActions'
+import { useLaunchTaskFeedState } from '@/hooks/useLaunchTaskFeedState'
+import type { LaunchTask, LaunchTaskIntervention, LaunchTaskStep } from '@/types'
 
 interface LaunchTaskFeedBodyProps {
 	task: LaunchTask
@@ -13,11 +16,19 @@ interface LaunchTaskFeedBodyProps {
 }
 
 export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
-	const blocking = findBlockingContext(task, [...steps])
-	const isTerminal = TERMINAL_LAUNCH_TASK_STATUSES.has(task.status)
-	const canRetry =
-		task.status === 'needs_human' &&
-		(blocking?.classification ? getDisposition(blocking.classification) === 'needs_human' : true)
+	const {
+		blocking,
+		canRetry,
+		isTerminal,
+		terminalKind,
+		hideCallout,
+		finalStep,
+		finalClassification,
+		linkedRunId,
+		worktreePath,
+		branchName,
+		interventions
+	} = useLaunchTaskFeedState(task, steps)
 
 	const hasLinearIssue = task.linear_issue_id.trim().length > 0
 
@@ -29,8 +40,26 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 				</div>
 			) : null}
 			<LaunchPlanStrip task={task} steps={steps} />
+			{terminalKind ? (
+				<LaunchTaskCompletionSummary
+					kind={terminalKind}
+					task={task}
+					finalStep={finalStep}
+					classification={finalClassification}
+					linkedRunId={linkedRunId}
+					worktreePath={worktreePath}
+					branchName={branchName}
+				/>
+			) : linkedRunId ? (
+				<WorktreeActions runId={linkedRunId} worktreePath={worktreePath} branchName={branchName} />
+			) : null}
+			<InterventionComposer
+				linearIssueId={task.linear_issue_id}
+				taskId={task.id}
+				disabled={isTerminal}
+			/>
 			<div className="flex-1 overflow-y-auto px-6 py-5">
-				{blocking ? (
+				{blocking && !hideCallout ? (
 					<LaunchTaskNeedsHumanCallout
 						linearIssueId={task.linear_issue_id}
 						taskId={task.id}
@@ -41,23 +70,40 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 						canRetry={canRetry}
 					/>
 				) : null}
-				{steps.map((step) =>
-					step.failure_classification ? (
-						<LaunchStepFailureRow
-							key={step.id}
-							step={step}
-							classification={step.failure_classification}
-						/>
-					) : (
-						<LaunchStepEvidenceRow key={step.id} step={step} />
-					)
-				)}
+				<InterventionList
+					label="Delivered interventions"
+					rows={interventions.delivered}
+					variant="above"
+				/>
+				{steps.map((step) => (
+					<StepTimelineRow key={step.id} step={step} task={task} />
+				))}
+				<InterventionList label="Queued for next step" rows={interventions.pending} variant="below" />
 				{!isTerminal ? (
 					<div className="mt-2 flex items-center justify-end">
 						<LaunchTaskCancelButton linearIssueId={task.linear_issue_id} taskId={task.id} />
 					</div>
 				) : null}
 			</div>
+		</div>
+	)
+}
+
+interface InterventionListProps {
+	label: string
+	rows: LaunchTaskIntervention[]
+	variant: 'above' | 'below'
+}
+
+function InterventionList({ label, rows, variant }: InterventionListProps) {
+	if (rows.length === 0) return null
+	const spacing = variant === 'above' ? 'mb-4' : 'mt-4'
+	return (
+		<div className={spacing}>
+			<div className="font-data mb-2 text-[11px] tracking-wide text-dim uppercase">{label}</div>
+			{rows.map((i) => (
+				<InterventionRow key={i.id} intervention={i} />
+			))}
 		</div>
 	)
 }

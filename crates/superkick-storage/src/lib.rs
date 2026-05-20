@@ -9,10 +9,11 @@ pub use sqlite::{
     ProviderUpsert, RecoveryEventKind, RecoveryEventRow, SqliteAgentSessionRepo,
     SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo, SqliteHandoffRepo,
     SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssueWorkspaceContextRepo,
-    SqliteLaunchTaskRepo, SqliteMemoryEntryRepo, SqliteOrchestratorSessionRepo,
-    SqlitePullRequestRepo, SqliteRecoveryEventRepo, SqliteRunEventRepo, SqliteRunRepo,
-    SqliteRunStepRepo, SqliteRuntimeRepo, SqliteSessionLifecycleRepo, SqliteSessionOwnershipRepo,
-    SqliteTranscriptRepo, SqliteTurnEventRepo, SqliteTurnRepo, list_recovery_candidates,
+    SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo, SqliteMemoryEntryRepo,
+    SqliteOrchestratorSessionRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo,
+    SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo, SqliteRuntimeRepo,
+    SqliteSessionLifecycleRepo, SqliteSessionOwnershipRepo, SqliteTranscriptRepo,
+    SqliteTurnEventRepo, SqliteTurnRepo, list_recovery_candidates,
 };
 
 /// Check if an anyhow error chain contains a SQLite unique constraint violation.

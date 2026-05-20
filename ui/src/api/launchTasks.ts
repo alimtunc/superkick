@@ -1,7 +1,9 @@
 import type {
 	CancelLaunchTaskResponse,
+	CreateInterventionRequest,
 	CreateLaunchTaskRequest,
 	LaunchTask,
+	LaunchTaskIntervention,
 	LaunchTaskStep,
 	LaunchTaskWithSteps,
 	RetryLaunchTaskResponse
@@ -50,5 +52,26 @@ export async function retryLaunchTask(taskId: string): Promise<RetryLaunchTaskRe
 		method: 'POST'
 	})
 	if (!res.ok) await throwGenericApiError(res, 'retry launch task failed')
+	return res.json()
+}
+
+// SUP-154 — operator interventions.
+
+export async function listLaunchTaskInterventions(taskId: string): Promise<LaunchTaskIntervention[]> {
+	const res = await fetch(`${BASE}/launch-tasks/${encodeURIComponent(taskId)}/interventions`)
+	if (!res.ok) await throwGenericApiError(res, 'list launch task interventions failed')
+	return res.json()
+}
+
+export async function createLaunchTaskIntervention(
+	taskId: string,
+	req: CreateInterventionRequest
+): Promise<LaunchTaskIntervention> {
+	const res = await fetch(`${BASE}/launch-tasks/${encodeURIComponent(taskId)}/interventions`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(req)
+	})
+	if (!res.ok) await throwGenericApiError(res, 'create launch task intervention failed')
 	return res.json()
 }

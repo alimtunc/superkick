@@ -22,10 +22,10 @@ use superkick_runtime::{
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo,
     SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssueWorkspaceContextRepo,
-    SqliteLaunchTaskRepo, SqliteMemoryEntryRepo, SqliteOrchestratorSessionRepo,
-    SqlitePullRequestRepo, SqliteRecoveryEventRepo, SqliteRunEventRepo, SqliteRunRepo,
-    SqliteRunStepRepo, SqliteRuntimeRepo, SqliteSessionOwnershipRepo, SqliteTranscriptRepo,
-    SqliteTurnEventRepo, SqliteTurnRepo,
+    SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo, SqliteMemoryEntryRepo,
+    SqliteOrchestratorSessionRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo,
+    SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo, SqliteRuntimeRepo,
+    SqliteSessionOwnershipRepo, SqliteTranscriptRepo, SqliteTurnEventRepo, SqliteTurnRepo,
 };
 
 mod error;
@@ -100,6 +100,7 @@ pub fn agents_test_router(catalog: Arc<AgentCatalog>) -> Router {
 #[cfg(feature = "test-support")]
 pub fn launch_task_test_router(
     repo: Arc<SqliteLaunchTaskRepo>,
+    intervention_repo: Arc<SqliteLaunchTaskInterventionRepo>,
     catalog: Arc<AgentCatalog>,
 ) -> Router {
     use superkick_runtime::StubStepRunner;
@@ -112,6 +113,7 @@ pub fn launch_task_test_router(
     );
     let state = handlers::launch_tasks::LaunchTaskState::<StubStepRunner> {
         repo,
+        intervention_repo,
         catalog,
         bus,
         executor,
@@ -140,6 +142,11 @@ pub fn launch_task_test_router(
         .route(
             "/launch-tasks/{id}/retry",
             post(handlers::launch_tasks::retry_launch_task),
+        )
+        .route(
+            "/launch-tasks/{id}/interventions",
+            get(handlers::launch_tasks::list_launch_task_interventions)
+                .post(handlers::launch_tasks::create_launch_task_intervention),
         )
         .route(
             "/launch-tasks/events",
@@ -244,6 +251,10 @@ pub(crate) struct AppState {
     /// SUP-147 / SUP-148 — workspace context aggregate. Production wires
     /// both the read and write paths to the same SQLite repo.
     pub issue_workspace_context_repo: Arc<SqliteIssueWorkspaceContextRepo>,
+    /// SUP-154 — operator-facing free-text interventions queued onto a
+    /// running Launch Task. Sibling of `launch_task_repo`; the runtime
+    /// reads it at every step start.
+    pub launch_task_intervention_repo: Arc<SqliteLaunchTaskInterventionRepo>,
     /// SUP-118 — process-scope broadcast bus for launch-task transitions.
     /// SSE consumers subscribe through `/launch-tasks/events`.
     pub launch_task_event_bus: Arc<LaunchTaskEventBus>,
@@ -339,6 +350,8 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let launch_task_repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
     let memory_repo = Arc::new(SqliteMemoryEntryRepo::new(pool.clone()));
     let issue_workspace_context_repo = Arc::new(SqliteIssueWorkspaceContextRepo::new(pool.clone()));
+    let launch_task_intervention_repo =
+        Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
     let launch_task_event_bus = LaunchTaskEventBus::new();
     let agent_catalog = Arc::new(config.agent_catalog());
     let runtime_repo = Arc::new(SqliteRuntimeRepo::new(pool.clone()));
@@ -376,6 +389,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
             as Arc<dyn superkick_storage::repo::IssueWorkspaceContextRepoDyn>,
         memory_repo: Arc::clone(&memory_repo)
             as Arc<dyn superkick_storage::repo::MemoryEntryRepoDyn>,
+        intervention_repo: Arc::clone(&launch_task_intervention_repo),
         registry: Arc::clone(&pty_registry),
         session_bus: Some(Arc::clone(&session_bus)),
         launch_task_bus: Arc::clone(&launch_task_event_bus),
@@ -484,6 +498,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         launch_task_repo,
         memory_repo,
         issue_workspace_context_repo,
+        launch_task_intervention_repo,
         launch_task_event_bus,
         launch_task_executor,
         agent_catalog,
@@ -648,6 +663,11 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         .route(
             "/launch-tasks/{id}/retry",
             post(handlers::launch_tasks::retry_launch_task),
+        )
+        .route(
+            "/launch-tasks/{id}/interventions",
+            get(handlers::launch_tasks::list_launch_task_interventions)
+                .post(handlers::launch_tasks::create_launch_task_intervention),
         )
         .route(
             "/conversations",
