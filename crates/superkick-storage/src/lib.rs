@@ -9,9 +9,9 @@ pub use sqlite::{
     ProviderUpsert, RecoveryEventKind, RecoveryEventRow, SqliteAgentSessionRepo,
     SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo, SqliteHandoffRepo,
     SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssueWorkspaceContextRepo,
-    SqliteLaunchTaskRepo, SqliteOrchestratorSessionRepo, SqlitePullRequestRepo,
-    SqliteRecoveryEventRepo, SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
-    SqliteRuntimeRepo, SqliteSessionLifecycleRepo, SqliteSessionOwnershipRepo,
+    SqliteLaunchTaskRepo, SqliteMemoryEntryRepo, SqliteOrchestratorSessionRepo,
+    SqlitePullRequestRepo, SqliteRecoveryEventRepo, SqliteRunEventRepo, SqliteRunRepo,
+    SqliteRunStepRepo, SqliteRuntimeRepo, SqliteSessionLifecycleRepo, SqliteSessionOwnershipRepo,
     SqliteTranscriptRepo, SqliteTurnEventRepo, SqliteTurnRepo, list_recovery_candidates,
 };
 

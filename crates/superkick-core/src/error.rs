@@ -49,6 +49,14 @@ pub enum CoreError {
     #[error("invalid input: {0}")]
     InvalidInput(String),
 
+    /// SUP-148 — memory entry rejected because its text matched a credential
+    /// pattern. Carried as a distinct variant so the API layer can map it to
+    /// 422 Unprocessable in one place; `kind` names the matching pattern
+    /// (`bearer_token`, `aws_access_key`, …) so the operator can see which
+    /// guard tripped without leaking the secret itself.
+    #[error("redacted credential-like content matched pattern: {kind}")]
+    CredentialLikely { kind: &'static str },
+
     #[error("failed to serialize interrupt answer: {0}")]
     InterruptAnswerSerialization(#[from] serde_json::Error),
 }

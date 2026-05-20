@@ -21,10 +21,11 @@ use superkick_runtime::{
 };
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo,
-    SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteLaunchTaskRepo,
-    SqliteOrchestratorSessionRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo,
-    SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo, SqliteRuntimeRepo,
-    SqliteSessionOwnershipRepo, SqliteTranscriptRepo, SqliteTurnEventRepo, SqliteTurnRepo,
+    SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssueWorkspaceContextRepo,
+    SqliteLaunchTaskRepo, SqliteMemoryEntryRepo, SqliteOrchestratorSessionRepo,
+    SqlitePullRequestRepo, SqliteRecoveryEventRepo, SqliteRunEventRepo, SqliteRunRepo,
+    SqliteRunStepRepo, SqliteRuntimeRepo, SqliteSessionOwnershipRepo, SqliteTranscriptRepo,
+    SqliteTurnEventRepo, SqliteTurnRepo,
 };
 
 mod error;
@@ -147,6 +148,46 @@ pub fn launch_task_test_router(
         .with_state(state)
 }
 
+/// Re-export of the issue-context handler types tests need to assemble a
+/// router (`IssueLookup`, the two dyn-repo traits). Gated behind
+/// `test-support` so production callers cannot reach into the handler
+/// internals.
+#[cfg(feature = "test-support")]
+pub mod test_handlers {
+    pub use crate::handlers::issue_context::{
+        IssueContextState, IssueLookup, IssueWorkspaceContextRepoDyn, MemoryEntryRepoDyn,
+    };
+}
+
+/// Test-only router builder for the SUP-148 issue-context + memory routes.
+///
+/// Wires the three endpoints against a `IssueContextState` built from the
+/// supplied repos and an injected [`handlers::issue_context::IssueLookup`]
+/// stub. Tests pre-seed contexts via the repo directly and provide a
+/// canned-snapshot lookup so the suite does not hit Linear.
+#[cfg(feature = "test-support")]
+pub fn issue_context_test_router(
+    context_repo: Arc<dyn test_handlers::IssueWorkspaceContextRepoDyn>,
+    memory_repo: Arc<dyn test_handlers::MemoryEntryRepoDyn>,
+    issue_lookup: Option<Arc<dyn test_handlers::IssueLookup>>,
+) -> Router {
+    let state = test_handlers::IssueContextState {
+        context_repo,
+        memory_repo,
+        issue_lookup,
+    };
+    Router::new()
+        .route(
+            "/issues/{id}/context",
+            get(handlers::issue_context::get_or_create_context),
+        )
+        .route(
+            "/issues/{id}/context/memory",
+            get(handlers::issue_context::list_memory).post(handlers::issue_context::append_memory),
+        )
+        .with_state(state)
+}
+
 // ── App state ──────────────────────────────────────────────────────────
 
 /// Every run-event writer in the process goes through this wrapper so the
@@ -196,6 +237,14 @@ pub(crate) struct AppState {
     /// create from the API today; the execution loop in SUP-118 will mutate
     /// step state through this same repo.
     pub launch_task_repo: Arc<SqliteLaunchTaskRepo>,
+    /// SUP-148 — append-only ledger entries scoped to an
+    /// `IssueWorkspaceContext`. Reads and writes from the issue-context
+    /// handlers; Launch Tasks and chat surfaces will append through this
+    /// repo as those flows come online.
+    pub memory_repo: Arc<SqliteMemoryEntryRepo>,
+    /// SUP-147 / SUP-148 — workspace context aggregate. Production wires
+    /// both the read and write paths to the same SQLite repo.
+    pub issue_workspace_context_repo: Arc<SqliteIssueWorkspaceContextRepo>,
     /// SUP-118 — process-scope broadcast bus for launch-task transitions.
     /// SSE consumers subscribe through `/launch-tasks/events`.
     pub launch_task_event_bus: Arc<LaunchTaskEventBus>,
@@ -289,6 +338,8 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let recovery_event_repo = Arc::new(SqliteRecoveryEventRepo::new(pool.clone()));
     let orchestrator_session_repo = Arc::new(SqliteOrchestratorSessionRepo::new(pool.clone()));
     let launch_task_repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
+    let memory_repo = Arc::new(SqliteMemoryEntryRepo::new(pool.clone()));
+    let issue_workspace_context_repo = Arc::new(SqliteIssueWorkspaceContextRepo::new(pool.clone()));
     let launch_task_event_bus = LaunchTaskEventBus::new();
     let agent_catalog = Arc::new(config.agent_catalog());
     let runtime_repo = Arc::new(SqliteRuntimeRepo::new(pool.clone()));
@@ -428,6 +479,8 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         recovery_event_repo,
         orchestrator_session_repo,
         launch_task_repo,
+        memory_repo,
+        issue_workspace_context_repo,
         launch_task_event_bus,
         launch_task_executor,
         agent_catalog,
@@ -466,6 +519,14 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         .route("/events", get(handlers::events::workspace_events))
         .route("/issues", get(handlers::issues::list_issues))
         .route("/issues/{id}", get(handlers::issues::get_issue))
+        .route(
+            "/issues/{id}/context",
+            get(handlers::issue_context::get_or_create_context),
+        )
+        .route(
+            "/issues/{id}/context/memory",
+            get(handlers::issue_context::list_memory).post(handlers::issue_context::append_memory),
+        )
         .route(
             "/runs",
             post(handlers::runs::create_run).get(handlers::runs::list_runs),

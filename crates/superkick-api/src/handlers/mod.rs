@@ -5,6 +5,7 @@ pub mod dashboard;
 pub mod events;
 pub mod health;
 pub mod interrupts;
+pub mod issue_context;
 pub mod issues;
 pub mod launch_queue;
 pub mod launch_tasks;

@@ -1,6 +1,3 @@
-import type { IssueAssignee, IssueStatus } from './issues'
-import type { RunState } from './runs'
-
 /** Snapshot taken when the issue was attached — not the live state. */
 export interface IssueSnapshot {
 	id: string
@@ -8,13 +5,16 @@ export interface IssueSnapshot {
 	title: string
 	/** Markdown body. Empty string when no description. */
 	description: string
-	status: IssueStatus
+	/** Plain status name captured at attach time. The live status (color +
+	 *  type) is rendered separately by the consumers that have it. */
+	status_name: string
 	captured_at: string
 }
 
 export interface IssueCommentExcerpt {
 	id: string
-	author: IssueAssignee | null
+	/** Plain author display name; `null` when the comment was system-generated. */
+	author: string | null
 	text: string
 	captured_at: string
 }
@@ -24,9 +24,6 @@ export type IssueLinkedItemKind = 'launch_task' | 'run' | 'conversation'
 export interface IssueLinkedItemRef {
 	kind: IssueLinkedItemKind
 	id: string
-	label: string
-	/** Optional status badge — populated for runs / launch tasks where known. */
-	state: RunState | string | null
 	captured_at: string
 }
 

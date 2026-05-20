@@ -141,6 +141,25 @@ impl IssueWorkspaceContextRepo for SqliteIssueWorkspaceContextRepo {
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
+    async fn find_latest_by_linear_issue_id(
+        &self,
+        linear_issue_id: &str,
+    ) -> Result<Option<IssueWorkspaceContext>> {
+        let row = sqlx::query_as::<_, IssueWorkspaceContextRow>(
+            "SELECT * FROM issue_workspace_contexts \
+             WHERE linear_issue_id = ?1 \
+             ORDER BY captured_at DESC \
+             LIMIT 1",
+        )
+        .bind(linear_issue_id)
+        .fetch_optional(&self.pool)
+        .await
+        .with_context(|| {
+            format!("find latest issue_workspace_context by linear_issue_id {linear_issue_id}")
+        })?;
+        row.map(|r| r.into_domain()).transpose()
+    }
+
     async fn list_excerpts(
         &self,
         workspace_context_id: IssueWorkspaceContextId,

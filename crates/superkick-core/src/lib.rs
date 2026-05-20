@@ -17,12 +17,14 @@ pub mod launch_queue;
 pub mod launch_task;
 pub mod linear_context;
 pub mod mcp_policy;
+pub mod memory_entry;
 pub mod orchestrator_session;
 pub mod ownership;
 pub mod protocol;
 pub mod pull_request;
 pub mod queue;
 pub mod recovery;
+pub mod redaction;
 pub mod review;
 pub mod role_router;
 pub mod run;
@@ -52,9 +54,10 @@ pub use handoff::{
 pub use id::{
     AgentSessionId, ArtifactId, AttentionRequestId, ConversationId, EventId, HandoffId,
     InterruptId, IssueWorkspaceContextCommentExcerptId, IssueWorkspaceContextId,
-    IssueWorkspaceContextLinkId, LaunchTaskId, LaunchTaskStepId, OrchestratorCheckpointId,
-    OrchestratorSessionId, OwnershipEventId, PullRequestId, RunId, RuntimeId, RuntimeProviderId,
-    SessionLifecycleEventId, StepId, TakeoverSessionId, TranscriptChunkId, TurnEventId, TurnId,
+    IssueWorkspaceContextLinkId, LaunchTaskId, LaunchTaskStepId, MemoryEntryId,
+    OrchestratorCheckpointId, OrchestratorSessionId, OwnershipEventId, PullRequestId, RunId,
+    RuntimeId, RuntimeProviderId, SessionLifecycleEventId, StepId, TakeoverSessionId,
+    TranscriptChunkId, TurnEventId, TurnId,
 };
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
 pub use issue_event::{DependencyResolvedPayload, IssueEvent};
@@ -77,6 +80,7 @@ pub use linear_context::{
     IssueContextComment, IssueContextParent, LinearContextMode,
 };
 pub use mcp_policy::{McpMode, ResolvedMcpPolicy, ResolvedToolPolicy};
+pub use memory_entry::{MemoryCursor, MemoryEntry, MemoryPage};
 pub use orchestrator_session::{
     OrchestratorCheckpoint, OrchestratorScope, OrchestratorSession, OrchestratorStatus,
 };
