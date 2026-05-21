@@ -553,8 +553,12 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
             post(handlers::launch_queue::dispatch_from_queue),
         )
         .route("/events", get(handlers::events::workspace_events))
+        .route("/me", get(handlers::me::get_me))
         .route("/issues", get(handlers::issues::list_issues))
-        .route("/issues/{id}", get(handlers::issues::get_issue))
+        .route(
+            "/issues/{id}",
+            get(handlers::issues::get_issue).patch(handlers::issues::patch_issue),
+        )
         .route("/search", get(handlers::search::search))
         .route(
             "/search/files/refresh",

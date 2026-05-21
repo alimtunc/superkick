@@ -1,8 +1,15 @@
 import { KanbanCard } from '@/components/issues/KanbanCard'
 import { EmptyState } from '@/components/ui/state-empty'
-import { issueStateAccent, issueStateTone } from '@/lib/domain'
+import {
+	isDroppableIssueState,
+	issueStateAccent,
+	issueStateTone,
+	launchQueueItemIdentifier
+} from '@/lib/domain'
+import { cn } from '@/lib/utils'
 import type { IssueState, LaunchQueueItem, RecentUnblocks } from '@/types'
 import { Dot } from '@/ui/Dot'
+import { useDroppable } from '@dnd-kit/core'
 
 interface KanbanColumnProps {
 	state: IssueState
@@ -11,6 +18,8 @@ interface KanbanColumnProps {
 	onDispatch: (issueIdentifier: string) => void
 	dispatchPending: boolean
 	recentUnblocks: RecentUnblocks
+	/** Identifier of the currently-dragged card; drives the ghost placeholder in the target column. */
+	activeDragId: string | null
 }
 
 function dispatchPositionsFor(items: LaunchQueueItem[]): readonly (number | undefined)[] {
@@ -28,28 +37,57 @@ export function KanbanColumn({
 	refTime,
 	onDispatch,
 	dispatchPending,
-	recentUnblocks
+	recentUnblocks,
+	activeDragId
 }: KanbanColumnProps) {
 	const accent = issueStateAccent[state]
 	const dispatchPositions = dispatchPositionsFor(items)
+	const droppable = isDroppableIssueState(state)
+	const { setNodeRef, isOver } = useDroppable({
+		id: state,
+		data: { droppable }
+	})
+
+	const hasGhost =
+		isOver &&
+		activeDragId !== null &&
+		!items.some((item) => launchQueueItemIdentifier(item) === activeDragId)
 
 	return (
-		<div className="flex w-65 shrink-0 flex-col border-r border-border last:border-r-0">
+		<div
+			ref={setNodeRef}
+			data-issue-state={state}
+			className={cn(
+				'flex w-65 shrink-0 flex-col border-r border-border transition-colors duration-150 last:border-r-0 motion-reduce:transition-none',
+				isOver && droppable ? 'bg-accent-soft' : null,
+				isOver && !droppable ? 'bg-danger-soft' : null
+			)}
+		>
 			<div className="flex items-center gap-2 px-3.5 pt-3 pb-2.5">
 				<Dot tone={issueStateTone[state]} size={8} />
 				<span className="text-[12px] font-semibold text-fg">{accent.label}</span>
 				<span className="font-mono text-[11px] text-fg-dim">{items.length}</span>
+				{!droppable ? (
+					<span
+						className="ml-auto font-mono text-[10px] text-fg-dim"
+						title="Derived from run state — not a drop target."
+					>
+						auto
+					</span>
+				) : null}
 			</div>
-			{items.length === 0 ? (
+			{items.length === 0 && !hasGhost ? (
 				<div className="px-3.5 pb-3.5">
 					<EmptyState density="compact" title="Empty" />
 				</div>
 			) : (
 				<div className="flex flex-1 flex-col gap-2 overflow-y-auto px-3.5 pb-3.5">
+					{hasGhost ? <DropGhost /> : null}
 					{items.map((item, index) => (
 						<KanbanCard
 							key={keyForItem(item)}
 							item={item}
+							state={state}
 							refTime={refTime}
 							onDispatch={onDispatch}
 							dispatchPending={dispatchPending}
@@ -60,6 +98,15 @@ export function KanbanColumn({
 				</div>
 			)}
 		</div>
+	)
+}
+
+function DropGhost() {
+	return (
+		<div
+			aria-hidden="true"
+			className="h-24 rounded-lg border border-dashed border-border-strong opacity-65"
+		/>
 	)
 }
 

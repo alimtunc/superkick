@@ -49,12 +49,16 @@ impl From<LinearError> for AppError {
     /// surface as NotFound (the operator can fix by typing a valid
     /// identifier); 5xx / transport errors surface as ServiceUnavailable so
     /// the dashboard can differentiate "bad input" from "Linear is down".
+    /// Operator-actionable rejections map to 422 with the message preserved
+    /// so the dashboard renders the reason.
     fn from(err: LinearError) -> Self {
         if err.is_not_found() {
             AppError::NotFound("issue not found in Linear")
         } else if err.is_server_error() {
             tracing::warn!(error = %err, "Linear API unavailable");
             AppError::ServiceUnavailable("Linear API unavailable")
+        } else if let Some(msg) = err.rejected_message() {
+            AppError::Unprocessable(msg.to_string())
         } else {
             AppError::Internal(anyhow::Error::from(err))
         }

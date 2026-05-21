@@ -45,6 +45,8 @@ pub(crate) struct GqlIssue {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub state: GqlIssueState,
+    #[serde(default)]
+    pub team: Option<GqlTeamRef>,
     pub priority: u8,
     pub priority_label: String,
     pub labels: GqlLabelConnection,
@@ -58,6 +60,11 @@ pub(crate) struct GqlIssue {
     /// tenants where the field is suppressed (we still want the issue itself).
     #[serde(default)]
     pub inverse_relations: Option<GqlInverseRelationConnection>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlTeamRef {
+    pub id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -125,8 +132,20 @@ pub(crate) struct GqlLabel {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GqlUser {
+    pub id: String,
     pub name: String,
     pub avatar_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlViewerResponse {
+    pub data: Option<GqlViewerData>,
+    pub errors: Option<Vec<GqlError>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlViewerData {
+    pub viewer: GqlUser,
 }
 
 // ── Issue detail response ────────────────────────────────────────────
@@ -252,4 +271,71 @@ pub(crate) struct GqlRecentComment {
 pub(crate) struct GqlRecentCommentIssue {
     pub id: String,
     pub identifier: String,
+}
+
+// ── Team workflow states (drag-and-drop status mutation) ─────────────
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlTeamStatesResponse {
+    pub data: Option<GqlTeamStatesData>,
+    pub errors: Option<Vec<GqlError>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlTeamStatesData {
+    pub team: Option<GqlTeamStates>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlTeamStates {
+    pub states: GqlWorkflowStateConnection,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlWorkflowStateConnection {
+    pub nodes: Vec<GqlWorkflowState>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlWorkflowState {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub state_type: String,
+}
+
+// ── Issue team lookup (cold-cache fallback for update_issue_state) ───
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlIssueTeamResponse {
+    pub data: Option<GqlIssueTeamData>,
+    pub errors: Option<Vec<GqlError>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlIssueTeamData {
+    pub issue: Option<GqlIssueTeam>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlIssueTeam {
+    pub team: GqlTeamRef,
+}
+
+// ── issueUpdate mutation response ────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlIssueUpdateResponse {
+    pub data: Option<GqlIssueUpdateData>,
+    pub errors: Option<Vec<GqlError>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GqlIssueUpdateData {
+    pub issue_update: GqlIssueUpdate,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlIssueUpdate {
+    pub success: bool,
 }

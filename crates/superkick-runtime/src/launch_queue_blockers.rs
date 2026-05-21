@@ -157,6 +157,7 @@ mod tests {
             identifier: identifier.into(),
             title: "t".into(),
             status: status("started"),
+            team_id: None,
             priority: IssuePriority {
                 value: 3,
                 label: "Medium".into(),

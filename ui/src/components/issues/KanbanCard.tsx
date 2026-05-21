@@ -1,9 +1,10 @@
 import { KanbanIssueCard } from '@/components/issues/KanbanIssueCard'
 import { KanbanRunCard } from '@/components/issues/KanbanRunCard'
-import type { LaunchQueueItem } from '@/types'
+import type { IssueState, LaunchQueueItem } from '@/types'
 
 interface KanbanCardProps {
 	item: LaunchQueueItem
+	state: IssueState
 	refTime: number
 	onDispatch: (issueIdentifier: string) => void
 	dispatchPending: boolean
@@ -13,6 +14,7 @@ interface KanbanCardProps {
 
 export function KanbanCard({
 	item,
+	state,
 	refTime,
 	onDispatch,
 	dispatchPending,
@@ -28,6 +30,7 @@ export function KanbanCard({
 				unblockedAt={unblockedAt}
 				refTime={refTime}
 				dispatchPosition={dispatchPosition}
+				state={state}
 			/>
 		)
 	}

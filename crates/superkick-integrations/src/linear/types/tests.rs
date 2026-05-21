@@ -16,6 +16,9 @@ fn sample_gql_issue() -> GqlIssue {
             name: "In Progress".into(),
             color: "#f2c94c".into(),
         },
+        team: Some(GqlTeamRef {
+            id: "team-1".into(),
+        }),
         priority: 2,
         priority_label: "High".into(),
         labels: GqlLabelConnection {
@@ -25,6 +28,7 @@ fn sample_gql_issue() -> GqlIssue {
             }],
         },
         assignee: Some(GqlUser {
+            id: "user-alice".into(),
             name: "Alice".into(),
             avatar_url: Some("https://example.com/alice.png".into()),
         }),
@@ -159,6 +163,7 @@ fn sample_gql_issue_detail() -> GqlIssueDetail {
             }],
         },
         assignee: Some(GqlUser {
+            id: "user-alice".into(),
             name: "Alice".into(),
             avatar_url: Some("https://example.com/alice.png".into()),
         }),
@@ -204,6 +209,7 @@ fn sample_gql_issue_detail() -> GqlIssueDetail {
                 id: "comment-1".into(),
                 body: "Reproducible on Safari 17+".into(),
                 user: Some(GqlUser {
+                    id: "user-bob".into(),
                     name: "Bob".into(),
                     avatar_url: None,
                 }),
@@ -491,4 +497,47 @@ fn parent_state_is_exposed_on_list_item() {
     assert_eq!(parent.identifier, "SUP-10");
     assert_eq!(parent.status.state_type, "completed");
     assert_eq!(parent.status.name, "Done");
+}
+
+#[test]
+fn team_id_threads_through_list_item() {
+    let raw = r##"{
+        "data": {
+            "issues": {
+                "nodes": [{
+                    "id": "abc",
+                    "identifier": "SUP-1",
+                    "title": "Test",
+                    "url": "https://linear.app/t/SUP-1",
+                    "createdAt": "2026-01-01T00:00:00.000Z",
+                    "updatedAt": "2026-01-02T00:00:00.000Z",
+                    "state": { "type": "unstarted", "name": "Todo", "color": "#bbb" },
+                    "team": { "id": "team-uuid" },
+                    "priority": 1,
+                    "priorityLabel": "Urgent",
+                    "labels": { "nodes": [] },
+                    "assignee": null,
+                    "project": null,
+                    "parent": null,
+                    "children": { "nodes": [] }
+                }],
+                "pageInfo": { "hasNextPage": false, "endCursor": null }
+            }
+        }
+    }"##;
+
+    let parsed: GqlResponse = serde_json::from_str(raw).unwrap();
+    let data = parsed.data.unwrap();
+    let item = LinearIssueListItem::from(data.issues.nodes.into_iter().next().unwrap());
+    assert_eq!(item.team_id.as_deref(), Some("team-uuid"));
+}
+
+#[test]
+fn issue_state_mutation_maps_to_linear_state_type() {
+    assert_eq!(IssueStateMutation::Open.linear_state_type(), "unstarted");
+    assert_eq!(
+        IssueStateMutation::InProgress.linear_state_type(),
+        "started"
+    );
+    assert_eq!(IssueStateMutation::Done.linear_state_type(), "completed");
 }

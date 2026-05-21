@@ -19,6 +19,17 @@ export interface IssueLabel {
 }
 
 export interface IssueAssignee {
+	id: string
+	name: string
+	avatar_url: string | null
+}
+
+/**
+ * Identity payload from `GET /me`. The Linear viewer's `id` is the canonical
+ * "assigned to me" key — name collisions / renames make name-match unsafe.
+ */
+export interface ViewerResponse {
+	id: string
 	name: string
 	avatar_url: string | null
 }
@@ -76,6 +87,8 @@ export interface LinearIssueListItem {
 	identifier: string
 	title: string
 	status: IssueStatus
+	/** Linear team UUID — lets the kanban PATCH skip the team-lookup round-trip. */
+	team_id: string | null
 	priority: IssuePriority
 	labels: IssueLabel[]
 	assignee: IssueAssignee | null
@@ -142,28 +155,13 @@ export interface IssueDetailResponse {
 // Superkick derivations — NOT Linear states. Linear remains the source of truth;
 // buckets exist to make the Issues surface actionable for launch and inspection.
 
-/**
- * Operator-facing issue state (SUP-92). Six values, derived from the
- * 9-bucket launch queue via `mapLaunchQueueToIssueState`. The reduction is
- * deliberate: `waiting` and `blocked` collapse into the upstream lane (Todo)
- * with badges rather than carrying their own column, so the kanban stays at
- * a six-column glance.
- */
-export type IssueState = 'backlog' | 'todo' | 'in_progress' | 'needs_human' | 'in_review' | 'done'
+/** Operator-facing issue state (SUP-157). `needs_human` / `in_review` are derived from runtime signals — read-only. */
+export type IssueState = 'open' | 'in_progress' | 'needs_human' | 'in_review' | 'done'
+
+/** Subset of `IssueState` the kanban can persist via `PATCH /issues/{id}`. Mirrors the backend `IssueStateMutable`. */
+export type IssueStateMutable = Extract<IssueState, 'open' | 'in_progress' | 'done'>
 
 export type IssueStateFilter = IssueState | 'all'
-
-// ── Parent/child grouping ─────────────────────────────────────────────
-
-export interface IssueGroup {
-	parent: LinearIssueListItem
-	children: LinearIssueListItem[]
-}
-
-export interface GroupedIssues {
-	groups: IssueGroup[]
-	standalone: LinearIssueListItem[]
-}
 
 // ── Comment tree (view model) ─────────────────────────────────────────
 
