@@ -810,6 +810,8 @@ mod tests {
             status: LaunchTaskStatus::Pending,
             current_step_id: None,
             summary: None,
+            base_branch: None,
+            use_worktree: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };

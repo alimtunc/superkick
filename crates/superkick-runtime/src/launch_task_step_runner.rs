@@ -213,9 +213,10 @@ where
             });
     }
 
-    /// Materialise (or reuse) the shadow `Run` + worktree backing a Launch
-    /// Task. Idempotent: subsequent steps for the same task reuse the
-    /// in-memory cache without touching the DB.
+    /// Materialise (or reuse) the shadow `Run` + working directory backing a
+    /// Launch Task. Idempotent: subsequent steps for the same task reuse the
+    /// in-memory cache without touching the DB. Task-level `base_branch` and
+    /// `use_worktree` overrides take precedence over runner config defaults.
     async fn ensure_shadow_run(&self, task: &LaunchTask) -> Result<(RunId, PathBuf)> {
         {
             let map = self.shadow_runs.lock().await;
@@ -223,6 +224,13 @@ where
                 return Ok((state.run_id, state.worktree.clone()));
             }
         }
+
+        let effective_base = task
+            .base_branch
+            .as_deref()
+            .unwrap_or(&self.base_branch)
+            .to_string();
+        let use_worktree = task.use_worktree.unwrap_or(true);
 
         let clone_url = crate::worktree::github_clone_url(&self.repo_slug);
         let bare_path = self
@@ -232,14 +240,6 @@ where
             .context("failed to ensure bare clone for launch task worktree")?;
 
         let repo_root = PathBuf::from(&self.config.runner.repo_root);
-        let wt_root = default_worktree_root(&repo_root);
-        let wt_mgr = WorktreeManager::new(
-            bare_path,
-            wt_root,
-            self.config.runner.worktree_prefix.clone(),
-        )
-        .await
-        .context("failed to construct WorktreeManager for launch task")?;
 
         let mut run = Run::new(
             task.linear_issue_id.clone(),
@@ -247,41 +247,63 @@ where
             self.repo_slug.clone(),
             TriggerSource::LaunchTask,
             superkick_core::ExecutionMode::FullAuto,
-            self.base_branch.clone(),
-            true,
+            effective_base.clone(),
+            use_worktree,
             None,
         );
         run.transition_to(RunState::Preparing)
             .context("Queued → Preparing on shadow run must be valid")?;
 
-        let WorktreeInfo { path, branch } = wt_mgr
-            .create(run.id, &task.linear_issue_id, &self.base_branch)
+        let work_path = if use_worktree {
+            let wt_root = default_worktree_root(&repo_root);
+            let wt_mgr = WorktreeManager::new(
+                bare_path,
+                wt_root,
+                self.config.runner.worktree_prefix.clone(),
+            )
             .await
-            .with_context(|| format!("failed to create worktree for launch task {}", task.id))?;
+            .context("failed to construct WorktreeManager for launch task")?;
 
-        run.worktree_path = Some(path.to_string_lossy().into_owned());
-        run.branch_name = Some(branch);
-        if let Err(err) = self.run_repo.insert(&run).await {
-            // The worktree was created on disk but the row never persisted, so
-            // any retry would mint a new path and leave this one orphaned. Best
-            // effort: drop the dangling worktree before surfacing the error.
-            if let Err(cleanup_err) = wt_mgr.cleanup(&path).await {
-                warn!(
-                    launch_task_id = %task.id,
-                    worktree = %path.display(),
-                    error = %cleanup_err,
-                    "failed to clean up orphaned worktree after shadow run insert error",
-                );
+            let WorktreeInfo { path, branch } = wt_mgr
+                .create(run.id, &task.linear_issue_id, &effective_base)
+                .await
+                .with_context(|| {
+                    format!("failed to create worktree for launch task {}", task.id)
+                })?;
+
+            run.worktree_path = Some(path.to_string_lossy().into_owned());
+            run.branch_name = Some(branch);
+            if let Err(err) = self.run_repo.insert(&run).await {
+                // The worktree was created on disk but the row never persisted, so
+                // any retry would mint a new path and leave this one orphaned. Best
+                // effort: drop the dangling worktree before surfacing the error.
+                if let Err(cleanup_err) = wt_mgr.cleanup(&path).await {
+                    warn!(
+                        launch_task_id = %task.id,
+                        worktree = %path.display(),
+                        error = %cleanup_err,
+                        "failed to clean up orphaned worktree after shadow run insert error",
+                    );
+                }
+                return Err(err).with_context(|| {
+                    format!("failed to insert shadow run for launch task {}", task.id)
+                });
             }
-            return Err(err).with_context(|| {
+            path
+        } else {
+            run.worktree_path = Some(repo_root.to_string_lossy().into_owned());
+            self.run_repo.insert(&run).await.with_context(|| {
                 format!("failed to insert shadow run for launch task {}", task.id)
-            });
-        }
+            })?;
+            repo_root.clone()
+        };
 
         info!(
             launch_task_id = %task.id,
             shadow_run_id = %run.id,
-            worktree = %path.display(),
+            work_path = %work_path.display(),
+            use_worktree,
+            base_branch = %effective_base,
             "shadow run created for launch task"
         );
 
@@ -294,7 +316,7 @@ where
         // defensive check keeps the invariant explicit.
         let entry = map.entry(task.id).or_insert(ShadowTaskState {
             run_id: run.id,
-            worktree: path.clone(),
+            worktree: work_path.clone(),
         });
         Ok((entry.run_id, entry.worktree.clone()))
     }
@@ -968,6 +990,8 @@ mod tests {
             status: LaunchTaskStatus::Pending,
             current_step_id: None,
             summary: None,
+            base_branch: None,
+            use_worktree: None,
             created_at: now,
             updated_at: now,
         }

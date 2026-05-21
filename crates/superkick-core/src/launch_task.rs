@@ -293,8 +293,23 @@ pub struct LaunchTask {
     pub current_step_id: Option<LaunchTaskStepId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
+    /// `None` inherits the runner's configured base branch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_branch: Option<String>,
+    /// `None` inherits the runner's hardcoded worktree strategy (legacy rows).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub use_worktree: Option<bool>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// Operator-supplied execution-target overrides for a fresh launch task.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LaunchTaskOverrides {
+    #[serde(default)]
+    pub base_branch: Option<String>,
+    #[serde(default)]
+    pub use_worktree: Option<bool>,
 }
 
 impl LaunchTask {
@@ -349,11 +364,30 @@ impl LaunchTask {
             status: LaunchTaskStatus::Pending,
             current_step_id: None,
             summary: None,
+            base_branch: None,
+            use_worktree: None,
             created_at: now,
             updated_at: now,
         };
 
         Ok((task, vec![plan_step, implement_step, review_step]))
+    }
+
+    /// Overlay operator overrides; trims `base_branch` and rejects an empty value.
+    pub fn apply_overrides(&mut self, overrides: LaunchTaskOverrides) -> Result<(), CoreError> {
+        if let Some(b) = overrides.base_branch {
+            let trimmed = b.trim();
+            if trimmed.is_empty() {
+                return Err(CoreError::InvalidInput(
+                    "launch task base_branch must not be empty when set".into(),
+                ));
+            }
+            self.base_branch = Some(trimmed.to_string());
+        }
+        if let Some(u) = overrides.use_worktree {
+            self.use_worktree = Some(u);
+        }
+        Ok(())
     }
 
     /// Apply a status transition, bumping `updated_at`.

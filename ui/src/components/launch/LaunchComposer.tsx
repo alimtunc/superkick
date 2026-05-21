@@ -1,17 +1,24 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 
 import { AgentPicker } from '@/components/launch/AgentPicker'
-import { ChipPicker } from '@/components/launch/ChipPicker'
+import { BaseBranchChip } from '@/components/launch/BaseBranchChip'
+import { ExecutionDestination } from '@/components/launch/ExecutionDestination'
 import { IssueChipPicker } from '@/components/launch/IssueChipPicker'
 import { pickDefaultAgent } from '@/components/launch/pickDefaultAgent'
 import { SuggestedStarts } from '@/components/launch/SuggestedStarts'
+import { WorktreeStrategyChip } from '@/components/launch/WorktreeStrategyChip'
 import { ErrorState } from '@/components/ui/state-error'
 import { useAgents } from '@/hooks/useAgents'
 import { useConfig } from '@/hooks/useConfig'
 import { useCreateLaunchTask } from '@/hooks/useCreateLaunchTask'
 import { errorMessageOr } from '@/lib/errors'
 import { bodyFromIssue, selectionFromDetail, selectionFromListItem } from '@/lib/launch/composerSelection'
-import type { IssueChipPickerValue, IssueDetailResponse, LaunchStepKind } from '@/types'
+import type {
+	IssueChipPickerValue,
+	IssueDetailResponse,
+	LaunchStepKind,
+	LaunchWorktreeStrategy
+} from '@/types'
 import { Btn } from '@/ui/Btn'
 import { Kbd } from '@/ui/Kbd'
 import { useNavigate } from '@tanstack/react-router'
@@ -21,12 +28,18 @@ interface LaunchComposerProps {
 	prefill?: string | null
 }
 
+const DEFAULT_BASE_BRANCH = 'main'
+
 export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 	const navigate = useNavigate()
 	const { config } = useConfig()
 	const agentsQuery = useAgents()
 	const agentsData = agentsQuery.data
 	const agents = agentsData ?? []
+
+	const configBase = config?.base_branch?.trim() || DEFAULT_BASE_BRANCH
+	const configStrategy: LaunchWorktreeStrategy =
+		config?.launch_profile.use_worktree === false ? 'current_checkout' : 'new_worktree'
 
 	const [selectedIssue, setSelectedIssue] = useState<IssueChipPickerValue | null>(() =>
 		selectionFromDetail(issue)
@@ -37,6 +50,10 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 		implement: null,
 		review: null
 	})
+	const [baseOverride, setBaseOverride] = useState<string | null>(null)
+	const [strategyOverride, setStrategyOverride] = useState<LaunchWorktreeStrategy | null>(null)
+	const baseBranch = baseOverride ?? configBase
+	const strategy = strategyOverride ?? configStrategy
 	const lastSeededIssueIdRef = useRef<string | null>(issue?.id ?? null)
 	const lastSeededPrefillRef = useRef<string | null>(prefill)
 
@@ -89,6 +106,7 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 		selectedIssue !== null &&
 		allAgentsPicked &&
 		body.trim().length > 0 &&
+		baseBranch.trim().length > 0 &&
 		!createLaunchTask.isPending &&
 		!agentsQuery.isLoading
 	const submitError = createLaunchTask.error ? errorMessageOr(createLaunchTask.error) : null
@@ -99,7 +117,9 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 			linear_issue_id: selectedIssue.identifier,
 			planner_agent: planAgent,
 			coder_agent: implementAgent,
-			reviewer_agent: reviewAgent
+			reviewer_agent: reviewAgent,
+			base_branch: baseBranch.trim(),
+			use_worktree: strategy === 'new_worktree'
 		})
 	}
 
@@ -129,18 +149,6 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 							if (body.trim().length === 0) setBody(item.title)
 						}}
 					/>
-					<ChipPicker
-						icon="folder"
-						label="repo"
-						value={config?.repo_slug ?? '—'}
-						dim={!config?.repo_slug}
-					/>
-					<ChipPicker
-						icon="branch"
-						label="base"
-						value={config?.base_branch ?? 'main'}
-						dim={!config?.base_branch}
-					/>
 					<AgentPicker
 						value={selection.plan}
 						agents={agents}
@@ -168,17 +176,38 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 						label="reviewer"
 						disabled={agentsQuery.isLoading}
 					/>
-					<span className="flex-1" />
-					<Btn
-						kind="primary"
-						size="md"
-						iconRight="arrowRight"
-						onClick={handleSubmit}
-						disabled={!canSubmit}
-						aria-label="Launch task"
-					>
-						{createLaunchTask.isPending ? 'Launching…' : 'Launch'}
-					</Btn>
+				</div>
+
+				<div className="mt-3 flex flex-col gap-2.5 border-t border-border pt-3">
+					<div className="flex flex-wrap items-center gap-1.5">
+						<span className="text-[10.5px] font-semibold tracking-wider text-fg-dim uppercase">
+							Execution target
+						</span>
+						<BaseBranchChip
+							value={baseBranch}
+							configDefault={configBase}
+							onChange={setBaseOverride}
+						/>
+						<WorktreeStrategyChip value={strategy} onChange={setStrategyOverride} />
+					</div>
+					<div className="flex flex-wrap items-center gap-3">
+						<ExecutionDestination
+							repoSlug={config?.repo_slug ?? null}
+							baseBranch={baseBranch}
+							strategy={strategy}
+						/>
+						<span className="flex-1" />
+						<Btn
+							kind="primary"
+							size="md"
+							iconRight="arrowRight"
+							onClick={handleSubmit}
+							disabled={!canSubmit}
+							aria-label="Launch task"
+						>
+							{createLaunchTask.isPending ? 'Launching…' : 'Launch'}
+						</Btn>
+					</div>
 				</div>
 			</div>
 

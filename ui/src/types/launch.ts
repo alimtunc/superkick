@@ -114,7 +114,11 @@ export interface CreateLaunchTaskRequest {
 	planner_agent: string
 	coder_agent: string
 	reviewer_agent: string
+	base_branch?: string
+	use_worktree?: boolean
 }
+
+export type LaunchWorktreeStrategy = 'new_worktree' | 'current_checkout'
 
 // SUP-120 — operator action responses. Mirror the Rust structs exactly; only
 // fields the UI consumes are typed.
