@@ -15,6 +15,7 @@ pub mod ownership;
 mod queue_common;
 pub mod runs;
 pub mod runtimes;
+pub mod search;
 pub mod sessions;
 pub mod terminal;
 pub mod terminal_takeover;

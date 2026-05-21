@@ -38,3 +38,4 @@ export {
 	subscribeToTurnEvents
 } from './conversations'
 export { subscribeToLaunchTaskEvents, subscribeToWorkspaceEvents } from './events'
+export { fetchSearch, refreshSearchFiles } from './search'

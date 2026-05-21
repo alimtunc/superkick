@@ -39,6 +39,9 @@ export const queryKeys = {
 		detail: (taskId: string) => ['launch-tasks', taskId, 'detail'] as const,
 		steps: (taskId: string) => ['launch-tasks', taskId, 'steps'] as const,
 		interventions: (taskId: string) => ['launch-tasks', taskId, 'interventions'] as const
+	},
+	search: {
+		query: (q: string, scope: string, includeDone: boolean) => ['search', q, scope, includeDone] as const
 	}
 }
 

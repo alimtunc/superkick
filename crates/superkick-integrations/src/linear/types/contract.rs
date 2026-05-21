@@ -177,3 +177,17 @@ pub struct IssueComment {
     pub updated_at: DateTime<Utc>,
     pub parent_id: Option<String>,
 }
+
+/// One comment captured for the global-search in-memory cache.
+///
+/// Kept flat (no nested optionals beyond the author name) so the search
+/// handler can clone matching entries cheaply each query.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CachedComment {
+    pub id: String,
+    pub issue_id: String,
+    pub issue_identifier: String,
+    pub body: String,
+    pub author_name: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
