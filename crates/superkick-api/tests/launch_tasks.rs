@@ -37,6 +37,7 @@ fn agent(name: &str, provider: AgentProvider, model: Option<&str>) -> CoreAgentD
         tools: None,
         timeout_secs: None,
         max_turns: None,
+        origin: superkick_core::AgentOrigin::Custom,
         linear_context: LinearContextMode::default(),
         mcp_policy: ResolvedMcpPolicy::default(),
         tool_policy: ResolvedToolPolicy::default(),

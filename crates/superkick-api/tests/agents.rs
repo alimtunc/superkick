@@ -16,8 +16,8 @@ use http_body_util::BodyExt;
 use serde_json::Value;
 use superkick_api::agents_test_router;
 use superkick_core::{
-    AgentCatalog, AgentProvider, CoreAgentDefinition, LinearContextMode, ResolvedMcpPolicy,
-    ResolvedToolPolicy,
+    AgentCatalog, AgentOrigin, AgentProvider, CoreAgentDefinition, LinearContextMode,
+    ResolvedMcpPolicy, ResolvedToolPolicy,
 };
 use tower::ServiceExt;
 
@@ -26,6 +26,16 @@ fn agent(
     provider: AgentProvider,
     role: Option<&str>,
     model: Option<&str>,
+) -> CoreAgentDefinition {
+    agent_with_origin(name, provider, role, model, AgentOrigin::Custom)
+}
+
+fn agent_with_origin(
+    name: &str,
+    provider: AgentProvider,
+    role: Option<&str>,
+    model: Option<&str>,
+    origin: AgentOrigin,
 ) -> CoreAgentDefinition {
     CoreAgentDefinition {
         name: name.into(),
@@ -36,6 +46,7 @@ fn agent(
         tools: None,
         timeout_secs: None,
         max_turns: None,
+        origin,
         linear_context: LinearContextMode::default(),
         mcp_policy: ResolvedMcpPolicy::default(),
         tool_policy: ResolvedToolPolicy::default(),
@@ -126,4 +137,49 @@ async fn list_returns_empty_array_when_catalog_is_empty() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = read_json(response.into_body()).await;
     assert!(body["agents"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn list_exposes_origin_so_picker_can_distinguish_builtin_from_custom() {
+    // SUP-160: the picker groups built-ins separately from custom overrides;
+    // that grouping is impossible without `origin` on the HTTP projection.
+    let mut roles: HashMap<String, CoreAgentDefinition> = HashMap::new();
+    roles.insert(
+        "codex-plan".into(),
+        agent_with_origin(
+            "codex-plan",
+            AgentProvider::Codex,
+            Some("planner"),
+            None,
+            AgentOrigin::Builtin,
+        ),
+    );
+    roles.insert(
+        "team-coder".into(),
+        agent_with_origin(
+            "team-coder",
+            AgentProvider::Claude,
+            Some("coder"),
+            None,
+            AgentOrigin::Custom,
+        ),
+    );
+    let app = agents_test_router(Arc::new(AgentCatalog::new(roles)));
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/agents")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("send");
+    let body = read_json(response.into_body()).await;
+    let agents = body["agents"].as_array().expect("agents array");
+    assert_eq!(agents.len(), 2);
+    // Sorted by name: codex-plan, team-coder.
+    assert_eq!(agents[0]["name"], "codex-plan");
+    assert_eq!(agents[0]["origin"], "builtin");
+    assert_eq!(agents[1]["name"], "team-coder");
+    assert_eq!(agents[1]["origin"], "custom");
 }

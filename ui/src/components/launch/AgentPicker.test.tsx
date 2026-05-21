@@ -6,20 +6,31 @@ import { describe, expect, it, vi } from 'vitest'
 
 const AGENTS: Agent[] = [
 	{
-		name: 'claude-coder',
+		name: 'codex-implement',
+		provider: 'codex',
+		role: 'coder',
+		model: null,
+		runner_mode: 'exec_json',
+		billing_profile: 'subscription',
+		origin: 'builtin'
+	},
+	{
+		name: 'claude-implement',
+		provider: 'claude',
+		role: 'coder',
+		model: null,
+		runner_mode: 'interactive_pty',
+		billing_profile: 'subscription',
+		origin: 'builtin'
+	},
+	{
+		name: 'team-coder',
 		provider: 'claude',
 		role: 'coder',
 		model: 'sonnet-4.6',
 		runner_mode: 'interactive_pty',
-		billing_profile: 'subscription'
-	},
-	{
-		name: 'gpt-review',
-		provider: 'codex',
-		role: 'reviewer',
-		model: null,
-		runner_mode: 'exec_json',
-		billing_profile: 'api_credits'
+		billing_profile: 'subscription',
+		origin: 'custom'
 	}
 ]
 
@@ -27,16 +38,16 @@ describe('AgentPicker', () => {
 	it('shows the current value on the trigger', () => {
 		render(
 			<AgentPicker
-				value="claude-coder"
+				value="claude-implement"
 				agents={AGENTS}
 				onChange={vi.fn()}
 				recommendedFor="implement"
-				icon="agent"
+				icon="bot"
 				label="implement"
 			/>
 		)
 
-		expect(screen.getByRole('button', { name: 'implement: claude-coder' })).toBeInTheDocument()
+		expect(screen.getByRole('button', { name: 'implement: claude-implement' })).toBeInTheDocument()
 	})
 
 	it('falls back to "choose…" when no value is selected', () => {
@@ -46,7 +57,7 @@ describe('AgentPicker', () => {
 				agents={AGENTS}
 				onChange={vi.fn()}
 				recommendedFor="implement"
-				icon="agent"
+				icon="bot"
 				label="implement"
 			/>
 		)
@@ -54,7 +65,7 @@ describe('AgentPicker', () => {
 		expect(screen.getByRole('button', { name: 'Pick implement agent' })).toBeInTheDocument()
 	})
 
-	it('opens the menu and marks the recommended agent', async () => {
+	it('groups items by provider with built-in and custom subheaders', async () => {
 		const user = userEvent.setup()
 		render(
 			<AgentPicker
@@ -62,16 +73,20 @@ describe('AgentPicker', () => {
 				agents={AGENTS}
 				onChange={vi.fn()}
 				recommendedFor="implement"
-				icon="agent"
+				icon="bot"
 				label="implement"
 			/>
 		)
 
 		await user.click(screen.getByRole('button', { name: 'Pick implement agent' }))
 
-		expect(await screen.findByText('claude-coder')).toBeInTheDocument()
-		expect(screen.getByText('gpt-review')).toBeInTheDocument()
-		expect(screen.getByText('Recommended')).toBeInTheDocument()
+		expect(await screen.findByText('Codex · Built-in')).toBeInTheDocument()
+		expect(screen.getByText('Claude · Built-in')).toBeInTheDocument()
+		expect(screen.getByText('Claude · Custom')).toBeInTheDocument()
+		expect(screen.getByText('codex-implement')).toBeInTheDocument()
+		expect(screen.getByText('team-coder')).toBeInTheDocument()
+		// Every coder-role entry is recommended for the `implement` step.
+		expect(screen.getAllByText('Recommended').length).toBe(3)
 	})
 
 	it('calls onChange when a non-current item is selected', async () => {
@@ -79,18 +94,18 @@ describe('AgentPicker', () => {
 		const onChange = vi.fn()
 		render(
 			<AgentPicker
-				value="claude-coder"
+				value="codex-implement"
 				agents={AGENTS}
 				onChange={onChange}
 				recommendedFor="implement"
-				icon="agent"
+				icon="bot"
 				label="implement"
 			/>
 		)
 
-		await user.click(screen.getByRole('button', { name: 'implement: claude-coder' }))
-		await user.click(await screen.findByText('gpt-review'))
+		await user.click(screen.getByRole('button', { name: 'implement: codex-implement' }))
+		await user.click(await screen.findByText('team-coder'))
 
-		expect(onChange).toHaveBeenCalledWith('gpt-review')
+		expect(onChange).toHaveBeenCalledWith('team-coder')
 	})
 })

@@ -12,8 +12,8 @@
 use std::collections::HashMap;
 
 use superkick_core::{
-    AgentCatalog, AgentProvider, CoreAgentDefinition, CoreError, LaunchRecipe, LaunchStepKind,
-    LaunchTask, LaunchTaskStatus, LaunchTaskStepStatus, LinearContextMode,
+    AgentCatalog, AgentOrigin, AgentProvider, CoreAgentDefinition, CoreError, LaunchRecipe,
+    LaunchStepKind, LaunchTask, LaunchTaskStatus, LaunchTaskStepStatus, LinearContextMode,
     PlanImplementReviewAgents, ResolvedMcpPolicy, ResolvedToolPolicy,
 };
 
@@ -27,6 +27,7 @@ fn agent(name: &str, provider: AgentProvider, model: Option<&str>) -> CoreAgentD
         tools: None,
         timeout_secs: None,
         max_turns: None,
+        origin: AgentOrigin::Custom,
         linear_context: LinearContextMode::default(),
         mcp_policy: ResolvedMcpPolicy::default(),
         tool_policy: ResolvedToolPolicy::default(),

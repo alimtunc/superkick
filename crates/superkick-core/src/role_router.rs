@@ -64,6 +64,17 @@ impl AgentBackend {
     }
 }
 
+/// Where a catalog entry came from. `Builtin` rows are seeded by Superkick
+/// and exist on every project regardless of `superkick.yaml`. `Custom` rows
+/// come from the project's YAML and override a built-in of the same name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentOrigin {
+    Builtin,
+    #[default]
+    Custom,
+}
+
 /// One project-level agent role as consumed by the router.
 ///
 /// This is a projection of `superkick_config::AgentDefinition` that the core
@@ -78,6 +89,11 @@ pub struct AgentDefinition {
     pub tools: Option<Vec<String>>,
     pub timeout_secs: Option<u64>,
     pub max_turns: Option<u32>,
+    /// Whether this entry is a Superkick-shipped default or a project-defined
+    /// override. Serialised at the HTTP boundary so the picker can group
+    /// built-ins and custom entries distinctly.
+    #[serde(default)]
+    pub origin: AgentOrigin,
     /// How much Linear context this role receives at spawn time. Defaults to
     /// `LinearContextMode::Snapshot` — the role gets a compact prompt snapshot
     /// but no live MCP access.
@@ -352,6 +368,7 @@ mod tests {
             tools: None,
             timeout_secs: None,
             max_turns: None,
+            origin: AgentOrigin::default(),
             linear_context: LinearContextMode::default(),
             mcp_policy: ResolvedMcpPolicy::default(),
             tool_policy: ResolvedToolPolicy::default(),

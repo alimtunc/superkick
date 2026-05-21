@@ -1,4 +1,7 @@
-import { isRecommendedAgent } from '@/components/launch/pickDefaultAgent'
+import { Fragment } from 'react'
+
+import { AgentPickerGroup } from '@/components/launch/AgentPickerGroup'
+import { groupAgents } from '@/components/launch/groupAgents'
 import { MenuPopup } from '@/components/ui/menu-shell'
 import { cn } from '@/lib/utils'
 import type { Agent, LaunchStepKind } from '@/types'
@@ -16,10 +19,6 @@ interface AgentPickerProps {
 	disabled?: boolean
 }
 
-function providerLabel(provider: Agent['provider']) {
-	return provider === 'claude' ? 'Claude' : 'Codex'
-}
-
 export function AgentPicker({
 	value,
 	agents,
@@ -33,6 +32,7 @@ export function AgentPicker({
 	const empty = agents.length === 0
 	const valueText = current?.name ?? (empty ? 'no agents' : 'choose…')
 	const dim = current === null
+	const groups = groupAgents(agents)
 
 	return (
 		<Menu.Root>
@@ -53,38 +53,23 @@ export function AgentPicker({
 			</Menu.Trigger>
 			<MenuPopup align="start" popupClassName="w-72">
 				<Menu.RadioGroup value={value ?? ''} onValueChange={(next) => onChange(next as string)}>
-					{agents.map((agent) => {
-						const recommended = isRecommendedAgent(agent, recommendedFor)
-						return (
-							<Menu.RadioItem
-								key={agent.name}
-								value={agent.name}
-								className={cn(
-									'flex cursor-pointer items-start gap-2 px-3 py-2 text-[12.5px] outline-none',
-									'data-highlighted:bg-raised data-checked:bg-raised'
-								)}
-							>
-								<span className="flex-1">
-									<span className="flex items-center gap-2">
-										<span className="text-fg">{agent.name}</span>
-										{recommended ? (
-											<span className="rounded border border-border bg-raised px-1 py-px font-mono text-[9px] tracking-wider text-fg-dim uppercase">
-												Recommended
-											</span>
-										) : null}
-									</span>
-									<span className="block text-[10.5px] text-fg-dim">
-										{providerLabel(agent.provider)}
-										{agent.role ? ` · ${agent.role}` : ''}
-										{agent.model ? ` · ${agent.model}` : ''}
-									</span>
-								</span>
-								<Menu.RadioItemIndicator className="mt-0.5 text-fg">
-									<Icon name="check" size={13} />
-								</Menu.RadioItemIndicator>
-							</Menu.RadioItem>
-						)
-					})}
+					{groups.map((group, index) => (
+						<Fragment key={group.provider}>
+							{index > 0 ? <div aria-hidden className="mx-2 my-1 h-px bg-border" /> : null}
+							<AgentPickerGroup
+								label={group.label}
+								items={group.builtin}
+								badge="Built-in"
+								recommendedFor={recommendedFor}
+							/>
+							<AgentPickerGroup
+								label={group.label}
+								items={group.custom}
+								badge="Custom"
+								recommendedFor={recommendedFor}
+							/>
+						</Fragment>
+					))}
 				</Menu.RadioGroup>
 			</MenuPopup>
 		</Menu.Root>
