@@ -3,9 +3,14 @@
 //! Sends GraphQL requests to `https://api.linear.app/graphql`.
 //! No local caching — Linear remains the source of truth.
 
+use std::collections::HashMap;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
 use super::error::LinearError;
 use super::types::{
-    GqlDetailResponse, GqlResponse, GqlViewerResponse, IssueDetailResponse, IssueListResponse,
+    GqlDetailResponse, GqlIssueUpdateResponse, GqlResponse, GqlTeamStatesResponse,
+    GqlViewerResponse, IssueDetailResponse, IssueListResponse, IssueStateMutation,
     LinearIssueListItem, ViewerResponse,
 };
 
@@ -20,6 +25,9 @@ query Viewer {
   }
 }
 "#;
+
+/// 5 min — catches subsequent drops in a session while letting admins propagate state renames in a sane window.
+const WORKFLOW_STATE_TTL: Duration = Duration::from_secs(5 * 60);
 
 const ISSUES_QUERY: &str = r#"
 query ListIssues($first: Int!, $after: String) {
@@ -39,6 +47,7 @@ query ListIssues($first: Int!, $after: String) {
       createdAt
       updatedAt
       state { type name color }
+      team { id }
       priority
       priorityLabel
       labels { nodes { name color } }
@@ -62,6 +71,32 @@ query ListIssues($first: Int!, $after: String) {
       }
     }
     pageInfo { hasNextPage endCursor }
+  }
+}
+"#;
+
+const ISSUE_TEAM_QUERY: &str = r#"
+query IssueTeam($id: String!) {
+  issue(id: $id) {
+    team { id }
+  }
+}
+"#;
+
+const TEAM_STATES_QUERY: &str = r#"
+query TeamStates($teamId: String!) {
+  team(id: $teamId) {
+    states {
+      nodes { id type }
+    }
+  }
+}
+"#;
+
+const ISSUE_UPDATE_MUTATION: &str = r#"
+mutation UpdateIssueState($id: String!, $stateId: String!) {
+  issueUpdate(id: $id, input: { stateId: $stateId }) {
+    success
   }
 }
 "#;
@@ -122,11 +157,24 @@ query GetIssue($id: String!) {
 }
 "#;
 
+#[derive(Debug, Clone)]
+struct TeamWorkflowStates {
+    states: Vec<WorkflowState>,
+    fetched_at: Instant,
+}
+
+#[derive(Debug, Clone)]
+struct WorkflowState {
+    id: String,
+    state_type: String,
+}
+
 /// Thin HTTP client for the Linear GraphQL API.
 #[derive(Clone)]
 pub struct LinearClient {
     http: reqwest::Client,
     api_key: String,
+    workflow_state_cache: std::sync::Arc<Mutex<HashMap<String, TeamWorkflowStates>>>,
 }
 
 impl LinearClient {
@@ -134,6 +182,7 @@ impl LinearClient {
         Self {
             http: reqwest::Client::new(),
             api_key,
+            workflow_state_cache: std::sync::Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -231,6 +280,127 @@ impl LinearClient {
         })
     }
 
+    /// Move an issue to the first workflow state matching `mutation`'s type
+    /// for the issue's team. Passing `team_id` skips a per-drag lookup hop.
+    pub async fn update_issue_state(
+        &self,
+        issue_id: &str,
+        team_id: Option<&str>,
+        mutation: IssueStateMutation,
+    ) -> Result<(), LinearError> {
+        let team_id = match team_id {
+            Some(id) => id.to_string(),
+            None => self.fetch_issue_team_id(issue_id).await?,
+        };
+        let state_id = self
+            .resolve_workflow_state_id(&team_id, mutation.linear_state_type())
+            .await?;
+
+        let body = serde_json::json!({
+            "query": ISSUE_UPDATE_MUTATION,
+            "variables": { "id": issue_id, "stateId": state_id }
+        });
+        let gql: GqlIssueUpdateResponse = self.post(&body).await?;
+        if let Some(errors) = gql.errors {
+            let msgs: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
+            return Err(LinearError::Graphql(msgs.join("; ")));
+        }
+        let data = gql.data.ok_or(LinearError::NoData)?;
+        if !data.issue_update.success {
+            return Err(LinearError::Rejected(
+                "Linear refused the status update (issueUpdate returned success=false)".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    async fn fetch_issue_team_id(&self, issue_id: &str) -> Result<String, LinearError> {
+        let body = serde_json::json!({
+            "query": ISSUE_TEAM_QUERY,
+            "variables": { "id": issue_id }
+        });
+        let gql: super::types::GqlIssueTeamResponse = self.post(&body).await?;
+        if let Some(errors) = gql.errors {
+            let msgs: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
+            return Err(LinearError::Graphql(msgs.join("; ")));
+        }
+        gql.data
+            .and_then(|d| d.issue.map(|i| i.team.id))
+            .ok_or(LinearError::NoData)
+    }
+
+    async fn resolve_workflow_state_id(
+        &self,
+        team_id: &str,
+        target_type: &str,
+    ) -> Result<String, LinearError> {
+        if let Some(states) = self.cached_team_states(team_id) {
+            if let Some(id) = first_state_id(&states, target_type) {
+                return Ok(id);
+            }
+        }
+
+        let states = self.fetch_team_states(team_id).await?;
+        self.put_team_states(team_id.to_string(), states.clone());
+        first_state_id(&states, target_type).ok_or_else(|| {
+            LinearError::Rejected(format!(
+                "Linear team {team_id} has no workflow state of type {target_type}"
+            ))
+        })
+    }
+
+    fn cached_team_states(&self, team_id: &str) -> Option<Vec<WorkflowState>> {
+        let cache = self
+            .workflow_state_cache
+            .lock()
+            .expect("bug: workflow state cache poisoned");
+        let entry = cache.get(team_id)?;
+        if entry.fetched_at.elapsed() < WORKFLOW_STATE_TTL {
+            Some(entry.states.clone())
+        } else {
+            None
+        }
+    }
+
+    fn put_team_states(&self, team_id: String, states: Vec<WorkflowState>) {
+        let mut cache = self
+            .workflow_state_cache
+            .lock()
+            .expect("bug: workflow state cache poisoned");
+        cache.insert(
+            team_id,
+            TeamWorkflowStates {
+                states,
+                fetched_at: Instant::now(),
+            },
+        );
+    }
+
+    async fn fetch_team_states(&self, team_id: &str) -> Result<Vec<WorkflowState>, LinearError> {
+        let body = serde_json::json!({
+            "query": TEAM_STATES_QUERY,
+            "variables": { "teamId": team_id }
+        });
+        let gql: GqlTeamStatesResponse = self.post(&body).await?;
+        if let Some(errors) = gql.errors {
+            let msgs: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
+            return Err(LinearError::Graphql(msgs.join("; ")));
+        }
+        let data = gql.data.ok_or(LinearError::NoData)?;
+        let team = data
+            .team
+            .ok_or_else(|| LinearError::Rejected(format!("Linear team {team_id} not found")))?;
+        Ok(team
+            .states
+            .nodes
+            .into_iter()
+            .map(|s| WorkflowState {
+                id: s.id,
+                state_type: s.state_type,
+            })
+            .collect())
+    }
+
     /// Shared POST helper. Classifies HTTP failures, surfaces Linear's
     /// response body verbatim in `Status` for operator-visible errors, and
     /// normalises parse failures into `InvalidResponse`.
@@ -259,4 +429,11 @@ impl LinearClient {
             .await
             .map_err(|e| LinearError::InvalidResponse(e.to_string()))
     }
+}
+
+fn first_state_id(states: &[WorkflowState], target_type: &str) -> Option<String> {
+    states
+        .iter()
+        .find(|s| s.state_type == target_type)
+        .map(|s| s.id.clone())
 }

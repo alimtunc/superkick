@@ -8,8 +8,7 @@ interface StatusBarProps {
 }
 
 const STATE_SEGMENT_BG: Record<IssueState, string> = {
-	backlog: 'bg-fg-dim',
-	todo: 'bg-fg-dim',
+	open: 'bg-fg-dim',
 	in_progress: 'bg-info',
 	needs_human: 'bg-warn',
 	in_review: 'bg-accent',

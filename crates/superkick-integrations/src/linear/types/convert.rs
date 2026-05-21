@@ -124,6 +124,7 @@ impl From<GqlIssue> for LinearIssueListItem {
             identifier: g.identifier,
             title: g.title,
             status: IssueStatus::from(g.state),
+            team_id: g.team.map(|t| t.id),
             priority: IssuePriority {
                 value: g.priority,
                 label: g.priority_label,

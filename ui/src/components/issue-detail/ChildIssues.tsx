@@ -7,6 +7,7 @@ function childRefToWrapper(child: IssueChildRef): IssueWithState {
 		identifier: child.identifier,
 		title: child.title,
 		status: child.status,
+		team_id: null,
 		priority: child.priority ?? { value: 0, label: 'None' },
 		labels: child.labels ?? [],
 		assignee: child.assignee ?? null,
