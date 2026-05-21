@@ -2,7 +2,7 @@ import { PRIORITY_META } from '@/lib/domain'
 import { cn } from '@/lib/utils'
 import type { PriorityIconKind } from '@/types'
 
-type PriorityIconSize = 14 | 16
+type PriorityIconSize = 12 | 13 | 14 | 16
 
 interface PriorityIconProps {
 	kind: PriorityIconKind

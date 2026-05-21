@@ -19,6 +19,17 @@ export interface IssueLabel {
 }
 
 export interface IssueAssignee {
+	id: string
+	name: string
+	avatar_url: string | null
+}
+
+/**
+ * Identity payload from `GET /me`. The Linear viewer's `id` is the canonical
+ * "assigned to me" key — name collisions / renames make name-match unsafe.
+ */
+export interface ViewerResponse {
+	id: string
 	name: string
 	avatar_url: string | null
 }

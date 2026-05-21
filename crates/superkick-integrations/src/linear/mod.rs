@@ -11,5 +11,5 @@ pub use error::LinearError;
 pub use types::{
     IssueAssignee, IssueBlockerRef, IssueChildRef, IssueComment, IssueCycle, IssueDetailResponse,
     IssueLabel, IssueListResponse, IssueParentRef, IssuePriority, IssueProject, IssueStatus,
-    LinearIssueListItem,
+    LinearIssueListItem, ViewerResponse,
 };

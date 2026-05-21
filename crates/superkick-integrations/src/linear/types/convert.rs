@@ -27,6 +27,7 @@ fn gql_comment_to_issue_comment(
         id,
         body,
         author: user.map(|u| IssueAssignee {
+            id: u.id,
             name: u.name,
             avatar_url: u.avatar_url,
         }),
@@ -58,6 +59,7 @@ impl From<GqlIssueDetail> for IssueDetailResponse {
                 })
                 .collect(),
             assignee: g.assignee.map(|a| IssueAssignee {
+                id: a.id,
                 name: a.name,
                 avatar_url: a.avatar_url,
             }),
@@ -136,6 +138,7 @@ impl From<GqlIssue> for LinearIssueListItem {
                 })
                 .collect(),
             assignee: g.assignee.map(|a| IssueAssignee {
+                id: a.id,
                 name: a.name,
                 avatar_url: a.avatar_url,
             }),
@@ -208,6 +211,7 @@ fn gql_child_to_child_ref(c: GqlChildIssue) -> IssueChildRef {
             })
             .collect(),
         assignee: c.assignee.map(|a| IssueAssignee {
+            id: a.id,
             name: a.name,
             avatar_url: a.avatar_url,
         }),

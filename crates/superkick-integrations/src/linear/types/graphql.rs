@@ -125,8 +125,20 @@ pub(crate) struct GqlLabel {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GqlUser {
+    pub id: String,
     pub name: String,
     pub avatar_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlViewerResponse {
+    pub data: Option<GqlViewerData>,
+    pub errors: Option<Vec<GqlError>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlViewerData {
+    pub viewer: GqlUser,
 }
 
 // ── Issue detail response ────────────────────────────────────────────
