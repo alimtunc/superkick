@@ -11,8 +11,8 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use superkick_core::{
-    AgentCatalog, AgentProvider, CoreAgentDefinition, LinearContextMode, PlanImplementReviewAgents,
-    ResolvedMcpPolicy, ResolvedToolPolicy,
+    AgentCatalog, AgentOrigin, AgentProvider, CoreAgentDefinition, LinearContextMode,
+    PlanImplementReviewAgents, ResolvedMcpPolicy, ResolvedToolPolicy,
 };
 use tokio::sync::broadcast;
 
@@ -32,6 +32,7 @@ pub fn agent(name: &str, provider: AgentProvider, model: Option<&str>) -> CoreAg
         tools: None,
         timeout_secs: None,
         max_turns: None,
+        origin: AgentOrigin::Custom,
         linear_context: LinearContextMode::default(),
         mcp_policy: ResolvedMcpPolicy::default(),
         tool_policy: ResolvedToolPolicy::default(),

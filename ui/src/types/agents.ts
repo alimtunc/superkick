@@ -10,6 +10,8 @@ export type RunnerMode = 'interactive_pty' | 'print_stream_json' | 'exec_json'
 
 export type BillingProfile = 'subscription' | 'agent_sdk_credits' | 'api_credits' | 'unknown'
 
+export type AgentOrigin = 'builtin' | 'custom'
+
 export interface AgentSession {
 	id: string
 	run_id: string
@@ -42,6 +44,7 @@ export interface Agent {
 	model: string | null
 	runner_mode: RunnerMode
 	billing_profile: BillingProfile
+	origin: AgentOrigin
 }
 
 export interface AgentSummary {

@@ -219,7 +219,10 @@ fn reject_empty_workflow() {
 }
 
 #[test]
-fn reject_no_agents() {
+fn empty_agents_block_is_valid_thanks_to_builtin_defaults() {
+    // SUP-160: a fresh install ships built-in agents, so a config with no
+    // custom `agents:` block must still validate. The catalog still has the
+    // six Codex/Claude built-ins available to the picker and the orchestrator.
     let yaml = indoc! {"
         version: 1
         issue_source:
@@ -232,11 +235,28 @@ fn reject_no_agents() {
           steps:
             - type: pr
     "};
-    let err = load_str(yaml).unwrap_err();
-    assert!(
-        err.to_string().contains("at least one agent"),
-        "unexpected error: {err}"
-    );
+    let config = load_str(yaml).expect("empty agents map is valid");
+    let catalog = config.agent_catalog();
+    assert!(catalog.get(crate::CODEX_PLAN).is_some());
+    assert!(catalog.get(crate::CLAUDE_REVIEW).is_some());
+}
+
+#[test]
+fn missing_agents_section_is_valid_thanks_to_builtin_defaults() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source:
+          provider: linear
+          trigger: in_progress
+        runner:
+          mode: local
+        workflow:
+          steps:
+            - type: pr
+    "};
+    let config = load_str(yaml).expect("missing agents section is valid");
+    let catalog = config.agent_catalog();
+    assert_eq!(catalog.len(), 6);
 }
 
 #[test]
@@ -380,12 +400,62 @@ fn reject_allowed_agents_referencing_unknown_role() {
 }
 
 #[test]
-fn agent_catalog_exposes_all_roles() {
+fn agent_catalog_exposes_all_roles_including_builtin_defaults() {
     let config = load_str(FULL_YAML).unwrap();
     let catalog = config.agent_catalog();
-    assert_eq!(catalog.len(), 2);
+    // 2 custom from FULL_YAML + 6 SUP-160 built-ins
+    assert_eq!(catalog.len(), 8);
     assert!(catalog.get("implementation").is_some());
     assert!(catalog.get("review").is_some());
+    assert!(catalog.get(crate::CODEX_PLAN).is_some());
+    assert!(catalog.get(crate::CLAUDE_PLAN).is_some());
+}
+
+#[test]
+fn custom_agent_overrides_builtin_with_same_name() {
+    // SUP-160: a YAML entry with the same name as a built-in replaces the
+    // built-in entirely, including its `origin` (so the picker correctly
+    // labels it as custom).
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        agents:
+          codex-implement:
+            provider: claude
+            model: my-custom-model
+            role: coder
+        workflow:
+          steps:
+            - type: plan
+              agent: codex-implement
+    "};
+    let config = load_str(yaml).unwrap();
+    let catalog = config.agent_catalog();
+    let overridden = catalog
+        .get(crate::CODEX_IMPLEMENT)
+        .expect("custom override present");
+    assert_eq!(overridden.provider, AgentProvider::Claude);
+    assert_eq!(overridden.model.as_deref(), Some("my-custom-model"));
+    assert_eq!(overridden.origin, superkick_core::AgentOrigin::Custom);
+}
+
+#[test]
+fn builtin_defaults_are_tagged_as_builtin_origin() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source: { provider: linear, trigger: in_progress }
+        runner: { mode: local }
+        workflow:
+          steps:
+            - type: pr
+    "};
+    let config = load_str(yaml).unwrap();
+    let catalog = config.agent_catalog();
+    let codex_plan = catalog.get(crate::CODEX_PLAN).expect("builtin present");
+    assert_eq!(codex_plan.origin, superkick_core::AgentOrigin::Builtin);
+    assert_eq!(codex_plan.provider, AgentProvider::Codex);
+    assert_eq!(codex_plan.role.as_deref(), Some("planner"));
 }
 
 #[test]

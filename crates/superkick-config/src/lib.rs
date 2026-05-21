@@ -4,11 +4,16 @@
 //! that the configuration is internally consistent (e.g. agent references
 //! resolve, step definitions are well-formed).
 
+mod builtin_agents;
 mod model;
 mod validate;
 
 mod repo_slug;
 
+pub use builtin_agents::{
+    CLAUDE_IMPLEMENT, CLAUDE_PLAN, CLAUDE_REVIEW, CODEX_IMPLEMENT, CODEX_PLAN, CODEX_REVIEW,
+    builtin_definitions, builtin_names,
+};
 pub use model::*;
 pub use repo_slug::parse_repo_slug;
 pub use validate::validate;

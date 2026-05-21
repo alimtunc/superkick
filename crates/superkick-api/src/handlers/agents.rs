@@ -10,7 +10,7 @@ use std::sync::Arc;
 use axum::extract::{FromRef, State};
 use axum::response::Json;
 use serde::Serialize;
-use superkick_core::{AgentCatalog, AgentProvider, BillingProfile, RunnerMode};
+use superkick_core::{AgentCatalog, AgentOrigin, AgentProvider, BillingProfile, RunnerMode};
 
 use crate::AppState;
 
@@ -37,6 +37,10 @@ pub(crate) struct AgentSummary {
     pub model: Option<String>,
     pub runner_mode: RunnerMode,
     pub billing_profile: BillingProfile,
+    /// `builtin` for Superkick-shipped defaults, `custom` for entries
+    /// defined in `superkick.yaml`. The picker uses this to surface
+    /// built-ins separately from advanced overrides.
+    pub origin: AgentOrigin,
 }
 
 #[derive(Serialize)]
@@ -61,6 +65,7 @@ pub async fn list_agents(State(state): State<AgentsState>) -> Json<ListAgentsRes
                 model: def.model.clone(),
                 runner_mode,
                 billing_profile,
+                origin: def.origin,
             }
         })
         .collect();

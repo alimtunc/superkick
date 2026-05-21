@@ -2,10 +2,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 use superkick_core::{
-    AgentBackend, AgentCatalog, AgentProvider, BillingProfile, CoreAgentDefinition as CoreAgent,
-    LinearContextMode, McpMode, RecoveryConfig, ResolvedMcpPolicy, ResolvedToolPolicy, RunBudget,
-    RunPolicy, RunState, RunnerMode, StepKey,
+    AgentBackend, AgentCatalog, AgentOrigin, AgentProvider, BillingProfile,
+    CoreAgentDefinition as CoreAgent, LinearContextMode, McpMode, RecoveryConfig,
+    ResolvedMcpPolicy, ResolvedToolPolicy, RunBudget, RunPolicy, RunState, RunnerMode, StepKey,
 };
+
+use crate::builtin_agents::builtin_definitions;
 
 /// Canonical name used by the legacy `linear_context: snapshot_plus_mcp`
 /// sugar when desugaring into the MCP registry. Public so the runtime can
@@ -26,6 +28,11 @@ pub struct SuperkickConfig {
     pub version: u32,
     pub issue_source: IssueSourceConfig,
     pub runner: RunnerConfig,
+    /// Project-defined agents. Optional in V1 — when omitted the catalog
+    /// still ships the built-in Codex/Claude defaults from
+    /// [`crate::builtin_agents`]. Custom entries override built-ins on name
+    /// collision; see [`SuperkickConfig::agent_catalog`].
+    #[serde(default)]
     pub agents: std::collections::HashMap<String, AgentDefinition>,
     pub workflow: WorkflowConfig,
     #[serde(default)]
@@ -278,27 +285,44 @@ impl SuperkickConfig {
     /// catalog can ever be spawned, regardless of what the launch profile or
     /// a per-run override requests.
     ///
+    /// Built-in defaults (Codex-first plan/implement/review, plus Claude
+    /// secondaries) are seeded first; a YAML entry with the same name
+    /// overrides the built-in. This makes a fresh install launchable
+    /// without hand-authoring `agents:` while preserving custom overrides
+    /// as advanced configuration.
+    ///
     /// The legacy `linear_context: snapshot_plus_mcp` shortcut is desugared
     /// here so the core router never has to know about it: a role using the
     /// shortcut gets `mcp.mode = servers` plus an implicit `linear` entry
     /// in the allowlist if it didn't list one explicitly.
     pub fn agent_catalog(&self) -> AgentCatalog {
-        AgentCatalog::from_definitions(self.agents.iter().map(|(name, def)| CoreAgent {
-            name: name.clone(),
-            provider: def.provider,
-            role: def.role.clone(),
-            model: def.model.clone(),
-            system_prompt: def.system_prompt.clone(),
-            tools: def.tools.clone(),
-            timeout_secs: def.budget.timeout_secs,
-            max_turns: def.budget.max_turns,
-            linear_context: def.linear_context,
-            mcp_policy: resolve_mcp_policy(def),
-            tool_policy: resolve_tool_policy(def),
-            backend: def.backend.clone(),
-            runner_mode: def.runner_mode,
-            billing_profile: def.billing_profile,
-        }))
+        let mut roles: HashMap<String, CoreAgent> = builtin_definitions()
+            .into_iter()
+            .map(|d| (d.name.clone(), d))
+            .collect();
+        for (name, def) in &self.agents {
+            roles.insert(
+                name.clone(),
+                CoreAgent {
+                    name: name.clone(),
+                    provider: def.provider,
+                    role: def.role.clone(),
+                    model: def.model.clone(),
+                    system_prompt: def.system_prompt.clone(),
+                    tools: def.tools.clone(),
+                    timeout_secs: def.budget.timeout_secs,
+                    max_turns: def.budget.max_turns,
+                    origin: AgentOrigin::Custom,
+                    linear_context: def.linear_context,
+                    mcp_policy: resolve_mcp_policy(def),
+                    tool_policy: resolve_tool_policy(def),
+                    backend: def.backend.clone(),
+                    runner_mode: def.runner_mode,
+                    billing_profile: def.billing_profile,
+                },
+            );
+        }
+        AgentCatalog::new(roles)
     }
 
     /// Materialised MCP server registry, including the auto-injected

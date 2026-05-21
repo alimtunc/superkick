@@ -1,6 +1,9 @@
+use std::collections::HashSet;
+
 use anyhow::{bail, ensure};
 use superkick_core::AgentProvider;
 
+use crate::builtin_agents::builtin_names;
 use crate::model::{SuperkickConfig, WorkflowStep};
 
 /// Validate internal consistency of a parsed config.
@@ -11,13 +14,14 @@ pub fn validate(config: &SuperkickConfig) -> anyhow::Result<()> {
         config.version
     );
     ensure!(
-        !config.agents.is_empty(),
-        "at least one agent must be defined"
-    );
-    ensure!(
         !config.workflow.steps.is_empty(),
         "workflow must have at least one step"
     );
+
+    let known_agents: HashSet<String> = builtin_names()
+        .into_iter()
+        .chain(config.agents.keys().cloned())
+        .collect();
 
     for (name, def) in &config.agents {
         if let Some(backend) = &def.backend
@@ -34,17 +38,17 @@ pub fn validate(config: &SuperkickConfig) -> anyhow::Result<()> {
 
     if let Some(allowed) = &config.launch_profile.allowed_agents {
         for name in allowed {
-            if !config.agents.contains_key(name) {
+            if !known_agents.contains(name) {
                 bail!(
-                    "launch_profile.allowed_agents references \"{name}\" which is not defined in the agents catalog"
+                    "launch_profile.allowed_agents references \"{name}\" which is not defined in the agents catalog (built-in or custom)"
                 );
             }
         }
     }
 
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = HashSet::new();
     for (i, step) in config.workflow.steps.iter().enumerate() {
-        validate_step(config, step, i)?;
+        validate_step(config, &known_agents, step, i)?;
         let kind = step_kind(step);
         if !seen.insert(kind) {
             bail!(
@@ -77,14 +81,15 @@ fn assert_role_allowed(config: &SuperkickConfig, agent: &str, index: usize) -> a
 
 fn validate_step(
     config: &SuperkickConfig,
+    known_agents: &HashSet<String>,
     step: &WorkflowStep,
     index: usize,
 ) -> anyhow::Result<()> {
     match step {
         WorkflowStep::Plan { agent } | WorkflowStep::Code { agent } => {
-            if !config.agents.contains_key(agent) {
+            if !known_agents.contains(agent) {
                 bail!(
-                    "workflow step {index}: agent \"{agent}\" is not defined in the agents section"
+                    "workflow step {index}: agent \"{agent}\" is not defined in the agents section or built-in catalog"
                 );
             }
             assert_role_allowed(config, agent, index)?;
@@ -101,9 +106,9 @@ fn validate_step(
                 bail!("workflow step {index}: review_swarm must have at least one agent");
             }
             for agent in agents {
-                if !config.agents.contains_key(agent) {
+                if !known_agents.contains(agent) {
                     bail!(
-                        "workflow step {index}: agent \"{agent}\" is not defined in the agents section"
+                        "workflow step {index}: agent \"{agent}\" is not defined in the agents section or built-in catalog"
                     );
                 }
                 assert_role_allowed(config, agent, index)?;
