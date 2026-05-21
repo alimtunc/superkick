@@ -12,9 +12,9 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use superkick_core::{
-    AgentCatalog, AgentProvider, CoreAgentDefinition, LaunchTask, LaunchTaskStatus,
-    LaunchTaskStepStatus, LinearContextMode, PlanImplementReviewAgents, ResolvedMcpPolicy,
-    ResolvedToolPolicy,
+    AgentCatalog, AgentProvider, CoreAgentDefinition, LaunchTask, LaunchTaskOverrides,
+    LaunchTaskStatus, LaunchTaskStepStatus, LinearContextMode, PlanImplementReviewAgents,
+    ResolvedMcpPolicy, ResolvedToolPolicy,
 };
 use superkick_storage::repo::LaunchTaskRepo;
 use superkick_storage::{SqliteLaunchTaskRepo, connect};
@@ -270,6 +270,48 @@ async fn update_task_status_rejects_concurrent_state_change() -> Result<()> {
         "expected stale-snapshot or invalid-transition error, got: {msg}"
     );
     Ok(())
+}
+
+#[tokio::test]
+async fn execution_target_overrides_round_trip() -> Result<()> {
+    let repo = setup().await?;
+
+    let (mut overridden, overridden_steps) =
+        LaunchTask::new_with_v1_recipe("SUP-159", agents(), &catalog())?;
+    overridden.apply_overrides(LaunchTaskOverrides {
+        base_branch: Some("release/2026.q2".into()),
+        use_worktree: Some(false),
+    })?;
+    repo.insert_with_steps(&overridden, &overridden_steps)
+        .await?;
+
+    let reloaded = repo.get(overridden.id).await?.expect("override row");
+    assert_eq!(reloaded.base_branch.as_deref(), Some("release/2026.q2"));
+    assert_eq!(reloaded.use_worktree, Some(false));
+
+    let (defaulted, defaulted_steps) =
+        LaunchTask::new_with_v1_recipe("SUP-159-B", agents(), &catalog())?;
+    repo.insert_with_steps(&defaulted, &defaulted_steps).await?;
+
+    let reloaded_default = repo.get(defaulted.id).await?.expect("default row");
+    assert!(reloaded_default.base_branch.is_none());
+    assert!(reloaded_default.use_worktree.is_none());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn apply_overrides_rejects_blank_base_branch() {
+    let (mut task, _) =
+        LaunchTask::new_with_v1_recipe("SUP-159-C", agents(), &catalog()).expect("base task");
+    let err = task
+        .apply_overrides(LaunchTaskOverrides {
+            base_branch: Some("   ".into()),
+            use_worktree: None,
+        })
+        .unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(msg.to_lowercase().contains("base_branch"), "got: {msg}");
 }
 
 #[tokio::test]

@@ -74,8 +74,8 @@ pub use launch_queue::{
     QueueIssueBlocker, QueueIssueInput, QueueRunInput, classify_launch_queue,
 };
 pub use launch_task::{
-    LaunchRecipe, LaunchStepKind, LaunchTask, LaunchTaskStatus, LaunchTaskStep,
-    LaunchTaskStepStatus, PlanImplementReviewAgents,
+    LaunchRecipe, LaunchStepKind, LaunchTask, LaunchTaskOverrides, LaunchTaskStatus,
+    LaunchTaskStep, LaunchTaskStepStatus, PlanImplementReviewAgents,
 };
 pub use launch_task_intervention::{DEFAULT_INTERVENTION_AUTHOR, LaunchTaskIntervention};
 pub use linear_context::{

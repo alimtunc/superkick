@@ -56,8 +56,9 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         sqlx::query(
             "INSERT INTO launch_tasks (\
                  id, linear_issue_id, recipe_kind, status, current_step_id, summary, \
+                 base_branch, use_worktree, \
                  created_at, updated_at\
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         )
         .bind(task.id.0.to_string())
         .bind(&task.linear_issue_id)
@@ -65,6 +66,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         .bind(serialize_enum(&task.status)?)
         .bind(task.current_step_id.map(|id| id.0.to_string()))
         .bind(task.summary.clone())
+        .bind(task.base_branch.clone())
+        .bind(task.use_worktree.map(i64::from))
         .bind(task.created_at.to_rfc3339())
         .bind(task.updated_at.to_rfc3339())
         .execute(&mut *tx)
@@ -546,6 +549,8 @@ struct LaunchTaskRow {
     status: String,
     current_step_id: Option<String>,
     summary: Option<String>,
+    base_branch: Option<String>,
+    use_worktree: Option<i64>,
     created_at: String,
     updated_at: String,
 }
@@ -564,6 +569,8 @@ impl LaunchTaskRow {
                 .transpose()?
                 .map(LaunchTaskStepId),
             summary: self.summary,
+            base_branch: self.base_branch,
+            use_worktree: self.use_worktree.map(|v| v != 0),
             created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
             updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)?.to_utc(),
         })

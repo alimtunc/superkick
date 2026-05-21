@@ -20,8 +20,8 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::error::RecvError;
 
 use superkick_core::{
-    AgentCatalog, LaunchTask, LaunchTaskId, LaunchTaskIntervention, LaunchTaskStatus,
-    LaunchTaskStep, LaunchTaskStepId, PlanImplementReviewAgents, RunId,
+    AgentCatalog, LaunchTask, LaunchTaskId, LaunchTaskIntervention, LaunchTaskOverrides,
+    LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, PlanImplementReviewAgents, RunId,
 };
 use superkick_runtime::launch_task::RealStepRunner;
 use superkick_runtime::{LaunchTaskEvent, LaunchTaskEventBus, LaunchTaskExecutor, StepRunner};
@@ -107,6 +107,10 @@ pub struct CreateLaunchTaskRequest {
     pub planner_agent: String,
     pub coder_agent: String,
     pub reviewer_agent: String,
+    #[serde(default)]
+    pub base_branch: Option<String>,
+    #[serde(default)]
+    pub use_worktree: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -124,11 +128,15 @@ pub async fn create_launch_task<S: StepRunner>(
         coder: body.coder_agent.trim().to_string(),
         reviewer: body.reviewer_agent.trim().to_string(),
     };
-    let (task, steps) = LaunchTask::new_with_v1_recipe(
+    let (mut task, steps) = LaunchTask::new_with_v1_recipe(
         body.linear_issue_id.trim().to_string(),
         agents,
         state.catalog.as_ref(),
     )?;
+    task.apply_overrides(LaunchTaskOverrides {
+        base_branch: body.base_branch,
+        use_worktree: body.use_worktree,
+    })?;
     state.repo.insert_with_steps(&task, &steps).await?;
 
     // SUP-118: trigger the executor in the background. A crash before the
