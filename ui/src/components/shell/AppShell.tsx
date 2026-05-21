@@ -1,3 +1,4 @@
+import { CommandBar } from '@/components/command/CommandBar'
 import { SessionWatchRail } from '@/components/dashboard/SessionWatchRail'
 import { useDashboardRuns } from '@/hooks/useDashboardRuns'
 import { pathnameToTitle } from '@/shell/pathnameToTitle'
@@ -8,7 +9,6 @@ import { usePageActionsStore } from '@/shell/usePageActions'
 import { Outlet, useMatches } from '@tanstack/react-router'
 import { Toaster } from 'sonner'
 
-import { CommandBar } from './CommandBar'
 import { RunDock } from './RunDock'
 
 export function AppShell() {

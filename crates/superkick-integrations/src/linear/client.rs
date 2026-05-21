@@ -3,9 +3,12 @@
 //! Sends GraphQL requests to `https://api.linear.app/graphql`.
 //! No local caching — Linear remains the source of truth.
 
+use chrono::{DateTime, Duration, Utc};
+
 use super::error::LinearError;
 use super::types::{
-    GqlDetailResponse, GqlResponse, IssueDetailResponse, IssueListResponse, LinearIssueListItem,
+    CachedComment, GqlCommentsResponse, GqlDetailResponse, GqlRecentComment, GqlResponse,
+    GqlSearchResponse, IssueDetailResponse, IssueListResponse, LinearIssueListItem,
 };
 
 const LINEAR_API_URL: &str = "https://api.linear.app/graphql";
@@ -49,6 +52,49 @@ query ListIssues($first: Int!, $after: String) {
           issue { id identifier title state { type name color } }
         }
       }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+"#;
+
+const ISSUE_SEARCH_QUERY: &str = r#"
+query SearchIssues($query: String!, $first: Int!) {
+  issueSearch(query: $query, first: $first, orderBy: updatedAt) {
+    nodes {
+      id
+      identifier
+      title
+      url
+      createdAt
+      updatedAt
+      state { type name color }
+      priority
+      priorityLabel
+      labels { nodes { name color } }
+      assignee { name avatarUrl }
+      project { name }
+      parent { id identifier title state { type name color } }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+"#;
+
+const RECENT_COMMENTS_QUERY: &str = r#"
+query RecentComments($first: Int!, $after: String, $since: DateTimeOrDuration!) {
+  comments(
+    filter: { createdAt: { gte: $since } }
+    first: $first
+    after: $after
+    orderBy: createdAt
+  ) {
+    nodes {
+      id
+      body
+      createdAt
+      user { name avatarUrl }
+      issue { id identifier }
     }
     pageInfo { hasNextPage endCursor }
   }
@@ -178,6 +224,104 @@ impl LinearClient {
         })
     }
 
+    /// Search issues by Linear's `issueSearch` field (id / title / body /
+    /// labels). Linear's ranking is opaque — V1 accepts the default. Returns
+    /// at most `limit` results in a single round trip.
+    pub async fn search_issues(
+        &self,
+        query: &str,
+        limit: u32,
+    ) -> Result<IssueListResponse, LinearError> {
+        let trimmed = query.trim();
+        if trimmed.is_empty() {
+            return Ok(IssueListResponse {
+                issues: Vec::new(),
+                total_count: 0,
+            });
+        }
+
+        let first = limit.clamp(1, 50);
+        let body = serde_json::json!({
+            "query": ISSUE_SEARCH_QUERY,
+            "variables": {
+                "query": trimmed,
+                "first": first,
+            }
+        });
+
+        let gql: GqlSearchResponse = self.post(&body).await?;
+
+        if let Some(errors) = gql.errors {
+            let msgs: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
+            return Err(LinearError::Graphql(msgs.join("; ")));
+        }
+
+        let data = gql.data.ok_or(LinearError::NoData)?;
+        let issues: Vec<LinearIssueListItem> = data
+            .issue_search
+            .nodes
+            .into_iter()
+            .map(LinearIssueListItem::from)
+            .collect();
+        let total_count = u32::try_from(issues.len()).unwrap_or(u32::MAX);
+
+        Ok(IssueListResponse {
+            issues,
+            total_count,
+        })
+    }
+
+    /// Fetch every comment created in the last `window_days` days, capped at
+    /// `max_entries` total. Used to seed the in-memory comment cache that the
+    /// `/search` handler filters by substring per query. Paginates internally.
+    pub async fn recent_comments(
+        &self,
+        window_days: u32,
+        max_entries: u32,
+    ) -> Result<Vec<CachedComment>, LinearError> {
+        let since: DateTime<Utc> = Utc::now() - Duration::days(i64::from(window_days));
+        let since_str = since.to_rfc3339();
+        let page_size: u32 = 100;
+        let mut out: Vec<CachedComment> = Vec::new();
+        let mut cursor: Option<String> = None;
+
+        loop {
+            let fetched = u32::try_from(out.len()).unwrap_or(u32::MAX);
+            let remaining = max_entries.saturating_sub(fetched);
+            if remaining == 0 {
+                break;
+            }
+            let fetch_count = remaining.min(page_size);
+
+            let body = serde_json::json!({
+                "query": RECENT_COMMENTS_QUERY,
+                "variables": {
+                    "first": fetch_count,
+                    "after": cursor,
+                    "since": since_str,
+                }
+            });
+
+            let gql: GqlCommentsResponse = self.post(&body).await?;
+            if let Some(errors) = gql.errors {
+                let msgs: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
+                return Err(LinearError::Graphql(msgs.join("; ")));
+            }
+
+            let data = gql.data.ok_or(LinearError::NoData)?;
+            let has_next = data.comments.page_info.has_next_page;
+            cursor = data.comments.page_info.end_cursor;
+
+            out.extend(data.comments.nodes.into_iter().map(cached_comment_from_gql));
+
+            if !has_next {
+                break;
+            }
+        }
+
+        Ok(out)
+    }
+
     /// Fetch a single issue by its Linear UUID.
     ///
     /// Returns the full detail payload including description, comments,
@@ -227,5 +371,16 @@ impl LinearClient {
         resp.json::<T>()
             .await
             .map_err(|e| LinearError::InvalidResponse(e.to_string()))
+    }
+}
+
+fn cached_comment_from_gql(node: GqlRecentComment) -> CachedComment {
+    CachedComment {
+        id: node.id,
+        issue_id: node.issue.id,
+        issue_identifier: node.issue.identifier,
+        body: node.body,
+        author_name: node.user.map(|u| u.name),
+        created_at: node.created_at,
     }
 }

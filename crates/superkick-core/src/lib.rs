@@ -31,6 +31,7 @@ pub mod role_router;
 pub mod run;
 pub mod runner_mode;
 pub mod runtime;
+pub mod search;
 pub mod session_lifecycle;
 pub mod step;
 pub mod step_result;
@@ -118,6 +119,11 @@ pub use runner_mode::{BillingProfile, RunnerMode, RunnerModeError};
 pub use runtime::{
     LOCAL_RUNTIME_NAME, ProviderStatus, Runtime, RuntimeCapabilities, RuntimeMode, RuntimeProvider,
     RuntimeStatus, RuntimeWithProviders,
+};
+pub use search::{
+    SNIPPET_RADIUS, SearchActionKind, SearchActionRow, SearchCommentRow, SearchFileRow,
+    SearchIssueRow, SearchResponse, SearchRunRow, SearchScope, Snippet, comment_snippet,
+    find_ascii_ci,
 };
 pub use session_lifecycle::{SessionLifecycleEvent, SessionLifecyclePhase};
 pub use step::{RunStep, StepKey, StepStatus};

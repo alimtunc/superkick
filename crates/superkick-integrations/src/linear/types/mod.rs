@@ -9,7 +9,9 @@ mod convert;
 pub(crate) mod graphql;
 
 pub use contract::*;
-pub(crate) use graphql::{GqlDetailResponse, GqlResponse};
+pub(crate) use graphql::{
+    GqlCommentsResponse, GqlDetailResponse, GqlRecentComment, GqlResponse, GqlSearchResponse,
+};
 
 #[cfg(test)]
 mod tests;

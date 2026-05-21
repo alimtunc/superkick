@@ -11,9 +11,11 @@ import {
 	fetchRun,
 	fetchRuns,
 	fetchRuntimes,
+	fetchSearch,
 	listAgents,
 	listLaunchTaskInterventions
 } from '@/api'
+import type { SearchParams } from '@/types'
 import { infiniteQueryOptions, queryOptions, skipToken } from '@tanstack/react-query'
 
 import { queryKeys } from './queryKeys'
@@ -111,6 +113,13 @@ export const launchTaskDetailQuery = (taskId: string | null) =>
 		queryKey: taskId ? queryKeys.launchTasks.detail(taskId) : ['launch-tasks', 'pending', 'detail'],
 		queryFn: taskId ? () => fetchLaunchTask(taskId) : skipToken,
 		staleTime: 3_000
+	})
+
+export const searchQuery = (params: SearchParams) =>
+	queryOptions({
+		queryKey: queryKeys.search.query(params.q, params.scope, params.includeDone),
+		queryFn: () => fetchSearch(params),
+		staleTime: 30_000
 	})
 
 export const launchTaskInterventionsQuery = (taskId: string | null) =>

@@ -31,6 +31,7 @@ use superkick_storage::{
 mod error;
 mod handlers;
 pub mod recovery_scheduler;
+mod search_state;
 #[cfg(feature = "embedded-ui")]
 mod ui_assets;
 
@@ -282,6 +283,12 @@ pub(crate) struct AppState {
     pub conversation_runner: Arc<ChatRunner>,
     pub terminal_takeover_service: Arc<TakeoverService>,
     pub linear_client: Option<Arc<LinearClient>>,
+    /// SUP-158 — last-90d Linear comment snapshot, refreshed every 5 min from
+    /// a background task. Search handler filters by substring per request.
+    pub comment_cache: search_state::CommentCache,
+    /// SUP-158 — repo file path index, walked once at boot. Refresh via
+    /// `POST /search/files/refresh`.
+    pub file_index: search_state::FileIndex,
     pub run_tokens: Arc<Mutex<HashMap<RunId, CancellationToken>>>,
     pub repo_slug: String,
     pub base_branch: String,
@@ -377,6 +384,15 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
              roles configured for linear_context will downgrade to `none`"
         );
     }
+
+    let comment_cache = search_state::CommentCache::new();
+    if let Some(client) = &linear_client {
+        search_state::spawn_comment_refresh(Arc::clone(client), comment_cache.clone());
+    }
+
+    let file_index_root = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let file_index = search_state::FileIndex::new(file_index_root, repo_slug.clone());
+    search_state::spawn_file_index_boot(file_index.clone());
 
     let real_step_runner = Arc::new(RealStepRunner::new(RealStepRunnerDeps {
         run_repo: Arc::clone(&run_repo),
@@ -516,6 +532,8 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         conversation_runner,
         terminal_takeover_service,
         linear_client,
+        comment_cache,
+        file_index,
         run_tokens: Arc::new(Mutex::new(HashMap::new())),
         repo_slug,
         base_branch,
@@ -537,6 +555,11 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         .route("/events", get(handlers::events::workspace_events))
         .route("/issues", get(handlers::issues::list_issues))
         .route("/issues/{id}", get(handlers::issues::get_issue))
+        .route("/search", get(handlers::search::search))
+        .route(
+            "/search/files/refresh",
+            post(handlers::search::refresh_files),
+        )
         .route(
             "/issues/{id}/context",
             get(handlers::issue_context::get_or_create_context),

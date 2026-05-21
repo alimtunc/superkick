@@ -203,3 +203,53 @@ pub(crate) struct GqlComment {
 pub(crate) struct GqlCommentRef {
     pub id: String,
 }
+
+// ── Issue search response ────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlSearchResponse {
+    pub data: Option<GqlSearchData>,
+    pub errors: Option<Vec<GqlError>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GqlSearchData {
+    pub issue_search: GqlIssueConnection,
+}
+
+// ── Recent comments response ─────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlCommentsResponse {
+    pub data: Option<GqlCommentsData>,
+    pub errors: Option<Vec<GqlError>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlCommentsData {
+    pub comments: GqlRecentCommentConnection,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GqlRecentCommentConnection {
+    pub nodes: Vec<GqlRecentComment>,
+    pub page_info: GqlPageInfo,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GqlRecentComment {
+    pub id: String,
+    pub body: String,
+    pub user: Option<GqlUser>,
+    pub created_at: DateTime<Utc>,
+    pub issue: GqlRecentCommentIssue,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlRecentCommentIssue {
+    pub id: String,
+    pub identifier: String,
+}
