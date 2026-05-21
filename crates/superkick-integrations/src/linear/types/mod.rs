@@ -11,7 +11,7 @@ pub(crate) mod graphql;
 pub use contract::*;
 pub(crate) use graphql::{
     GqlDetailResponse, GqlIssueTeamResponse, GqlIssueUpdateResponse, GqlResponse,
-    GqlTeamStatesResponse,
+    GqlTeamStatesResponse, GqlViewerResponse,
 };
 
 #[cfg(test)]

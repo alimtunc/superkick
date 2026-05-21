@@ -98,6 +98,7 @@ mod tests {
                 color: "red".into(),
             }],
             assignee: Some(IssueAssignee {
+                id: "user-alice".into(),
                 name: "alice".into(),
                 avatar_url: None,
             }),
@@ -132,6 +133,7 @@ mod tests {
                 id: format!("c{i}"),
                 body: format!("hello {i}"),
                 author: Some(IssueAssignee {
+                    id: "user-bob".into(),
                     name: "bob".into(),
                     avatar_url: None,
                 }),

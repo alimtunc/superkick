@@ -6,14 +6,20 @@ import { Popover } from '@base-ui/react/popover'
 const OPEN_DELAY = 400
 const CLOSE_DELAY = 150
 
-export function HoverCard({ content, children }: { content: ReactNode; children: ReactElement }) {
+interface HoverCardProps {
+	content: ReactNode
+	children: ReactElement
+	openDelay?: number
+}
+
+export function HoverCard({ content, children, openDelay = OPEN_DELAY }: HoverCardProps) {
 	return (
 		<Popover.Root>
 			<Popover.Trigger
 				render={children}
 				nativeButton={false}
 				openOnHover
-				delay={OPEN_DELAY}
+				delay={openDelay}
 				closeDelay={CLOSE_DELAY}
 			/>
 			<PopoverPopup

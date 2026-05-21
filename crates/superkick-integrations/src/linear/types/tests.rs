@@ -28,6 +28,7 @@ fn sample_gql_issue() -> GqlIssue {
             }],
         },
         assignee: Some(GqlUser {
+            id: "user-alice".into(),
             name: "Alice".into(),
             avatar_url: Some("https://example.com/alice.png".into()),
         }),
@@ -162,6 +163,7 @@ fn sample_gql_issue_detail() -> GqlIssueDetail {
             }],
         },
         assignee: Some(GqlUser {
+            id: "user-alice".into(),
             name: "Alice".into(),
             avatar_url: Some("https://example.com/alice.png".into()),
         }),
@@ -207,6 +209,7 @@ fn sample_gql_issue_detail() -> GqlIssueDetail {
                 id: "comment-1".into(),
                 body: "Reproducible on Safari 17+".into(),
                 user: Some(GqlUser {
+                    id: "user-bob".into(),
                     name: "Bob".into(),
                     avatar_url: None,
                 }),

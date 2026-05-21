@@ -4,6 +4,18 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use superkick_core::LinkedRunSummary;
 
+/// Identity of the authenticated Linear user (the "viewer").
+///
+/// Returned by `LinearClient::viewer` and surfaced through `GET /me`.
+/// The frontend uses `id` to decide which issues are "mine" without
+/// fragile name-matching.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ViewerResponse {
+    pub id: String,
+    pub name: String,
+    pub avatar_url: Option<String>,
+}
+
 /// Operator-facing mutation target. Narrower than `LinearStateType` — `backlog` / `canceled` are not written from the kanban.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IssueStateMutation {
@@ -113,6 +125,7 @@ pub struct IssueLabel {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IssueAssignee {
+    pub id: String,
     pub name: String,
     pub avatar_url: Option<String>,
 }

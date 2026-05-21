@@ -10,10 +10,21 @@ use std::time::{Duration, Instant};
 use super::error::LinearError;
 use super::types::{
     GqlDetailResponse, GqlIssueUpdateResponse, GqlResponse, GqlTeamStatesResponse,
-    IssueDetailResponse, IssueListResponse, IssueStateMutation, LinearIssueListItem,
+    GqlViewerResponse, IssueDetailResponse, IssueListResponse, IssueStateMutation,
+    LinearIssueListItem, ViewerResponse,
 };
 
 const LINEAR_API_URL: &str = "https://api.linear.app/graphql";
+
+const VIEWER_QUERY: &str = r#"
+query Viewer {
+  viewer {
+    id
+    name
+    avatarUrl
+  }
+}
+"#;
 
 /// 5 min — catches subsequent drops in a session while letting admins propagate state renames in a sane window.
 const WORKFLOW_STATE_TTL: Duration = Duration::from_secs(5 * 60);
@@ -40,7 +51,7 @@ query ListIssues($first: Int!, $after: String) {
       priority
       priorityLabel
       labels { nodes { name color } }
-      assignee { name avatarUrl }
+      assignee { id name avatarUrl }
       project { name }
       parent { id identifier title state { type name color } }
       children {
@@ -49,7 +60,7 @@ query ListIssues($first: Int!, $after: String) {
           state { type name color }
           priority priorityLabel
           labels { nodes { name color } }
-          assignee { name avatarUrl }
+          assignee { id name avatarUrl }
         }
       }
       inverseRelations(first: 50) {
@@ -104,7 +115,7 @@ query GetIssue($id: String!) {
     priority
     priorityLabel
     labels { nodes { name color } }
-    assignee { name avatarUrl }
+    assignee { id name avatarUrl }
     project { name }
     cycle { name number }
     estimate
@@ -116,7 +127,7 @@ query GetIssue($id: String!) {
         state { type name color }
         priority priorityLabel
         labels { nodes { name color } }
-        assignee { name avatarUrl }
+        assignee { id name avatarUrl }
       }
     }
     inverseRelations {
@@ -129,14 +140,14 @@ query GetIssue($id: String!) {
       nodes {
         id
         body
-        user { name avatarUrl }
+        user { id name avatarUrl }
         createdAt
         updatedAt
         parent { id }
         children { nodes {
           id
           body
-          user { name avatarUrl }
+          user { id name avatarUrl }
           createdAt
           updatedAt
         } }
@@ -247,6 +258,26 @@ impl LinearClient {
 
         let data = gql.data.ok_or(LinearError::NoData)?;
         Ok(IssueDetailResponse::from(data.issue))
+    }
+
+    /// Identify the authenticated Linear user. Returns the viewer's stable
+    /// `id`, `name`, and avatar — the frontend uses `id` to compute
+    /// "assigned to me" without name collisions.
+    pub async fn viewer(&self) -> Result<ViewerResponse, LinearError> {
+        let body = serde_json::json!({ "query": VIEWER_QUERY });
+        let gql: GqlViewerResponse = self.post(&body).await?;
+
+        if let Some(errors) = gql.errors {
+            let msgs: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
+            return Err(LinearError::Graphql(msgs.join("; ")));
+        }
+
+        let user = gql.data.ok_or(LinearError::NoData)?.viewer;
+        Ok(ViewerResponse {
+            id: user.id,
+            name: user.name,
+            avatar_url: user.avatar_url,
+        })
     }
 
     /// Move an issue to the first workflow state matching `mutation`'s type

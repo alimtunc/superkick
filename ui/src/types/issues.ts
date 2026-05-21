@@ -19,6 +19,17 @@ export interface IssueLabel {
 }
 
 export interface IssueAssignee {
+	id: string
+	name: string
+	avatar_url: string | null
+}
+
+/**
+ * Identity payload from `GET /me`. The Linear viewer's `id` is the canonical
+ * "assigned to me" key — name collisions / renames make name-match unsafe.
+ */
+export interface ViewerResponse {
+	id: string
 	name: string
 	avatar_url: string | null
 }
@@ -151,18 +162,6 @@ export type IssueState = 'open' | 'in_progress' | 'needs_human' | 'in_review' | 
 export type IssueStateMutable = Extract<IssueState, 'open' | 'in_progress' | 'done'>
 
 export type IssueStateFilter = IssueState | 'all'
-
-// ── Parent/child grouping ─────────────────────────────────────────────
-
-export interface IssueGroup {
-	parent: LinearIssueListItem
-	children: LinearIssueListItem[]
-}
-
-export interface GroupedIssues {
-	groups: IssueGroup[]
-	standalone: LinearIssueListItem[]
-}
 
 // ── Comment tree (view model) ─────────────────────────────────────────
 

@@ -1,169 +1,140 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
-import { IssueListRow } from '@/components/issues/IssueListRow'
-import { IssuesListColumnHeader } from '@/components/issues/IssuesListColumnHeader'
+import { DoneFooter } from '@/components/issues/DoneFooter'
+import { IssueGroupHeader } from '@/components/issues/IssueGroupHeader'
+import { IssueRow } from '@/components/issues/IssueRow'
 import { EmptyState } from '@/components/ui/state-empty'
-import type {
-	GroupedIssues,
-	IssueGroup,
-	IssueState,
-	IssueStateFilter,
-	IssueWithState,
-	LaunchQueueItem,
-	LinearIssueListItem
-} from '@/types'
-import { ChevronDown, ChevronRight, Inbox } from 'lucide-react'
+import type { IssueGroup, IssueViewTab, LifecycleBucket } from '@/types'
+import { Inbox } from 'lucide-react'
 
 interface IssuesListViewProps {
-	allIssues: readonly IssueWithState[]
-	queueItems: readonly LaunchQueueItem[]
-	filteredIssues: readonly LinearIssueListItem[]
-	grouped: GroupedIssues
-	activeIssueState: IssueStateFilter
+	tab: IssueViewTab
+	groups: IssueGroup[]
+	bucketByIdentifier: Map<string, LifecycleBucket>
+	doneCountThisWeek: number
+	showDone: boolean
+	onToggleDone: () => void
+	focusedIdentifier: string | null
+	now?: Date
 }
 
+const COLLAPSED_KEY = (tab: IssueViewTab) => `superkick.issues.collapsed.${tab}`
+
 export function IssuesListView({
-	allIssues,
-	queueItems,
-	filteredIssues,
-	grouped,
-	activeIssueState
+	tab,
+	groups,
+	bucketByIdentifier,
+	doneCountThisWeek,
+	showDone,
+	onToggleDone,
+	focusedIdentifier,
+	now
 }: IssuesListViewProps) {
-	const queueItemByIdentifier = new Map<string, LaunchQueueItem>()
-	for (const item of queueItems) {
-		if (item.kind === 'issue') queueItemByIdentifier.set(item.issue.identifier, item)
-		else if (item.linked_issue) queueItemByIdentifier.set(item.linked_issue.identifier, item)
-	}
+	const collapsed = useCollapsedBuckets(tab)
+	const isShipped = tab === 'shipped'
 
-	const stateByIssueId = new Map<string, IssueState>()
-	for (const item of allIssues) stateByIssueId.set(item.issue.id, item.state)
-
-	const filterLabel = activeIssueState === 'all' ? 'all' : activeIssueState.replace('_', ' ')
-
-	return (
-		<section className="flex flex-1 flex-col">
-			<IssuesListColumnHeader />
-			{filteredIssues.length > 0 ? (
-				<div>
-					{grouped.groups.map((group) => (
-						<IssueListGroup
-							key={group.parent.id}
-							group={group}
-							stateByIssueId={stateByIssueId}
-							queueItemByIdentifier={queueItemByIdentifier}
-						/>
-					))}
-					{grouped.standalone.map((issue) => (
-						<IndentedRow
-							key={issue.id}
-							issue={issue}
-							indent="standalone"
-							stateByIssueId={stateByIssueId}
-							queueItemByIdentifier={queueItemByIdentifier}
-						/>
-					))}
-				</div>
-			) : (
+	if (groups.length === 0) {
+		return (
+			<section className="flex flex-1 flex-col">
 				<div className="px-6 py-12">
 					<EmptyState
 						icon={Inbox}
-						title={`No ${filterLabel} issues`}
-						description="Try a different filter or wait for Linear to sync."
+						title="Nothing here yet"
+						description="Adjust filters or try another tab."
 					/>
 				</div>
+				{isShipped ? null : (
+					<DoneFooter count={doneCountThisWeek} revealed={showDone} onToggle={onToggleDone} />
+				)}
+			</section>
+		)
+	}
+
+	return (
+		<section className="flex flex-1 flex-col">
+			<div className="flex-1 overflow-y-auto">
+				{groups.map((group) => (
+					<div key={group.key}>
+						<IssueGroupHeader
+							label={group.label}
+							count={group.issues.length}
+							bucket={group.bucket}
+							collapsed={collapsed.has(group.key)}
+							onToggle={() => collapsed.toggle(group.key)}
+						/>
+						{collapsed.has(group.key)
+							? null
+							: group.issues.map((wrapper) => {
+									const bucket = bucketByIdentifier.get(wrapper.issue.identifier) ?? 'open'
+									return (
+										<IssueRow
+											key={wrapper.issue.id}
+											wrapper={wrapper}
+											bucket={bucket}
+											focused={wrapper.issue.identifier === focusedIdentifier}
+											now={now}
+										/>
+									)
+								})}
+					</div>
+				))}
+			</div>
+			{isShipped ? null : (
+				<DoneFooter count={doneCountThisWeek} revealed={showDone} onToggle={onToggleDone} />
 			)}
 		</section>
 	)
 }
 
-type RowIndent = 'standalone' | 'child'
-
-const INDENT_CLASS: Record<RowIndent, string> = {
-	standalone: 'w-6 shrink-0',
-	child: 'w-12 shrink-0'
+interface CollapsedBuckets {
+	has: (key: string) => boolean
+	toggle: (key: string) => void
 }
 
-interface IndentedRowProps {
-	issue: LinearIssueListItem
-	indent: RowIndent
-	stateByIssueId: ReadonlyMap<string, IssueState>
-	queueItemByIdentifier: ReadonlyMap<string, LaunchQueueItem>
-}
+function useCollapsedBuckets(tab: IssueViewTab): CollapsedBuckets {
+	const [collapsed, setCollapsed] = useState<Set<string>>(() => readCollapsed(tab))
 
-function IndentedRow({ issue, indent, stateByIssueId, queueItemByIdentifier }: IndentedRowProps) {
-	const state = stateByIssueId.get(issue.id) ?? 'open'
-	return (
-		<div className="flex items-stretch border-b border-border">
-			<span className={INDENT_CLASS[indent]} aria-hidden="true" />
-			<IssueListRow
-				issue={issue}
-				state={state}
-				queueItem={queueItemByIdentifier.get(issue.identifier)}
-			/>
-		</div>
+	useEffect(() => {
+		setCollapsed(readCollapsed(tab))
+	}, [tab])
+
+	const toggle = useCallback(
+		(key: string) => {
+			setCollapsed((prev) => {
+				const next = new Set(prev)
+				if (next.has(key)) next.delete(key)
+				else next.add(key)
+				writeCollapsed(tab, next)
+				return next
+			})
+		},
+		[tab]
 	)
+
+	const has = useCallback((key: string) => collapsed.has(key), [collapsed])
+
+	return { has, toggle }
 }
 
-interface IssueListGroupProps {
-	group: IssueGroup
-	stateByIssueId: ReadonlyMap<string, IssueState>
-	queueItemByIdentifier: ReadonlyMap<string, LaunchQueueItem>
+function readCollapsed(tab: IssueViewTab): Set<string> {
+	if (typeof window === 'undefined') return new Set()
+	try {
+		const raw = window.localStorage.getItem(COLLAPSED_KEY(tab))
+		if (!raw) return new Set()
+		const parsed = JSON.parse(raw) as unknown
+		return Array.isArray(parsed)
+			? new Set(parsed.filter((v): v is string => typeof v === 'string'))
+			: new Set()
+	} catch {
+		return new Set()
+	}
 }
 
-function IssueListGroup({ group, stateByIssueId, queueItemByIdentifier }: IssueListGroupProps) {
-	const [expanded, setExpanded] = useState(true)
-	const childCount = group.children.length
-	const parentState = stateByIssueId.get(group.parent.id) ?? 'open'
-
-	return (
-		<div>
-			<div className="flex items-stretch border-b border-border">
-				<button
-					type="button"
-					onClick={() => setExpanded((value) => !value)}
-					className="flex w-6 shrink-0 cursor-pointer items-center justify-center text-fg-dim transition-colors hover:bg-raised hover:text-fg focus-visible:bg-raised focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
-					title={expanded ? 'Collapse sub-issues' : `Show ${childCount} sub-issues`}
-					aria-expanded={expanded}
-					aria-label={expanded ? 'Collapse sub-issues' : `Show ${childCount} sub-issues`}
-				>
-					{expanded ? (
-						<ChevronDown size={14} strokeWidth={1.75} aria-hidden="true" />
-					) : (
-						<ChevronRight size={14} strokeWidth={1.75} aria-hidden="true" />
-					)}
-				</button>
-				<IssueListRow
-					issue={group.parent}
-					state={parentState}
-					queueItem={queueItemByIdentifier.get(group.parent.identifier)}
-				/>
-			</div>
-
-			{expanded ? (
-				<div className="relative">
-					<span
-						aria-hidden="true"
-						className="pointer-events-none absolute top-0 bottom-0 left-3 w-px bg-border-strong"
-					/>
-					{group.children.map((child) => (
-						<IndentedRow
-							key={child.id}
-							issue={child}
-							indent="child"
-							stateByIssueId={stateByIssueId}
-							queueItemByIdentifier={queueItemByIdentifier}
-						/>
-					))}
-				</div>
-			) : (
-				<button
-					type="button"
-					onClick={() => setExpanded(true)}
-					className="cursor-pointer border-b border-border py-1.5 pl-12 text-left font-mono text-[11px] text-fg-dim transition-colors hover:text-fg focus-visible:bg-raised focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
-				>
-					{childCount} sub-issue{childCount > 1 ? 's' : ''} hidden
-				</button>
-			)}
-		</div>
-	)
+function writeCollapsed(tab: IssueViewTab, value: Set<string>) {
+	if (typeof window === 'undefined') return
+	try {
+		window.localStorage.setItem(COLLAPSED_KEY(tab), JSON.stringify([...value]))
+	} catch {
+		// localStorage may be unavailable (private mode); collapse state is best-effort.
+	}
 }

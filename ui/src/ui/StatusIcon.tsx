@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import type { LinearStateType, StatusIconKind } from '@/types'
 
-type StatusIconSize = 14 | 16
+type StatusIconSize = 12 | 13 | 14 | 16
 
 interface StatusIconProps {
 	kind: StatusIconKind
