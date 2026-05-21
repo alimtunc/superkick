@@ -106,6 +106,9 @@ export function fmtRelativeShort(value: number | string | Date, refTime: number 
 	const day = Math.floor(hr / 24)
 	if (day < 7) return `${day}d`
 	const weeks = Math.floor(day / 7)
-	if (weeks < 5) return `${weeks}w`
-	return new Date(ts).toISOString().slice(0, 10)
+	if (weeks < 12) return `${weeks}w`
+	const months = Math.floor(day / 30)
+	if (months < 12) return `${months}mo`
+	const years = Math.floor(day / 365)
+	return `${years}y`
 }

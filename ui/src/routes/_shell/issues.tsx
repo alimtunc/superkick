@@ -169,12 +169,7 @@ function IssuesPage() {
 					/>
 
 					{resolved.view === 'board' ? (
-						<IssuesKanbanView
-							queueItems={data.queueItems}
-							activeCapacity={data.activeCapacity}
-							generatedAt={data.generatedAt}
-							recentUnblocks={data.recentUnblocks}
-						/>
+						<IssuesKanbanView queueItems={data.queueItems} recentUnblocks={data.recentUnblocks} />
 					) : (
 						<IssuesListView
 							tab={resolved.tab}
