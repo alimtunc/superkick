@@ -25,7 +25,7 @@ export function IssueCommentExcerptsSection({ issueId }: IssueCommentExcerptsSec
 			isEmpty={excerpts.length === 0}
 			emptyIcon={MessageSquare}
 			emptyTitle="No comment excerpts"
-			emptyDescription="The agent has not selected any comments yet."
+			emptyDescription="Linear comments captured for this issue will appear here so every agent reads the same discussion."
 		>
 			<ul className="space-y-2.5">
 				{excerpts.map((excerpt) => {

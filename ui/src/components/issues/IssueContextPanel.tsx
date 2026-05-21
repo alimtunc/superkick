@@ -11,6 +11,9 @@ interface IssueContextPanelProps {
 	variant: IssueContextPanelVariant
 }
 
+const INTRO_COPY =
+	'Shared workspace context — what the Plan, Implement, and Review agents read on every run. Each step appends its own memory entries here.'
+
 export function IssueContextPanel({ issueId, variant }: IssueContextPanelProps) {
 	const wrapperClass =
 		variant === 'rail'
@@ -32,6 +35,7 @@ export function IssueContextPanel({ issueId, variant }: IssueContextPanelProps) 
 				</header>
 			) : null}
 			<div className={bodyClass}>
+				<p className="text-[12px] leading-relaxed text-fg-dim">{INTRO_COPY}</p>
 				<IssueSnapshotSection issueId={issueId} />
 				<IssueCommentExcerptsSection issueId={issueId} />
 				<IssueLinkedItemsSection issueId={issueId} />

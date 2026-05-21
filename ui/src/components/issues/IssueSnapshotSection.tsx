@@ -27,7 +27,7 @@ export function IssueSnapshotSection({ issueId }: IssueSnapshotSectionProps) {
 			isEmpty={!snapshot}
 			emptyIcon={FileSearch}
 			emptyTitle="No snapshot yet"
-			emptyDescription="This issue has not been attached to a workspace context."
+			emptyDescription="The Linear title, status, and description will appear here once the issue is attached to a workspace."
 		>
 			{snapshot ? (
 				<>

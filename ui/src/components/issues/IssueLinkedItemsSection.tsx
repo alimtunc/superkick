@@ -38,7 +38,7 @@ export function IssueLinkedItemsSection({ issueId }: IssueLinkedItemsSectionProp
 			isEmpty={items.length === 0}
 			emptyIcon={Link2}
 			emptyTitle="No linked items"
-			emptyDescription="No runs, launch tasks, or chats are linked to this issue yet."
+			emptyDescription="Runs, launch tasks, and chats started from this issue will appear here once dispatched."
 		>
 			<ul className="space-y-1.5">
 				{items.map((item) => (
