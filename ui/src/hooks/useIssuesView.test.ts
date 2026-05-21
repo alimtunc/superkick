@@ -26,6 +26,7 @@ function makeIssue(overrides: {
 			name: overrides.stateType ?? 'todo',
 			color: '#fff'
 		},
+		team_id: null,
 		priority: { value: overrides.priority ?? 2, label: 'High' },
 		labels: [],
 		assignee:
@@ -42,7 +43,7 @@ function makeIssue(overrides: {
 	}
 	return {
 		issue,
-		state: 'todo',
+		state: 'open',
 		bucket: undefined,
 		linkedRun: overrides.runState
 			? {

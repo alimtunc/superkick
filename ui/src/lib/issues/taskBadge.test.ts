@@ -36,6 +36,7 @@ function makeIssue(overrides: { runState?: RunState; updated_at?: string } = {})
 		identifier: 'SUP-1',
 		title: 'Test',
 		status: { state_type: 'started', name: 'In Progress', color: '#fff' },
+		team_id: null,
 		priority: { value: 2, label: 'High' },
 		labels: [],
 		assignee: null,
@@ -49,7 +50,7 @@ function makeIssue(overrides: { runState?: RunState; updated_at?: string } = {})
 	}
 	return {
 		issue,
-		state: 'todo',
+		state: 'open',
 		bucket: undefined,
 		linkedRun: overrides.runState
 			? {

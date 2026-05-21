@@ -19,7 +19,7 @@ function childRefToWrapper(child: IssueChildRef): IssueWithState {
 		created_at: child.updated_at ?? '',
 		updated_at: child.updated_at ?? ''
 	}
-	return { issue, state: 'todo', bucket: undefined, linkedRun: undefined }
+	return { issue, state: 'open', bucket: undefined, linkedRun: undefined }
 }
 
 export function ChildIssues({ issues }: { issues: IssueChildRef[] }) {

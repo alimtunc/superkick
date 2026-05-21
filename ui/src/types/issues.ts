@@ -163,18 +163,6 @@ export type IssueStateMutable = Extract<IssueState, 'open' | 'in_progress' | 'do
 
 export type IssueStateFilter = IssueState | 'all'
 
-// ── Parent/child grouping ─────────────────────────────────────────────
-
-export interface IssueGroup {
-	parent: LinearIssueListItem
-	children: LinearIssueListItem[]
-}
-
-export interface GroupedIssues {
-	groups: IssueGroup[]
-	standalone: LinearIssueListItem[]
-}
-
 // ── Comment tree (view model) ─────────────────────────────────────────
 
 export interface CommentNode {

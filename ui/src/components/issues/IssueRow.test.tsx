@@ -30,6 +30,7 @@ function makeIssue(overrides: Partial<LinearIssueListItem> = {}): LinearIssueLis
 		identifier: 'SUP-1',
 		title: 'Fix login bug',
 		status: { state_type: 'started', name: 'In Progress', color: '#fff' },
+		team_id: null,
 		priority: { value: 2, label: 'High' },
 		labels: [],
 		assignee: null,
@@ -47,7 +48,7 @@ function makeIssue(overrides: Partial<LinearIssueListItem> = {}): LinearIssueLis
 function makeWrapper(issue: LinearIssueListItem, runState?: RunState): IssueWithState {
 	return {
 		issue,
-		state: 'todo',
+		state: 'open',
 		bucket: undefined,
 		linkedRun: runState
 			? {
