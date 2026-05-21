@@ -61,6 +61,16 @@ describe('IssueContextPanel', () => {
 		expect(busy.length).toBeGreaterThan(0)
 	})
 
+	it('renders the shared-context intro so the operator knows which agents read this panel', () => {
+		mocks.fetchIssueWorkspaceContext.mockReturnValue(new Promise(() => {}))
+		mocks.fetchIssueMemoryEntries.mockReturnValue(new Promise(() => {}))
+
+		const client = makeClient()
+		render(withClient(client, <IssueContextPanel issueId={ISSUE_ID} variant="inline" />))
+
+		expect(screen.getByText(/Plan, Implement, and Review/)).toBeInTheDocument()
+	})
+
 	it('renders empty states when the workspace context has no excerpts, links, or memory', async () => {
 		const client = makeClient()
 		client.setQueryData(queryKeys.issues.workspaceContext(ISSUE_ID), CONTEXT)
@@ -74,8 +84,64 @@ describe('IssueContextPanel', () => {
 
 		expect(await screen.findByText('Surface workspace context')).toBeInTheDocument()
 		expect(screen.getByText('No comment excerpts')).toBeInTheDocument()
+		expect(
+			screen.getByText(/Linear comments captured for this issue will appear here/)
+		).toBeInTheDocument()
 		expect(screen.getByText('No linked items')).toBeInTheDocument()
 		expect(screen.getByText('Memory empty')).toBeInTheDocument()
+		expect(
+			screen.getByText(/Plan, Implement, and Review will append entries here as they run/)
+		).toBeInTheDocument()
+	})
+
+	it('labels each memory entry with the launch step that produced it', async () => {
+		const client = makeClient()
+		client.setQueryData(queryKeys.issues.workspaceContext(ISSUE_ID), CONTEXT)
+
+		const populated: MemoryEntriesPage = {
+			entries: [
+				{
+					id: 'mem-plan',
+					role: 'plan',
+					author: 'planner',
+					text: 'Decided the section composition pattern.',
+					created_at: '2026-05-19T08:30:00Z'
+				},
+				{
+					id: 'mem-coder',
+					role: 'coder',
+					author: 'implementer',
+					text: 'Wired the memory list to the cursor endpoint.',
+					created_at: '2026-05-19T08:40:00Z'
+				},
+				{
+					id: 'mem-reviewer',
+					role: 'reviewer',
+					author: 'reviewer',
+					text: 'Approved with two nits.',
+					created_at: '2026-05-19T08:50:00Z'
+				},
+				{
+					id: 'mem-fact',
+					role: 'fact',
+					author: 'planner',
+					text: 'Memory pagination uses cursor pagination.',
+					created_at: '2026-05-19T08:55:00Z'
+				}
+			],
+			next_cursor: null
+		}
+		client.setQueryData(queryKeys.issues.memory(ISSUE_ID), {
+			pages: [populated],
+			pageParams: [null]
+		})
+
+		render(withClient(client, <IssueContextPanel issueId={ISSUE_ID} variant="inline" />))
+
+		expect(await screen.findByText('Plan step')).toBeInTheDocument()
+		expect(screen.getByText('Implement step')).toBeInTheDocument()
+		expect(screen.getByText('Review step')).toBeInTheDocument()
+		expect(screen.queryByText(/fact step/i)).not.toBeInTheDocument()
 	})
 
 	it('surfaces an error state in every section when the workspace context query fails', async () => {
