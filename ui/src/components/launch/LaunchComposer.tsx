@@ -18,9 +18,10 @@ import { useNavigate } from '@tanstack/react-router'
 
 interface LaunchComposerProps {
 	issue: IssueDetailResponse | null
+	prefill?: string | null
 }
 
-export function LaunchComposer({ issue }: LaunchComposerProps) {
+export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 	const navigate = useNavigate()
 	const { config } = useConfig()
 	const agentsQuery = useAgents()
@@ -30,13 +31,14 @@ export function LaunchComposer({ issue }: LaunchComposerProps) {
 	const [selectedIssue, setSelectedIssue] = useState<IssueChipPickerValue | null>(() =>
 		selectionFromDetail(issue)
 	)
-	const [body, setBody] = useState<string>(() => bodyFromIssue(issue))
+	const [body, setBody] = useState<string>(() => bodyFromIssue(issue) || prefill || '')
 	const [selection, setSelection] = useState<Record<LaunchStepKind, string | null>>({
 		plan: null,
 		implement: null,
 		review: null
 	})
 	const lastSeededIssueIdRef = useRef<string | null>(issue?.id ?? null)
+	const lastSeededPrefillRef = useRef<string | null>(prefill)
 
 	useEffect(() => {
 		if (!issue) return
@@ -45,6 +47,13 @@ export function LaunchComposer({ issue }: LaunchComposerProps) {
 		setSelectedIssue(selectionFromDetail(issue))
 		setBody(bodyFromIssue(issue))
 	}, [issue])
+
+	useEffect(() => {
+		if (issue || !prefill) return
+		if (prefill === lastSeededPrefillRef.current) return
+		lastSeededPrefillRef.current = prefill
+		setBody(prefill)
+	}, [issue, prefill])
 
 	useEffect(() => {
 		if (!agentsData || agentsData.length === 0) return
@@ -105,6 +114,7 @@ export function LaunchComposer({ issue }: LaunchComposerProps) {
 		<div className="mx-auto flex w-full max-w-[720px] flex-col gap-3 px-6 py-12">
 			<div className="rounded-[14px] border border-border bg-surface p-4.5 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
 				<textarea
+					aria-label="Launch task instructions"
 					value={body}
 					onChange={(event) => setBody(event.target.value)}
 					onKeyDown={handleKeyDown}

@@ -50,7 +50,7 @@ export function CommandBar() {
 	const search = useCommandSearch({
 		query: reducer.effectiveQuery,
 		scope: reducer.state.scope,
-		includeDone: includeDoneInScoped,
+		includeDone: reducer.state.scope === 'issues' ? true : includeDoneInScoped,
 		enabled: open
 	})
 

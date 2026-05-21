@@ -533,6 +533,73 @@ fn team_id_threads_through_list_item() {
 }
 
 #[test]
+fn issue_search_response_deserializes_assignee_id() {
+    let raw = r##"{
+        "data": {
+            "issueSearch": {
+                "nodes": [{
+                    "id": "abc",
+                    "identifier": "SUP-1",
+                    "title": "Search result",
+                    "url": "https://linear.app/t/SUP-1",
+                    "createdAt": "2026-01-01T00:00:00.000Z",
+                    "updatedAt": "2026-01-02T00:00:00.000Z",
+                    "state": { "type": "started", "name": "In Progress", "color": "#bbb" },
+                    "priority": 2,
+                    "priorityLabel": "High",
+                    "labels": { "nodes": [] },
+                    "assignee": { "id": "user-1", "name": "Alice", "avatarUrl": null },
+                    "project": null,
+                    "parent": null,
+                    "children": { "nodes": [] }
+                }],
+                "pageInfo": { "hasNextPage": false, "endCursor": null }
+            }
+        }
+    }"##;
+
+    let parsed: GqlSearchResponse = serde_json::from_str(raw).unwrap();
+    let issue = parsed
+        .data
+        .unwrap()
+        .issue_search
+        .nodes
+        .into_iter()
+        .next()
+        .unwrap();
+    assert_eq!(issue.assignee.unwrap().id, "user-1");
+}
+
+#[test]
+fn recent_comments_response_deserializes_user_id() {
+    let raw = r##"{
+        "data": {
+            "comments": {
+                "nodes": [{
+                    "id": "comment-1",
+                    "body": "webhook failed",
+                    "createdAt": "2026-01-01T00:00:00.000Z",
+                    "user": { "id": "user-1", "name": "Alice", "avatarUrl": null },
+                    "issue": { "id": "issue-1", "identifier": "SUP-1" }
+                }],
+                "pageInfo": { "hasNextPage": false, "endCursor": null }
+            }
+        }
+    }"##;
+
+    let parsed: GqlCommentsResponse = serde_json::from_str(raw).unwrap();
+    let comment = parsed
+        .data
+        .unwrap()
+        .comments
+        .nodes
+        .into_iter()
+        .next()
+        .unwrap();
+    assert_eq!(comment.user.unwrap().id, "user-1");
+}
+
+#[test]
 fn issue_state_mutation_maps_to_linear_state_type() {
     assert_eq!(IssueStateMutation::Open.linear_state_type(), "unstarted");
     assert_eq!(

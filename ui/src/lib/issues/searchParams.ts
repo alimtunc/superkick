@@ -23,7 +23,10 @@ export const issuesSearchSchema = z.object({
 	priority: z.array(z.coerce.number().int().min(0).max(4)).optional(),
 	label: z.array(z.string()).optional(),
 	label_not: z.array(z.string()).optional(),
-	project: z.array(z.string()).optional()
+	project: z.array(z.string()).optional(),
+	repo: z.array(z.string()).optional(),
+	task: z.array(z.string()).optional(),
+	created: z.array(z.string()).optional()
 })
 
 export type IssuesSearch = z.infer<typeof issuesSearchSchema>
@@ -44,7 +47,10 @@ export const EMPTY_FILTERS: IssueFilterState = {
 	priority: [],
 	label: [],
 	label_not: [],
-	project: []
+	project: [],
+	repo: [],
+	task: [],
+	created: []
 }
 
 /** Validate and coerce raw search params, rewriting the legacy `kanban`
@@ -60,13 +66,17 @@ export function parseIssuesSearch(raw: unknown): IssuesSearch {
 
 /** Apply defaults to produce the resolved view-model input. The viewer-aware
  *  default tab degrades to `all-open` when Linear identity is unknown. */
-export function resolveSearch(search: IssuesSearch, viewerId: string | null): ResolvedIssuesSearch {
+export function resolveSearch(
+	search: IssuesSearch,
+	viewerId: string | null,
+	showDonePref = false
+): ResolvedIssuesSearch {
 	return {
 		tab: search.tab ?? (viewerId !== null ? 'mine' : 'all-open'),
 		view: (search.view === 'kanban' ? 'board' : (search.view ?? 'list')) as IssueViewLayout,
 		group: search.group ?? 'lifecycle',
 		sort: search.sort ?? 'updated',
-		showDone: search.showDone ?? false,
+		showDone: search.showDone ?? showDonePref,
 		filters: {
 			assignee: search.assignee ?? [],
 			status: search.status ?? [],
@@ -74,7 +84,10 @@ export function resolveSearch(search: IssuesSearch, viewerId: string | null): Re
 			priority: search.priority ?? [],
 			label: search.label ?? [],
 			label_not: search.label_not ?? [],
-			project: search.project ?? []
+			project: search.project ?? [],
+			repo: search.repo ?? [],
+			task: search.task ?? [],
+			created: search.created ?? []
 		}
 	}
 }
