@@ -49,8 +49,8 @@ agent can `grep` them.
 - `loading-dark` — skeleton/loading state
 - `shipped-dark`, `shipped-light` — shipped/archived rows
 
-Treat these as a paired set — pick the dark variant as baseline, mirror tokens
-to light. Both must work.
+Dark mode is the implementation baseline. Light artboards are reference only
+unless the route already supports light mode in production.
 
 ### `/issues` — kanban view
 
@@ -148,6 +148,8 @@ off-spec.
   in the Issues HTML) with anything from the execution-log file.
 - ❌ **Do not** promote Tasks or Runs to top-level sidebar destinations. The
   primary navigation remains Issue-centered.
+- ❌ **Do not** remove or demote existing Task/Run deep links outside the ticket
+  that explicitly owns navigation. Keep existing routes reachable.
 - ❌ **Do not** move the run/execution workflow out of Issue Detail.
   Task Cockpit and Run Detail are zoom-in views; the orchestration entry point
   stays on the issue.
@@ -163,4 +165,16 @@ Implementation tickets that consume this handoff **must** link back to
 `docs/design/issue-centered-v1/README.md` (this file) in their description and
 name the specific artboards they target. Parent epic: [SUP-125].
 
+Known consumers:
+
+- [SUP-164] — `/issues` list, filters, hover, shipped, empty/loading, and kanban
+  using Issues artboards 02–06 and 08. Must not touch Issue Detail.
+- [SUP-165] — Issue Detail using Issues artboard 07, plus the compact Run drawer
+  from the execution-log artifact. Owns issue-centered execution integration.
+- [SUP-166] — `/tasks/:id` and `/runs/:id` deep-link redesign using Task Cockpit
+  and Run Detail simplified. Runs after or alongside SUP-165 depending on scope.
+
 [SUP-125]: https://linear.app/superkick/issue/SUP-125
+[SUP-164]: https://linear.app/superkick/issue/SUP-164
+[SUP-165]: https://linear.app/superkick/issue/SUP-165
+[SUP-166]: https://linear.app/superkick/issue/SUP-166
