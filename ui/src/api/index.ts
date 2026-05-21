@@ -1,7 +1,7 @@
 export { DuplicateRunError, TurnAlreadyStreamingError } from './_shared'
 export { fetchConfig } from './config'
 export { cancelRun, createRun, fetchRun, fetchRuns } from './runs'
-export { fetchIssueDetail, fetchIssues } from './issues'
+export { fetchIssueDetail, fetchIssues, patchIssueState } from './issues'
 export { fetchIssueMemoryEntries, fetchIssueWorkspaceContext } from './issueContext'
 export { fetchDashboardQueue } from './dashboard'
 export { dispatchFromQueue, fetchLaunchQueue } from './launchQueue'

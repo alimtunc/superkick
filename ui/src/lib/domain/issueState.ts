@@ -1,19 +1,19 @@
-import type { IssueState, LaunchQueue, LaunchQueueItem, LinearIssueListItem, LinearStateType } from '@/types'
+import type {
+	IssueState,
+	IssueStateMutable,
+	LaunchQueue,
+	LaunchQueueItem,
+	LinearIssueListItem,
+	LinearStateType
+} from '@/types'
 
-/**
- * The launch-queue classifier (server) emits 9 buckets; the operator-facing
- * surface reduces to 6 states. `waiting` and `blocked` fold into `todo`
- * because the question on those rows is "is this ready to start?" not
- * "what column is it in?" — the badges downstream of this map carry the
- * gating reason. `launchable` → `todo` (it lives in the upstream lane until
- * dispatched). `in-pr` → `in_review` so the vocabulary stays product-facing.
- */
+/** 9 server buckets → 5 operator lanes. Backlog / waiting / blocked / launchable fold into `open` (gating reasons live on badges). */
 const LAUNCH_QUEUE_TO_ISSUE_STATE: Record<LaunchQueue, IssueState> = {
-	backlog: 'backlog',
-	todo: 'todo',
-	launchable: 'todo',
-	waiting: 'todo',
-	blocked: 'todo',
+	backlog: 'open',
+	todo: 'open',
+	launchable: 'open',
+	waiting: 'open',
+	blocked: 'open',
 	active: 'in_progress',
 	'needs-human': 'needs_human',
 	'in-pr': 'in_review',
@@ -24,45 +24,45 @@ export function mapLaunchQueueToIssueState(bucket: LaunchQueue): IssueState {
 	return LAUNCH_QUEUE_TO_ISSUE_STATE[bucket]
 }
 
-/** Canonical left-to-right kanban order. Six entries, exactly. */
+/** Canonical left-to-right kanban order. Five entries, exactly. */
 export const ISSUE_STATE_ORDER: readonly IssueState[] = [
-	'backlog',
-	'todo',
+	'open',
 	'in_progress',
 	'needs_human',
 	'in_review',
 	'done'
 ] as const
 
+/** States the kanban can persist. `needs_human` / `in_review` are runtime-derived — read-only drop targets. */
+export const ISSUE_STATE_DROPPABLE: ReadonlySet<IssueState> = new Set<IssueState>([
+	'open',
+	'in_progress',
+	'done'
+])
+
+export function isDroppableIssueState(state: IssueState): state is IssueStateMutable {
+	return ISSUE_STATE_DROPPABLE.has(state)
+}
+
 const LINEAR_STATE_TO_ISSUE_STATE: Record<LinearStateType, IssueState> = {
-	backlog: 'backlog',
-	unstarted: 'todo',
+	backlog: 'open',
+	unstarted: 'open',
 	started: 'in_progress',
 	completed: 'done',
 	canceled: 'done'
 }
 
-/**
- * Fallback path for issues that do not appear in the launch queue snapshot
- * (Linear-cold issues that the server-side classifier hasn't seen, or
- * cross-team items past the 200-row cap). Collapses `canceled` into `done`
- * to avoid a "dismissed" column the model intentionally drops.
- */
+/** Fallback for issues outside the launch-queue snapshot. Collapses `canceled` into `done` — no dismissed column by design. */
 export function issueStateFromLinear(stateType: LinearStateType): IssueState {
 	return LINEAR_STATE_TO_ISSUE_STATE[stateType]
 }
 
-/**
- * Group launch-queue items by their issue state. Returns a record keyed by
- * every state — empty arrays for empty columns so the kanban can map over
- * `ISSUE_STATE_ORDER` without conditional rendering.
- */
+/** Group launch-queue items by issue state. Empty arrays for empty lanes so callers can map over `ISSUE_STATE_ORDER`. */
 export function groupItemsByIssueState(
 	items: readonly LaunchQueueItem[]
 ): Record<IssueState, LaunchQueueItem[]> {
 	const groups: Record<IssueState, LaunchQueueItem[]> = {
-		backlog: [],
-		todo: [],
+		open: [],
 		in_progress: [],
 		needs_human: [],
 		in_review: [],
@@ -74,11 +74,7 @@ export function groupItemsByIssueState(
 	return groups
 }
 
-/**
- * Narrow a Linear issue to its operator state by preferring the launch-queue
- * verdict (server-side, captures runs and blockers) and falling back to the
- * raw Linear state when the issue is not present in the snapshot.
- */
+/** Operator state for an issue: launch-queue bucket wins, raw Linear state is the fallback. */
 export function issueStateFor(
 	issue: LinearIssueListItem,
 	bucketByIdentifier: Map<string, LaunchQueue>

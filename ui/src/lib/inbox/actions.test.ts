@@ -17,6 +17,7 @@ const baseIssue: LinearIssueListItem = {
 	identifier: 'SUP-1',
 	title: 'demo',
 	status: { state_type: 'unstarted', name: 'Todo', color: '#fff' },
+	team_id: null,
 	priority: { value: 3, label: 'Medium' },
 	labels: [],
 	assignee: null,

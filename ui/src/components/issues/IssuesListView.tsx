@@ -91,7 +91,7 @@ interface IndentedRowProps {
 }
 
 function IndentedRow({ issue, indent, stateByIssueId, queueItemByIdentifier }: IndentedRowProps) {
-	const state = stateByIssueId.get(issue.id) ?? 'todo'
+	const state = stateByIssueId.get(issue.id) ?? 'open'
 	return (
 		<div className="flex items-stretch border-b border-border">
 			<span className={INDENT_CLASS[indent]} aria-hidden="true" />
@@ -113,7 +113,7 @@ interface IssueListGroupProps {
 function IssueListGroup({ group, stateByIssueId, queueItemByIdentifier }: IssueListGroupProps) {
 	const [expanded, setExpanded] = useState(true)
 	const childCount = group.children.length
-	const parentState = stateByIssueId.get(group.parent.id) ?? 'todo'
+	const parentState = stateByIssueId.get(group.parent.id) ?? 'open'
 
 	return (
 		<div>

@@ -19,6 +19,7 @@ function issueItem(bucket: LaunchQueue, identifier = 'SUP-1'): LaunchQueueItem {
 			identifier,
 			title: 'test issue',
 			status: { state_type: 'started', name: 'In Progress', color: '#fff' },
+			team_id: null,
 			priority: { value: 3, label: 'Medium' },
 			labels: [],
 			assignee: null,
@@ -68,11 +69,11 @@ function runItem(
 
 describe('mapLaunchQueueToIssueState', () => {
 	const cases: ReadonlyArray<[LaunchQueue, ReturnType<typeof mapLaunchQueueToIssueState>]> = [
-		['backlog', 'backlog'],
-		['todo', 'todo'],
-		['launchable', 'todo'],
-		['waiting', 'todo'],
-		['blocked', 'todo'],
+		['backlog', 'open'],
+		['todo', 'open'],
+		['launchable', 'open'],
+		['waiting', 'open'],
+		['blocked', 'open'],
 		['active', 'in_progress'],
 		['needs-human', 'needs_human'],
 		['in-pr', 'in_review'],
@@ -87,15 +88,8 @@ describe('mapLaunchQueueToIssueState', () => {
 })
 
 describe('ISSUE_STATE_ORDER', () => {
-	it('lists exactly six states in canonical kanban order', () => {
-		expect(ISSUE_STATE_ORDER).toEqual([
-			'backlog',
-			'todo',
-			'in_progress',
-			'needs_human',
-			'in_review',
-			'done'
-		])
+	it('lists exactly five states in canonical kanban order', () => {
+		expect(ISSUE_STATE_ORDER).toEqual(['open', 'in_progress', 'needs_human', 'in_review', 'done'])
 	})
 })
 
@@ -107,10 +101,15 @@ describe('groupItemsByIssueState', () => {
 		}
 	})
 
-	it('routes waiting / blocked / launchable items into the todo lane', () => {
-		const items = [issueItem('waiting', 'A'), issueItem('blocked', 'B'), issueItem('launchable', 'C')]
+	it('routes backlog / waiting / blocked / launchable items into the open lane', () => {
+		const items = [
+			issueItem('backlog', 'A'),
+			issueItem('waiting', 'B'),
+			issueItem('blocked', 'C'),
+			issueItem('launchable', 'D')
+		]
 		const groups = groupItemsByIssueState(items)
-		expect(groups.todo).toHaveLength(3)
+		expect(groups.open).toHaveLength(4)
 		expect(groups.in_progress).toHaveLength(0)
 	})
 
@@ -125,9 +124,9 @@ describe('groupItemsByIssueState', () => {
 })
 
 describe('issueStateFromLinear (fallback path)', () => {
-	it('maps every Linear state to an issue state, collapsing canceled into done', () => {
-		expect(issueStateFromLinear('backlog')).toBe('backlog')
-		expect(issueStateFromLinear('unstarted')).toBe('todo')
+	it('maps every Linear state to an issue state, collapsing canceled into done and backlog/unstarted into open', () => {
+		expect(issueStateFromLinear('backlog')).toBe('open')
+		expect(issueStateFromLinear('unstarted')).toBe('open')
 		expect(issueStateFromLinear('started')).toBe('in_progress')
 		expect(issueStateFromLinear('completed')).toBe('done')
 		expect(issueStateFromLinear('canceled')).toBe('done')
@@ -140,6 +139,7 @@ describe('issueStateFor', () => {
 		identifier: 'SUP-99',
 		title: 'cold issue',
 		status: { state_type: 'started', name: 'In Progress', color: '#fff' },
+		team_id: null,
 		priority: { value: 3, label: 'Medium' },
 		labels: [],
 		assignee: null,
