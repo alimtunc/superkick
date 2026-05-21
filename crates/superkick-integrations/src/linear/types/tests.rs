@@ -536,7 +536,7 @@ fn team_id_threads_through_list_item() {
 fn issue_search_response_deserializes_assignee_id() {
     let raw = r##"{
         "data": {
-            "issueSearch": {
+            "searchIssues": {
                 "nodes": [{
                     "id": "abc",
                     "identifier": "SUP-1",
@@ -562,7 +562,7 @@ fn issue_search_response_deserializes_assignee_id() {
     let issue = parsed
         .data
         .unwrap()
-        .issue_search
+        .search_issues
         .nodes
         .into_iter()
         .next()

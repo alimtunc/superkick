@@ -234,7 +234,7 @@ pub(crate) struct GqlSearchResponse {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GqlSearchData {
-    pub issue_search: GqlIssueConnection,
+    pub search_issues: GqlIssueConnection,
 }
 
 // ── Recent comments response ─────────────────────────────────────────
@@ -301,6 +301,8 @@ pub(crate) struct GqlWorkflowState {
     pub id: String,
     #[serde(rename = "type")]
     pub state_type: String,
+    #[serde(default)]
+    pub position: f64,
 }
 
 // ── Issue team lookup (cold-cache fallback for update_issue_state) ───
