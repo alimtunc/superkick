@@ -13,7 +13,7 @@ import { LoadingState } from '@/components/ui/state-loading'
 import { useIssues } from '@/hooks/useIssues'
 import { useIssuesView } from '@/hooks/useIssuesView'
 import { useViewer } from '@/hooks/useViewer'
-import { EMPTY_FILTERS, parseIssuesSearch, resolveSearch } from '@/lib/issues/searchParams'
+import { parseIssuesSearch, resolveSearch } from '@/lib/issues/searchParams'
 import { issuesQuery, launchQueueQuery } from '@/lib/queries'
 import { usePageActions } from '@/shell/usePageActions'
 import type {
@@ -45,7 +45,11 @@ function IssuesPage() {
 	const rawSearch = Route.useSearch()
 	const navigate = useNavigate({ from: Route.fullPath })
 	const { viewerId } = useViewer()
-	const resolved = useMemo(() => resolveSearch(rawSearch, viewerId), [rawSearch, viewerId])
+	const [showDonePref, setShowDonePref] = useState(readShowDonePref)
+	const resolved = useMemo(
+		() => resolveSearch(rawSearch, viewerId, showDonePref),
+		[rawSearch, viewerId, showDonePref]
+	)
 
 	const data = useIssues()
 	const view = useIssuesView({
@@ -106,8 +110,11 @@ function IssuesPage() {
 	)
 
 	const onToggleDone = useCallback(() => {
+		const next = !resolved.showDone
+		setShowDonePref(next)
+		writeShowDonePref(next)
 		navigate({
-			search: (prev) => ({ ...prev, showDone: resolved.showDone ? undefined : true })
+			search: (prev) => ({ ...prev, showDone: next ? true : undefined })
 		})
 	}, [navigate, resolved.showDone])
 
@@ -198,6 +205,7 @@ function buildFilterOptions(issues: readonly IssueWithState[]): FilterOptionSet 
 	const priorities = new Map<number, string>()
 	const labels = new Map<string, string>()
 	const projects = new Set<string>()
+	const repos = new Set<string>()
 
 	for (const wrapper of issues) {
 		const issue: LinearIssueListItem = wrapper.issue
@@ -206,6 +214,7 @@ function buildFilterOptions(issues: readonly IssueWithState[]): FilterOptionSet 
 		priorities.set(issue.priority.value, issue.priority.label)
 		for (const label of issue.labels) labels.set(label.name, label.color)
 		if (issue.project) projects.add(issue.project.name)
+		if (wrapper.linkedRun) repos.add(wrapper.linkedRun.run.repo_slug)
 	}
 
 	return {
@@ -213,7 +222,8 @@ function buildFilterOptions(issues: readonly IssueWithState[]): FilterOptionSet 
 		statuses: [...statuses.entries()].map(([state_type, name]) => ({ state_type, name })),
 		priorities: [...priorities.entries()].map(([value, label]) => ({ value, label })),
 		labels: [...labels.entries()].map(([name, color]) => ({ name, color })),
-		projects: [...projects]
+		projects: [...projects],
+		repos: [...repos]
 	}
 }
 
@@ -225,7 +235,10 @@ function serializeFilters(filters: IssueFilterState) {
 		priority: nonEmpty(filters.priority),
 		label: nonEmpty(filters.label),
 		label_not: nonEmpty(filters.label_not),
-		project: nonEmpty(filters.project)
+		project: nonEmpty(filters.project),
+		repo: nonEmpty(filters.repo),
+		task: nonEmpty(filters.task),
+		created: nonEmpty(filters.created)
 	}
 }
 
@@ -233,5 +246,18 @@ function nonEmpty<T>(values: T[]): T[] | undefined {
 	return values.length === 0 ? undefined : values
 }
 
-// Suppress unused warning when filter state is empty.
-void EMPTY_FILTERS
+const SHOW_DONE_KEY = 'superkick.issues.showDone'
+
+function readShowDonePref(): boolean {
+	if (typeof window === 'undefined') return false
+	return window.localStorage.getItem(SHOW_DONE_KEY) === 'true'
+}
+
+function writeShowDonePref(value: boolean) {
+	if (typeof window === 'undefined') return
+	try {
+		window.localStorage.setItem(SHOW_DONE_KEY, String(value))
+	} catch {
+		return
+	}
+}

@@ -2,11 +2,11 @@ import { useState, type ReactNode } from 'react'
 
 import { PopoverPopup } from '@/components/ui/popover-shell'
 import { cn } from '@/lib/utils'
-import type { IssueFilterState, IssueLabel, IssuePriority } from '@/types'
+import type { IssueFilterState, IssueLabel, IssuePriority, TaskBadgeKind } from '@/types'
 import { Icon, PriorityIcon } from '@/ui'
 import { Popover } from '@base-ui/react/popover'
 
-type AxisKey = 'assignee' | 'status' | 'priority' | 'label' | 'project'
+type AxisKey = 'assignee' | 'status' | 'priority' | 'label' | 'project' | 'repo' | 'task' | 'created'
 
 interface IssueFilterDropdownProps {
 	filters: IssueFilterState
@@ -23,6 +23,7 @@ export interface FilterOptionSet {
 	priorities: IssuePriority[]
 	labels: IssueLabel[]
 	projects: string[]
+	repos: string[]
 }
 
 const AXES: { key: AxisKey; label: string }[] = [
@@ -30,7 +31,23 @@ const AXES: { key: AxisKey; label: string }[] = [
 	{ key: 'status', label: 'Status' },
 	{ key: 'priority', label: 'Priority' },
 	{ key: 'label', label: 'Label' },
-	{ key: 'project', label: 'Project' }
+	{ key: 'project', label: 'Project' },
+	{ key: 'repo', label: 'Repo' },
+	{ key: 'task', label: 'Task state' },
+	{ key: 'created', label: 'Created' }
+]
+
+const TASK_OPTIONS: { value: TaskBadgeKind; label: string }[] = [
+	{ value: 'running', label: 'Running' },
+	{ value: 'needs', label: 'Needs you' },
+	{ value: 'review', label: 'Review' },
+	{ value: 'shipped', label: 'Shipped' }
+]
+
+const CREATED_OPTIONS = [
+	{ value: '24h', label: 'Last 24h' },
+	{ value: '7d', label: 'Last 7d' },
+	{ value: '30d', label: 'Last 30d' }
 ]
 
 export function IssueFilterDropdown({
@@ -160,6 +177,12 @@ function pickerItems(
 			return options.labels.map((l) => ({ value: l.name, label: l.name }))
 		case 'project':
 			return options.projects.map((p) => ({ value: p, label: p }))
+		case 'repo':
+			return options.repos.map((r) => ({ value: r, label: r }))
+		case 'task':
+			return TASK_OPTIONS
+		case 'created':
+			return CREATED_OPTIONS
 	}
 }
 
@@ -195,6 +218,12 @@ function isSelected(filters: IssueFilterState, axis: AxisKey, value: string | nu
 			return filters.label.includes(value as string)
 		case 'project':
 			return filters.project.includes(value as string)
+		case 'repo':
+			return filters.repo.includes(value as string)
+		case 'task':
+			return filters.task.includes(value as string)
+		case 'created':
+			return filters.created.includes(value as string)
 	}
 }
 
@@ -210,7 +239,7 @@ function toggleFilterValue(
 			: [...current, value as number]
 		return { ...filters, priority: next }
 	}
-	const key: 'assignee' | 'status' | 'label' | 'project' = axis
+	const key: 'assignee' | 'status' | 'label' | 'project' | 'repo' | 'task' | 'created' = axis
 	const current = filters[key]
 	const next = current.includes(value as string)
 		? current.filter((v) => v !== value)

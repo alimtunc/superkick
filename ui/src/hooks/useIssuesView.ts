@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 
 import type { PillTone } from '@/components/ui/pill'
+import { taskBadgeKindFor } from '@/lib/issues/taskBadge'
 import { bucketFor } from '@/lib/lifecycle'
 import type {
 	IssueFilterState,
@@ -101,7 +102,7 @@ export function useIssuesView(input: UseIssuesViewInput): UseIssuesViewResult {
 		}
 
 		const tabScoped = filterByTab(issues, bucketByIdentifier, tab, viewerId, reference, showDone)
-		const filtered = applyFilters(tabScoped, bucketByIdentifier, filters)
+		const filtered = applyFilters(tabScoped, bucketByIdentifier, filters, reference)
 		const sorted = sortIssues(filtered, sort)
 
 		const doneCountThisWeek = countShippedThisWeek(issues, bucketByIdentifier, reference)
@@ -171,9 +172,9 @@ function filterByTab(
 function applyFilters(
 	issues: IssueWithState[],
 	bucketByIdentifier: Map<string, LifecycleBucket>,
-	filters: IssueFilterState
+	filters: IssueFilterState,
+	now: Date
 ): IssueWithState[] {
-	void bucketByIdentifier
 	return issues.filter((wrapper) => {
 		const issue = wrapper.issue
 		if (filters.assignee.length > 0) {
@@ -196,7 +197,37 @@ function applyFilters(
 			const name = issue.project?.name
 			if (!name || !filters.project.includes(name)) return false
 		}
+		if (filters.repo.length > 0) {
+			const repo = wrapper.linkedRun?.run.repo_slug
+			if (!repo || !filters.repo.includes(repo)) return false
+		}
+		if (filters.task.length > 0) {
+			const bucket = bucketByIdentifier.get(issue.identifier) ?? 'open'
+			const task = taskBadgeKindFor(wrapper, bucket, now)
+			if (!task || !filters.task.includes(task)) return false
+		}
+		if (filters.created.length > 0 && !createdMatches(issue.created_at, filters.created, now)) {
+			return false
+		}
 		return true
+	})
+}
+
+function createdMatches(createdAt: string, windows: readonly string[], now: Date): boolean {
+	const created = new Date(createdAt).getTime()
+	if (Number.isNaN(created)) return false
+	const age = now.getTime() - created
+	return windows.some((w) => {
+		switch (w) {
+			case '24h':
+				return age <= 24 * 60 * 60 * 1000
+			case '7d':
+				return age <= 7 * 24 * 60 * 60 * 1000
+			case '30d':
+				return age <= 30 * 24 * 60 * 60 * 1000
+			default:
+				return false
+		}
 	})
 }
 

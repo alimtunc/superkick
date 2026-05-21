@@ -92,7 +92,7 @@ query SearchIssues($query: String!, $first: Int!) {
       priority
       priorityLabel
       labels { nodes { name color } }
-      assignee { name avatarUrl }
+      assignee { id name avatarUrl }
       project { name }
       parent { id identifier title state { type name color } }
     }
@@ -121,7 +121,7 @@ query RecentComments($first: Int!, $after: String, $since: DateTimeOrDuration!) 
       id
       body
       createdAt
-      user { name avatarUrl }
+      user { id name avatarUrl }
       issue { id identifier }
     }
     pageInfo { hasNextPage endCursor }

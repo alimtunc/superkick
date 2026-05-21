@@ -32,6 +32,9 @@ export interface IssueFilterState {
 	label: string[]
 	label_not: string[]
 	project: string[]
+	repo: string[]
+	task: string[]
+	created: string[]
 }
 
 /**

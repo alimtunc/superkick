@@ -8,6 +8,7 @@ import { Route as shellRoute } from './route'
 
 interface TasksNewSearch {
 	issue?: string
+	prefill?: string
 }
 
 export const Route = createRoute({
@@ -15,7 +16,8 @@ export const Route = createRoute({
 	path: '/tasks/new',
 	validateSearch: (raw: Record<string, unknown>): TasksNewSearch => {
 		const issue = typeof raw.issue === 'string' && raw.issue.length > 0 ? raw.issue : undefined
-		return { issue }
+		const prefill = typeof raw.prefill === 'string' && raw.prefill.length > 0 ? raw.prefill : undefined
+		return { issue, prefill }
 	},
 	component: TasksNewPage
 })
@@ -30,5 +32,5 @@ function TasksNewPage() {
 
 	usePageActions({ title: 'What should we work on?' })
 
-	return <LaunchComposer issue={issueDetail.data ?? null} />
+	return <LaunchComposer issue={issueDetail.data ?? null} prefill={search.prefill ?? null} />
 }

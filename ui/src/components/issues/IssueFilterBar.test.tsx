@@ -16,7 +16,8 @@ const OPTIONS = {
 		{ value: 2, label: 'High' }
 	],
 	labels: [{ name: 'bug', color: '#f00' }],
-	projects: ['Superkick']
+	projects: ['Superkick'],
+	repos: ['superkick']
 }
 
 function renderBar(
@@ -58,8 +59,8 @@ describe('IssueFilterBar', () => {
 				status_not: ['completed']
 			}
 		})
-		expect(screen.getByText('Assignee = Alice')).toBeInTheDocument()
-		expect(screen.getByText('Status ≠ Done')).toBeInTheDocument()
+		expect(screen.getByLabelText('Remove filter Assignee = Alice')).toBeInTheDocument()
+		expect(screen.getByLabelText('Remove filter Status ≠ Done')).toBeInTheDocument()
 	})
 
 	it('removes a chip via onFiltersChange when × is clicked', async () => {
@@ -71,6 +72,19 @@ describe('IssueFilterBar', () => {
 		expect(onFiltersChange).toHaveBeenCalledWith({
 			...EMPTY_FILTERS,
 			label: []
+		})
+	})
+
+	it('toggles supported chip operators between include and exclude', async () => {
+		const user = userEvent.setup()
+		const { onFiltersChange } = renderBar({
+			filters: { ...EMPTY_FILTERS, status: ['completed'] }
+		})
+		await user.click(screen.getByLabelText('Toggle operator for Status = Done'))
+		expect(onFiltersChange).toHaveBeenCalledWith({
+			...EMPTY_FILTERS,
+			status: [],
+			status_not: ['completed']
 		})
 	})
 

@@ -72,8 +72,9 @@ export function IssueFilterBar({
 			{chips.map((chip) => (
 				<FilterChip
 					key={chip.key}
-					label={chip.label}
+					chip={chip}
 					onRemove={() => onFiltersChange(removeChip(filters, chip))}
+					onToggleOperator={() => onFiltersChange(toggleChipOperator(filters, chip))}
 				/>
 			))}
 
@@ -98,8 +99,20 @@ export function IssueFilterBar({
 
 interface ChipDescriptor {
 	key: string
-	label: string
-	axis: 'assignee' | 'status' | 'status_not' | 'priority' | 'label' | 'label_not' | 'project'
+	name: string
+	op: '=' | '≠'
+	valueLabel: string
+	axis:
+		| 'assignee'
+		| 'status'
+		| 'status_not'
+		| 'priority'
+		| 'label'
+		| 'label_not'
+		| 'project'
+		| 'repo'
+		| 'task'
+		| 'created'
 	value: string | number
 }
 
@@ -109,20 +122,31 @@ function buildChips(filters: IssueFilterState, options: FilterOptionSet): ChipDe
 		const found = options.assignees.find((a) => a.id === id)
 		chips.push({
 			key: `assignee:${id}`,
-			label: `Assignee = ${found?.name ?? id}`,
+			name: 'Assignee',
+			op: '=',
+			valueLabel: found?.name ?? id,
 			axis: 'assignee',
 			value: id
 		})
 	}
 	for (const st of filters.status) {
 		const found = options.statuses.find((s) => s.state_type === st)
-		chips.push({ key: `status:${st}`, label: `Status = ${found?.name ?? st}`, axis: 'status', value: st })
+		chips.push({
+			key: `status:${st}`,
+			name: 'Status',
+			op: '=',
+			valueLabel: found?.name ?? st,
+			axis: 'status',
+			value: st
+		})
 	}
 	for (const st of filters.status_not) {
 		const found = options.statuses.find((s) => s.state_type === st)
 		chips.push({
 			key: `status_not:${st}`,
-			label: `Status ≠ ${found?.name ?? st}`,
+			name: 'Status',
+			op: '≠',
+			valueLabel: found?.name ?? st,
 			axis: 'status_not',
 			value: st
 		})
@@ -131,19 +155,58 @@ function buildChips(filters: IssueFilterState, options: FilterOptionSet): ChipDe
 		const found = options.priorities.find((pr) => pr.value === p)
 		chips.push({
 			key: `priority:${p}`,
-			label: `Priority = ${found?.label ?? p}`,
+			name: 'Priority',
+			op: '=',
+			valueLabel: String(found?.label ?? p),
 			axis: 'priority',
 			value: p
 		})
 	}
 	for (const l of filters.label) {
-		chips.push({ key: `label:${l}`, label: `Label = ${l}`, axis: 'label', value: l })
+		chips.push({ key: `label:${l}`, name: 'Label', op: '=', valueLabel: l, axis: 'label', value: l })
 	}
 	for (const l of filters.label_not) {
-		chips.push({ key: `label_not:${l}`, label: `Label ≠ ${l}`, axis: 'label_not', value: l })
+		chips.push({
+			key: `label_not:${l}`,
+			name: 'Label',
+			op: '≠',
+			valueLabel: l,
+			axis: 'label_not',
+			value: l
+		})
 	}
 	for (const p of filters.project) {
-		chips.push({ key: `project:${p}`, label: `Project = ${p}`, axis: 'project', value: p })
+		chips.push({
+			key: `project:${p}`,
+			name: 'Project',
+			op: '=',
+			valueLabel: p,
+			axis: 'project',
+			value: p
+		})
+	}
+	for (const r of filters.repo) {
+		chips.push({ key: `repo:${r}`, name: 'Repo', op: '=', valueLabel: r, axis: 'repo', value: r })
+	}
+	for (const t of filters.task) {
+		chips.push({
+			key: `task:${t}`,
+			name: 'Task',
+			op: '=',
+			valueLabel: taskLabel(t),
+			axis: 'task',
+			value: t
+		})
+	}
+	for (const c of filters.created) {
+		chips.push({
+			key: `created:${c}`,
+			name: 'Created',
+			op: '=',
+			valueLabel: createdLabel(c),
+			axis: 'created',
+			value: c
+		})
 	}
 	return chips
 }
@@ -157,10 +220,73 @@ function removeChip(filters: IssueFilterState, chip: ChipDescriptor): IssueFilte
 	return { ...filters, [key]: current.filter((v) => v !== chip.value) }
 }
 
-function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+function toggleChipOperator(filters: IssueFilterState, chip: ChipDescriptor): IssueFilterState {
+	if (chip.axis === 'status') {
+		return {
+			...filters,
+			status: filters.status.filter((v) => v !== chip.value),
+			status_not: [...filters.status_not, chip.value as string]
+		}
+	}
+	if (chip.axis === 'status_not') {
+		return {
+			...filters,
+			status_not: filters.status_not.filter((v) => v !== chip.value),
+			status: [...filters.status, chip.value as string]
+		}
+	}
+	if (chip.axis === 'label') {
+		return {
+			...filters,
+			label: filters.label.filter((v) => v !== chip.value),
+			label_not: [...filters.label_not, chip.value as string]
+		}
+	}
+	if (chip.axis === 'label_not') {
+		return {
+			...filters,
+			label_not: filters.label_not.filter((v) => v !== chip.value),
+			label: [...filters.label, chip.value as string]
+		}
+	}
+	return filters
+}
+
+function canToggleOperator(chip: ChipDescriptor): boolean {
+	return (
+		chip.axis === 'status' ||
+		chip.axis === 'status_not' ||
+		chip.axis === 'label' ||
+		chip.axis === 'label_not'
+	)
+}
+
+function FilterChip({
+	chip,
+	onRemove,
+	onToggleOperator
+}: {
+	chip: ChipDescriptor
+	onRemove: () => void
+	onToggleOperator: () => void
+}) {
+	const label = `${chip.name} ${chip.op} ${chip.valueLabel}`
 	return (
 		<span className="inline-flex h-6 items-center gap-1 rounded bg-raised px-2 text-[11px] text-fg">
-			<span>{label}</span>
+			<span>{chip.name}</span>
+			{canToggleOperator(chip) ? (
+				<button
+					type="button"
+					onClick={onToggleOperator}
+					className="font-data text-fg-muted hover:text-fg focus-visible:outline-none"
+					aria-label={`Toggle operator for ${label}`}
+				>
+					{chip.op}
+				</button>
+			) : (
+				<span className="font-data text-fg-muted">{chip.op}</span>
+			)}
+			<span>{chip.valueLabel}</span>
 			<button
 				type="button"
 				onClick={onRemove}
@@ -171,6 +297,34 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
 			</button>
 		</span>
 	)
+}
+
+function taskLabel(value: string): string {
+	switch (value) {
+		case 'running':
+			return 'Running'
+		case 'needs':
+			return 'Needs you'
+		case 'review':
+			return 'Review'
+		case 'shipped':
+			return 'Shipped'
+		default:
+			return value
+	}
+}
+
+function createdLabel(value: string): string {
+	switch (value) {
+		case '24h':
+			return 'Last 24h'
+		case '7d':
+			return 'Last 7d'
+		case '30d':
+			return 'Last 30d'
+		default:
+			return value
+	}
 }
 
 function SelectControl<T extends string>({
