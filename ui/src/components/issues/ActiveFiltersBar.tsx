@@ -1,8 +1,8 @@
 import { FilterPill } from '@/components/issues/FilterPill'
-import { PriorityIcon } from '@/components/issues/PriorityIcon'
 import { RemovablePill } from '@/components/issues/RemovablePill'
 import { PRIORITY_META } from '@/lib/domain/priorityMeta'
 import { DEFAULT_LABEL_COLOR } from '@/lib/issueLabels'
+import { PriorityIcon, priorityIconKindFromValue } from '@/ui'
 import { X } from 'lucide-react'
 
 export function ActiveFiltersBar({
@@ -40,7 +40,7 @@ export function ActiveFiltersBar({
 							onClick={() => onTogglePriority(v)}
 							aria-label={`Remove priority ${PRIORITY_META[v]?.label ?? `P${v}`}`}
 						>
-							<PriorityIcon value={v} />
+							<PriorityIcon kind={priorityIconKindFromValue(v)} />
 							{PRIORITY_META[v]?.label ?? `P${v}`}
 							<X size={10} strokeWidth={2} className="ml-0.5 text-fg-dim" aria-hidden="true" />
 						</button>
