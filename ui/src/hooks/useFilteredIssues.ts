@@ -33,8 +33,7 @@ interface UseFilteredIssuesInput {
 type IssueStateCounts = Record<IssueState, number>
 
 const EMPTY_COUNTS: IssueStateCounts = {
-	backlog: 0,
-	todo: 0,
+	open: 0,
 	in_progress: 0,
 	needs_human: 0,
 	in_review: 0,

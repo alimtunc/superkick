@@ -30,6 +30,13 @@ pub enum LinearError {
     #[error("Linear GraphQL error: {0}")]
     Graphql(String),
 
+    /// Operator-actionable rejection — Linear accepted the call but refused
+    /// the operation (e.g. team has no workflow state of the requested
+    /// type, `issueUpdate` returned `success=false`). Maps to HTTP 422 so
+    /// the dashboard can surface the message instead of an opaque 500.
+    #[error("Linear rejected the request: {0}")]
+    Rejected(String),
+
     /// GraphQL call returned a 2xx response with no `data` field — Linear
     /// uses this shape for not-found issues.
     #[error("Linear response contained no data")]
@@ -59,6 +66,16 @@ impl LinearError {
             LinearError::Transport(_) => true,
             LinearError::Status { status, .. } => status.is_server_error(),
             _ => false,
+        }
+    }
+
+    /// Operator-actionable rejection? Maps to HTTP 422 with the message
+    /// surfaced verbatim.
+    #[must_use]
+    pub fn rejected_message(&self) -> Option<&str> {
+        match self {
+            LinearError::Rejected(msg) => Some(msg.as_str()),
+            _ => None,
         }
     }
 }

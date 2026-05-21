@@ -23,13 +23,17 @@ export { deriveConversationUxState, conversationStateTone } from './conversation
 export { buildIssueActivity } from './issueActivity'
 export { launchQueueAccent } from './launchQueueAccent'
 export {
+	ISSUE_STATE_DROPPABLE,
 	ISSUE_STATE_ORDER,
 	groupItemsByIssueState,
+	isDroppableIssueState,
 	issueStateFor,
 	issueStateFromLinear,
 	mapLaunchQueueToIssueState
 } from './issueState'
 export { issueStateAccent, issueStateTone } from './issueStateAccent'
+export { launchQueueItemIdentifier } from './launchQueueItem'
+export { taskBadgeFor } from './taskBadge'
 export { UNBLOCK_BADGE_WINDOW_MS, isWithinUnblockWindow } from './unblockBadge'
 export {
 	TERMINAL_LAUNCH_TASK_STATUSES,

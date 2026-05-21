@@ -536,7 +536,10 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         )
         .route("/events", get(handlers::events::workspace_events))
         .route("/issues", get(handlers::issues::list_issues))
-        .route("/issues/{id}", get(handlers::issues::get_issue))
+        .route(
+            "/issues/{id}",
+            get(handlers::issues::get_issue).patch(handlers::issues::patch_issue),
+        )
         .route(
             "/issues/{id}/context",
             get(handlers::issue_context::get_or_create_context),
