@@ -79,8 +79,8 @@ query ListIssues($first: Int!, $after: String) {
 "#;
 
 const ISSUE_SEARCH_QUERY: &str = r#"
-query SearchIssues($query: String!, $first: Int!) {
-  issueSearch(query: $query, first: $first, orderBy: updatedAt) {
+query SearchIssues($term: String!, $first: Int!) {
+  searchIssues(term: $term, first: $first, orderBy: updatedAt) {
     nodes {
       id
       identifier
@@ -133,7 +133,7 @@ const TEAM_STATES_QUERY: &str = r#"
 query TeamStates($teamId: String!) {
   team(id: $teamId) {
     states {
-      nodes { id type }
+      nodes { id type position }
     }
   }
 }
@@ -213,6 +213,10 @@ struct TeamWorkflowStates {
 struct WorkflowState {
     id: String,
     state_type: String,
+    /// Linear's user-defined ordering. Teams can have multiple workflow states of the
+    /// same `type` (e.g. "In Progress" and "In Review" both `started`); position
+    /// disambiguates so `started` resolves to the leftmost lane the user expects.
+    position: f64,
 }
 
 /// Thin HTTP client for the Linear GraphQL API.
@@ -284,7 +288,7 @@ impl LinearClient {
         })
     }
 
-    /// Search issues by Linear's `issueSearch` field (id / title / body /
+    /// Search issues by Linear's `searchIssues` field (id / title / body /
     /// labels). Linear's ranking is opaque — V1 accepts the default. Returns
     /// at most `limit` results in a single round trip.
     pub async fn search_issues(
@@ -304,7 +308,7 @@ impl LinearClient {
         let body = serde_json::json!({
             "query": ISSUE_SEARCH_QUERY,
             "variables": {
-                "query": trimmed,
+                "term": trimmed,
                 "first": first,
             }
         });
@@ -318,7 +322,7 @@ impl LinearClient {
 
         let data = gql.data.ok_or(LinearError::NoData)?;
         let issues: Vec<LinearIssueListItem> = data
-            .issue_search
+            .search_issues
             .nodes
             .into_iter()
             .map(LinearIssueListItem::from)
@@ -541,6 +545,7 @@ impl LinearClient {
             .map(|s| WorkflowState {
                 id: s.id,
                 state_type: s.state_type,
+                position: s.position,
             })
             .collect())
     }
@@ -586,9 +591,50 @@ fn cached_comment_from_gql(node: GqlRecentComment) -> CachedComment {
     }
 }
 
+/// Resolve to the *leftmost* workflow state of the given type — Linear teams can
+/// have multiple lanes of the same `type` (e.g. "In Progress" and "In Review"
+/// are both `started`), and `position` is Linear's user-defined ordering, so
+/// the lowest position is what the operator sees first on the kanban.
 fn first_state_id(states: &[WorkflowState], target_type: &str) -> Option<String> {
     states
         .iter()
-        .find(|s| s.state_type == target_type)
+        .filter(|s| s.state_type == target_type)
+        .min_by(|a, b| {
+            a.position
+                .partial_cmp(&b.position)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
         .map(|s| s.id.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn state(id: &str, ty: &str, position: f64) -> WorkflowState {
+        WorkflowState {
+            id: id.to_string(),
+            state_type: ty.to_string(),
+            position,
+        }
+    }
+
+    #[test]
+    fn first_state_id_picks_lowest_position_when_type_has_duplicates() {
+        let states = vec![
+            state("in-review-id", "started", 1002.0),
+            state("in-progress-id", "started", 2.0),
+            state("done-id", "completed", 3.0),
+        ];
+        assert_eq!(
+            first_state_id(&states, "started").as_deref(),
+            Some("in-progress-id"),
+        );
+    }
+
+    #[test]
+    fn first_state_id_returns_none_when_no_match() {
+        let states = vec![state("backlog-id", "backlog", 0.0)];
+        assert_eq!(first_state_id(&states, "started"), None);
+    }
 }

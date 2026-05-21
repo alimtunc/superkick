@@ -6,16 +6,9 @@ interface LabelChipProps {
 
 export function LabelChip({ label }: LabelChipProps) {
 	return (
-		<span
-			className="font-data inline-flex h-5 shrink-0 items-center gap-1.5 rounded-full border px-2 text-[11px] leading-none whitespace-nowrap"
-			style={{
-				color: label.color,
-				borderColor: `color-mix(in oklch, ${label.color} 25%, transparent)`,
-				backgroundColor: `color-mix(in oklch, ${label.color} 6%, transparent)`
-			}}
-		>
+		<span className="font-data inline-flex h-4.5 shrink-0 items-center gap-1.5 rounded-full border border-border px-1.5 text-[11px] leading-none whitespace-nowrap text-fg-muted">
 			<span
-				className="inline-block h-1.5 w-1.5 rounded-full"
+				className="inline-block size-1.5 rounded-full"
 				style={{ backgroundColor: label.color }}
 				aria-hidden="true"
 			/>

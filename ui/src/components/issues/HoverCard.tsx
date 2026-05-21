@@ -23,7 +23,8 @@ export function HoverCard({ content, children, openDelay = OPEN_DELAY }: HoverCa
 				closeDelay={CLOSE_DELAY}
 			/>
 			<PopoverPopup
-				align="end"
+				align="start"
+				alignOffset={72}
 				sideOffset={4}
 				initialFocus={false}
 				popupClassName="border-0 bg-transparent shadow-none"

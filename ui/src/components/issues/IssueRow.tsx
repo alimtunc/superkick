@@ -76,7 +76,7 @@ export function IssueRow({ wrapper, bucket, focused = false, now }: IssueRowProp
 					size={18}
 				/>
 
-				<span className="font-data w-9 shrink-0 text-right text-[11px] text-fg-dim">
+				<span className="font-data w-10 shrink-0 text-right text-[11px] whitespace-nowrap text-fg-dim">
 					{fmtRelativeShort(issue.updated_at, (now ?? new Date()).getTime())}
 				</span>
 			</Link>

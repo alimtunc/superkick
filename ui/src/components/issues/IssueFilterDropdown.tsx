@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, type ReactElement, type ReactNode } from 'react'
 
 import { PopoverPopup } from '@/components/ui/popover-shell'
 import { cn } from '@/lib/utils'
@@ -12,7 +12,7 @@ interface IssueFilterDropdownProps {
 	filters: IssueFilterState
 	onChange: (next: IssueFilterState) => void
 	options: FilterOptionSet
-	trigger: ReactNode
+	trigger: ReactElement
 	open?: boolean
 	onOpenChange?: (open: boolean) => void
 }
@@ -62,7 +62,7 @@ export function IssueFilterDropdown({
 
 	return (
 		<Popover.Root open={open} onOpenChange={onOpenChange}>
-			<Popover.Trigger render={<>{trigger}</>} />
+			<Popover.Trigger render={trigger} />
 			<PopoverPopup
 				align="start"
 				sideOffset={6}

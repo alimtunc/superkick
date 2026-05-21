@@ -8,6 +8,7 @@ interface PopoverPopupProps {
 	className?: string
 	popupClassName?: string
 	sideOffset?: number
+	alignOffset?: number
 	align?: 'start' | 'center' | 'end'
 	side?: 'top' | 'right' | 'bottom' | 'left'
 	initialFocus?: boolean
@@ -19,6 +20,7 @@ export function PopoverPopup({
 	className,
 	popupClassName,
 	sideOffset = 6,
+	alignOffset,
 	align = 'start',
 	side,
 	initialFocus,
@@ -28,6 +30,7 @@ export function PopoverPopup({
 		<Popover.Portal>
 			<Popover.Positioner
 				sideOffset={sideOffset}
+				alignOffset={alignOffset}
 				align={align}
 				side={side}
 				collisionPadding={collisionPadding}
