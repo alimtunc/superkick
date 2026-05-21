@@ -16,60 +16,21 @@
 //!
 //! Tests use in-memory SQLite per CLAUDE.md rule 9.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
-    AgentCatalog, AgentProvider, CoreAgentDefinition, ExecutionMode, LaunchStepKind,
-    LaunchTaskStatus, LaunchTaskStepStatus, LinearContextMode, PlanImplementReviewAgents,
-    ResolvedMcpPolicy, ResolvedToolPolicy, Run, RunId, RunState, RunStep, StepKey, StepStatus,
-    TriggerSource,
+    AgentProvider, ExecutionMode, LaunchStepKind, LaunchTaskStatus, LaunchTaskStepStatus, Run,
+    RunId, RunState, RunStep, StepKey, StepStatus, TriggerSource,
 };
+use superkick_runtime::test_support::{agents, catalog};
 use superkick_runtime::{
     LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry, StepLinks, StepOutcome, StepRunner,
 };
 use superkick_storage::repo::{LaunchTaskRepo, RunRepo, RunStepRepo};
 use superkick_storage::{SqliteLaunchTaskRepo, SqliteRunRepo, SqliteRunStepRepo, connect};
-
-// ── Fixture ───────────────────────────────────────────────────────────
-
-fn agent(name: &str, provider: AgentProvider) -> CoreAgentDefinition {
-    CoreAgentDefinition {
-        name: name.into(),
-        provider,
-        role: None,
-        model: None,
-        system_prompt: None,
-        tools: None,
-        timeout_secs: None,
-        max_turns: None,
-        linear_context: LinearContextMode::default(),
-        mcp_policy: ResolvedMcpPolicy::default(),
-        tool_policy: ResolvedToolPolicy::default(),
-        backend: None,
-        runner_mode: None,
-        billing_profile: None,
-    }
-}
-
-fn catalog() -> AgentCatalog {
-    let mut roles: HashMap<String, CoreAgentDefinition> = HashMap::new();
-    roles.insert("planner".into(), agent("planner", AgentProvider::Claude));
-    roles.insert("coder".into(), agent("coder", AgentProvider::Claude));
-    roles.insert("reviewer".into(), agent("reviewer", AgentProvider::Codex));
-    AgentCatalog::new(roles)
-}
-
-fn agents() -> PlanImplementReviewAgents {
-    PlanImplementReviewAgents {
-        planner: "planner".into(),
-        coder: "coder".into(),
-        reviewer: "reviewer".into(),
-    }
-}
 
 // ── 1. TriggerSource::LaunchTask round-trip ───────────────────────────
 

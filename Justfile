@@ -52,3 +52,10 @@ deps:
 clean:
     cargo clean
     rm -rf ui/dist ui/node_modules/.vite
+
+# SUP-137 — V1 release-validation harness.
+# Spawns real provider CLIs against the canonical V1 issue. Opt-in: the
+# harness file is `#[ignore]` by default so plain `cargo test` does not
+# fire it. See docs/release/checklist.md for the full ship gate.
+release-check:
+    cargo test -p superkick-runtime --test release_validation -- --ignored --nocapture

@@ -6,7 +6,6 @@
 //! agents, repo bootstrap) and splitting them would only duplicate ~80 lines
 //! of glue. Each scenario is its own `#[tokio::test]`.
 
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -15,63 +14,16 @@ use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
-    AgentCatalog, AgentProvider, CoreAgentDefinition, CoreError, FailureClassification,
-    LaunchStepKind, LaunchTask, LaunchTaskId, LaunchTaskStatus, LaunchTaskStep,
-    LaunchTaskStepStatus, LinearContextMode, PlanImplementReviewAgents, ResolvedMcpPolicy,
-    ResolvedToolPolicy, RunId,
+    CoreError, FailureClassification, LaunchStepKind, LaunchTask, LaunchTaskId, LaunchTaskStatus,
+    LaunchTaskStep, LaunchTaskStepStatus, RunId,
 };
+use superkick_runtime::test_support::{agents, catalog, drain_events};
 use superkick_runtime::{
     LaunchTaskEvent, LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry, RetryError,
     StepLinks, StepOutcome, StepRunner,
 };
 use superkick_storage::repo::LaunchTaskRepo;
 use superkick_storage::{SqliteLaunchTaskRepo, connect};
-
-// ── Fixture ────────────────────────────────────────────────────────────
-
-fn agent(name: &str, provider: AgentProvider, model: Option<&str>) -> CoreAgentDefinition {
-    CoreAgentDefinition {
-        name: name.into(),
-        provider,
-        role: None,
-        model: model.map(String::from),
-        system_prompt: None,
-        tools: None,
-        timeout_secs: None,
-        max_turns: None,
-        linear_context: LinearContextMode::default(),
-        mcp_policy: ResolvedMcpPolicy::default(),
-        tool_policy: ResolvedToolPolicy::default(),
-        backend: None,
-        runner_mode: None,
-        billing_profile: None,
-    }
-}
-
-fn catalog() -> AgentCatalog {
-    let mut roles: HashMap<String, CoreAgentDefinition> = HashMap::new();
-    roles.insert(
-        "planner".into(),
-        agent("planner", AgentProvider::Claude, Some("opus-4-7")),
-    );
-    roles.insert(
-        "coder".into(),
-        agent("coder", AgentProvider::Claude, Some("sonnet-4-6")),
-    );
-    roles.insert(
-        "reviewer".into(),
-        agent("reviewer", AgentProvider::Codex, None),
-    );
-    AgentCatalog::new(roles)
-}
-
-fn agents() -> PlanImplementReviewAgents {
-    PlanImplementReviewAgents {
-        planner: "planner".into(),
-        coder: "coder".into(),
-        reviewer: "reviewer".into(),
-    }
-}
 
 async fn fresh_repo() -> Result<Arc<SqliteLaunchTaskRepo>> {
     let pool = connect("sqlite::memory:").await?;
@@ -85,19 +37,6 @@ async fn create_task(
     let (task, steps) = LaunchTask::new_with_v1_recipe(linear_issue_id, agents(), &catalog())?;
     repo.insert_with_steps(&task, &steps).await?;
     Ok((task, steps))
-}
-
-/// Drain every event currently waiting on the bus into a Vec. Polls until
-/// the receiver has nothing left, with a tight per-recv timeout so the test
-/// never hangs on an unexpected silence.
-async fn drain_events(
-    rx: &mut tokio::sync::broadcast::Receiver<LaunchTaskEvent>,
-) -> Vec<LaunchTaskEvent> {
-    let mut out = Vec::new();
-    while let Ok(Ok(event)) = tokio::time::timeout(Duration::from_millis(50), rx.recv()).await {
-        out.push(event);
-    }
-    out
 }
 
 // ── Scripted fake StepRunner ──────────────────────────────────────────
