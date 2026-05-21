@@ -77,7 +77,8 @@ const AGENTS: Agent[] = [
 		role: 'planner',
 		model: 'sonnet-4.6',
 		runner_mode: 'interactive_pty',
-		billing_profile: 'subscription'
+		billing_profile: 'subscription',
+		origin: 'custom'
 	},
 	{
 		name: 'code-bot',
@@ -85,7 +86,8 @@ const AGENTS: Agent[] = [
 		role: 'coder',
 		model: 'sonnet-4.6',
 		runner_mode: 'interactive_pty',
-		billing_profile: 'subscription'
+		billing_profile: 'subscription',
+		origin: 'custom'
 	},
 	{
 		name: 'review-bot',
@@ -93,7 +95,8 @@ const AGENTS: Agent[] = [
 		role: 'reviewer',
 		model: null,
 		runner_mode: 'exec_json',
-		billing_profile: 'api_credits'
+		billing_profile: 'api_credits',
+		origin: 'custom'
 	}
 ]
 
