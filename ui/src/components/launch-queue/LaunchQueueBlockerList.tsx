@@ -1,6 +1,6 @@
-import { StatusIcon } from '@/components/issues/StatusIcon'
 import { Pill } from '@/components/ui/pill'
 import type { IssueBlockerRef } from '@/types'
+import { StatusIcon, statusIconKindFromLinear } from '@/ui'
 
 interface LaunchQueueBlockerListProps {
 	blockers: IssueBlockerRef[]
@@ -18,7 +18,10 @@ export function LaunchQueueBlockerList({ blockers }: LaunchQueueBlockerListProps
 						mono
 						title={blocker.status.name}
 						leading={
-							<StatusIcon stateType={blocker.status.state_type} color={blocker.status.color} />
+							<StatusIcon
+								kind={statusIconKindFromLinear(blocker.status.state_type)}
+								color={blocker.status.color}
+							/>
 						}
 					>
 						{blocker.identifier}

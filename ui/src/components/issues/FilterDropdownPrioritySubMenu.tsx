@@ -1,6 +1,6 @@
 import { FilterDropdownCategoryRow } from '@/components/issues/FilterDropdownCategoryRow'
-import { PriorityIcon } from '@/components/issues/PriorityIcon'
 import { MenuPopup } from '@/components/ui/menu-shell'
+import { PriorityIcon, priorityIconKindFromValue } from '@/ui'
 import { Menu } from '@base-ui/react/menu'
 
 interface FilterDropdownPrioritySubMenuProps {
@@ -26,7 +26,7 @@ export function FilterDropdownPrioritySubMenu({
 				openOnHover={false}
 				render={
 					<FilterDropdownCategoryRow
-						icon={<PriorityIcon value={2} />}
+						icon={<PriorityIcon kind={priorityIconKindFromValue(2)} />}
 						label="Priority"
 						hasValue={activePriorities.size > 0}
 					/>
@@ -45,7 +45,7 @@ export function FilterDropdownPrioritySubMenu({
 									isActive ? 'bg-raised' : ''
 								}`}
 							>
-								<PriorityIcon value={value} />
+								<PriorityIcon kind={priorityIconKindFromValue(value)} />
 								<span className="flex-1 font-mono text-[12px] text-fg-muted">{label}</span>
 							</Menu.Item>
 						)

@@ -1,10 +1,10 @@
 import { SeverityPill } from '@/components/issues/SeverityPill'
-import { StatusIcon } from '@/components/issues/StatusIcon'
 import { LaunchQueueBlockerList } from '@/components/launch-queue/LaunchQueueBlockerList'
 import { LaunchQueueUnblockBadge } from '@/components/launch-queue/LaunchQueueUnblockBadge'
 import { Button } from '@/components/ui/button'
 import { Pill } from '@/components/ui/pill'
 import type { LaunchQueueItem } from '@/types'
+import { StatusIcon, statusIconKindFromLinear } from '@/ui'
 import { Link } from '@tanstack/react-router'
 import { Rocket } from 'lucide-react'
 
@@ -66,7 +66,10 @@ export function LaunchQueueIssueCard({
 
 			<div className="flex flex-wrap items-center gap-1.5">
 				<span className="flex w-4 shrink-0 items-center justify-center">
-					<StatusIcon stateType={item.issue.status.state_type} color={item.issue.status.color} />
+					<StatusIcon
+						kind={statusIconKindFromLinear(item.issue.status.state_type)}
+						color={item.issue.status.color}
+					/>
 				</span>
 				{showBlockers ? <LaunchQueueBlockerList blockers={item.issue.blocked_by} /> : null}
 				{unblockedAt ? <LaunchQueueUnblockBadge resolvedAt={unblockedAt} refTime={refTime} /> : null}

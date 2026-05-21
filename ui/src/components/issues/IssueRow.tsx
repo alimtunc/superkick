@@ -2,10 +2,9 @@ import { LabelChip } from '@/components/issue-detail/LabelChip'
 import { AssigneeAvatar } from '@/components/issues/AssigneeAvatar'
 import { HoverCard } from '@/components/issues/HoverCard'
 import { IssuePreview } from '@/components/issues/IssuePreview'
-import { PriorityIcon } from '@/components/issues/PriorityIcon'
-import { StatusIcon } from '@/components/issues/StatusIcon'
 import { formatShortDate } from '@/lib/format'
 import type { LinearIssueListItem } from '@/types'
+import { PriorityIcon, priorityIconKindFromValue, StatusIcon, statusIconKindFromLinear } from '@/ui'
 import { Link } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
 
@@ -23,13 +22,16 @@ export function IssueRow({ issue, indent = false }: { issue: LinearIssueListItem
 				className={`group flex h-8 items-center gap-2.5 rounded-md border border-transparent px-3 transition-colors hover:border-edge-bright hover:bg-slate-deep/40 focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none ${indent ? 'ml-7' : ''}`}
 			>
 				<span className="flex w-4 shrink-0 items-center justify-center">
-					<PriorityIcon value={issue.priority.value} />
+					<PriorityIcon kind={priorityIconKindFromValue(issue.priority.value)} />
 				</span>
 
 				<span className="font-data w-14 shrink-0 text-[11px] text-ash">{issue.identifier}</span>
 
 				<span className="flex w-4 shrink-0 items-center justify-center">
-					<StatusIcon stateType={issue.status.state_type} color={issue.status.color} />
+					<StatusIcon
+						kind={statusIconKindFromLinear(issue.status.state_type)}
+						color={issue.status.color}
+					/>
 				</span>
 
 				<div className="flex min-w-0 flex-1 items-center gap-2">

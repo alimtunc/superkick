@@ -101,7 +101,7 @@ PR numbers), state literals (`OPEN`, `MERGED`), and durations. Do not use it for
 ## Icons
 
 Use [lucide-react](https://lucide.dev/) icons everywhere. **Never substitute emoji or
-inline SVG.** Two sizes:
+inline SVG**, with one carve-out below. Two sizes:
 
 - `size={14}` — inside compact pills, h-7 rows.
 - `size={16}` — inside standard / spacious rows, buttons, headers.
@@ -109,6 +109,12 @@ inline SVG.** Two sizes:
 Default `strokeWidth={1.75}` for the lucide weight to match the type. Always pair with
 `aria-hidden="true"` when decorative; otherwise provide a label via the parent's
 `aria-label`.
+
+**Inline-SVG carve-out — `StatusIcon` / `PriorityIcon` in [`ui/src/ui/`](../../ui/src/ui/).**
+These two primitives are Linear-style state circles and stacked priority bars; lucide
+has no equivalent (partial-fill progress, dashed backlog ring, stacked-bar urgency).
+They are the *only* sanctioned inline-SVG components — built on the same `currentColor`
+contract and `text-*` tone tokens as the rest of the redesign. Do not introduce more.
 
 ## Interactive states
 
