@@ -1,4 +1,4 @@
-import { LedgerRow } from '@/components/run-detail/LedgerRow'
+import { LedgerList } from '@/components/run-detail/LedgerList'
 import { EmptyState } from '@/components/ui/state-empty'
 import { categoryOf, isLedgerEvent } from '@/lib/domain'
 import { indexById } from '@/lib/utils'
@@ -34,18 +34,12 @@ export function ToolsTab({ events, sessions, attentionRequests }: ToolsTabProps)
 		)
 	}
 
-	const lastIndex = entries.length - 1
 	return (
-		<ol className="space-y-1 px-5 py-3 pl-7">
-			{entries.map((event, index) => (
-				<LedgerRow
-					key={event.id}
-					event={event}
-					sessionById={sessionById}
-					attentionById={attentionById}
-					connect={index < lastIndex}
-				/>
-			))}
-		</ol>
+		<LedgerList
+			events={entries}
+			sessionById={sessionById}
+			attentionById={attentionById}
+			className="px-5 py-3 pl-7"
+		/>
 	)
 }

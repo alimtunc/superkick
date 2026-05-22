@@ -1,7 +1,4 @@
-import { IssueCommentExcerptsSection } from '@/components/issues/IssueCommentExcerptsSection'
-import { IssueLinkedItemsSection } from '@/components/issues/IssueLinkedItemsSection'
-import { IssueMemoryListSection } from '@/components/issues/IssueMemoryListSection'
-import { IssueSnapshotSection } from '@/components/issues/IssueSnapshotSection'
+import { IssueContextSections } from '@/components/issues/IssueContextSections'
 import { cn } from '@/lib/utils'
 
 export type IssueContextPanelVariant = 'inline' | 'rail'
@@ -36,10 +33,7 @@ export function IssueContextPanel({ issueId, variant }: IssueContextPanelProps) 
 			) : null}
 			<div className={bodyClass}>
 				<p className="text-[12px] leading-relaxed text-fg-dim">{INTRO_COPY}</p>
-				<IssueSnapshotSection issueId={issueId} />
-				<IssueCommentExcerptsSection issueId={issueId} />
-				<IssueLinkedItemsSection issueId={issueId} />
-				<IssueMemoryListSection issueId={issueId} />
+				<IssueContextSections issueId={issueId} />
 			</div>
 		</aside>
 	)

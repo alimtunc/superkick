@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 
-import { IssueContextStrip } from '@/components/issue-detail/IssueContextStrip'
+import { IssueDetailRail } from '@/components/issue-detail/IssueDetailRail'
 import { IssueFeed } from '@/components/issue-detail/IssueFeed'
 import { IssueReplyComposer } from '@/components/issue-detail/IssueReplyComposer'
+import { RunDrawer } from '@/components/issue-detail/run-drawer'
 import { StatusChip } from '@/components/issue-detail/StatusChip'
-import { IssueContextPanel } from '@/components/issues/IssueContextPanel'
 import { Pill } from '@/components/ui/pill'
 import { EmptyState } from '@/components/ui/state-empty'
 import { ErrorState } from '@/components/ui/state-error'
@@ -25,19 +25,19 @@ export function IssueDetail({ issueId }: { issueId: string }) {
 
 	if (loading)
 		return (
-			<div className="px-6 py-6">
+			<div className="p-6">
 				<LoadingState rows={4} />
 			</div>
 		)
 	if (error)
 		return (
-			<div className="px-6 py-6">
+			<div className="p-6">
 				<ErrorState title="Issue load failed" message={error} onRetry={refresh} />
 			</div>
 		)
 	if (!issue)
 		return (
-			<div className="px-6 py-6">
+			<div className="p-6">
 				<EmptyState
 					icon={FileSearch}
 					title="Issue not found"
@@ -91,7 +91,7 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 					rel="noopener noreferrer"
 					aria-label="Open in Linear"
 					title="Open in Linear"
-					className="inline-flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+					className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
 				>
 					<ExternalLink size={14} strokeWidth={1.75} aria-hidden="true" />
 				</a>
@@ -100,7 +100,7 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 					onClick={onRefresh}
 					aria-label="Refresh issue data"
 					title="Refresh issue data"
-					className="inline-flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+					className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
 				>
 					<RefreshCw size={14} strokeWidth={1.75} aria-hidden="true" />
 				</button>
@@ -128,17 +128,19 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 
 	return (
 		<>
-			<IssueContextStrip issue={issue} />
-			<div className="mx-auto w-full max-w-4xl px-6 py-6">
-				<div className="mb-5">
-					<IssueContextPanel issueId={issue.identifier} variant="inline" />
+			<div className="flex h-full min-h-0">
+				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+					<div className="mx-auto w-full max-w-3xl p-6">
+						<IssueFeed issue={issue} />
+						<div className="mt-2">
+							<IssueReplyComposer />
+						</div>
+					</div>
 				</div>
-				<IssueFeed issue={issue} />
-				<div className="mt-2">
-					<IssueReplyComposer />
-				</div>
+				<IssueDetailRail issue={issue} />
 			</div>
 			<ChatDrawer subject={{ kind: 'issue', identifier: issue.identifier }} />
+			<RunDrawer />
 		</>
 	)
 }

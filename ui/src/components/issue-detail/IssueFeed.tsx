@@ -165,18 +165,6 @@ function buildNodes(issue: IssueDetailResponse): FeedNode[] {
 		}
 	}
 
-	const activeRun = issue.linked_runs.find((r) => !isTerminalRunState(r.state))
-	if (activeRun) {
-		nodes.push({
-			key: `active:${activeRun.id}`,
-			kind: 'agent',
-			role: 'accent',
-			who: 'Active run',
-			time: fmtRelativeTime(activeRun.started_at),
-			body: <RunNodeBody run={activeRun} />
-		})
-	}
-
 	nodes.push({
 		key: 'launch-task',
 		kind: 'system',
