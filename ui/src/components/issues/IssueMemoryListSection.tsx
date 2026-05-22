@@ -10,9 +10,10 @@ import { Database } from 'lucide-react'
 
 interface IssueMemoryListSectionProps {
 	issueId: string
+	omitWhenEmpty?: boolean
 }
 
-export function IssueMemoryListSection({ issueId }: IssueMemoryListSectionProps) {
+export function IssueMemoryListSection({ issueId, omitWhenEmpty }: IssueMemoryListSectionProps) {
 	const { entries, isLoading, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } =
 		useIssueMemoryEntries(issueId)
 
@@ -32,6 +33,7 @@ export function IssueMemoryListSection({ issueId }: IssueMemoryListSectionProps)
 			emptyTitle="Memory empty"
 			emptyDescription="Plan, Implement, and Review will append entries here as they run — one per step summary."
 			loadingRows={3}
+			omitWhenEmpty={omitWhenEmpty}
 		>
 			<ul className="space-y-2">
 				{entries.map((entry) => {

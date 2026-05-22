@@ -1,6 +1,8 @@
 import { ExecutionStatusCard } from '@/components/issue-detail/ExecutionStatusCard'
 import { IssuePropertiesBlock } from '@/components/issue-detail/IssuePropertiesBlock'
-import { IssueContextSections } from '@/components/issues/IssueContextSections'
+import { IssueCommentExcerptsSection } from '@/components/issues/IssueCommentExcerptsSection'
+import { IssueLinkedItemsSection } from '@/components/issues/IssueLinkedItemsSection'
+import { IssueMemoryListSection } from '@/components/issues/IssueMemoryListSection'
 import type { IssueDetailResponse } from '@/types'
 
 interface IssueDetailRailProps {
@@ -21,7 +23,9 @@ export function IssueDetailRail({ issue }: IssueDetailRailProps) {
 			<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-3">
 				<ExecutionStatusCard issue={issue} />
 				<IssuePropertiesBlock issue={issue} />
-				<IssueContextSections issueId={issue.identifier} />
+				<IssueCommentExcerptsSection issueId={issue.identifier} omitWhenEmpty />
+				<IssueLinkedItemsSection issueId={issue.identifier} omitWhenEmpty />
+				<IssueMemoryListSection issueId={issue.identifier} omitWhenEmpty />
 			</div>
 		</aside>
 	)

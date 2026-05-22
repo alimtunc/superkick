@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { SectionHeading } from '@/components/ui/section-heading'
 import { EmptyState } from '@/components/ui/state-empty'
 import { ErrorState } from '@/components/ui/state-error'
 import { LoadingState } from '@/components/ui/state-loading'
@@ -18,6 +19,7 @@ interface ContextSectionProps {
 	emptyTitle: string
 	emptyDescription: string
 	loadingRows?: number
+	omitWhenEmpty?: boolean
 	children: ReactNode
 }
 
@@ -34,8 +36,11 @@ export function ContextSection({
 	emptyTitle,
 	emptyDescription,
 	loadingRows = 2,
+	omitWhenEmpty = false,
 	children
 }: ContextSectionProps) {
+	if (omitWhenEmpty && !isLoading && !error && isEmpty) return null
+
 	let body: ReactNode
 
 	if (isLoading) {
@@ -64,9 +69,7 @@ export function ContextSection({
 
 	return (
 		<section aria-label={ariaLabel}>
-			<h3 className="font-data mb-1.5 text-[10px] tracking-[0.08em] text-fg-dim uppercase">
-				{heading}
-			</h3>
+			<SectionHeading>{heading}</SectionHeading>
 			{body}
 		</section>
 	)

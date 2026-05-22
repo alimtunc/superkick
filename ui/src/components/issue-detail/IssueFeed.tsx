@@ -2,9 +2,7 @@ import { useMemo, type ReactNode } from 'react'
 
 import { ActivityNode } from '@/components/issue-detail/ActivityNode'
 import { AuthorAvatar } from '@/components/issue-detail/AuthorAvatar'
-import { ChildIssues } from '@/components/issue-detail/ChildIssues'
-import { IssueDescription } from '@/components/issue-detail/IssueDescription'
-import { LaunchTaskFeed } from '@/components/issue-detail/launch-task-feed'
+import { IssueIntro } from '@/components/issue-detail/IssueIntro'
 import { RunPrBadge } from '@/components/issue-detail/RunPrBadge'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { buildIssueActivity, fmtRelativeTime, isTerminalRunState, runNarrative } from '@/lib/domain'
@@ -115,27 +113,6 @@ function buildNodes(issue: IssueDetailResponse): FeedNode[] {
 		})
 	}
 
-	if (issue.description.trim()) {
-		nodes.push({
-			key: 'description',
-			kind: 'user',
-			role: 'neutral',
-			who: 'Issue description',
-			time: fmtRelativeTime(issue.created_at),
-			body: <IssueDescription description={issue.description} />
-		})
-	}
-
-	if (issue.children.length > 0) {
-		nodes.push({
-			key: 'children',
-			kind: 'system',
-			role: 'info',
-			who: 'Sub-issues',
-			body: <ChildIssues issues={issue.children} />
-		})
-	}
-
 	const items = buildIssueActivity(
 		issue.comments,
 		issue.linked_runs.filter((r) => isTerminalRunState(r.state))
@@ -165,14 +142,6 @@ function buildNodes(issue: IssueDetailResponse): FeedNode[] {
 		}
 	}
 
-	nodes.push({
-		key: 'launch-task',
-		kind: 'system',
-		role: 'accent',
-		who: 'Launch task',
-		body: <LaunchTaskFeed issueIdentifier={issue.identifier} />
-	})
-
 	return nodes
 }
 
@@ -180,21 +149,26 @@ export function IssueFeed({ issue }: { issue: IssueDetailResponse }) {
 	const nodes = useMemo(() => buildNodes(issue), [issue])
 	const lastIndex = nodes.length - 1
 	return (
-		<div className="pl-1">
-			{nodes.map((node, index) => (
-				<ActivityNode
-					key={node.key}
-					kind={node.kind}
-					role={node.role}
-					who={node.who}
-					time={node.time}
-					link={node.link}
-					disc={node.disc}
-					connect={index < lastIndex}
-				>
-					{node.body}
-				</ActivityNode>
-			))}
+		<div className="flex flex-col gap-5">
+			<IssueIntro issue={issue} />
+			{nodes.length > 0 ? (
+				<div className="pl-1">
+					{nodes.map((node, index) => (
+						<ActivityNode
+							key={node.key}
+							kind={node.kind}
+							role={node.role}
+							who={node.who}
+							time={node.time}
+							link={node.link}
+							disc={node.disc}
+							connect={index < lastIndex}
+						>
+							{node.body}
+						</ActivityNode>
+					))}
+				</div>
+			) : null}
 		</div>
 	)
 }

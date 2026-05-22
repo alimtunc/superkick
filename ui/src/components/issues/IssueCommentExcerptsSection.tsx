@@ -5,9 +5,10 @@ import { MessageSquare } from 'lucide-react'
 
 interface IssueCommentExcerptsSectionProps {
 	issueId: string
+	omitWhenEmpty?: boolean
 }
 
-export function IssueCommentExcerptsSection({ issueId }: IssueCommentExcerptsSectionProps) {
+export function IssueCommentExcerptsSection({ issueId, omitWhenEmpty }: IssueCommentExcerptsSectionProps) {
 	const { data, isLoading, isError, error, refetch } = useIssueWorkspaceContext(issueId)
 	const excerpts = data?.comment_excerpts ?? []
 
@@ -26,6 +27,7 @@ export function IssueCommentExcerptsSection({ issueId }: IssueCommentExcerptsSec
 			emptyIcon={MessageSquare}
 			emptyTitle="No comment excerpts"
 			emptyDescription="Linear comments captured for this issue will appear here so every agent reads the same discussion."
+			omitWhenEmpty={omitWhenEmpty}
 		>
 			<ul className="space-y-2.5">
 				{excerpts.map((excerpt) => {

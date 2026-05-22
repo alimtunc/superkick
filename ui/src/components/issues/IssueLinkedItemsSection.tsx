@@ -18,9 +18,10 @@ const LINK_CLASS =
 
 interface IssueLinkedItemsSectionProps {
 	issueId: string
+	omitWhenEmpty?: boolean
 }
 
-export function IssueLinkedItemsSection({ issueId }: IssueLinkedItemsSectionProps) {
+export function IssueLinkedItemsSection({ issueId, omitWhenEmpty }: IssueLinkedItemsSectionProps) {
 	const { data, isLoading, isError, error, refetch } = useIssueWorkspaceContext(issueId)
 	const items = data?.linked_items ?? []
 
@@ -39,6 +40,7 @@ export function IssueLinkedItemsSection({ issueId }: IssueLinkedItemsSectionProp
 			emptyIcon={Link2}
 			emptyTitle="No linked items"
 			emptyDescription="Runs, launch tasks, and chats started from this issue will appear here once dispatched."
+			omitWhenEmpty={omitWhenEmpty}
 		>
 			<ul className="space-y-1.5">
 				{items.map((item) => (
