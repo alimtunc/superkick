@@ -32,15 +32,10 @@ export function ExecutionStatusCard({ issue }: ExecutionStatusCardProps) {
 		return (
 			<section
 				aria-label="Execution status"
-				className="rounded-md border border-dashed border-edge/80 bg-graphite/20 px-3 py-3"
+				className="flex items-center gap-2 rounded-md border border-dashed border-edge/80 bg-graphite/20 px-3 py-2"
 			>
-				<div className="flex items-center gap-2">
-					<Zap size={13} strokeWidth={1.85} className="text-fg-dim" aria-hidden="true" />
-					<span className="text-[12.5px] text-fg-dim">No run yet</span>
-				</div>
-				<p className="mt-1.5 text-[11.5px] leading-relaxed text-fg-dim">
-					Launch a task from the topbar to start Plan → Implement → Review.
-				</p>
+				<Zap size={13} strokeWidth={1.85} className="text-fg-dim" aria-hidden="true" />
+				<span className="text-[12.5px] text-fg-dim">No run yet — Launch task to start.</span>
 			</section>
 		)
 	}
@@ -58,9 +53,7 @@ export function ExecutionStatusCard({ issue }: ExecutionStatusCardProps) {
 				onOpenDrawer={drawerRun ? () => openDrawer(drawerRun.id, 'activity') : undefined}
 			/>
 			{!activeTask ? (
-				<p className="mt-2 text-[11.5px] text-fg-dim">
-					Task finished. Open the drawer or task detail to inspect the run.
-				</p>
+				<p className="mt-2 text-[11.5px] text-fg-dim">Task finished — open the run for details.</p>
 			) : null}
 		</section>
 	)

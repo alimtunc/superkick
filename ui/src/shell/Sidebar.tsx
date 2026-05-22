@@ -23,8 +23,6 @@ interface NavItem {
 const NAV: NavItem[] = [
 	{ id: 'inbox', to: '/', icon: 'inbox', label: 'Inbox', badgeTone: 'accent' },
 	{ id: 'issues', to: '/issues', icon: 'issue', label: 'Issues', badgeTone: 'muted' },
-	{ id: 'tasks', to: '/queue', icon: 'task', label: 'Tasks', badgeTone: 'muted' },
-	{ id: 'runs', to: '/runs', icon: 'loop', label: 'Runs', badgeTone: 'muted' },
 	{ id: 'agents', to: '/agents', icon: 'agent', label: 'Agents', badgeTone: 'muted' }
 ]
 

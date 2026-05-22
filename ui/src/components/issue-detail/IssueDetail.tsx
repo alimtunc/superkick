@@ -130,9 +130,9 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 		<>
 			<div className="flex h-full min-h-0">
 				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-					<div className="mx-auto w-full max-w-3xl p-6">
+					<div className="mx-auto w-full max-w-2xl px-8 py-7">
 						<IssueFeed issue={issue} />
-						<div className="mt-2">
+						<div className="mt-6">
 							<IssueReplyComposer />
 						</div>
 					</div>
