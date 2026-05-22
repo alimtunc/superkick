@@ -1,4 +1,4 @@
-import { EmptyState } from '@/components/ui/state-empty'
+import { TabEmptyState } from '@/components/ui/state-empty-tab'
 import type { PullRequest, Run } from '@/types'
 import { FileDiff } from 'lucide-react'
 
@@ -10,17 +10,15 @@ interface ChangesTabProps {
 export function ChangesTab({ run, pr }: ChangesTabProps) {
 	if (!pr) {
 		return (
-			<div className="px-4 py-6">
-				<EmptyState
-					icon={FileDiff}
-					title="No diff yet"
-					description={
-						run.state === 'completed' || run.state === 'failed'
-							? 'No pull request was opened for this run.'
-							: 'Diff will appear once the run opens a pull request.'
-					}
-				/>
-			</div>
+			<TabEmptyState
+				icon={FileDiff}
+				title="No diff yet"
+				description={
+					run.state === 'completed' || run.state === 'failed'
+						? 'No pull request was opened for this run.'
+						: 'Diff will appear once the run opens a pull request.'
+				}
+			/>
 		)
 	}
 

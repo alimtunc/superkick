@@ -1,6 +1,6 @@
 import { LedgerList } from '@/components/run-detail/LedgerList'
 import { Pill } from '@/components/ui/pill'
-import { EmptyState } from '@/components/ui/state-empty'
+import { TabEmptyState } from '@/components/ui/state-empty-tab'
 import { fmtRelativeTime, isLedgerEvent } from '@/lib/domain'
 import { indexById } from '@/lib/utils'
 import type { AgentSession, AttentionRequest, RunEvent } from '@/types'
@@ -20,13 +20,11 @@ export function ActivityTab({ events, sessions, attentionRequests }: ActivityTab
 
 	if (ledgerEvents.length === 0 && pendingAttentions.length === 0) {
 		return (
-			<div className="px-4 py-6">
-				<EmptyState
-					icon={Activity}
-					title="No activity yet"
-					description="Steps, sessions, and handoffs will appear here as the run progresses."
-				/>
-			</div>
+			<TabEmptyState
+				icon={Activity}
+				title="No activity yet"
+				description="Steps, sessions, and handoffs will appear here as the run progresses."
+			/>
 		)
 	}
 

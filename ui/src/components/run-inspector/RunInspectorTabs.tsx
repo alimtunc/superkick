@@ -1,12 +1,27 @@
 import { ChangesTab } from '@/components/run-detail/RunWorkspaceTabs/ChangesTab'
+import { ShellTab } from '@/components/run-detail/RunWorkspaceTabs/ShellTab'
 import { ToolsTab } from '@/components/run-detail/RunWorkspaceTabs/ToolsTab'
 import { ActivityTab } from '@/components/run-tabs/ActivityTab'
 import { LogsTab } from '@/components/run-tabs/LogsTab'
 import { TabBar, type TabBarItem } from '@/components/ui/tab-bar'
 import type { AgentSession, AttentionRequest, PullRequest, Run, RunEvent } from '@/types'
-import { Activity, FileDiff, ScrollText, Wrench } from 'lucide-react'
+import { Activity, FileDiff, ScrollText, Terminal, Wrench } from 'lucide-react'
 
-export type RunInspectorTabId = 'activity' | 'tools' | 'files' | 'logs'
+const TABS = [
+	{ id: 'activity', label: 'Activity', icon: Activity },
+	{ id: 'tools', label: 'Tools', icon: Wrench },
+	{ id: 'files', label: 'Files', icon: FileDiff },
+	{ id: 'logs', label: 'Logs', icon: ScrollText },
+	{ id: 'terminal', label: 'Terminal', icon: Terminal }
+] as const satisfies readonly TabBarItem<string>[]
+
+export type RunInspectorTabId = (typeof TABS)[number]['id']
+
+export function tabFromHash(hash: string): RunInspectorTabId | null {
+	const stripped = hash.replace(/^#/, '')
+	const match = TABS.find((tab) => tab.id === stripped)
+	return match ? match.id : null
+}
 
 interface RunInspectorTabsProps {
 	tab: RunInspectorTabId
@@ -16,14 +31,8 @@ interface RunInspectorTabsProps {
 	events: RunEvent[]
 	sessions: AgentSession[]
 	attentionRequests: AttentionRequest[]
+	isTerminal: boolean
 }
-
-const TABS: readonly TabBarItem<RunInspectorTabId>[] = [
-	{ id: 'activity', label: 'Activity', icon: Activity },
-	{ id: 'tools', label: 'Tools', icon: Wrench },
-	{ id: 'files', label: 'Files', icon: FileDiff },
-	{ id: 'logs', label: 'Logs', icon: ScrollText }
-]
 
 export function RunInspectorTabs({
 	tab,
@@ -32,7 +41,8 @@ export function RunInspectorTabs({
 	pr,
 	events,
 	sessions,
-	attentionRequests
+	attentionRequests,
+	isTerminal
 }: RunInspectorTabsProps) {
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
@@ -52,6 +62,7 @@ export function RunInspectorTabs({
 				) : null}
 				{tab === 'files' ? <ChangesTab pr={pr} run={run} /> : null}
 				{tab === 'logs' ? <LogsTab events={events} /> : null}
+				{tab === 'terminal' ? <ShellTab runId={run.id} isTerminal={isTerminal} /> : null}
 			</div>
 		</div>
 	)

@@ -6,13 +6,14 @@ import { pinClass, pinTitle } from '@/components/run-detail/pinHelpers'
 import { RunStatusBanner } from '@/components/run-detail/RunStatusBanner'
 import { RunInspectorFacts } from '@/components/run-inspector/RunInspectorFacts'
 import { RunInspectorParentBanner } from '@/components/run-inspector/RunInspectorParentBanner'
-import { RunInspectorTabs, type RunInspectorTabId } from '@/components/run-inspector/RunInspectorTabs'
-import { RunInspectorTerminal } from '@/components/run-inspector/RunInspectorTerminal'
+import {
+	RunInspectorTabs,
+	tabFromHash,
+	type RunInspectorTabId
+} from '@/components/run-inspector/RunInspectorTabs'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Pill } from '@/components/ui/pill'
-import { ChatDrawer } from '@/components/workspace/ChatDrawer'
-import { ChatToggleButton } from '@/components/workspace/ChatToggleButton'
 import type { useEventStream } from '@/hooks/useEventStream'
 import type { LoadedRunDetail } from '@/hooks/useRunDetail'
 import { fmtElapsed } from '@/lib/domain'
@@ -26,13 +27,6 @@ interface RunInspectorProps {
 	detail: LoadedRunDetail
 	events: ReturnType<typeof useEventStream>['events']
 	refTime: number
-}
-
-function tabFromHash(hash: string): RunInspectorTabId | null {
-	const stripped = hash.replace(/^#/, '')
-	if (stripped === 'activity' || stripped === 'tools' || stripped === 'files' || stripped === 'logs')
-		return stripped
-	return null
 }
 
 export function RunInspector({ detail, events, refTime }: RunInspectorProps) {
@@ -82,7 +76,6 @@ export function RunInspector({ detail, events, refTime }: RunInspectorProps) {
 	const right = useMemo(
 		() => (
 			<>
-				<ChatToggleButton />
 				<button
 					type="button"
 					onClick={() => toggleWatch(run.id)}
@@ -140,7 +133,7 @@ export function RunInspector({ detail, events, refTime }: RunInspectorProps) {
 		title: run.id.slice(0, 8),
 		sub,
 		right,
-		back: <TopbarBackButton />
+		back: <TopbarBackButton fallbackTo={run.issue_identifier ? `/issues/${run.issue_identifier}` : '/'} />
 	})
 
 	return (
@@ -164,10 +157,10 @@ export function RunInspector({ detail, events, refTime }: RunInspectorProps) {
 					events={events}
 					sessions={sessions}
 					attentionRequests={attentionRequests}
+					isTerminal={isTerminal}
 				/>
 				<RunInspectorFacts run={run} pr={pr} steps={steps} sessions={sessions} refTime={refTime} />
 			</div>
-			<RunInspectorTerminal runId={run.id} isTerminal={isTerminal} />
 			<ConfirmDialog
 				open={cancelConfirm}
 				onOpenChange={(open) => {
@@ -187,7 +180,6 @@ export function RunInspector({ detail, events, refTime }: RunInspectorProps) {
 				busy={cancelling}
 				onConfirm={handleCancel}
 			/>
-			<ChatDrawer subject={{ kind: 'run', run_id: run.id }} />
 		</div>
 	)
 }
