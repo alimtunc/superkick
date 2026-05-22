@@ -1,8 +1,9 @@
-import { useState, type ReactElement, type ReactNode } from 'react'
+import { useMemo, useState, type ReactElement, type ReactNode } from 'react'
 
 import { PopoverPopup } from '@/components/ui/popover-shell'
 import { cn } from '@/lib/utils'
 import type { IssueFilterState, IssueLabel, IssuePriority, TaskBadgeKind } from '@/types'
+import type { SKIconName } from '@/types/icons'
 import { Icon, PriorityIcon } from '@/ui'
 import { Popover } from '@base-ui/react/popover'
 
@@ -26,15 +27,22 @@ export interface FilterOptionSet {
 	repos: string[]
 }
 
-const AXES: { key: AxisKey; label: string }[] = [
-	{ key: 'assignee', label: 'Assignee' },
-	{ key: 'status', label: 'Status' },
-	{ key: 'priority', label: 'Priority' },
-	{ key: 'label', label: 'Label' },
-	{ key: 'project', label: 'Project' },
-	{ key: 'repo', label: 'Repo' },
-	{ key: 'task', label: 'Task state' },
-	{ key: 'created', label: 'Created' }
+interface AxisDef {
+	key: AxisKey
+	label: string
+	icon: SKIconName
+	meta?: string
+}
+
+const AXES: AxisDef[] = [
+	{ key: 'assignee', label: 'Assignee', icon: 'user' },
+	{ key: 'status', label: 'Status', icon: 'spark' },
+	{ key: 'priority', label: 'Priority', icon: 'alert' },
+	{ key: 'label', label: 'Label', icon: 'pin' },
+	{ key: 'project', label: 'Project', icon: 'folder' },
+	{ key: 'repo', label: 'Repo', icon: 'branch' },
+	{ key: 'task', label: 'Task state', icon: 'loop', meta: 'running · needs · review · shipped' },
+	{ key: 'created', label: 'Created', icon: 'clock', meta: 'date…' }
 ]
 
 const TASK_OPTIONS: { value: TaskBadgeKind; label: string }[] = [
@@ -59,30 +67,87 @@ export function IssueFilterDropdown({
 	onOpenChange
 }: IssueFilterDropdownProps) {
 	const [activeAxis, setActiveAxis] = useState<AxisKey | null>(null)
+	const [query, setQuery] = useState('')
+
+	const matchedAxes = useMemo(() => {
+		const q = query.trim().toLowerCase()
+		if (q === '') return AXES
+		return AXES.filter((axis) => axis.label.toLowerCase().includes(q))
+	}, [query])
+
+	function close() {
+		onOpenChange?.(false)
+	}
+
+	function resetAndClose() {
+		setActiveAxis(null)
+		setQuery('')
+		close()
+	}
 
 	return (
-		<Popover.Root open={open} onOpenChange={onOpenChange}>
+		<Popover.Root
+			open={open}
+			onOpenChange={(next) => {
+				if (!next) {
+					setActiveAxis(null)
+					setQuery('')
+				}
+				onOpenChange?.(next)
+			}}
+		>
 			<Popover.Trigger render={trigger} />
 			<PopoverPopup
 				align="start"
 				sideOffset={6}
-				popupClassName="w-60 border border-border bg-overlay shadow-xl"
+				popupClassName="w-66 border border-border bg-overlay shadow-xl"
 			>
 				{activeAxis === null ? (
-					<ul className="py-1">
-						{AXES.map((axis) => (
-							<li key={axis.key}>
-								<button
-									type="button"
-									onClick={() => setActiveAxis(axis.key)}
-									className="flex w-full items-center justify-between px-3 py-1.5 text-left text-[12px] text-fg hover:bg-raised focus-visible:bg-raised focus-visible:outline-none"
-								>
-									<span>{axis.label}</span>
-									<Icon name="chev" size={12} className="text-fg-dim" />
-								</button>
-							</li>
-						))}
-					</ul>
+					<div className="flex flex-col">
+						<div className="flex items-center gap-1.5 border-b border-border px-2.5 py-2">
+							<Icon name="search" size={12} className="text-fg-dim" />
+							<input
+								autoFocus
+								aria-label="Filter axes"
+								value={query}
+								onChange={(e) => setQuery(e.target.value)}
+								placeholder="Filter…"
+								className="flex-1 bg-transparent text-[12.5px] text-fg placeholder:text-fg-dim focus-visible:outline-none"
+							/>
+						</div>
+						<div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold tracking-[0.08em] text-fg-dim uppercase">
+							Filter by
+						</div>
+						<ul className="max-h-72 overflow-y-auto pb-1">
+							{matchedAxes.length === 0 ? (
+								<li className="px-3 py-2 text-[11.5px] text-fg-dim">No matching filters.</li>
+							) : (
+								matchedAxes.map((axis) => (
+									<li key={axis.key}>
+										<button
+											type="button"
+											onClick={() => setActiveAxis(axis.key)}
+											className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-fg hover:bg-raised focus-visible:bg-raised focus-visible:outline-none"
+										>
+											<Icon
+												name={axis.icon}
+												size={12}
+												className="shrink-0 text-fg-muted"
+											/>
+											<span className="flex-1 truncate">{axis.label}</span>
+											{axis.meta ? (
+												<span className="ml-auto text-[11px] text-fg-dim">
+													{axis.meta}
+												</span>
+											) : (
+												<Icon name="chev" size={11} className="text-fg-dim" />
+											)}
+										</button>
+									</li>
+								))
+							)}
+						</ul>
+					</div>
 				) : (
 					<AxisPicker
 						axis={activeAxis}
@@ -90,6 +155,7 @@ export function IssueFilterDropdown({
 						onChange={onChange}
 						options={options}
 						onBack={() => setActiveAxis(null)}
+						onApply={resetAndClose}
 					/>
 				)}
 			</PopoverPopup>
@@ -102,13 +168,15 @@ function AxisPicker({
 	filters,
 	onChange,
 	options,
-	onBack
+	onBack,
+	onApply
 }: {
 	axis: AxisKey
 	filters: IssueFilterState
 	onChange: (next: IssueFilterState) => void
 	options: FilterOptionSet
 	onBack: () => void
+	onApply: () => void
 }) {
 	const items = pickerItems(axis, options)
 
@@ -118,14 +186,26 @@ function AxisPicker({
 
 	return (
 		<div className="flex flex-col">
-			<button
-				type="button"
-				onClick={onBack}
-				className="flex h-8 items-center gap-1 border-b border-border px-3 text-[11px] font-medium text-fg-dim hover:bg-raised focus-visible:bg-raised focus-visible:outline-none"
-			>
-				<Icon name="chev" size={11} className="rotate-180" />
-				<span>{axisLabel(axis)}</span>
-			</button>
+			<div className="flex h-8 items-center gap-1 border-b border-border px-2">
+				<button
+					type="button"
+					onClick={onBack}
+					className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[11.5px] font-medium text-fg-dim hover:bg-raised hover:text-fg focus-visible:outline-none"
+					aria-label="Back to filter list"
+				>
+					<Icon name="chev" size={11} className="rotate-180" />
+					<span>{axisLabel(axis)}</span>
+				</button>
+				<span className="ml-auto">
+					<button
+						type="button"
+						onClick={onApply}
+						className="inline-flex h-6 items-center rounded px-1.5 text-[11.5px] text-fg-dim hover:text-fg focus-visible:outline-none"
+					>
+						Done
+					</button>
+				</span>
+			</div>
 			<ul className="max-h-72 overflow-y-auto py-1">
 				{items.map((item) => {
 					const selected = isSelected(filters, axis, item.value)
@@ -135,7 +215,7 @@ function AxisPicker({
 								type="button"
 								onClick={() => toggle(item.value)}
 								className={cn(
-									'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] hover:bg-raised focus-visible:bg-raised focus-visible:outline-none',
+									'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] hover:bg-raised focus-visible:bg-raised focus-visible:outline-none',
 									selected ? 'text-fg' : 'text-fg-muted'
 								)}
 							>

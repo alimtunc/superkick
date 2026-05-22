@@ -1,5 +1,6 @@
 import { IssueExtraBadges } from '@/components/issues/IssueExtraBadges'
 import { SeverityPill } from '@/components/issues/SeverityPill'
+import { TaskDot } from '@/components/issues/TaskDot'
 import { LaunchQueueBlockerList } from '@/components/launch-queue/LaunchQueueBlockerList'
 import { LaunchQueueUnblockBadge } from '@/components/launch-queue/LaunchQueueUnblockBadge'
 import { Button } from '@/components/ui/button'
@@ -8,7 +9,6 @@ import { formatShortDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { IssueState, LaunchQueueItem } from '@/types'
 import { Avatar } from '@/ui/Avatar'
-import { TaskBadge } from '@/ui/TaskBadge'
 import { useDraggable } from '@dnd-kit/core'
 import { Link } from '@tanstack/react-router'
 
@@ -37,7 +37,7 @@ export function KanbanIssueCard(props: KanbanIssueCardProps) {
 		return (
 			<CardSurface
 				className={cn(
-					'rotate-[-1.3deg] cursor-grabbing border-accent shadow-2xl',
+					'rotate-[-1.2deg] cursor-grabbing border-accent shadow-2xl',
 					'transition-transform motion-reduce:rotate-0 motion-reduce:shadow-none motion-reduce:transition-none'
 				)}
 			>
@@ -97,7 +97,7 @@ function DraggableCard({ identifier, state, children }: DraggableCardProps) {
 			{...attributes}
 			{...listeners}
 			className={cn(
-				'rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
+				'rounded-md outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
 				isDragging ? 'opacity-50' : null
 			)}
 			aria-label={`${identifier} — drag to move, press space to lift with keyboard`}
@@ -111,7 +111,7 @@ function CardSurface({ className, children }: { className?: string; children: Re
 	return (
 		<div
 			className={cn(
-				'flex flex-col gap-2.5 rounded-lg border border-border bg-raised p-3 transition-colors hover:border-border-strong',
+				'flex flex-col gap-1.5 rounded-md border border-border bg-surface px-2.5 py-2 transition-colors hover:border-border-strong',
 				className
 			)}
 		>
@@ -149,24 +149,42 @@ function CardBody({
 	onDispatch,
 	interactive
 }: CardBodyProps) {
+	const labels = item.issue.labels.slice(0, 1)
+	const extraLabels = item.issue.labels.length - labels.length
+
 	const header = (
-		<div className="flex items-center gap-2">
+		<div className="flex items-center gap-1.5">
 			<SeverityPill value={item.issue.priority.value} />
 			<span className="font-mono text-[11px] text-fg-dim">{item.issue.identifier}</span>
 			<span className="flex-1" />
-			<TaskBadge kind={taskKind} mono />
+			{taskKind ? <TaskDot kind={taskKind} /> : null}
 		</div>
 	)
 
 	const body = (
 		<>
 			{header}
-			<p className="line-clamp-2 text-[12.5px] leading-snug font-medium text-fg">{item.issue.title}</p>
-			<div className="flex items-center gap-2">
-				{assigneeName ? <Avatar name={assigneeName} size={18} /> : null}
+			<p className="truncate text-[12.5px] leading-snug font-medium text-fg">{item.issue.title}</p>
+			<div className="flex items-center gap-1.5">
+				{labels.length > 0 ? (
+					<span className="font-data inline-flex items-center gap-1 rounded-full border border-border px-1.5 py-px text-[10.5px] text-fg-muted">
+						<span
+							aria-hidden="true"
+							className="inline-block size-1.5 rounded-full"
+							style={{ backgroundColor: labels[0].color }}
+						/>
+						<span className="max-w-20 truncate">{labels[0].name}</span>
+					</span>
+				) : null}
+				{extraLabels > 0 ? (
+					<span className="font-data text-[10.5px] text-fg-dim">+{extraLabels}</span>
+				) : null}
 				<IssueExtraBadges item={item} dispatchPosition={dispatchPosition} />
 				<span className="flex-1" />
-				<span className="text-[10.5px] text-fg-dim">{formatShortDate(item.issue.updated_at)}</span>
+				{assigneeName ? <Avatar name={assigneeName} size={16} /> : null}
+				<span className="font-data text-[10.5px] text-fg-dim">
+					{formatShortDate(item.issue.updated_at)}
+				</span>
 			</div>
 		</>
 	)
@@ -177,12 +195,12 @@ function CardBody({
 				<Link
 					to="/issues/$issueId"
 					params={{ issueId: item.issue.id }}
-					className="flex flex-col gap-2 rounded focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+					className="flex flex-col gap-1.5 rounded focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
 				>
 					{body}
 				</Link>
 			) : (
-				<div className="flex flex-col gap-2">{body}</div>
+				<div className="flex flex-col gap-1.5">{body}</div>
 			)}
 
 			{showBlockers ? <LaunchQueueBlockerList blockers={item.issue.blocked_by} /> : null}

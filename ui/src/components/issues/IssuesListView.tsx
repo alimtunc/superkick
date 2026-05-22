@@ -3,9 +3,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { DoneFooter } from '@/components/issues/DoneFooter'
 import { IssueGroupHeader } from '@/components/issues/IssueGroupHeader'
 import { IssueRow } from '@/components/issues/IssueRow'
-import { EmptyState } from '@/components/ui/state-empty'
+import { IssuesEmptyState } from '@/components/issues/IssuesEmptyState'
 import type { IssueGroup, IssueViewTab, LifecycleBucket } from '@/types'
-import { Inbox } from 'lucide-react'
+import { CheckCircle2 } from 'lucide-react'
 
 interface IssuesListViewProps {
 	tab: IssueViewTab
@@ -36,13 +36,11 @@ export function IssuesListView({
 	if (groups.length === 0) {
 		return (
 			<section className="flex flex-1 flex-col">
-				<div className="px-6 py-12">
-					<EmptyState
-						icon={Inbox}
-						title="Nothing here yet"
-						description="Adjust filters or try another tab."
-					/>
-				</div>
+				<IssuesEmptyState
+					icon={CheckCircle2}
+					title={emptyTitle(tab)}
+					description={emptyDescription(tab)}
+				/>
 				{isShipped ? null : (
 					<DoneFooter count={doneCountThisWeek} revealed={showDone} onToggle={onToggleDone} />
 				)}
@@ -114,6 +112,28 @@ function useCollapsedBuckets(tab: IssueViewTab): CollapsedBuckets {
 	const has = useCallback((key: string) => collapsed.has(key), [collapsed])
 
 	return { has, toggle }
+}
+
+function emptyTitle(tab: IssueViewTab): string {
+	switch (tab) {
+		case 'mine':
+			return 'Nothing assigned to you.'
+		case 'shipped':
+			return 'No recent ships.'
+		default:
+			return 'No open issues match.'
+	}
+}
+
+function emptyDescription(tab: IssueViewTab): string {
+	switch (tab) {
+		case 'mine':
+			return "You're clear. Browse All open to grab something, or create an issue."
+		case 'shipped':
+			return 'Issues completed in the last 7 days will show up here.'
+		default:
+			return 'Adjust filters or try another tab.'
+	}
 }
 
 function readCollapsed(tab: IssueViewTab): Set<string> {

@@ -51,7 +51,7 @@ export function IssueFilterBar({
 	const chips = useMemo(() => buildChips(filters, options), [filters, options])
 
 	return (
-		<div className="flex h-10 items-center gap-2 border-b border-border bg-surface px-6">
+		<div className="flex min-h-10 items-center gap-1.5 border-b border-border bg-surface px-4 py-1.5">
 			<IssueFilterDropdown
 				filters={filters}
 				onChange={onFiltersChange}
@@ -61,7 +61,7 @@ export function IssueFilterBar({
 				trigger={
 					<button
 						type="button"
-						className="inline-flex h-6 items-center gap-1 rounded border border-dashed border-border px-2 text-[11px] text-fg-muted hover:border-border-strong hover:text-fg focus-visible:ring-1 focus-visible:ring-accent-soft focus-visible:outline-none"
+						className="inline-flex h-6.5 items-center gap-1.5 rounded border border-dashed border-border bg-transparent px-2.5 text-[12px] text-fg-muted transition-colors hover:border-border-strong hover:text-fg focus-visible:ring-1 focus-visible:ring-accent-soft focus-visible:outline-none"
 					>
 						<Icon name="plus" size={11} />
 						<span>Filter</span>
@@ -78,18 +78,18 @@ export function IssueFilterBar({
 				/>
 			))}
 
-			<div className="ml-auto flex items-center gap-2">
-				<SelectControl
-					label="Sort"
-					value={sort}
-					options={Object.entries(SORT_LABELS) as [IssueSort, string][]}
-					onChange={onSortChange}
-				/>
+			<div className="ml-auto flex items-center gap-1.5">
 				<SelectControl
 					label="Group"
 					value={group}
 					options={Object.entries(GROUP_LABELS) as [IssueGroupBy, string][]}
 					onChange={onGroupChange}
+				/>
+				<SelectControl
+					label="Sort"
+					value={sort}
+					options={Object.entries(SORT_LABELS) as [IssueSort, string][]}
+					onChange={onSortChange}
 				/>
 				<LayoutToggle layout={layout} onChange={onLayoutChange} />
 			</div>
@@ -272,25 +272,25 @@ function FilterChip({
 }) {
 	const label = `${chip.name} ${chip.op} ${chip.valueLabel}`
 	return (
-		<span className="inline-flex h-6 items-center gap-1 rounded bg-raised px-2 text-[11px] text-fg">
-			<span>{chip.name}</span>
+		<span className="inline-flex h-6.5 items-center gap-1.5 rounded border border-border bg-raised pr-1 pl-2 text-[12px] whitespace-nowrap text-fg">
+			<span className="text-fg-muted">{chip.name}</span>
 			{canToggleOperator(chip) ? (
 				<button
 					type="button"
 					onClick={onToggleOperator}
-					className="font-data text-fg-muted hover:text-fg focus-visible:outline-none"
+					className="font-data text-fg-dim hover:text-fg focus-visible:outline-none"
 					aria-label={`Toggle operator for ${label}`}
 				>
 					{chip.op}
 				</button>
 			) : (
-				<span className="font-data text-fg-muted">{chip.op}</span>
+				<span className="font-data text-fg-dim">{chip.op}</span>
 			)}
-			<span>{chip.valueLabel}</span>
+			<span className="font-medium">{chip.valueLabel}</span>
 			<button
 				type="button"
 				onClick={onRemove}
-				className="inline-flex size-4 items-center justify-center text-fg-muted hover:text-fg focus-visible:outline-none"
+				className="inline-flex size-4 items-center justify-center rounded text-fg-dim hover:bg-overlay hover:text-fg focus-visible:outline-none"
 				aria-label={`Remove filter ${label}`}
 			>
 				<Icon name="x" size={10} />
@@ -339,12 +339,12 @@ function SelectControl<T extends string>({
 	onChange: (next: T) => void
 }) {
 	return (
-		<label className="inline-flex h-7 items-center gap-1 rounded px-1 text-[11px] text-fg-muted hover:text-fg">
-			<span>{label}:</span>
+		<label className="inline-flex h-6.5 items-center gap-1 rounded px-1.5 text-[12px] text-fg-muted hover:text-fg">
+			<span className="text-fg-dim">{label}</span>
 			<select
 				value={value}
 				onChange={(e) => onChange(e.target.value as T)}
-				className="appearance-none bg-transparent text-[11px] text-fg outline-none"
+				className="appearance-none bg-transparent text-[12px] font-medium text-fg outline-none"
 			>
 				{options.map(([v, optionLabel]) => (
 					<option key={v} value={v}>
@@ -364,18 +364,22 @@ function LayoutToggle({
 	onChange: (next: IssueViewLayout) => void
 }) {
 	return (
-		<div className="inline-flex h-7 items-center gap-px rounded border border-border bg-surface p-px">
+		<div className="inline-flex h-6.5 items-center gap-px rounded border border-border bg-raised p-px">
 			{(['list', 'board'] as const).map((value) => (
 				<button
 					key={value}
 					type="button"
 					onClick={() => onChange(value)}
+					aria-pressed={value === layout}
+					aria-label={value === 'list' ? 'List view' : 'Board view'}
 					className={cn(
-						'inline-flex h-6 items-center px-2 text-[11px] transition-colors',
-						value === layout ? 'bg-raised text-fg' : 'text-fg-muted hover:text-fg'
+						'inline-flex h-5.5 items-center justify-center rounded-[3px] px-2 text-[11.5px] transition-colors',
+						value === layout
+							? 'bg-surface text-fg shadow-[inset_0_0_0_1px_var(--color-border)]'
+							: 'text-fg-dim hover:text-fg'
 					)}
 				>
-					{value === 'list' ? 'List' : 'Board'}
+					<Icon name={value === 'list' ? 'doc' : 'layers'} size={12} className="shrink-0" />
 				</button>
 			))}
 		</div>

@@ -19,16 +19,23 @@ const DOT_CLASS: Record<LifecycleBucket, string> = {
 }
 
 export function IssueGroupHeader({ label, count, bucket, collapsed, onToggle }: IssueGroupHeaderProps) {
+	const pinned = bucket === 'needs'
 	return (
 		<button
 			type="button"
 			onClick={onToggle}
 			aria-expanded={!collapsed}
-			className="sticky top-0 z-30 flex h-8 w-full items-center gap-2 border-b border-border bg-surface px-6 text-left transition-colors hover:bg-raised"
+			data-pinned={pinned ? '1' : '0'}
+			className={cn(
+				'sticky top-0 z-30 flex h-8 w-full items-center gap-2 border-b pr-6 pl-5 text-left transition-colors hover:bg-raised',
+				pinned
+					? 'border-t border-t-warn/25 border-b-warn/30 bg-warn-soft'
+					: 'border-border bg-surface'
+			)}
 		>
 			<Icon
 				name="chev"
-				size={12}
+				size={11}
 				className={cn(
 					'shrink-0 text-fg-dim transition-transform',
 					collapsed ? 'rotate-0' : 'rotate-90'
@@ -41,8 +48,20 @@ export function IssueGroupHeader({ label, count, bucket, collapsed, onToggle }: 
 					bucket ? DOT_CLASS[bucket] : 'bg-fg-dim'
 				)}
 			/>
-			<span className="text-[12px] font-medium text-fg">{label}</span>
+			<span
+				className={cn(
+					'text-[12.5px] font-semibold',
+					pinned ? 'tracking-[0.01em] text-warn' : 'text-fg'
+				)}
+			>
+				{label}
+			</span>
 			<span className="font-data text-[11px] text-fg-dim">{count}</span>
+			{pinned ? (
+				<span className="ml-0.5 inline-flex items-center rounded border border-warn/30 bg-warn-soft/60 px-1 text-[9.5px] font-semibold tracking-[0.04em] text-warn uppercase">
+					Pinned
+				</span>
+			) : null}
 		</button>
 	)
 }
