@@ -5,7 +5,13 @@ import { TERMINAL_STATES } from '@/lib/constants'
 import { shouldShowInterrupts } from '@/lib/domain'
 import { runDetailQuery } from '@/lib/queries'
 import { queryKeys } from '@/lib/queryKeys'
+import type { Run } from '@/types'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+
+export type UseRunDetailReturn = ReturnType<typeof useRunDetail>
+export type LoadedRunDetail = Omit<UseRunDetailReturn, 'run' | 'loading' | 'error'> & {
+	run: Run
+}
 
 export function useRunDetail(runId: string) {
 	const queryClient = useQueryClient()

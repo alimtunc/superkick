@@ -1,4 +1,3 @@
-import type { AgentProvider, AgentSession } from './agents'
 import type { LinkedPrSummary } from './pr'
 
 export type RunState =
@@ -84,9 +83,4 @@ export interface ClassifiedRuns {
 	openingPr: Run[]
 	inProgress: Run[]
 	queued: Run[]
-}
-
-export interface ProviderGroupData {
-	provider: AgentProvider
-	sessions: AgentSession[]
 }

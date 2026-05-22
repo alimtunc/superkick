@@ -1,4 +1,4 @@
-import { RunDetailView } from '@/components/run-detail/RunDetailView'
+import { RunInspectorPage } from '@/components/run-inspector/RunInspectorPage'
 import { useNow } from '@/hooks/useNow'
 import { runDetailQuery } from '@/lib/queries'
 import { createRoute, useParams } from '@tanstack/react-router'
@@ -18,7 +18,7 @@ function RunDetailPage() {
 
 	return (
 		<div className="h-full overflow-hidden">
-			<RunDetailView key={runId} runId={runId} refTime={refTime} />
+			<RunInspectorPage key={runId} runId={runId} refTime={refTime} />
 		</div>
 	)
 }

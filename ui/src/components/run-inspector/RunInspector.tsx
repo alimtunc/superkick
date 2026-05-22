@@ -1,36 +1,41 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { ExecutionModeBadge } from '@/components/ExecutionModeBadge'
 import { PrStateBadge } from '@/components/PrStateBadge'
 import { pinClass, pinTitle } from '@/components/run-detail/pinHelpers'
-import { RunConversation } from '@/components/run-detail/RunConversation'
 import { RunStatusBanner } from '@/components/run-detail/RunStatusBanner'
-import { RunWorkspace } from '@/components/run-detail/RunWorkspace'
+import { RunInspectorFacts } from '@/components/run-inspector/RunInspectorFacts'
+import { RunInspectorParentBanner } from '@/components/run-inspector/RunInspectorParentBanner'
+import { RunInspectorTabs, type RunInspectorTabId } from '@/components/run-inspector/RunInspectorTabs'
+import { RunInspectorTerminal } from '@/components/run-inspector/RunInspectorTerminal'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Pill } from '@/components/ui/pill'
 import { ChatDrawer } from '@/components/workspace/ChatDrawer'
 import { ChatToggleButton } from '@/components/workspace/ChatToggleButton'
 import type { useEventStream } from '@/hooks/useEventStream'
-import type { useRunDetail } from '@/hooks/useRunDetail'
+import type { LoadedRunDetail } from '@/hooks/useRunDetail'
 import { fmtElapsed } from '@/lib/domain'
 import { TopbarBackButton } from '@/shell/TopbarBackButton'
 import { usePageActions } from '@/shell/usePageActions'
 import { useWatchedSessionsStore } from '@/stores/watchedSessions'
-import type { Run } from '@/types'
+import { useLocation } from '@tanstack/react-router'
 import { ExternalLink, Pin, RefreshCw, Square } from 'lucide-react'
 
-export type LoadedRunDetail = Omit<ReturnType<typeof useRunDetail>, 'run' | 'loading' | 'error'> & {
-	run: Run
-}
-
-interface RunDetailLoadedProps {
+interface RunInspectorProps {
 	detail: LoadedRunDetail
 	events: ReturnType<typeof useEventStream>['events']
 	refTime: number
 }
 
-export function RunDetailLoaded({ detail, events, refTime }: RunDetailLoadedProps) {
+function tabFromHash(hash: string): RunInspectorTabId | null {
+	const stripped = hash.replace(/^#/, '')
+	if (stripped === 'activity' || stripped === 'tools' || stripped === 'files' || stripped === 'logs')
+		return stripped
+	return null
+}
+
+export function RunInspector({ detail, events, refTime }: RunInspectorProps) {
 	const {
 		run,
 		pr,
@@ -48,9 +53,16 @@ export function RunDetailLoaded({ detail, events, refTime }: RunDetailLoadedProp
 		cancelling
 	} = detail
 
+	const { hash } = useLocation()
+	const [tab, setTab] = useState<RunInspectorTabId>(() => tabFromHash(hash) ?? 'activity')
+
+	useEffect(() => {
+		const fromHash = tabFromHash(hash)
+		if (fromHash) setTab(fromHash)
+	}, [hash])
+
 	const { isWatched, toggleWatch, maxReached } = useWatchedSessionsStore()
 	const watched = isWatched(run.id)
-
 	const elapsed = fmtElapsed(run.started_at, refTime)
 
 	const sub = useMemo(
@@ -142,23 +154,20 @@ export function RunDetailLoaded({ detail, events, refTime }: RunDetailLoadedProp
 				showInterrupts={showInterrupts}
 				onSync={syncRun}
 			/>
+			<RunInspectorParentBanner run={run} />
 			<div className="flex min-h-0 flex-1">
-				<RunConversation
-					events={events}
-					attentionRequests={attentionRequests}
-					disabled={isTerminal}
-				/>
-				<RunWorkspace
+				<RunInspectorTabs
+					tab={tab}
+					onChangeTab={setTab}
 					run={run}
 					pr={pr}
-					steps={steps}
-					sessions={sessions}
 					events={events}
+					sessions={sessions}
 					attentionRequests={attentionRequests}
-					isTerminal={isTerminal}
-					refTime={refTime}
 				/>
+				<RunInspectorFacts run={run} pr={pr} steps={steps} sessions={sessions} refTime={refTime} />
 			</div>
+			<RunInspectorTerminal runId={run.id} isTerminal={isTerminal} />
 			<ConfirmDialog
 				open={cancelConfirm}
 				onOpenChange={(open) => {
