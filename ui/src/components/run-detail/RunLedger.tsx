@@ -1,4 +1,4 @@
-import { LedgerRow } from '@/components/run-detail/LedgerRow'
+import { LedgerList } from '@/components/run-detail/LedgerList'
 import { EmptyState } from '@/components/ui/state-empty'
 import { isLedgerEvent } from '@/lib/domain'
 import { indexById } from '@/lib/utils'
@@ -11,7 +11,6 @@ interface RunLedgerProps {
 	attentionRequests: AttentionRequest[]
 }
 
-// Orchestration events only; raw output/command events live in the terminal surface.
 export function RunLedger({ events, sessions, attentionRequests }: RunLedgerProps) {
 	const sessionById = indexById(sessions)
 	const attentionById = indexById(attentionRequests)
@@ -27,18 +26,12 @@ export function RunLedger({ events, sessions, attentionRequests }: RunLedgerProp
 		)
 	}
 
-	const lastIndex = entries.length - 1
 	return (
-		<ol className="relative space-y-1.5 pl-4">
-			{entries.map((event, index) => (
-				<LedgerRow
-					key={event.id}
-					event={event}
-					sessionById={sessionById}
-					attentionById={attentionById}
-					connect={index < lastIndex}
-				/>
-			))}
-		</ol>
+		<LedgerList
+			events={entries}
+			sessionById={sessionById}
+			attentionById={attentionById}
+			className="relative space-y-1.5 pl-4"
+		/>
 	)
 }
