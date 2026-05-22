@@ -1,5 +1,5 @@
 import { LedgerList } from '@/components/run-detail/LedgerList'
-import { EmptyState } from '@/components/ui/state-empty'
+import { TabEmptyState } from '@/components/ui/state-empty-tab'
 import { categoryOf, isLedgerEvent } from '@/lib/domain'
 import { indexById } from '@/lib/utils'
 import type { AgentSession, AttentionRequest, EventKind, RunEvent } from '@/types'
@@ -24,13 +24,11 @@ export function ToolsTab({ events, sessions, attentionRequests }: ToolsTabProps)
 
 	if (entries.length === 0) {
 		return (
-			<div className="px-4 py-6">
-				<EmptyState
-					icon={Wrench}
-					title="No tool calls yet"
-					description="Structured tool activity will appear here as the run progresses."
-				/>
-			</div>
+			<TabEmptyState
+				icon={Wrench}
+				title="No tool calls yet"
+				description="Structured tool activity will appear here as the run progresses."
+			/>
 		)
 	}
 

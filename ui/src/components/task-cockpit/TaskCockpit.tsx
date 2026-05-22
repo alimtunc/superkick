@@ -32,7 +32,8 @@ export function TaskCockpit({ task, steps }: TaskCockpitProps) {
 	} = useLaunchTaskFeedState(task, steps)
 
 	const status = task.status
-	const title = task.summary?.trim() || task.linear_issue_id || 'Launch task'
+	const issueId = task.linear_issue_id.trim()
+	const title = task.summary?.trim() || issueId || 'Launch task'
 	const updated = fmtRelativeTime(task.updated_at)
 
 	const sub = useMemo(
@@ -50,7 +51,7 @@ export function TaskCockpit({ task, steps }: TaskCockpitProps) {
 	usePageActions({
 		title,
 		sub,
-		back: <TopbarBackButton />
+		back: <TopbarBackButton fallbackTo={issueId ? `/issues/${issueId}` : '/'} />
 	})
 
 	return (

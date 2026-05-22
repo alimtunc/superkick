@@ -17,25 +17,26 @@ export function RunInspectorPage({ runId, refTime }: RunInspectorPageProps) {
 
 	if (detail.loading) {
 		return (
-			<div className="px-6 py-6">
-				<LoadingState rows={5} />
+			<div className="px-4 py-4">
+				<LoadingState rows={3} />
 			</div>
 		)
 	}
 	if (detail.error) {
 		return (
-			<div className="px-6 py-6">
+			<div className="px-4 py-4">
 				<ErrorState title="Run load failed" message={detail.error} onRetry={detail.refresh} />
 			</div>
 		)
 	}
 	if (!detail.run) {
 		return (
-			<div className="px-6 py-6">
+			<div className="px-4 py-4">
 				<EmptyState
 					icon={FileSearch}
 					title="Run not found"
 					description="It may have been deleted or the identifier is wrong."
+					density="compact"
 				/>
 			</div>
 		)

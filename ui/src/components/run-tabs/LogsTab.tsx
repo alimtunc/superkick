@@ -1,4 +1,4 @@
-import { EmptyState } from '@/components/ui/state-empty'
+import { TabEmptyState } from '@/components/ui/state-empty-tab'
 import { fmtRelativeTime } from '@/lib/domain'
 import type { RunEvent } from '@/types'
 import { ScrollText } from 'lucide-react'
@@ -14,13 +14,11 @@ export function LogsTab({ events }: LogsTabProps) {
 
 	if (logs.length === 0) {
 		return (
-			<div className="px-4 py-6">
-				<EmptyState
-					icon={ScrollText}
-					title="No logs yet"
-					description="Raw agent and command output will stream in here once the run produces any."
-				/>
-			</div>
+			<TabEmptyState
+				icon={ScrollText}
+				title="No logs yet"
+				description="Raw agent and command output will stream in here once the run produces any."
+			/>
 		)
 	}
 
