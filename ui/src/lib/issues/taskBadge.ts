@@ -2,6 +2,13 @@ import type { IssueWithState, LifecycleBucket, TaskBadgeKind } from '@/types'
 
 const SHIPPED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
+export const TASK_KIND_BG: Record<TaskBadgeKind, string> = {
+	needs: 'bg-warn',
+	running: 'bg-info',
+	review: 'bg-accent',
+	shipped: 'bg-success'
+}
+
 /**
  * Map a lifecycle bucket + issue into the badge that surfaces agent activity.
  * Returns `null` when the row should render no badge at all — the bar / chip

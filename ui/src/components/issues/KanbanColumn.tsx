@@ -58,14 +58,14 @@ export function KanbanColumn({
 			ref={setNodeRef}
 			data-issue-state={state}
 			className={cn(
-				'flex w-65 shrink-0 flex-col border-r border-border transition-colors duration-150 last:border-r-0 motion-reduce:transition-none',
+				'flex w-67 shrink-0 flex-col border-r border-border transition-colors duration-150 last:border-r-0 motion-reduce:transition-none',
 				isOver && droppable ? 'bg-accent-soft' : null,
 				isOver && !droppable ? 'bg-danger-soft' : null
 			)}
 		>
-			<div className="flex items-center gap-2 px-3.5 pt-3 pb-2.5">
+			<div className="flex items-center gap-2 px-3 pt-2.5 pb-2">
 				<Dot tone={issueStateTone[state]} size={8} />
-				<span className="text-[12px] font-semibold text-fg">{accent.label}</span>
+				<span className="text-[12.5px] font-semibold text-fg">{accent.label}</span>
 				<span className="font-mono text-[11px] text-fg-dim">{items.length}</span>
 				{!droppable ? (
 					<span

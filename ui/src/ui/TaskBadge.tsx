@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { Pill, type PillTone } from '@/components/ui/pill'
+import { TASK_KIND_BG } from '@/lib/issues/taskBadge'
 import { cn } from '@/lib/utils'
 import type { TaskBadgeKind } from '@/types'
 
@@ -18,13 +19,6 @@ const TONE: Record<TaskBadgeKind, PillTone> = {
 	running: 'info',
 	review: 'accent',
 	shipped: 'success'
-}
-
-const DOT_BG: Record<TaskBadgeKind, string> = {
-	needs: 'bg-warn',
-	running: 'bg-info',
-	review: 'bg-accent',
-	shipped: 'bg-success'
 }
 
 const DEFAULT_LABEL: Record<TaskBadgeKind, string> = {
@@ -54,7 +48,7 @@ function TaskBadgeDot({ kind }: { kind: 'needs' | 'running' }) {
 		<span
 			className={cn(
 				'inline-block size-1.5 shrink-0 rounded-full',
-				DOT_BG[kind],
+				TASK_KIND_BG[kind],
 				kind === 'running' ? 'live-pulse motion-reduce:animate-none' : null
 			)}
 		/>

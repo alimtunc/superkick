@@ -89,19 +89,19 @@ describe('IssueRow', () => {
 		expect(screen.getByText('SUP-1')).toBeInTheDocument()
 	})
 
-	it('renders no TaskBadge when there is no agent activity (open bucket, no run)', () => {
+	it('renders no task-state dot when there is no agent activity (open bucket, no run)', () => {
 		render(<IssueRow wrapper={makeWrapper(makeIssue())} bucket="open" now={NOW} />)
-		expect(screen.queryByText(/needs you|running|in review|shipped/i)).not.toBeInTheDocument()
+		expect(screen.queryByLabelText(/needs you|running|in review|shipped/i)).not.toBeInTheDocument()
 	})
 
-	it('renders the running TaskBadge when bucket is active', () => {
+	it('renders the running task-state dot when bucket is active', () => {
 		render(<IssueRow wrapper={makeWrapper(makeIssue(), 'coding')} bucket="active" now={NOW} />)
-		expect(screen.getByText('running')).toBeInTheDocument()
+		expect(screen.getByLabelText('Running')).toBeInTheDocument()
 	})
 
-	it('renders the needs-you TaskBadge when bucket is needs', () => {
+	it('renders the needs-you task-state dot when bucket is needs', () => {
 		render(<IssueRow wrapper={makeWrapper(makeIssue(), 'waiting_human')} bucket="needs" now={NOW} />)
-		expect(screen.getByText('needs you')).toBeInTheDocument()
+		expect(screen.getByLabelText('Needs you')).toBeInTheDocument()
 	})
 
 	it('renders the unassigned dashed avatar when assignee is null', () => {
@@ -115,7 +115,7 @@ describe('IssueRow', () => {
 		expect(screen.getByLabelText('Assigned to Alice')).toBeInTheDocument()
 	})
 
-	it('renders no more than two label chips', () => {
+	it('renders no more than two label chips and a +N indicator for the rest', () => {
 		const labels = [
 			{ name: 'bug', color: '#f00' },
 			{ name: 'ui', color: '#0f0' },
@@ -125,5 +125,6 @@ describe('IssueRow', () => {
 		expect(screen.getByText('bug')).toBeInTheDocument()
 		expect(screen.getByText('ui')).toBeInTheDocument()
 		expect(screen.queryByText('extra')).not.toBeInTheDocument()
+		expect(screen.getByText('+1')).toBeInTheDocument()
 	})
 })

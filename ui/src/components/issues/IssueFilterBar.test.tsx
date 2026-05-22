@@ -90,7 +90,7 @@ describe('IssueFilterBar', () => {
 
 	it('renders the layout toggle with the right active button', () => {
 		renderBar()
-		expect(screen.getByRole('button', { name: 'List' })).toBeInTheDocument()
-		expect(screen.getByRole('button', { name: 'Board' })).toBeInTheDocument()
+		expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute('aria-pressed', 'true')
+		expect(screen.getByRole('button', { name: 'Board view' })).toHaveAttribute('aria-pressed', 'false')
 	})
 })

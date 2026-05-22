@@ -3,13 +3,13 @@ import { useCallback, useMemo, useState } from 'react'
 import { IssueFilterBar } from '@/components/issues/IssueFilterBar'
 import type { FilterOptionSet } from '@/components/issues/IssueFilterDropdown'
 import { IssueKeyboard } from '@/components/issues/IssueKeyboard'
+import { IssueRowSkeleton } from '@/components/issues/IssueRowSkeleton'
+import { IssuesEmptyState } from '@/components/issues/IssuesEmptyState'
 import { IssuesKanbanView } from '@/components/issues/IssuesKanbanView'
 import { IssuesListView } from '@/components/issues/IssuesListView'
 import { IssueViewTabs } from '@/components/issues/IssueViewTabs'
 import { Pill } from '@/components/ui/pill'
-import { EmptyState } from '@/components/ui/state-empty'
 import { ErrorState } from '@/components/ui/state-error'
-import { LoadingState } from '@/components/ui/state-loading'
 import { useIssues } from '@/hooks/useIssues'
 import { useIssuesView } from '@/hooks/useIssuesView'
 import { useViewer } from '@/hooks/useViewer'
@@ -26,6 +26,7 @@ import type {
 	LinearIssueListItem
 } from '@/types'
 import { createRoute, useNavigate } from '@tanstack/react-router'
+import { Inbox } from 'lucide-react'
 
 import { Route as shellRoute } from './route'
 
@@ -139,16 +140,14 @@ function IssuesPage() {
 				</div>
 			) : null}
 
-			{isInitialLoading ? (
-				<div className="px-6 py-4">
-					<LoadingState rows={5} />
-				</div>
-			) : null}
+			{isInitialLoading ? <IssueRowSkeleton rows={6} /> : null}
 
 			{!data.loading && data.issues.length === 0 ? (
-				<div className="px-6 py-4">
-					<EmptyState title="No issues found." />
-				</div>
+				<IssuesEmptyState
+					icon={Inbox}
+					title="No issues yet"
+					description="Once Linear sends issues into Superkick, they'll show up here."
+				/>
 			) : null}
 
 			{data.issues.length > 0 ? (
