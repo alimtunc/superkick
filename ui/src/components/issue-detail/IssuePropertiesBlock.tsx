@@ -15,10 +15,8 @@ interface RowProps {
 
 function Row({ label, children }: RowProps) {
 	return (
-		<div className="flex items-start gap-3 py-2">
-			<span className="font-data w-20 shrink-0 pt-0.5 text-[11px] tracking-[0.12em] text-fg-dim uppercase">
-				{label}
-			</span>
+		<div className="flex min-h-7 items-start gap-3 py-1.25">
+			<span className="w-23 shrink-0 pt-0.5 text-[12px] text-fg-dim">{label}</span>
 			<div className="min-w-0 flex-1 text-[12.5px] leading-5 text-fg">{children}</div>
 		</div>
 	)

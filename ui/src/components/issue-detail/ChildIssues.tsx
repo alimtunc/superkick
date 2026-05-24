@@ -1,27 +1,6 @@
-import { IssueRow } from '@/components/issues/IssueRow'
-import type { IssueChildRef, IssueWithState, LinearIssueListItem } from '@/types'
+import { SubIssueRow } from '@/components/issue-detail/SubIssueRow'
+import type { IssueChildRef } from '@/types'
 import { Icon } from '@/ui'
-
-function childRefToWrapper(child: IssueChildRef): IssueWithState {
-	const issue: LinearIssueListItem = {
-		id: child.id,
-		identifier: child.identifier,
-		title: child.title,
-		status: child.status,
-		team_id: null,
-		priority: child.priority ?? { value: 0, label: 'None' },
-		labels: child.labels ?? [],
-		assignee: child.assignee ?? null,
-		project: null,
-		parent: null,
-		children: [],
-		blocked_by: [],
-		url: '',
-		created_at: child.updated_at ?? '',
-		updated_at: child.updated_at ?? ''
-	}
-	return { issue, state: 'open', bucket: undefined, linkedRun: undefined }
-}
 
 export function ChildIssues({ issues }: { issues: IssueChildRef[] }) {
 	if (issues.length === 0) return null
@@ -52,7 +31,7 @@ export function ChildIssues({ issues }: { issues: IssueChildRef[] }) {
 			</header>
 			<div>
 				{issues.map((child) => (
-					<IssueRow key={child.id} wrapper={childRefToWrapper(child)} bucket="open" />
+					<SubIssueRow key={child.id} child={child} />
 				))}
 			</div>
 		</div>

@@ -43,13 +43,13 @@ export function ExecutionStatusCard({ issue }: ExecutionStatusCardProps) {
 				search={{ issue: issue.identifier }}
 				className={cn(
 					'mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border text-[12.5px] font-medium transition-colors',
-					view
+					activeRun
 						? 'bg-transparent text-fg hover:bg-raised'
 						: 'border-transparent bg-accent text-white hover:opacity-90'
 				)}
 			>
 				<Zap size={12} strokeWidth={1.9} aria-hidden="true" />
-				{view ? 'Launch another' : 'Launch task'}
+				{activeRun ? 'Launch another' : 'Launch task'}
 			</Link>
 		</section>
 	)
