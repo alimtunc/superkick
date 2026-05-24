@@ -11,6 +11,8 @@ not listed here is either out of scope or explicitly excluded.
 
 > No production UI changes belong on this branch. This is a docs-only handoff.
 
+Visual parity capture workflow: [`visual-parity.md`](visual-parity.md).
+
 ## Archive index
 
 | File | Subject | Authoritative for |
