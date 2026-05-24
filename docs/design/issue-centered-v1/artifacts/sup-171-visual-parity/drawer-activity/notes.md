@@ -9,4 +9,4 @@ Diff: 3.74% changed pixels (21569/576000); threshold 1.00%
 Artifacts:
 - Mockup: `mockup.png`
 - App: `app.png`
-- Diff: `diff.png`
+- Diff image: omitted from Git; pixel percentage retained above for PR review.
