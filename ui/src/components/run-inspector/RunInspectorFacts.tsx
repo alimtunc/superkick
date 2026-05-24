@@ -185,9 +185,10 @@ function visualFacts(events: readonly RunEvent[]) {
 		)
 	const files = [
 		...new Set(
-			payloads
-				.map((payload) => (typeof payload.file === 'string' ? payload.file : null))
-				.filter((file): file is string => Boolean(file) && file.includes('/'))
+			payloads.flatMap((payload) => {
+				const file = payload.file
+				return typeof file === 'string' && file.includes('/') ? [file] : []
+			})
 		)
 	]
 	const testPayload = payloads.find(
