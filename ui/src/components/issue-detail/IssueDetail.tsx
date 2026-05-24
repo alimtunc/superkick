@@ -4,13 +4,11 @@ import { IssueDetailRail } from '@/components/issue-detail/IssueDetailRail'
 import { IssueFeed } from '@/components/issue-detail/IssueFeed'
 import { IssueReplyComposer } from '@/components/issue-detail/IssueReplyComposer'
 import { RunDrawer } from '@/components/issue-detail/run-drawer'
-import { StatusChip } from '@/components/issue-detail/StatusChip'
 import { Pill } from '@/components/ui/pill'
 import { EmptyState } from '@/components/ui/state-empty'
 import { ErrorState } from '@/components/ui/state-error'
 import { LoadingState } from '@/components/ui/state-loading'
 import { ChatDrawer } from '@/components/workspace/ChatDrawer'
-import { ChatToggleButton } from '@/components/workspace/ChatToggleButton'
 import { useIssueDetail } from '@/hooks/useIssueDetail'
 import { isActiveRun } from '@/lib/domain'
 import { TopbarBackButton } from '@/shell/TopbarBackButton'
@@ -18,7 +16,7 @@ import { usePageActions } from '@/shell/usePageActions'
 import type { IssueDetailResponse } from '@/types'
 import { Btn } from '@/ui/Btn'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ExternalLink, FileSearch, RefreshCw, Zap } from 'lucide-react'
+import { Copy, FileSearch, RefreshCw, Zap } from 'lucide-react'
 
 export function IssueDetail({ issueId }: { issueId: string }) {
 	const { issue, loading, error, refresh } = useIssueDetail(issueId)
@@ -57,6 +55,7 @@ interface IssueDetailLoadedProps {
 function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 	const navigate = useNavigate()
 	const activeRun = issue.linked_runs.find(isActiveRun)
+	const projectName = issue.project?.name ?? 'No project'
 
 	const sub = useMemo(
 		() => (
@@ -64,7 +63,15 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 				<Pill mono size="xs">
 					{issue.identifier}
 				</Pill>
-				<StatusChip status={issue.status} />
+				<button
+					type="button"
+					onClick={() => void navigator.clipboard?.writeText(issue.identifier)}
+					className="inline-flex items-center gap-1 rounded-md px-1 text-[11.5px] text-fg-dim transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+					aria-label={`Copy ${issue.identifier} ID`}
+				>
+					<Copy size={11} strokeWidth={1.8} aria-hidden="true" />
+					Copy ID
+				</button>
 				{activeRun ? (
 					<Link
 						to="/runs/$runId"
@@ -78,23 +85,12 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 				) : null}
 			</>
 		),
-		[issue.identifier, issue.status, activeRun]
+		[issue.identifier, activeRun]
 	)
 
 	const right = useMemo(
 		() => (
 			<>
-				<ChatToggleButton />
-				<a
-					href={issue.url}
-					target="_blank"
-					rel="noopener noreferrer"
-					aria-label="Open in Linear"
-					title="Open in Linear"
-					className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
-				>
-					<ExternalLink size={14} strokeWidth={1.75} aria-hidden="true" />
-				</a>
 				<button
 					type="button"
 					onClick={onRefresh}
@@ -104,6 +100,7 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 				>
 					<RefreshCw size={14} strokeWidth={1.75} aria-hidden="true" />
 				</button>
+				<div className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
 				<Btn
 					kind="primary"
 					size="sm"
@@ -116,11 +113,12 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 				</Btn>
 			</>
 		),
-		[issue.identifier, issue.url, onRefresh, navigate]
+		[issue.identifier, navigate, onRefresh]
 	)
 
 	usePageActions({
 		title: issue.title,
+		crumbs: ['Issues', projectName, issue.status.name],
 		sub,
 		right,
 		back: <TopbarBackButton />
@@ -128,11 +126,11 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 
 	return (
 		<>
-			<div className="flex h-full min-h-0">
+			<div className="flex h-full min-h-0 bg-canvas">
 				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-					<div className="mx-auto w-full max-w-2xl px-8 py-7">
+					<div className="w-full max-w-[670px] px-6 py-6 lg:ml-[52px]">
 						<IssueFeed issue={issue} />
-						<div className="mt-6">
+						<div className="mt-5">
 							<IssueReplyComposer />
 						</div>
 					</div>

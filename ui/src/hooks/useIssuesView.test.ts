@@ -13,6 +13,7 @@ function makeIssue(overrides: {
 	stateType?: LinearStateType
 	assigneeId?: string | null
 	priority?: number
+	statusName?: string
 	updated_at?: string
 	created_at?: string
 	runState?: RunState
@@ -23,7 +24,7 @@ function makeIssue(overrides: {
 		title: overrides.identifier,
 		status: {
 			state_type: overrides.stateType ?? 'unstarted',
-			name: overrides.stateType ?? 'todo',
+			name: overrides.statusName ?? overrides.stateType ?? 'todo',
 			color: '#fff'
 		},
 		team_id: null,
@@ -188,11 +189,14 @@ describe('useIssuesView', () => {
 		expect(r.groups[0].issues.map((w) => w.issue.identifier)).toEqual(['recent'])
 	})
 
-	it('group=status uses status name and sorts alphabetically', () => {
+	it('group=status uses Linear workflow order before alphabetical fallback', () => {
 		const r = render({
 			issues: [
-				makeIssue({ identifier: 'A', stateType: 'unstarted' }),
-				makeIssue({ identifier: 'B', stateType: 'started', assigneeId: VIEWER })
+				makeIssue({ identifier: 'A', stateType: 'backlog', statusName: 'Backlog' }),
+				makeIssue({ identifier: 'B', stateType: 'started', statusName: 'In Progress' }),
+				makeIssue({ identifier: 'C', stateType: 'started', statusName: 'Needs you' }),
+				makeIssue({ identifier: 'D', stateType: 'started', statusName: 'In Review' }),
+				makeIssue({ identifier: 'E', stateType: 'unstarted', statusName: 'Todo' })
 			],
 			viewerId: VIEWER,
 			tab: 'all-open',
@@ -202,7 +206,13 @@ describe('useIssuesView', () => {
 			showDone: false,
 			now: NOW
 		})
-		expect(r.groups.map((g) => g.label)).toEqual(['started', 'unstarted'])
+		expect(r.groups.map((g) => g.label)).toEqual([
+			'Needs you',
+			'In Progress',
+			'In Review',
+			'Todo',
+			'Backlog'
+		])
 	})
 
 	it('applies the assignee filter on the viewer-aware id', () => {

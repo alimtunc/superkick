@@ -39,10 +39,10 @@ describe('resolveSearch', () => {
 		expect(resolveSearch({ tab: 'shipped' }, 'viewer-1').tab).toBe('shipped')
 	})
 
-	it('defaults group to lifecycle and sort to updated', () => {
+	it('defaults group to status and sort to priority for the Linear-like issues baseline', () => {
 		const r = resolveSearch({}, 'viewer-1')
-		expect(r.group).toBe('lifecycle')
-		expect(r.sort).toBe('updated')
+		expect(r.group).toBe('status')
+		expect(r.sort).toBe('priority')
 	})
 
 	it('returns empty filter arrays when none are set', () => {

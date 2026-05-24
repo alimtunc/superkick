@@ -3,6 +3,7 @@ import { useMemo, type ReactNode } from 'react'
 import { ActivityNode } from '@/components/issue-detail/ActivityNode'
 import { AuthorAvatar } from '@/components/issue-detail/AuthorAvatar'
 import { IssueIntro } from '@/components/issue-detail/IssueIntro'
+import { IssueMarkdown } from '@/components/issue-detail/IssueMarkdown'
 import { RunPrBadge } from '@/components/issue-detail/RunPrBadge'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { buildIssueActivity, fmtRelativeTime, isTerminalRunState, runNarrative } from '@/lib/domain'
@@ -14,6 +15,7 @@ import type {
 	LinkedRunSummary
 } from '@/types'
 import { Link } from '@tanstack/react-router'
+import { MessageCircle } from 'lucide-react'
 
 function NeedsHumanBody({ run }: { run: LinkedRunSummary }) {
 	return (
@@ -32,10 +34,8 @@ function NeedsHumanBody({ run }: { run: LinkedRunSummary }) {
 
 function CommentBody({ node }: { node: CommentNode }) {
 	return (
-		<>
-			<pre className="font-sans text-[13px] leading-relaxed whitespace-pre-wrap text-fg-muted">
-				{node.comment.body}
-			</pre>
+		<div className="rounded-md border border-border bg-surface px-3 py-2.5">
+			<IssueMarkdown text={node.comment.body} compact className="text-[13px]" />
 			{node.children.length > 0 ? (
 				<div className="mt-3 space-y-3 border-l border-border pl-3.5">
 					{node.children.map((child) => (
@@ -43,7 +43,7 @@ function CommentBody({ node }: { node: CommentNode }) {
 					))}
 				</div>
 			) : null}
-		</>
+		</div>
 	)
 }
 
@@ -59,9 +59,7 @@ function CommentReply({ node }: { node: CommentNode }) {
 						{fmtRelativeTime(node.comment.created_at)}
 					</span>
 				</div>
-				<pre className="font-sans text-[13px] leading-relaxed whitespace-pre-wrap text-fg-muted">
-					{node.comment.body}
-				</pre>
+				<IssueMarkdown text={node.comment.body} compact className="mt-1 text-[13px]" />
 			</div>
 		</div>
 	)
@@ -152,22 +150,35 @@ export function IssueFeed({ issue }: { issue: IssueDetailResponse }) {
 		<div className="flex flex-col gap-5">
 			<IssueIntro issue={issue} />
 			{nodes.length > 0 ? (
-				<div className="pl-1">
-					{nodes.map((node, index) => (
-						<ActivityNode
-							key={node.key}
-							kind={node.kind}
-							role={node.role}
-							who={node.who}
-							time={node.time}
-							link={node.link}
-							disc={node.disc}
-							connect={index < lastIndex}
-						>
-							{node.body}
-						</ActivityNode>
-					))}
-				</div>
+				<section aria-label="Activity" className="mt-1">
+					<header className="mb-3 flex items-center gap-2">
+						<MessageCircle
+							size={13}
+							strokeWidth={1.8}
+							className="text-fg-dim"
+							aria-hidden="true"
+						/>
+						<span className="text-[13px] font-semibold text-fg">Activity</span>
+						<span className="font-data text-[11px] text-fg-dim">· {nodes.length}</span>
+						<span className="ml-auto text-[12px] text-fg-dim">Newest first</span>
+					</header>
+					<div className="pl-1">
+						{nodes.map((node, index) => (
+							<ActivityNode
+								key={node.key}
+								kind={node.kind}
+								role={node.role}
+								who={node.who}
+								time={node.time}
+								link={node.link}
+								disc={node.disc}
+								connect={index < lastIndex}
+							>
+								{node.body}
+							</ActivityNode>
+						))}
+					</div>
+				</section>
 			) : null}
 		</div>
 	)

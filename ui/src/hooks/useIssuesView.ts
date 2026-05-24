@@ -53,6 +53,14 @@ const LIFECYCLE_TONES: Record<LifecycleBucket, PillTone> = {
 	done: 'success'
 }
 
+// Linear's stock workflow labels. Custom workspace status names fall back to alphabetical.
+const STATUS_GROUP_ORDER = new Map(
+	['Needs you', 'In Progress', 'In Review', 'Todo', 'Backlog', 'Done', 'Canceled'].map((label, index) => [
+		label,
+		index
+	])
+)
+
 /**
  * Single derivation that owns: lifecycle bucketing, tab presets, filter
  * application, sort, and grouping. Pure inside `useMemo`. Empty buckets
@@ -295,8 +303,16 @@ function buildGroups(
 	for (const [key, list] of grouped) {
 		out.push({ key, bucket: null, label: key, tone: 'neutral', issues: list })
 	}
-	out.sort((a, b) => a.label.localeCompare(b.label))
+	out.sort((a, b) => compareGroupLabels(a.label, b.label, group))
 	return out
+}
+
+function compareGroupLabels(a: string, b: string, group: IssueGroupBy): number {
+	if (group !== 'status') return a.localeCompare(b)
+	const aRank = STATUS_GROUP_ORDER.get(a) ?? Number.POSITIVE_INFINITY
+	const bRank = STATUS_GROUP_ORDER.get(b) ?? Number.POSITIVE_INFINITY
+	if (aRank !== bRank) return aRank - bRank
+	return a.localeCompare(b)
 }
 
 function buildLifecycleGroups(

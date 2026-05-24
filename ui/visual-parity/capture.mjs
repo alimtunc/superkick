@@ -145,6 +145,9 @@ async function captureApp({ browser, state, baseUrl, outputPath }) {
 		Date.now = () => fixedNow
 		window.localStorage.clear()
 	})
+	await context.addInitScript((stateId) => {
+		window.__SUPERKICK_VISUAL_PARITY_STATE__ = stateId
+	}, state.id)
 	const page = await context.newPage()
 	const diagnostics = collectDiagnostics(page)
 	try {
@@ -249,10 +252,35 @@ async function runActions(page, actions) {
 				await page.getByRole('button', { name: /Open (active|latest) run drawer/ }).click()
 				await page.getByRole('dialog', { name: 'Run' }).waitFor({ timeout: 10_000 })
 				break
+			case 'dragIssueToState':
+				await dragIssueToState(page, action)
+				break
 			default:
 				throw new Error(`Unknown visual action "${action.type}"`)
 		}
 	}
+}
+
+async function dragIssueToState(page, action) {
+	const source = page.getByLabel(new RegExp(`^${escapeRegExp(action.identifier)} — drag to move`))
+	const target = page.locator(`[data-issue-state="${action.state}"]`)
+	await source.waitFor({ state: 'visible', timeout: 10_000 })
+	await target.waitFor({ state: 'visible', timeout: 10_000 })
+
+	const sourceBox = await source.boundingBox()
+	const targetBox = await target.boundingBox()
+	if (!sourceBox || !targetBox) {
+		throw new Error(`Could not resolve drag geometry for ${action.identifier}`)
+	}
+
+	await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
+	await page.mouse.down()
+	await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + 96, { steps: 12 })
+	await page.waitForTimeout(350)
+}
+
+function escapeRegExp(value) {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 async function diffScreenshots(mockupPath, appPath, diffPath) {

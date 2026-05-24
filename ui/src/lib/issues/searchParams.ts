@@ -74,8 +74,8 @@ export function resolveSearch(
 	return {
 		tab: search.tab ?? (viewerId !== null ? 'mine' : 'all-open'),
 		view: (search.view === 'kanban' ? 'board' : (search.view ?? 'list')) as IssueViewLayout,
-		group: search.group ?? 'lifecycle',
-		sort: search.sort ?? 'updated',
+		group: search.group ?? 'status',
+		sort: search.sort ?? 'priority',
 		showDone: search.showDone ?? showDonePref,
 		filters: {
 			assignee: search.assignee ?? [],

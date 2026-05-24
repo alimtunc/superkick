@@ -1,6 +1,8 @@
 const FIXED_NOW = '2026-05-24T14:00:00.000Z'
 const ISSUE_ID = 'issue-sup-169'
 const ISSUE_IDENTIFIER = 'SUP-169'
+const DETAIL_ISSUE_ID = 'issue-iss-216'
+const DETAIL_ISSUE_IDENTIFIER = 'ISS-216'
 const RUN_IDS = {
 	running: 'run-running',
 	needs: 'run-needs',
@@ -8,16 +10,20 @@ const RUN_IDS = {
 }
 
 const status = {
+	needs: { state_type: 'started', name: 'Needs you', color: '#d4a04a' },
 	backlog: { state_type: 'backlog', name: 'Backlog', color: '#7a7770' },
 	todo: { state_type: 'unstarted', name: 'Todo', color: '#b0ada6' },
 	started: { state_type: 'started', name: 'In Progress', color: '#5b8ec9' },
+	review: { state_type: 'started', name: 'In Review', color: '#5b6ef2' },
 	done: { state_type: 'completed', name: 'Done', color: '#4ea674' },
 	canceled: { state_type: 'canceled', name: 'Canceled', color: '#a75d5d' }
 }
 
 const assignees = {
 	alim: { id: 'viewer-alim', name: 'Alim', avatar_url: null },
-	codex: { id: 'agent-codex', name: 'Codex', avatar_url: null }
+	codex: { id: 'agent-codex', name: 'Codex', avatar_url: null },
+	lea: { id: 'viewer-lea', name: 'Léa M', avatar_url: null },
+	cpark: { id: 'viewer-cpark', name: 'C. Park', avatar_url: null }
 }
 
 const priorities = {
@@ -30,7 +36,9 @@ const priorities = {
 const labels = {
 	ui: { name: 'ui', color: '#5b8ec9' },
 	tooling: { name: 'tooling', color: '#d4a04a' },
-	foundations: { name: 'foundation', color: '#4ea674' }
+	foundations: { name: 'foundation', color: '#4ea674' },
+	checkout: { name: 'checkout', color: '#d4c640' },
+	bug: { name: 'bug', color: '#cf5a55' }
 }
 
 const baseIssue = {
@@ -52,32 +60,137 @@ const baseIssue = {
 }
 
 const issueList = [
-	baseIssue,
 	issue({
-		id: 'issue-sup-170',
-		identifier: 'SUP-170',
-		title: 'Pixel parity pass: Issues list and Issue Detail',
+		identifier: 'ISS-201',
+		title: 'Race condition in tenant migration script halts on staging',
+		status: status.needs,
+		priority: priorities.urgent,
+		labels: [
+			{ name: 'migrations', color: '#bf5a3a' },
+			{ name: 'security', color: '#cf5a55' }
+		],
+		project: { name: 'migrations' },
+		updated_at: '2026-05-24T13:52:00.000Z'
+	}),
+	issue({
+		identifier: 'ISS-214',
+		title: 'Stripe 3DS redirect lost on Safari iOS — reviewer flagged unsafe diff',
+		status: status.needs,
+		priority: priorities.high,
+		labels: [{ name: 'checkout', color: '#d4c640' }],
+		project: { name: 'checkout-web' },
+		updated_at: '2026-05-24T13:28:00.000Z'
+	}),
+	issue({
+		id: DETAIL_ISSUE_ID,
+		identifier: DETAIL_ISSUE_IDENTIFIER,
+		title: 'Checkout 500s spike after stripe-rust 0.18 bump',
+		status: status.started,
+		priority: priorities.high,
+		labels: [labels.checkout, labels.bug],
+		project: { name: 'checkout-web' },
+		updated_at: '2026-05-24T11:00:00.000Z'
+	}),
+	issue({
+		identifier: 'ISS-211',
+		title: 'Stale invoice state for prorated upgrades',
+		status: status.started,
+		priority: priorities.medium,
+		labels: [{ name: 'billing', color: '#5b8ec9' }],
+		project: { name: 'billing-worker' },
+		updated_at: '2026-05-23T14:00:00.000Z'
+	}),
+	issue({
+		identifier: 'ISS-180',
+		title: 'Sentry rate-limit alerts firing for billing-worker',
+		status: status.started,
+		priority: priorities.low,
+		labels: [
+			{ name: 'billing', color: '#5b8ec9' },
+			{ name: 'perf', color: '#d4a04a' }
+		],
+		project: { name: 'billing-worker' },
+		updated_at: '2026-05-21T14:00:00.000Z'
+	}),
+	issue({
+		identifier: 'ISS-204',
+		title: 'Dashboard timeline jitter on Firefox',
+		status: status.review,
+		priority: priorities.high,
+		labels: [
+			{ name: 'dashboard', color: '#8b7cf6' },
+			{ name: 'ux', color: '#5b6ef2' }
+		],
+		project: { name: 'dashboard-web' },
+		updated_at: '2026-05-22T14:00:00.000Z'
+	}),
+	issue({
+		identifier: 'ISS-195',
+		title: 'Token refresh fails on long-lived sessions',
+		status: status.review,
+		priority: priorities.medium,
+		labels: [{ name: 'auth', color: '#4ea674' }],
+		project: { name: 'auth-service' },
+		updated_at: '2026-05-20T14:00:00.000Z'
+	}),
+	issue({
+		identifier: 'ISS-217',
+		title: 'Webhook signature intermittently rejected from us-east-2',
+		status: status.todo,
+		priority: priorities.medium,
+		labels: [
+			{ name: 'webhook', color: '#5b8ec9' },
+			{ name: 'api', color: '#5b6ef2' }
+		],
+		project: { name: 'payments-api' },
+		updated_at: '2026-05-24T13:00:00.000Z'
+	}),
+	issue({
+		identifier: 'ISS-206',
+		title: "Webhook retries don't respect Retry-After header",
 		status: status.todo,
 		priority: priorities.high,
-		labels: [labels.ui],
-		updated_at: '2026-05-24T13:20:00.000Z'
+		labels: [{ name: 'webhook', color: '#5b8ec9' }],
+		project: { name: 'payments-api' },
+		updated_at: '2026-05-22T14:00:00.000Z'
 	}),
 	issue({
-		id: 'issue-sup-171',
-		identifier: 'SUP-171',
-		title: 'Pixel parity pass: Task, Run, and execution drawer',
+		identifier: 'ISS-197',
+		title: 'Add audit log for admin role changes',
+		status: status.todo,
+		priority: priorities.high,
+		labels: [
+			{ name: 'auth', color: '#4ea674' },
+			{ name: 'security', color: '#cf5a55' }
+		],
+		project: { name: 'auth-service' },
+		updated_at: '2026-05-20T14:00:00.000Z'
+	}),
+	issue({
+		identifier: 'ISS-193',
+		title: "Increase JWT cookie maxAge for 'remember me'",
 		status: status.backlog,
-		priority: priorities.medium,
-		labels: [labels.ui],
-		updated_at: '2026-05-24T11:50:00.000Z'
+		priority: priorities.urgent,
+		labels: [{ name: 'auth', color: '#4ea674' }],
+		project: { name: 'auth-service' },
+		updated_at: '2026-05-19T14:00:00.000Z'
 	}),
 	issue({
-		id: 'issue-sup-168',
-		identifier: 'SUP-168',
+		identifier: 'ISS-189',
+		title: 'Onboarding email links to dead /pricing anchor',
+		status: status.backlog,
+		priority: priorities.urgent,
+		labels: [{ name: 'marketing', color: '#8b95a5' }],
+		project: { name: 'marketing-site' },
+		updated_at: '2026-05-17T14:00:00.000Z'
+	}),
+	issue({
+		identifier: 'ISS-188',
 		title: 'Run inspector terminal tab and compact empty states',
 		status: status.done,
 		priority: priorities.low,
 		labels: [labels.foundations],
+		project: { name: 'superkick' },
 		updated_at: '2026-05-23T18:40:00.000Z'
 	})
 ]
@@ -85,13 +198,13 @@ const issueList = [
 function issue(overrides) {
 	return {
 		...baseIssue,
-		id: overrides.id,
+		id: overrides.id ?? `issue-${overrides.identifier.toLowerCase()}`,
 		identifier: overrides.identifier,
 		title: overrides.title,
 		status: overrides.status,
 		priority: overrides.priority,
 		labels: overrides.labels,
-		assignee: overrides.assignee ?? assignees.alim,
+		assignee: overrides.assignee ?? assignees.lea,
 		project: overrides.project ?? { name: 'Issue-centered V1' },
 		children: [],
 		blocked_by: [],
@@ -121,22 +234,74 @@ function detailFor(runState) {
 				]
 	return {
 		...baseIssue,
+		id: DETAIL_ISSUE_ID,
+		identifier: DETAIL_ISSUE_IDENTIFIER,
+		title: 'Checkout 500s spike after stripe-rust 0.18 bump',
+		status: status.started,
+		priority: priorities.high,
+		labels: [labels.checkout, labels.bug],
+		assignee: assignees.lea,
+		project: { name: 'checkout-web' },
+		url: 'https://linear.app/superkick/issue/iss-216',
+		created_at: '2026-05-17T10:00:00.000Z',
+		updated_at: '2026-05-24T11:00:00.000Z',
 		description:
-			'Build the screenshot workflow that compares approved Issue-centered V1 mockups against live app surfaces. Do not redesign the UI in this ticket.',
-		cycle: { name: 'V1 foundations', number: 7 },
-		estimate: 3,
-		due_date: null,
+			"After bumping stripe-rust to 0.18, the payment intent flow returns 500 when the customer's billing address has no postal_code. Reproducible on staging with US-CA addresses; about 3% of checkouts are affected.\n\nThe new SDK version started validating postal_code as required on the server side. We need to either:\n\n• pin to 0.17.x while we fix the call site, or\n• default postal_code to the cardholder's billing zip from the Stripe token.\n\nAffected route: POST /api/checkout/intent. Repro steps and stack trace in this Sentry issue.",
+		cycle: { name: 'Cycle 24', number: 24 },
+		estimate: 8,
+		due_date: '2026-05-28T00:00:00.000Z',
+		children: [
+			child('ISS-218', 'Pin stripe-rust to 0.17.4 on main', status.done, priorities.high),
+			child('ISS-219', 'Repro test in checkout-web/integration', status.done, priorities.high),
+			child('ISS-220', 'Default postal_code from Stripe token', status.done, priorities.high),
+			child('ISS-221', 'Migrate /api/checkout/intent callers', status.started, priorities.medium),
+			child(
+				'ISS-222',
+				'Backfill historical checkouts missing postal_code',
+				status.todo,
+				priorities.medium
+			)
+		],
+		blocked_by: [
+			{
+				id: 'issue-iss-230',
+				identifier: 'ISS-230',
+				title: 'stripe: default postal_code',
+				status: status.todo
+			}
+		],
 		comments: [
 			{
 				id: 'comment-1',
-				body: 'Keep this ticket focused on deterministic capture and review process.',
-				author: assignees.alim,
-				created_at: '2026-05-24T12:30:00.000Z',
-				updated_at: '2026-05-24T12:30:00.000Z',
+				body: "Opened from the Sentry alert spike. I'd rather we default postal_code from the token than pin — the pin won't survive the next dep audit.",
+				author: assignees.lea,
+				created_at: '2026-05-24T11:00:00.000Z',
+				updated_at: '2026-05-24T11:00:00.000Z',
+				parent_id: null
+			},
+			{
+				id: 'comment-2',
+				body: 'Confirmed the staging repro. The nil postal code path only hits saved cards created before the billing form change.',
+				author: assignees.cpark,
+				created_at: '2026-05-24T13:00:00.000Z',
+				updated_at: '2026-05-24T13:00:00.000Z',
 				parent_id: null
 			}
 		],
 		linked_runs
+	}
+}
+
+function child(identifier, title, childStatus, priority) {
+	return {
+		id: `issue-${identifier.toLowerCase()}`,
+		identifier,
+		title,
+		status: childStatus,
+		priority,
+		labels: [],
+		assignee: childStatus.state_type === 'started' ? assignees.lea : null,
+		updated_at: '2026-05-24T11:20:00.000Z'
 	}
 }
 
@@ -146,7 +311,7 @@ function launchTask(statusName, taskId) {
 	const current = needs ? 'step-implement-needs' : isDone ? null : 'step-implement-running'
 	return {
 		id: taskId,
-		linear_issue_id: ISSUE_IDENTIFIER,
+		linear_issue_id: DETAIL_ISSUE_IDENTIFIER,
 		recipe_kind: 'plan_implement_review',
 		status: statusName,
 		current_step_id: current,
@@ -241,7 +406,7 @@ function run(id, state) {
 	return {
 		id,
 		issue_id: ISSUE_ID,
-		issue_identifier: ISSUE_IDENTIFIER,
+		issue_identifier: DETAIL_ISSUE_IDENTIFIER,
 		repo_slug: 'superkick',
 		state,
 		trigger_source: 'visual-parity-fixture',
@@ -397,40 +562,21 @@ function emptyGroups() {
 
 function queueResponse() {
 	const groups = emptyGroups()
-	groups.launchable = [
-		{ kind: 'issue', issue: issueList[1], bucket: 'launchable', reason: 'Ready for parity pass.' }
-	]
-	groups.active = [
-		{
-			kind: 'run',
-			run: run(RUN_IDS.running, 'coding'),
-			linked_issue: {
-				identifier: ISSUE_IDENTIFIER,
-				title: baseIssue.title,
-				url: baseIssue.url
-			},
-			bucket: 'active',
-			reason: 'Visual harness implementation in progress.',
-			pending_attention_count: 0,
-			pending_interrupt_count: 0
-		}
-	]
-	groups.backlog = [
-		{ kind: 'issue', issue: issueList[2], bucket: 'backlog', reason: 'Blocked by harness.' }
-	]
-	groups.done = [
-		{
-			kind: 'issue',
-			issue: issueList[3],
-			bucket: 'done',
-			reason: 'Merged in the last 7 days.'
-		}
-	]
+	groups['needs-human'] = [queueIssue(0, 'needs-human'), queueIssue(1, 'needs-human')]
+	groups.active = [queueIssue(2, 'active'), queueIssue(3, 'active'), queueIssue(4, 'active')]
+	groups['in-pr'] = [queueIssue(5, 'in-pr'), queueIssue(6, 'in-pr')]
+	groups.todo = [queueIssue(7, 'todo'), queueIssue(8, 'todo'), queueIssue(9, 'todo')]
+	groups.backlog = [queueIssue(10, 'backlog'), queueIssue(11, 'backlog')]
+	groups.done = [queueIssue(12, 'done')]
 	return {
 		generated_at: FIXED_NOW,
 		active_capacity: { current: 1, max: 3 },
 		groups
 	}
+}
+
+function queueIssue(index, bucket) {
+	return { kind: 'issue', issue: issueList[index], bucket, reason: 'Visual parity fixture.' }
 }
 
 function runDetail(runId) {
@@ -462,6 +608,8 @@ function fixtureFor(name) {
 				? RUN_IDS.done
 				: RUN_IDS.running
 
+	const task = name === 'issue-idle' ? null : launchTask(taskStatus, taskId)
+
 	return {
 		now: FIXED_NOW,
 		issues: empty ? [] : issueList,
@@ -469,8 +617,8 @@ function fixtureFor(name) {
 		queue: empty
 			? { generated_at: FIXED_NOW, active_capacity: { current: 0, max: 3 }, groups: emptyGroups() }
 			: queueResponse(),
-		task: launchTask(taskStatus, taskId),
-		taskSteps: launchSteps(taskStatus, runId),
+		task,
+		taskSteps: task ? launchSteps(taskStatus, runId) : [],
 		runDetail: runDetail(runId),
 		events: runEvents(runId, name === 'run-needs' || name === 'task-needs')
 	}
@@ -483,7 +631,7 @@ export function responseForFixture(fixtureName, requestUrl) {
 	const taskMatch = path.match(/^\/launch-tasks\/([^/]+)(?:\/(steps|interventions))?$/)
 	const runMatch = path.match(/^\/runs\/([^/]+)$/)
 
-	if (path === '/me') return { id: assignees.alim.id, name: assignees.alim.name, avatar_url: null }
+	if (path === '/me') return { id: assignees.lea.id, name: assignees.lea.name, avatar_url: null }
 	if (path === '/config') {
 		return {
 			repo_slug: 'superkick',
@@ -506,8 +654,11 @@ export function responseForFixture(fixtureName, requestUrl) {
 	if (path === '/runs') return [fixture.runDetail.run]
 	if (path === '/events') return sse('workspace_event', fixture.events)
 	if (path === '/launch-tasks/events') return sse('done', [])
-	if (path === '/launch-tasks' && url.searchParams.get('linear_issue_id') === ISSUE_IDENTIFIER) {
-		return [fixture.task]
+	if (
+		path === '/launch-tasks' &&
+		[ISSUE_IDENTIFIER, DETAIL_ISSUE_IDENTIFIER].includes(url.searchParams.get('linear_issue_id'))
+	) {
+		return fixture.task ? [fixture.task] : []
 	}
 	if (taskMatch) {
 		if (taskMatch[2] === 'steps') return fixture.taskSteps

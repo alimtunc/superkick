@@ -7,6 +7,7 @@ import { IssueRowSkeleton } from '@/components/issues/IssueRowSkeleton'
 import { IssuesEmptyState } from '@/components/issues/IssuesEmptyState'
 import { IssuesKanbanView } from '@/components/issues/IssuesKanbanView'
 import { IssuesListView } from '@/components/issues/IssuesListView'
+import { IssuesTopbarActions } from '@/components/issues/IssuesTopbarActions'
 import { IssueViewTabs } from '@/components/issues/IssueViewTabs'
 import { Pill } from '@/components/ui/pill'
 import { ErrorState } from '@/components/ui/state-error'
@@ -15,7 +16,9 @@ import { useIssuesView } from '@/hooks/useIssuesView'
 import { useViewer } from '@/hooks/useViewer'
 import { parseIssuesSearch, resolveSearch } from '@/lib/issues/searchParams'
 import { issuesQuery, launchQueueQuery } from '@/lib/queries'
+import { isVisualParityState } from '@/lib/visualParityState'
 import { usePageActions } from '@/shell/usePageActions'
+import { useCommandBarStore } from '@/stores/commandBar'
 import type {
 	IssueFilterState,
 	IssueGroupBy,
@@ -45,6 +48,7 @@ export const Route = createRoute({
 function IssuesPage() {
 	const rawSearch = Route.useSearch()
 	const navigate = useNavigate({ from: Route.fullPath })
+	const openCommandBar = useCommandBarStore((s) => s.openBar)
 	const { viewerId } = useViewer()
 	const [showDonePref, setShowDonePref] = useState(readShowDonePref)
 	const resolved = useMemo(
@@ -67,6 +71,7 @@ function IssuesPage() {
 
 	const [dropdownOpen, setDropdownOpen] = useState(false)
 	const [focused, setFocused] = useState<string | null>(null)
+	const visualLoading = isVisualParityState('issues-list-loading')
 
 	const visibleIdentifiers = useMemo(
 		() => view.groups.flatMap((g) => g.issues.map((w) => w.issue.identifier)),
@@ -84,14 +89,14 @@ function IssuesPage() {
 
 	const onSortChange = useCallback(
 		(next: IssueSort) => {
-			navigate({ search: (prev) => ({ ...prev, sort: next === 'updated' ? undefined : next }) })
+			navigate({ search: (prev) => ({ ...prev, sort: next === 'priority' ? undefined : next }) })
 		},
 		[navigate]
 	)
 
 	const onGroupChange = useCallback(
 		(next: IssueGroupBy) => {
-			navigate({ search: (prev) => ({ ...prev, group: next === 'lifecycle' ? undefined : next }) })
+			navigate({ search: (prev) => ({ ...prev, group: next === 'status' ? undefined : next }) })
 		},
 		[navigate]
 	)
@@ -120,8 +125,10 @@ function IssuesPage() {
 	}, [navigate, resolved.showDone])
 
 	const isInitialLoading = data.loading && data.issues.length === 0
+	const showIssueChrome = visualLoading || data.issues.length > 0
 
 	usePageActions({
+		title: 'Issues',
 		sub: useMemo(
 			() => (
 				<Pill tone="neutral" mono size="xs">
@@ -129,7 +136,8 @@ function IssuesPage() {
 				</Pill>
 			),
 			[view.total]
-		)
+		),
+		right: useMemo(() => <IssuesTopbarActions onSearch={openCommandBar} />, [openCommandBar])
 	})
 
 	return (
@@ -140,7 +148,7 @@ function IssuesPage() {
 				</div>
 			) : null}
 
-			{isInitialLoading ? <IssueRowSkeleton rows={6} /> : null}
+			{isInitialLoading ? <IssueRowSkeleton rows={8} /> : null}
 
 			{!data.loading && data.issues.length === 0 ? (
 				<IssuesEmptyState
@@ -150,7 +158,7 @@ function IssuesPage() {
 				/>
 			) : null}
 
-			{data.issues.length > 0 ? (
+			{showIssueChrome ? (
 				<>
 					<IssueViewTabs tab={resolved.tab} counts={view.tabCounts} onChange={onTabChange} />
 					<IssueFilterBar
@@ -167,7 +175,9 @@ function IssuesPage() {
 						onDropdownOpenChange={setDropdownOpen}
 					/>
 
-					{resolved.view === 'board' ? (
+					{visualLoading ? (
+						<IssueRowSkeleton rows={12} />
+					) : resolved.view === 'board' ? (
 						<IssuesKanbanView queueItems={data.queueItems} recentUnblocks={data.recentUnblocks} />
 					) : (
 						<IssuesListView
