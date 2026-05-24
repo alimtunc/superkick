@@ -17,6 +17,7 @@ export function AppShell() {
 	const pathname = matches.at(-1)?.pathname ?? '/'
 	const { active, title, crumbs } = pathnameToTitle(pathname)
 	const pageTitle = usePageActionsStore((s) => s.title)
+	const pageCrumbs = usePageActionsStore((s) => s.crumbs)
 	const pageSub = usePageActionsStore((s) => s.sub)
 	const pageRight = usePageActionsStore((s) => s.right)
 	const pageBack = usePageActionsStore((s) => s.back)
@@ -27,7 +28,7 @@ export function AppShell() {
 			<div className="flex min-w-0 flex-1 flex-col">
 				<Topbar
 					title={pageTitle ?? title}
-					crumbs={crumbs}
+					crumbs={pageCrumbs ?? crumbs}
 					sub={pageSub ?? undefined}
 					right={pageRight ?? <TopbarStatus />}
 					back={pageBack ?? undefined}

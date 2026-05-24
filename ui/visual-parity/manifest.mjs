@@ -18,7 +18,7 @@ export const CAPTURE_STATES = [
 		fixture: 'issues-default',
 		viewport: VIEWPORT_1280_800,
 		mockup: { file: ISSUE_ARTIFACT, artboardId: 'list-default-dark' },
-		waitFor: '[data-issue-row][data-identifier="SUP-169"]'
+		waitFor: '[data-issue-row][data-identifier="ISS-201"]'
 	},
 	{
 		id: 'issues-list-hover',
@@ -27,8 +27,8 @@ export const CAPTURE_STATES = [
 		fixture: 'issues-default',
 		viewport: VIEWPORT_1280_800,
 		mockup: { file: ISSUE_ARTIFACT, artboardId: 'hover-dark' },
-		waitFor: '[data-issue-row][data-identifier="SUP-169"]',
-		actions: [{ type: 'hoverIssue', identifier: 'SUP-169' }]
+		waitFor: '[data-issue-row][data-identifier="ISS-201"]',
+		actions: [{ type: 'hoverIssue', identifier: 'ISS-201' }]
 	},
 	{
 		id: 'issues-list-filter',
@@ -37,7 +37,7 @@ export const CAPTURE_STATES = [
 		fixture: 'issues-default',
 		viewport: VIEWPORT_1280_800,
 		mockup: { file: ISSUE_ARTIFACT, artboardId: 'filter-dark' },
-		waitFor: '[data-issue-row][data-identifier="SUP-169"]',
+		waitFor: '[data-issue-row][data-identifier="ISS-201"]',
 		actions: [{ type: 'clickRole', role: 'button', name: 'Filter' }]
 	},
 	{
@@ -48,6 +48,15 @@ export const CAPTURE_STATES = [
 		viewport: VIEWPORT_1280_800,
 		mockup: { file: ISSUE_ARTIFACT, artboardId: 'empty-dark' },
 		waitForText: 'No issues yet'
+	},
+	{
+		id: 'issues-list-loading',
+		label: '/issues loading',
+		route: '/issues',
+		fixture: 'issues-default',
+		viewport: VIEWPORT_1280_800,
+		mockup: { file: ISSUE_ARTIFACT, artboardId: 'loading-dark' },
+		waitFor: '[aria-label="Loading issues"]'
 	},
 	{
 		id: 'issues-list-shipped',
@@ -68,13 +77,23 @@ export const CAPTURE_STATES = [
 		waitFor: '[data-issue-state="open"]'
 	},
 	{
+		id: 'issues-kanban-drag',
+		label: '/issues kanban drag',
+		route: '/issues?view=board',
+		fixture: 'issues-default',
+		viewport: VIEWPORT_1280_800,
+		mockup: { file: ISSUE_ARTIFACT, artboardId: 'kanban-drag' },
+		waitFor: '[data-issue-state="open"]',
+		actions: [{ type: 'dragIssueToState', identifier: 'ISS-217', state: 'in_progress' }]
+	},
+	{
 		id: 'issue-detail-idle',
 		label: '/issues/:id idle',
 		route: '/issues/SUP-169',
 		fixture: 'issue-idle',
 		viewport: VIEWPORT_1280_920,
 		mockup: { file: ISSUE_ARTIFACT, artboardId: 'detail-idle' },
-		waitForText: 'Visual parity harness for Issue-centered V1'
+		waitForText: 'Checkout 500s spike after stripe-rust 0.18 bump'
 	},
 	{
 		id: 'issue-detail-running',
@@ -83,7 +102,7 @@ export const CAPTURE_STATES = [
 		fixture: 'issue-running',
 		viewport: VIEWPORT_1280_920,
 		mockup: { file: ISSUE_ARTIFACT, artboardId: 'detail-running' },
-		waitForText: 'Execution'
+		waitForText: 'Checkout 500s spike after stripe-rust 0.18 bump'
 	},
 	{
 		id: 'issue-detail-diff',
@@ -92,7 +111,7 @@ export const CAPTURE_STATES = [
 		fixture: 'issue-done',
 		viewport: VIEWPORT_1280_920,
 		mockup: { file: ISSUE_ARTIFACT, artboardId: 'detail-diff' },
-		waitForText: 'Task finished'
+		waitForText: 'Checkout 500s spike after stripe-rust 0.18 bump'
 	},
 	{
 		id: 'task-running',

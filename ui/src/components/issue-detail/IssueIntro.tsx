@@ -1,6 +1,5 @@
 import { ChildIssues } from '@/components/issue-detail/ChildIssues'
 import { IssueDescription } from '@/components/issue-detail/IssueDescription'
-import { SectionHeading } from '@/components/ui/section-heading'
 import type { IssueDetailResponse } from '@/types'
 
 interface IssueIntroProps {
@@ -18,7 +17,6 @@ export function IssueIntro({ issue }: IssueIntroProps) {
 			{hasDescription ? <IssueDescription description={issue.description} /> : null}
 			{hasChildren ? (
 				<section aria-label="Sub-issues">
-					<SectionHeading>Sub-issues</SectionHeading>
 					<ChildIssues issues={issue.children} />
 				</section>
 			) : null}

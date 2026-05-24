@@ -4,8 +4,9 @@ import { AuthorAvatar } from '@/components/issue-detail/AuthorAvatar'
 import { LabelChip } from '@/components/issue-detail/LabelChip'
 import { StatusChip } from '@/components/issue-detail/StatusChip'
 import { PRIORITY_META } from '@/lib/domain/priorityMeta'
+import { formatShortDate } from '@/lib/format'
 import type { IssueDetailResponse } from '@/types'
-import { PriorityIcon, priorityIconKindFromValue } from '@/ui'
+import { Icon, PriorityIcon, priorityIconKindFromValue } from '@/ui'
 
 interface RowProps {
 	label: string
@@ -14,11 +15,11 @@ interface RowProps {
 
 function Row({ label, children }: RowProps) {
 	return (
-		<div className="flex items-start gap-3 py-1.5">
-			<span className="font-data w-20 shrink-0 pt-0.5 text-[10.5px] tracking-[0.06em] text-fg-dim uppercase">
+		<div className="flex items-start gap-3 py-2">
+			<span className="font-data w-20 shrink-0 pt-0.5 text-[11px] tracking-[0.12em] text-fg-dim uppercase">
 				{label}
 			</span>
-			<div className="min-w-0 flex-1 text-[12.5px] text-fg">{children}</div>
+			<div className="min-w-0 flex-1 text-[12.5px] leading-5 text-fg">{children}</div>
 		</div>
 	)
 }
@@ -26,12 +27,11 @@ function Row({ label, children }: RowProps) {
 export function IssuePropertiesBlock({ issue }: { issue: IssueDetailResponse }) {
 	const priorityMeta = PRIORITY_META[issue.priority.value]
 	const priorityLabel = priorityMeta?.label ?? issue.priority.label
+	const cycleLabel = issue.cycle?.name ?? null
+	const dueLabel = issue.due_date ? formatShortDate(issue.due_date) : null
 
 	return (
-		<section
-			aria-label="Issue properties"
-			className="rounded-md border border-edge bg-graphite/40 px-3 py-2"
-		>
+		<section aria-label="Issue properties" className="flex flex-col">
 			<Row label="Status">
 				<StatusChip status={issue.status} />
 			</Row>
@@ -54,11 +54,6 @@ export function IssuePropertiesBlock({ issue }: { issue: IssueDetailResponse }) 
 					<span className="text-fg-dim">Unassigned</span>
 				)}
 			</Row>
-			<Row label="Project">
-				<span className={issue.project ? 'text-fg' : 'text-fg-dim'}>
-					{issue.project?.name ?? '—'}
-				</span>
-			</Row>
 			{issue.labels.length > 0 ? (
 				<Row label="Labels">
 					<div className="flex flex-wrap gap-1">
@@ -67,6 +62,41 @@ export function IssuePropertiesBlock({ issue }: { issue: IssueDetailResponse }) 
 						))}
 					</div>
 				</Row>
+			) : null}
+			<div className="my-2 border-t border-border" />
+			<Row label="Project">
+				<span className={issue.project ? 'inline-flex items-center gap-1.5 text-fg' : 'text-fg-dim'}>
+					{issue.project ? <Icon name="folder" size={12} className="text-fg-dim" /> : null}
+					{issue.project?.name ?? 'No project'}
+				</span>
+			</Row>
+			<Row label="Cycle">
+				<span className={cycleLabel ? 'text-fg' : 'text-fg-dim'}>{cycleLabel ?? 'No cycle'}</span>
+			</Row>
+			<Row label="Estimate">
+				<span className="inline-flex items-center gap-1.5">
+					<span className="font-data inline-flex h-5 min-w-5 items-center justify-center rounded border border-border bg-raised px-1 text-[11px] text-fg">
+						{issue.estimate ?? '—'}
+					</span>
+					<span className="text-fg-dim">points</span>
+				</span>
+			</Row>
+			<Row label="Due date">
+				<span className={dueLabel ? 'text-fg' : 'text-fg-dim'}>{dueLabel ?? 'No due date'}</span>
+			</Row>
+			{issue.blocked_by.length > 0 ? (
+				<>
+					<div className="my-2 border-t border-border" />
+					<Row label="Relations">
+						<div className="flex flex-col gap-1">
+							{issue.blocked_by.map((blocker) => (
+								<span key={blocker.id} className="text-fg">
+									Blocked by <span className="font-medium">{blocker.identifier}</span>
+								</span>
+							))}
+						</div>
+					</Row>
+				</>
 			) : null}
 		</section>
 	)
