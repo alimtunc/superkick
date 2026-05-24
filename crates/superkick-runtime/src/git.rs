@@ -27,11 +27,16 @@ pub async fn git(cwd: &Path, args: &[&str]) -> Result<String> {
 }
 
 /// Run a git command and return the raw `Output` without checking the exit code.
+///
+/// `LC_ALL=C` is pinned so downstream parsers (e.g. `run_diff::shape_patch`'s
+/// `"Binary files "` marker) match git's English output regardless of the
+/// operator's shell locale.
 pub async fn git_raw(cwd: &Path, args: &[&str]) -> Result<Output> {
     debug!(cwd = %cwd.display(), cmd = %format!("git {}", args.join(" ")), "exec");
     Command::new("git")
         .args(args)
         .current_dir(cwd)
+        .env("LC_ALL", "C")
         .output()
         .await
         .with_context(|| format!("failed to spawn git {}", args.join(" ")))

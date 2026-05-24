@@ -29,6 +29,7 @@ pub mod redaction;
 pub mod review;
 pub mod role_router;
 pub mod run;
+pub mod run_diff;
 pub mod runner_mode;
 pub mod runtime;
 pub mod search;
@@ -115,6 +116,7 @@ pub use run::{
     ExecutionMode, LinkedRunSummary, PauseKind, Run, RunBudget, RunBudgetGrant, RunState,
     TriggerSource,
 };
+pub use run_diff::{FileDiff, FileDiffStatus, RunDiff};
 pub use runner_mode::{BillingProfile, RunnerMode, RunnerModeError};
 pub use runtime::{
     LOCAL_RUNTIME_NAME, ProviderStatus, Runtime, RuntimeCapabilities, RuntimeMode, RuntimeProvider,

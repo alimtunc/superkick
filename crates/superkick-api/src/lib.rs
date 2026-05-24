@@ -156,6 +156,24 @@ pub fn launch_task_test_router(
         .with_state(state)
 }
 
+/// Test-only router builder for the SUP-172 `GET /runs/{id}/diff` route.
+///
+/// Wires the single endpoint against a `RunDiffState` built from the
+/// supplied repo and the workspace's default branch — same pattern as
+/// `agents_test_router` and `launch_task_test_router`. Tests pre-seed
+/// runs through the repo and point `worktree_path` at a temp git repo
+/// they control.
+#[cfg(feature = "test-support")]
+pub fn run_diff_test_router(repo: Arc<SqliteRunRepo>, base_branch: String) -> Router {
+    let state = handlers::runs::RunDiffState {
+        run_repo: repo,
+        base_branch,
+    };
+    Router::new()
+        .route("/runs/{id}/diff", get(handlers::runs::get_run_diff))
+        .with_state(state)
+}
+
 /// Re-export of the issue-context handler types tests need to assemble a
 /// router (`IssueLookup`, the two dyn-repo traits). Gated behind
 /// `test-support` so production callers cannot reach into the handler
@@ -577,6 +595,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
             post(handlers::runs::create_run).get(handlers::runs::list_runs),
         )
         .route("/runs/{id}", get(handlers::runs::get_run))
+        .route("/runs/{id}/diff", get(handlers::runs::get_run_diff))
         .route("/runs/{id}/events", get(handlers::runs::get_run_events))
         .route("/runs/{id}/cancel", post(handlers::runs::cancel_run))
         .route(

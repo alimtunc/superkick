@@ -1,17 +1,19 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::extract::{Path, State};
+use axum::extract::{FromRef, Path, State};
 use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Json};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
-    ArtifactKind, ExecutionMode, LinkedPrSummary, PullRequest, Run, RunId, TriggerSource,
+    ArtifactKind, ExecutionMode, LinkedPrSummary, PullRequest, Run, RunDiff, RunId, TriggerSource,
     parse_pr_number,
 };
+use superkick_runtime::{DiffError, collect_run_diff};
+use superkick_storage::SqliteRunRepo;
 use superkick_storage::repo::{
     AgentSessionRepo, ArtifactRepo, AttentionRequestRepo, InterruptRepo, LaunchTaskRepo,
     PullRequestRepo, RunEventRepo, RunRepo, RunStepRepo,
@@ -369,4 +371,84 @@ pub(crate) async fn resolve_pr_summary(
 
 fn is_unique_violation(err: &anyhow::Error) -> bool {
     superkick_storage::is_unique_violation(err)
+}
+
+/// SUP-172 — substate slice the run-diff handler reads. Carved out of
+/// `AppState` via `FromRef` so the test router can stand the handler up
+/// against just a `RunRepo` plus the workspace default branch, without
+/// materialising the full app state.
+#[derive(Clone)]
+pub struct RunDiffState {
+    pub run_repo: Arc<SqliteRunRepo>,
+    pub base_branch: String,
+}
+
+impl FromRef<AppState> for RunDiffState {
+    fn from_ref(state: &AppState) -> Self {
+        Self {
+            run_repo: Arc::clone(&state.run_repo),
+            base_branch: state.base_branch.clone(),
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RunDiffRun {
+    id: String,
+    use_worktree: bool,
+    worktree_path: Option<String>,
+    branch_name: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RunDiffResponse {
+    run: RunDiffRun,
+    diff: RunDiff,
+}
+
+/// `GET /runs/{id}/diff` — read-only file diff for a run's worktree.
+///
+/// Status mapping:
+/// - run not found → 404 `run not found`
+/// - run does not use a worktree → 422 (V1 only supports worktree mode)
+/// - run has no `worktree_path` yet, or the directory was cleaned up → 404 `worktree`
+/// - any other git failure → 500
+pub async fn get_run_diff(
+    State(state): State<RunDiffState>,
+    Path(id): Path<uuid::Uuid>,
+) -> Result<impl IntoResponse, AppError> {
+    let run_id = RunId(id);
+    let Some(run) = state.run_repo.get(run_id).await? else {
+        return Err(AppError::NotFound("run not found"));
+    };
+
+    if !run.use_worktree {
+        return Err(AppError::Unprocessable(
+            "run is not worktree-backed; diff endpoint is worktree-only in V1".into(),
+        ));
+    }
+
+    let worktree_path = run
+        .worktree_path
+        .as_deref()
+        .ok_or(AppError::NotFound("worktree"))?;
+
+    let diff = match collect_run_diff(std::path::Path::new(worktree_path), &state.base_branch).await
+    {
+        Ok(d) => d,
+        Err(DiffError::WorktreeMissing) => return Err(AppError::NotFound("worktree")),
+        Err(DiffError::Git(err)) => return Err(AppError::Internal(err)),
+    };
+
+    Ok(Json(RunDiffResponse {
+        run: RunDiffRun {
+            id: run.id.0.to_string(),
+            use_worktree: run.use_worktree,
+            worktree_path: run.worktree_path.clone(),
+            branch_name: run.branch_name.clone(),
+        },
+        diff,
+    }))
 }
