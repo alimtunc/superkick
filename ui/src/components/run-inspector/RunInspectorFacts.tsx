@@ -9,7 +9,7 @@ import { fmtElapsed, fmtRelativeTime, providerLabel, stateTone, stepLabel } from
 import { WORKTREE_PATH_MAX } from '@/lib/launch/display'
 import { middleTruncate } from '@/lib/path'
 import type { AgentSession, PullRequest, Run, RunEvent, RunStep } from '@/types'
-import { ExternalLink, FileText, FolderGit2, GitBranch, Play } from 'lucide-react'
+import { ExternalLink, FileText, FolderGit2, GitBranch } from 'lucide-react'
 
 interface RunInspectorFactsProps {
 	run: Run
@@ -26,13 +26,26 @@ function activeSession(sessions: AgentSession[]): AgentSession | null {
 	)
 }
 
+function changedFilesFrom(events: readonly RunEvent[]): string[] {
+	return [
+		...new Set(
+			events.flatMap((event) => {
+				const payload = event.payload_json
+				if (!payload || typeof payload !== 'object') return []
+				const file = (payload as { file?: unknown }).file
+				return typeof file === 'string' && file.includes('/') ? [file] : []
+			})
+		)
+	]
+}
+
 export function RunInspectorFacts({ run, pr, steps, sessions, events, refTime }: RunInspectorFactsProps) {
 	const active = activeSession(sessions)
 	const provider = active ? (providerLabel[active.provider] ?? active.provider) : null
 	const phaseLabel = run.current_step_key ? stepLabel[run.current_step_key] : null
 	const elapsed = fmtElapsed(run.started_at, refTime)
 	const truncatedPath = run.worktree_path ? middleTruncate(run.worktree_path, WORKTREE_PATH_MAX) : null
-	const visual = visualFacts(events)
+	const changedFiles = changedFilesFrom(events)
 
 	return (
 		<aside
@@ -68,59 +81,23 @@ export function RunInspectorFacts({ run, pr, steps, sessions, events, refTime }:
 					</InspectorSection>
 				) : null}
 
-				{visual.toolCount > 0 ? (
-					<InspectorSection label={`Tool calls · ${visual.toolCount}`}>
-						<div className="font-data mt-2 space-y-1.5 text-[11.5px] text-fg-muted">
-							<FactRow label="shell" value="6 · 1.4s" />
-							<FactRow label="grep / find" value="3 · 0.4s" />
-							<FactRow label="edit / write" value="3 · 0.3s" />
-							<FactRow label="test" value="2 · 29.0s" />
-						</div>
-					</InspectorSection>
-				) : null}
-
-				{visual.files.length > 0 ? (
-					<InspectorSection label={`Files changed · ${visual.files.length}`}>
-						<div className="mt-2 space-y-2">
-							{visual.files.map((file, index) => (
-								<div key={file} className="space-y-1">
-									<div className="flex items-center gap-2 font-mono text-[11.5px]">
-										<FileText
-											size={12}
-											strokeWidth={1.8}
-											className="text-fg-dim"
-											aria-hidden="true"
-										/>
-										<span className="min-w-0 flex-1 truncate text-accent">{file}</span>
-										<span className="text-success">+{index === 0 ? 11 : 38}</span>
-										<span className={index === 0 ? 'text-oxide' : 'text-fg-dim'}>
-											-{index === 0 ? 3 : 0}
-										</span>
-									</div>
-									<div className="h-1 overflow-hidden rounded-full bg-edge">
-										<div
-											className="h-full bg-success"
-											style={{ width: index === 0 ? '84%' : '100%' }}
-										/>
-									</div>
+				{changedFiles.length > 0 ? (
+					<InspectorSection label={`Files changed · ${changedFiles.length}`}>
+						<div className="mt-2 space-y-1.5">
+							{changedFiles.map((file) => (
+								<div key={file} className="flex items-center gap-2 font-mono text-[11.5px]">
+									<FileText
+										size={12}
+										strokeWidth={1.8}
+										className="shrink-0 text-fg-dim"
+										aria-hidden="true"
+									/>
+									<span className="min-w-0 flex-1 truncate text-accent" title={file}>
+										{file}
+									</span>
 								</div>
 							))}
 						</div>
-					</InspectorSection>
-				) : null}
-
-				{visual.testCommand ? (
-					<InspectorSection label="Reproduce / test">
-						<pre className="bg-ink mt-2 rounded border border-edge px-3 py-2 font-mono text-[11px] leading-relaxed text-fg">
-							{visual.testCommand}
-						</pre>
-						<button
-							type="button"
-							className="mt-2 inline-flex h-7 items-center gap-1.5 rounded border border-edge px-2 text-[11.5px] text-fg hover:border-edge-bright"
-						>
-							<Play size={12} strokeWidth={1.8} aria-hidden="true" />
-							Run in sandbox
-						</button>
 					</InspectorSection>
 				) : null}
 
@@ -174,38 +151,5 @@ export function RunInspectorFacts({ run, pr, steps, sessions, events, refTime }:
 				<RunBudgetCard run={run} steps={steps} refTime={refTime} />
 			</div>
 		</aside>
-	)
-}
-
-function visualFacts(events: readonly RunEvent[]) {
-	const payloads = events
-		.map((event) => event.payload_json)
-		.filter(
-			(payload): payload is Record<string, unknown> => Boolean(payload) && typeof payload === 'object'
-		)
-	const files = [
-		...new Set(
-			payloads.flatMap((payload) => {
-				const file = payload.file
-				return typeof file === 'string' && file.includes('/') ? [file] : []
-			})
-		)
-	]
-	const testPayload = payloads.find(
-		(payload) => typeof payload.command === 'string' && payload.command.includes('go test')
-	)
-	return {
-		files,
-		testCommand: typeof testPayload?.command === 'string' ? testPayload.command : null,
-		toolCount: payloads.filter((payload) => typeof payload.activity_kind === 'string').length * 2
-	}
-}
-
-function FactRow({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="flex items-center gap-2">
-			<span className="min-w-0 flex-1 truncate">{label}</span>
-			<span className="font-mono text-fg">{value}</span>
-		</div>
 	)
 }

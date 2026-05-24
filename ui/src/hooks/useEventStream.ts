@@ -41,12 +41,13 @@ function reducer(state: EventStreamState, action: EventStreamAction): EventStrea
  * run state should observe `run.state.is_terminal()` via the query cache
  * instead — that's the authoritative signal.
  */
-export function useEventStream(runId: string, onStateChange?: () => void) {
+export function useEventStream(runId: string | null | undefined, onStateChange?: () => void) {
 	const [state, dispatch] = useReducer(reducer, undefined, createInitialState)
 	const onStateChangeRef = useRef(onStateChange)
 	onStateChangeRef.current = onStateChange
 
 	useEffect(() => {
+		if (!runId) return
 		workspaceEventBroker.start()
 		const unsubscribe = workspaceEventBroker.subscribe({ runId, variant: 'run_event' }, (notice) => {
 			if (notice.type !== 'run_event') return

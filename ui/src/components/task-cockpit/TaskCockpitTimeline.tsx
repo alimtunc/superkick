@@ -78,7 +78,7 @@ export function TaskCockpitTimeline({
 					/>
 				) : null}
 				{structured ? (
-					<StructuredTaskActivity task={task} steps={steps} runEvents={runEvents} />
+					<StructuredTaskActivity steps={steps} runEvents={runEvents} />
 				) : (
 					<>
 						<InterventionList
@@ -102,11 +102,9 @@ export function TaskCockpitTimeline({
 }
 
 function StructuredTaskActivity({
-	task,
 	steps,
 	runEvents
 }: {
-	task: LaunchTask
 	steps: readonly LaunchTaskStep[]
 	runEvents: RunEvent[]
 }) {
@@ -118,14 +116,7 @@ function StructuredTaskActivity({
 
 	return (
 		<div className="space-y-4">
-			{plan ? (
-				<PhaseLine
-					step={plan}
-					trailing={
-						plan.status === 'completed' ? 'drafted 5 steps · auto-approved · 32s' : undefined
-					}
-				/>
-			) : null}
+			{plan ? <PhaseLine step={plan} /> : null}
 			{implement ? (
 				<section>
 					<div className="mb-3 flex items-center gap-2 rounded-md bg-raised px-3 py-2">
@@ -139,30 +130,25 @@ function StructuredTaskActivity({
 							{LAUNCH_STEP_KIND_LABEL[implement.step_kind]}
 						</span>
 						<span className="font-data text-[11px] text-fg-dim">
-							{done} of {total} steps · editing verify.go
+							{done} of {total} steps
 						</span>
 					</div>
 					<StructuredActivityList events={runEvents} className="pl-3" />
 				</section>
 			) : null}
-			{review ? (
-				<PhaseLine
-					step={review}
-					trailing={task.status === 'completed' ? 'ready for PR' : 'will open PR once edit lands'}
-				/>
-			) : null}
+			{review ? <PhaseLine step={review} /> : null}
 		</div>
 	)
 }
 
-function PhaseLine({ step, trailing }: { step: LaunchTaskStep; trailing?: string }) {
+function PhaseLine({ step }: { step: LaunchTaskStep }) {
 	return (
 		<div className="flex items-center gap-2 text-[12px] text-fg-muted">
 			<ChevronRight size={13} strokeWidth={1.85} className="text-fg-dim" aria-hidden="true" />
 			<span className="font-data text-[11px] font-semibold tracking-wider text-success uppercase">
 				{LAUNCH_STEP_KIND_LABEL[step.step_kind]}
 			</span>
-			{trailing ? <span>· {trailing}</span> : null}
+			<span className="font-data text-[11px]">· {step.status}</span>
 		</div>
 	)
 }

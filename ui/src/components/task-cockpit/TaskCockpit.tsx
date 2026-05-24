@@ -33,7 +33,7 @@ export function TaskCockpit({ task, steps }: TaskCockpitProps) {
 		branchName,
 		interventions
 	} = useLaunchTaskFeedState(task, steps)
-	const stream = useEventStream(linkedRunId ?? '__no-linked-run__')
+	const stream = useEventStream(linkedRunId)
 
 	const status = task.status
 	const issueId = task.linear_issue_id.trim()

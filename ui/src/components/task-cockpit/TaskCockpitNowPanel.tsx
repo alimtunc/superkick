@@ -2,8 +2,9 @@ import { LaunchTaskCancelButton } from '@/components/issue-detail/launch-task-fe
 import { InterventionComposer } from '@/components/launch/InterventionComposer'
 import { Pill } from '@/components/ui/pill'
 import { LAUNCH_STEP_KIND_LABEL } from '@/lib/domain'
+import { WORKTREE_PATH_MAX } from '@/lib/launch/display'
+import { middleTruncate } from '@/lib/path'
 import type { LaunchTask, LaunchTaskStep } from '@/types'
-import { Copy, Play } from 'lucide-react'
 
 interface TaskCockpitNowPanelProps {
 	task: LaunchTask
@@ -24,10 +25,7 @@ export function TaskCockpitNowPanel({
 }: TaskCockpitNowPanelProps) {
 	const currentStep = steps.find((s) => s.id === task.current_step_id) ?? null
 	const changedFiles = [...new Set(steps.flatMap((step) => step.structured_result?.changed_files ?? []))]
-	const primaryFile = changedFiles[0]
-	const testCommand = primaryFile?.includes('webhook')
-		? 'go test ./internal/webhook/ \\\n  -run TestWebhookSignature'
-		: 'just check'
+	const truncatedPath = worktreePath ? middleTruncate(worktreePath, WORKTREE_PATH_MAX) : null
 
 	return (
 		<aside
@@ -63,33 +61,16 @@ export function TaskCockpitNowPanel({
 				</section>
 
 				<section className="space-y-2 border-t border-edge pt-4">
-					<div className="flex items-center gap-2">
-						<div className="font-data text-[10px] tracking-widest text-fg-dim uppercase">
-							Worktree
-						</div>
-						<span className="flex-1" />
-						<Copy size={12} strokeWidth={1.8} className="text-fg-dim" aria-hidden="true" />
-						<span className="text-[11px] text-fg-muted">Copy path</span>
+					<div className="font-data text-[10px] tracking-widest text-fg-dim uppercase">
+						Worktree
 					</div>
-					<Fact label="sandbox" value={isTerminal ? 'archived' : 'ephemeral-2'} mono />
 					<Fact label="branch" value={branchName ?? 'not set'} mono />
-					<Fact label="path" value={worktreePath ? '~/sk/run-7af2-1' : 'not attached'} mono />
-					<Fact label="PR" value={isTerminal ? 'ready' : 'not opened yet'} mono />
-				</section>
-
-				<section className="space-y-2 border-t border-edge pt-4">
-					<div className="flex items-center gap-2">
-						<div className="font-data text-[10px] tracking-widest text-fg-dim uppercase">
-							How to test
-						</div>
-						<span className="flex-1" />
-						<Play size={12} strokeWidth={1.8} className="text-fg-dim" aria-hidden="true" />
-						<span className="text-[11px] text-fg-muted">Run</span>
-					</div>
-					<pre className="bg-ink rounded border border-edge px-3 py-2 font-mono text-[11px] leading-relaxed text-fg">
-						{testCommand}
-					</pre>
-					<p className="font-data text-[10.5px] text-fg-dim">3,419 / 3,419 last run</p>
+					<Fact
+						label="path"
+						value={truncatedPath ?? 'not attached'}
+						title={worktreePath ?? undefined}
+						mono
+					/>
 				</section>
 
 				{changedFiles.length > 0 ? (
@@ -97,21 +78,11 @@ export function TaskCockpitNowPanel({
 						<div className="font-data text-[10px] tracking-widest text-fg-dim uppercase">
 							Files changed · {changedFiles.length}
 						</div>
-						{changedFiles.map((file, index) => (
-							<div key={file} className="space-y-1">
-								<div className="flex items-center gap-2 font-mono text-[11.5px]">
-									<span className="truncate text-accent">{file}</span>
-									<span className="ml-auto text-success">+{index === 0 ? 11 : 38}</span>
-									<span className={index === 0 ? 'text-oxide' : 'text-fg-dim'}>
-										-{index === 0 ? 3 : 0}
-									</span>
-								</div>
-								<div className="h-1 overflow-hidden rounded-full bg-edge">
-									<div
-										className="h-full bg-success"
-										style={{ width: index === 0 ? '84%' : '100%' }}
-									/>
-								</div>
+						{changedFiles.map((file) => (
+							<div key={file} className="flex items-center gap-2 font-mono text-[11.5px]">
+								<span className="truncate text-accent" title={file}>
+									{file}
+								</span>
 							</div>
 						))}
 					</section>
@@ -135,11 +106,18 @@ export function TaskCockpitNowPanel({
 	)
 }
 
-function Fact({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+interface FactProps {
+	label: string
+	value: string
+	mono?: boolean
+	title?: string
+}
+
+function Fact({ label, value, mono = false, title }: FactProps) {
 	return (
 		<div className="grid grid-cols-[70px_1fr] gap-2 text-[12px]">
 			<span className="font-data text-[11px] text-fg-dim">{label}</span>
-			<span className={mono ? 'truncate font-mono text-fg' : 'truncate text-fg'} title={value}>
+			<span className={mono ? 'truncate font-mono text-fg' : 'truncate text-fg'} title={title ?? value}>
 				{value}
 			</span>
 		</div>
