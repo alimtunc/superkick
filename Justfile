@@ -35,6 +35,10 @@ lint:
     cd ui && pnpm lint
     cd ui && pnpm fmt:check
 
+# Capture Issue-centered V1 mockup/app/diff screenshots.
+visual-parity *args:
+    cd ui && pnpm visual:parity -- {{args}}
+
 # Run local superkick CLI (pass args: just superkick watch ...)
 superkick *args:
     cargo run -p superkick-cli -- {{args}}

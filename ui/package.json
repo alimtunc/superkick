@@ -7,12 +7,15 @@
 	"scripts": {
 		"dev": "vite",
 		"build": "tsc -b && vite build",
-		"lint": "oxlint -c ../.oxlintrc.json src/",
-		"fmt": "oxfmt -c ../.oxfmtrc.json --write src/",
-		"fmt:check": "oxfmt -c ../.oxfmtrc.json --check src/",
+		"lint": "oxlint -c ../.oxlintrc.json src/ visual-parity/",
+		"fmt": "oxfmt -c ../.oxfmtrc.json --write src/ visual-parity/",
+		"fmt:check": "oxfmt -c ../.oxfmtrc.json --check src/ visual-parity/",
 		"preview": "vite preview",
 		"test": "vitest",
-		"test:run": "vitest run"
+		"test:run": "vitest run",
+		"visual:parity": "node visual-parity/capture.mjs",
+		"visual:parity:list": "node visual-parity/capture.mjs --list",
+		"visual:parity:install": "playwright install chromium"
 	},
 	"dependencies": {
 		"@base-ui/react": "^1.4.1",
@@ -39,6 +42,7 @@
 		"zustand": "^5.0.13"
 	},
 	"devDependencies": {
+		"@playwright/test": "^1.60.0",
 		"@testing-library/jest-dom": "^6.9.1",
 		"@testing-library/react": "^16.3.2",
 		"@testing-library/user-event": "^14.6.1",
@@ -50,6 +54,8 @@
 		"lefthook": "^2.1.6",
 		"oxfmt": "^0.50.0",
 		"oxlint": "^1.65.0",
+		"pixelmatch": "^7.2.0",
+		"pngjs": "^7.0.0",
 		"typescript": "~6.0.3",
 		"vite": "^8.0.13",
 		"vitest": "^4.1.6"
