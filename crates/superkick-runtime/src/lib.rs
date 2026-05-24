@@ -25,6 +25,7 @@ pub mod pty_io;
 pub mod pty_session;
 pub mod release_validation;
 pub mod repo_cache;
+pub mod run_diff;
 pub mod runner_mode;
 pub mod session_bus;
 pub mod step_engine;
@@ -75,6 +76,7 @@ pub use protocol_adapter::{
 pub use pty_session::{PtySession, PtySessionRegistry, TakeoverEntry, WriterHolder};
 pub use release_validation::{RunnerAvailability, requested_runners, runner_available};
 pub use repo_cache::RepoCache;
+pub use run_diff::{DiffError, collect_run_diff};
 pub use session_bus::SessionBus;
 pub use step_engine::{StepEngine, StepEngineDeps};
 pub use step_failure_classifier::{
