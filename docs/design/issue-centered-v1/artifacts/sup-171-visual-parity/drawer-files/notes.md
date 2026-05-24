@@ -1,0 +1,12 @@
+# drawer-files
+
+Label: execution drawer files
+Route: `/issues/SUP-169`
+Mockup artboard: `drawer-files`
+Status: review
+Diff: 2.06% changed pixels (11840/576000); threshold 1.00%
+
+Artifacts:
+- Mockup: `mockup.png`
+- App: `app.png`
+- Diff image: omitted from Git; pixel percentage retained above for PR review.

@@ -13,6 +13,7 @@ import type {
 
 const RECONNECT_MIN_MS = 500
 const RECONNECT_MAX_MS = 10_000
+const REPLAY_LIMIT = 500
 
 type SubscribeFn<E> = (handlers: SseHandlers<E>) => () => void
 
@@ -30,10 +31,17 @@ interface SubscriberEntry<Event, Filter> {
 	callback: (notice: Event | LaggedNotice) => void
 }
 
+function replayKey(event: unknown): string | null {
+	if (!event || typeof event !== 'object') return null
+	const id = (event as { id?: unknown }).id
+	return typeof id === 'string' && id.length > 0 ? id : null
+}
+
 export class SseBroker<Event, Filter> {
 	private readonly options: SseBrokerOptions<Event, Filter>
 	private subscribers = new Map<symbol, SubscriberEntry<Event, Filter>>()
 	private connectionListeners = new Set<(connected: boolean) => void>()
+	private replayBuffer: Event[] = []
 	private stopStream: (() => void) | null = null
 	private started = false
 	private connected = false
@@ -63,6 +71,7 @@ export class SseBroker<Event, Filter> {
 			clearTimeout(this.reconnectTimer)
 			this.reconnectTimer = null
 		}
+		this.replayBuffer = []
 		this.subscribers.clear()
 		this.setConnected(false)
 	}
@@ -70,6 +79,9 @@ export class SseBroker<Event, Filter> {
 	subscribe(filter: Filter, callback: (notice: Event | LaggedNotice) => void): () => void {
 		const key = Symbol(this.options.label)
 		this.subscribers.set(key, { filter, callback })
+		for (const event of this.replayBuffer) {
+			if (this.options.matches(filter, event)) callback(event)
+		}
 		return () => {
 			this.subscribers.delete(key)
 		}
@@ -131,6 +143,12 @@ export class SseBroker<Event, Filter> {
 	}
 
 	private fanOut(event: Event): void {
+		const key = replayKey(event)
+		if (key && this.replayBuffer.some((entry) => replayKey(entry) === key)) return
+		this.replayBuffer.push(event)
+		if (this.replayBuffer.length > REPLAY_LIMIT) {
+			this.replayBuffer = this.replayBuffer.slice(-REPLAY_LIMIT)
+		}
 		for (const { filter, callback } of this.subscribers.values()) {
 			if (!this.options.matches(filter, event)) continue
 			callback(event)

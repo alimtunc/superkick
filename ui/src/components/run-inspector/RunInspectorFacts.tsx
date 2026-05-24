@@ -8,14 +8,15 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { fmtElapsed, fmtRelativeTime, providerLabel, stateTone, stepLabel } from '@/lib/domain'
 import { WORKTREE_PATH_MAX } from '@/lib/launch/display'
 import { middleTruncate } from '@/lib/path'
-import type { AgentSession, PullRequest, Run, RunStep } from '@/types'
-import { ExternalLink, FolderGit2, GitBranch } from 'lucide-react'
+import type { AgentSession, PullRequest, Run, RunEvent, RunStep } from '@/types'
+import { ExternalLink, FileText, FolderGit2, GitBranch } from 'lucide-react'
 
 interface RunInspectorFactsProps {
 	run: Run
 	pr: PullRequest | null
 	steps: RunStep[]
 	sessions: AgentSession[]
+	events: RunEvent[]
 	refTime: number
 }
 
@@ -25,12 +26,26 @@ function activeSession(sessions: AgentSession[]): AgentSession | null {
 	)
 }
 
-export function RunInspectorFacts({ run, pr, steps, sessions, refTime }: RunInspectorFactsProps) {
+function changedFilesFrom(events: readonly RunEvent[]): string[] {
+	return [
+		...new Set(
+			events.flatMap((event) => {
+				const payload = event.payload_json
+				if (!payload || typeof payload !== 'object') return []
+				const file = (payload as { file?: unknown }).file
+				return typeof file === 'string' && file.includes('/') ? [file] : []
+			})
+		)
+	]
+}
+
+export function RunInspectorFacts({ run, pr, steps, sessions, events, refTime }: RunInspectorFactsProps) {
 	const active = activeSession(sessions)
 	const provider = active ? (providerLabel[active.provider] ?? active.provider) : null
 	const phaseLabel = run.current_step_key ? stepLabel[run.current_step_key] : null
 	const elapsed = fmtElapsed(run.started_at, refTime)
 	const truncatedPath = run.worktree_path ? middleTruncate(run.worktree_path, WORKTREE_PATH_MAX) : null
+	const changedFiles = changedFilesFrom(events)
 
 	return (
 		<aside
@@ -63,6 +78,26 @@ export function RunInspectorFacts({ run, pr, steps, sessions, refTime }: RunInsp
 				{provider ? (
 					<InspectorSection label="Agent">
 						<p className="font-data mt-2 text-[12px] text-fg">{provider}</p>
+					</InspectorSection>
+				) : null}
+
+				{changedFiles.length > 0 ? (
+					<InspectorSection label={`Files changed · ${changedFiles.length}`}>
+						<div className="mt-2 space-y-1.5">
+							{changedFiles.map((file) => (
+								<div key={file} className="flex items-center gap-2 font-mono text-[11.5px]">
+									<FileText
+										size={12}
+										strokeWidth={1.8}
+										className="shrink-0 text-fg-dim"
+										aria-hidden="true"
+									/>
+									<span className="min-w-0 flex-1 truncate text-accent" title={file}>
+										{file}
+									</span>
+								</div>
+							))}
+						</div>
 					</InspectorSection>
 				) : null}
 

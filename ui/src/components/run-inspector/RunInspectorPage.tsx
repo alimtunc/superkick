@@ -13,7 +13,7 @@ interface RunInspectorPageProps {
 
 export function RunInspectorPage({ runId, refTime }: RunInspectorPageProps) {
 	const detail = useRunDetail(runId)
-	const stream = useEventStream(runId, detail.syncRun)
+	const stream = useEventStream(detail.run?.id ?? runId, detail.syncRun)
 
 	if (detail.loading) {
 		return (

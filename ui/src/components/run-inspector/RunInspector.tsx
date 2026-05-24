@@ -5,6 +5,7 @@ import { PrStateBadge } from '@/components/PrStateBadge'
 import { pinClass, pinTitle } from '@/components/run-detail/pinHelpers'
 import { RunStatusBanner } from '@/components/run-detail/RunStatusBanner'
 import { RunInspectorFacts } from '@/components/run-inspector/RunInspectorFacts'
+import { RunInspectorMetaStrip } from '@/components/run-inspector/RunInspectorMetaStrip'
 import { RunInspectorParentBanner } from '@/components/run-inspector/RunInspectorParentBanner'
 import {
 	RunInspectorTabs,
@@ -148,6 +149,7 @@ export function RunInspector({ detail, events, refTime }: RunInspectorProps) {
 				onSync={syncRun}
 			/>
 			<RunInspectorParentBanner run={run} />
+			<RunInspectorMetaStrip run={run} sessions={sessions} />
 			<div className="flex min-h-0 flex-1">
 				<RunInspectorTabs
 					tab={tab}
@@ -159,7 +161,14 @@ export function RunInspector({ detail, events, refTime }: RunInspectorProps) {
 					attentionRequests={attentionRequests}
 					isTerminal={isTerminal}
 				/>
-				<RunInspectorFacts run={run} pr={pr} steps={steps} sessions={sessions} refTime={refTime} />
+				<RunInspectorFacts
+					run={run}
+					pr={pr}
+					steps={steps}
+					sessions={sessions}
+					events={events}
+					refTime={refTime}
+				/>
 			</div>
 			<ConfirmDialog
 				open={cancelConfirm}

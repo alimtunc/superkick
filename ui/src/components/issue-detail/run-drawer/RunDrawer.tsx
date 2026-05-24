@@ -13,7 +13,7 @@ export function RunDrawer() {
 			onClose={closeDrawer}
 			title="Run"
 			closeAriaLabel="Close run drawer"
-			width="two-thirds"
+			width="compact"
 		>
 			<div className="min-h-0 flex-1">{runId ? <RunDrawerContent runId={runId} /> : null}</div>
 		</SideDrawer>

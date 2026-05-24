@@ -1,15 +1,20 @@
 import { LaunchTaskCompletionSummary } from '@/components/issue-detail/launch-task-feed/LaunchTaskCompletionSummary'
 import { LaunchTaskNeedsHumanCallout } from '@/components/issue-detail/launch-task-feed/LaunchTaskNeedsHumanCallout'
 import { StepTimelineRow } from '@/components/issue-detail/launch-task-feed/StepTimelineRow'
+import { hasStructuredActivity } from '@/components/run-tabs/structuredActivity'
+import { StructuredActivityList } from '@/components/run-tabs/StructuredActivityList'
 import { InterventionList } from '@/components/task-cockpit/InterventionList'
+import { LAUNCH_STEP_KIND_LABEL } from '@/lib/domain'
 import type {
 	BlockingContext,
 	FailureClassification,
 	LaunchTask,
 	LaunchTaskIntervention,
 	LaunchTaskStep,
+	RunEvent,
 	TerminalKind
 } from '@/types'
+import { ChevronRight } from 'lucide-react'
 
 interface TaskCockpitTimelineProps {
 	task: LaunchTask
@@ -27,6 +32,7 @@ interface TaskCockpitTimelineProps {
 		delivered: LaunchTaskIntervention[]
 		pending: LaunchTaskIntervention[]
 	}
+	runEvents: RunEvent[]
 }
 
 export function TaskCockpitTimeline({
@@ -41,8 +47,11 @@ export function TaskCockpitTimeline({
 	linkedRunId,
 	worktreePath,
 	branchName,
-	interventions
+	interventions,
+	runEvents
 }: TaskCockpitTimelineProps) {
+	const structured = hasStructuredActivity(runEvents)
+
 	return (
 		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
 			{terminalKind ? (
@@ -68,16 +77,78 @@ export function TaskCockpitTimeline({
 						canRetry={canRetry}
 					/>
 				) : null}
-				<InterventionList
-					label="Delivered interventions"
-					rows={interventions.delivered}
-					variant="above"
-				/>
-				{steps.map((step) => (
-					<StepTimelineRow key={step.id} step={step} task={task} />
-				))}
-				<InterventionList label="Queued for next step" rows={interventions.pending} variant="below" />
+				{structured ? (
+					<StructuredTaskActivity steps={steps} runEvents={runEvents} />
+				) : (
+					<>
+						<InterventionList
+							label="Delivered interventions"
+							rows={interventions.delivered}
+							variant="above"
+						/>
+						{steps.map((step) => (
+							<StepTimelineRow key={step.id} step={step} task={task} />
+						))}
+						<InterventionList
+							label="Queued for next step"
+							rows={interventions.pending}
+							variant="below"
+						/>
+					</>
+				)}
 			</div>
+		</div>
+	)
+}
+
+function StructuredTaskActivity({
+	steps,
+	runEvents
+}: {
+	steps: readonly LaunchTaskStep[]
+	runEvents: RunEvent[]
+}) {
+	const plan = steps.find((step) => step.step_kind === 'plan')
+	const implement = steps.find((step) => step.step_kind === 'implement')
+	const review = steps.find((step) => step.step_kind === 'review')
+	const done = steps.filter((step) => step.status === 'completed').length
+	const total = steps.length
+
+	return (
+		<div className="space-y-4">
+			{plan ? <PhaseLine step={plan} /> : null}
+			{implement ? (
+				<section>
+					<div className="mb-3 flex items-center gap-2 rounded-md bg-raised px-3 py-2">
+						<ChevronRight
+							size={13}
+							strokeWidth={1.85}
+							className="text-fg-dim"
+							aria-hidden="true"
+						/>
+						<span className="font-data text-[11px] font-semibold tracking-wider text-accent uppercase">
+							{LAUNCH_STEP_KIND_LABEL[implement.step_kind]}
+						</span>
+						<span className="font-data text-[11px] text-fg-dim">
+							{done} of {total} steps
+						</span>
+					</div>
+					<StructuredActivityList events={runEvents} className="pl-3" />
+				</section>
+			) : null}
+			{review ? <PhaseLine step={review} /> : null}
+		</div>
+	)
+}
+
+function PhaseLine({ step }: { step: LaunchTaskStep }) {
+	return (
+		<div className="flex items-center gap-2 text-[12px] text-fg-muted">
+			<ChevronRight size={13} strokeWidth={1.85} className="text-fg-dim" aria-hidden="true" />
+			<span className="font-data text-[11px] font-semibold tracking-wider text-success uppercase">
+				{LAUNCH_STEP_KIND_LABEL[step.step_kind]}
+			</span>
+			<span className="font-data text-[11px]">· {step.status}</span>
 		</div>
 	)
 }
