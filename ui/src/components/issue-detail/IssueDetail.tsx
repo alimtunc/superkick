@@ -10,12 +10,11 @@ import { ErrorState } from '@/components/ui/state-error'
 import { LoadingState } from '@/components/ui/state-loading'
 import { ChatDrawer } from '@/components/workspace/ChatDrawer'
 import { useIssueDetail } from '@/hooks/useIssueDetail'
-import { isActiveRun } from '@/lib/domain'
 import { TopbarBackButton } from '@/shell/TopbarBackButton'
 import { usePageActions } from '@/shell/usePageActions'
 import type { IssueDetailResponse } from '@/types'
 import { Btn } from '@/ui/Btn'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { Copy, FileSearch, RefreshCw, Zap } from 'lucide-react'
 
 export function IssueDetail({ issueId }: { issueId: string }) {
@@ -54,38 +53,26 @@ interface IssueDetailLoadedProps {
 
 function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 	const navigate = useNavigate()
-	const activeRun = issue.linked_runs.find(isActiveRun)
 	const projectName = issue.project?.name ?? 'No project'
 
 	const sub = useMemo(
 		() => (
-			<>
+			<span className="group inline-flex items-center gap-1.5">
 				<Pill mono size="xs">
 					{issue.identifier}
 				</Pill>
 				<button
 					type="button"
 					onClick={() => void navigator.clipboard?.writeText(issue.identifier)}
-					className="inline-flex items-center gap-1 rounded-md px-1 text-[11.5px] text-fg-dim transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+					className="inline-flex items-center gap-1 rounded px-0.5 text-[11.5px] text-fg-dim opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
 					aria-label={`Copy ${issue.identifier} ID`}
 				>
 					<Copy size={11} strokeWidth={1.8} aria-hidden="true" />
 					Copy ID
 				</button>
-				{activeRun ? (
-					<Link
-						to="/runs/$runId"
-						params={{ runId: activeRun.id }}
-						className="inline-flex rounded-md focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
-					>
-						<Pill tone="live" size="xs" dot pulse>
-							Active run
-						</Pill>
-					</Link>
-				) : null}
-			</>
+			</span>
 		),
-		[issue.identifier, activeRun]
+		[issue.identifier]
 	)
 
 	const right = useMemo(
@@ -104,12 +91,11 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 				<Btn
 					kind="primary"
 					size="sm"
-					iconRight="arrowRight"
 					onClick={() => navigate({ to: '/tasks/new', search: { issue: issue.identifier } })}
 					aria-label={`Launch task for ${issue.identifier}`}
 				>
 					<Zap size={14} strokeWidth={1.85} aria-hidden="true" />
-					Launch task…
+					Launch task
 				</Btn>
 			</>
 		),
@@ -128,7 +114,7 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 		<>
 			<div className="flex h-full min-h-0 bg-canvas">
 				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-					<div className="w-full max-w-[670px] px-6 py-6 lg:ml-[52px]">
+					<div className="mx-auto w-full max-w-180 px-6 py-6">
 						<IssueFeed issue={issue} />
 						<div className="mt-5">
 							<IssueReplyComposer />
