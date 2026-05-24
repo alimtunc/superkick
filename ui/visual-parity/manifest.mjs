@@ -4,7 +4,7 @@ const DRAWER_ARTIFACT = '../docs/design/issue-centered-v1/artifacts/issue-detail
 
 const VIEWPORT_1280_800 = { width: 1280, height: 800 }
 const VIEWPORT_1280_920 = { width: 1280, height: 920 }
-const VIEWPORT_DRAWER = { width: 900, height: 920 }
+const VIEWPORT_DRAWER = { width: 900, height: 900 }
 
 export const DEFAULT_OUTPUT_DIR = '../.visual-parity-output/latest'
 export const DIFF_THRESHOLD = 0.01
@@ -156,7 +156,8 @@ export const CAPTURE_STATES = [
 		viewport: VIEWPORT_DRAWER,
 		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-activity' },
 		waitForText: 'Execution',
-		actions: [{ type: 'openRunDrawer' }]
+		actions: [{ type: 'openRunDrawer' }],
+		capture: { type: 'dialog', name: 'Run' }
 	},
 	{
 		id: 'drawer-tools',
@@ -166,7 +167,8 @@ export const CAPTURE_STATES = [
 		viewport: VIEWPORT_DRAWER,
 		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-tools' },
 		waitForText: 'Execution',
-		actions: [{ type: 'openRunDrawer' }, { type: 'clickRole', role: 'tab', name: 'Tools' }]
+		actions: [{ type: 'openRunDrawer' }, { type: 'clickRole', role: 'tab', name: 'Tools' }],
+		capture: { type: 'dialog', name: 'Run' }
 	},
 	{
 		id: 'drawer-files',
@@ -176,7 +178,8 @@ export const CAPTURE_STATES = [
 		viewport: VIEWPORT_DRAWER,
 		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-files' },
 		waitForText: 'Execution',
-		actions: [{ type: 'openRunDrawer' }, { type: 'clickRole', role: 'tab', name: 'Files' }]
+		actions: [{ type: 'openRunDrawer' }, { type: 'clickRole', role: 'tab', name: 'Files' }],
+		capture: { type: 'dialog', name: 'Run' }
 	},
 	{
 		id: 'drawer-logs',
@@ -186,7 +189,8 @@ export const CAPTURE_STATES = [
 		viewport: VIEWPORT_DRAWER,
 		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-logs' },
 		waitForText: 'Execution',
-		actions: [{ type: 'openRunDrawer' }, { type: 'clickRole', role: 'tab', name: 'Logs' }]
+		actions: [{ type: 'openRunDrawer' }, { type: 'clickRole', role: 'tab', name: 'Logs' }],
+		capture: { type: 'dialog', name: 'Run' }
 	},
 	{
 		id: 'drawer-terminal',
@@ -196,7 +200,8 @@ export const CAPTURE_STATES = [
 		viewport: VIEWPORT_DRAWER,
 		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-terminal' },
 		waitForText: 'Execution',
-		actions: [{ type: 'openRunDrawer' }, { type: 'clickRole', role: 'tab', name: 'Terminal' }]
+		actions: [{ type: 'openRunDrawer' }, { type: 'clickRole', role: 'tab', name: 'Terminal' }],
+		capture: { type: 'dialog', name: 'Run' }
 	},
 	{
 		id: 'drawer-done',
@@ -206,7 +211,8 @@ export const CAPTURE_STATES = [
 		viewport: VIEWPORT_DRAWER,
 		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-done' },
 		waitForText: 'Execution',
-		actions: [{ type: 'openRunDrawer' }]
+		actions: [{ type: 'openRunDrawer' }],
+		capture: { type: 'dialog', name: 'Run' }
 	}
 ]
 

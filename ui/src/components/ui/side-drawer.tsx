@@ -4,9 +4,10 @@ import { cn } from '@/lib/utils'
 import { Dialog } from '@base-ui/react/dialog'
 import { X } from 'lucide-react'
 
-type SideDrawerWidth = 'half' | 'two-thirds'
+type SideDrawerWidth = 'compact' | 'half' | 'two-thirds'
 
 const WIDTH_CLASS: Record<SideDrawerWidth, string> = {
+	compact: 'w-[640px] max-w-full',
 	half: 'w-1/2 min-w-md',
 	'two-thirds': 'w-2/3 min-w-xl'
 }

@@ -152,7 +152,14 @@ async function captureApp({ browser, state, baseUrl, outputPath }) {
 		await waitForState(page, state)
 		await runActions(page, state.actions ?? [])
 		await page.waitForTimeout(350)
-		await page.screenshot({ path: outputPath, fullPage: true, animations: 'disabled' })
+		if (state.capture?.type === 'dialog') {
+			await page.getByRole('dialog', { name: state.capture.name }).screenshot({
+				path: outputPath,
+				animations: 'disabled'
+			})
+		} else {
+			await page.screenshot({ path: outputPath, fullPage: true, animations: 'disabled' })
+		}
 	} catch (error) {
 		await writeDebugArtifacts(page, outputPath, diagnostics)
 		throw error

@@ -1,7 +1,13 @@
-import type { LaunchTaskBrokerNotice, LaunchTaskEvent, SseHandlers } from '@/types'
+import type {
+	BrokerNotice,
+	LaunchTaskBrokerNotice,
+	LaunchTaskEvent,
+	SseHandlers,
+	WorkspaceRunEvent
+} from '@/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createLaunchTaskBroker } from './eventBroker'
+import { createLaunchTaskBroker, createWorkspaceBroker } from './eventBroker'
 
 function stepStarted(taskId: string, issueId: string): LaunchTaskEvent {
 	return {
@@ -30,6 +36,31 @@ function createSubscribeHarness() {
 				stops += 1
 			}
 		}
+	}
+}
+
+function createWorkspaceSubscribeHarness() {
+	const handlers: SseHandlers<WorkspaceRunEvent>[] = []
+	return {
+		current: () => handlers[handlers.length - 1] ?? null,
+		subscribe: (h: SseHandlers<WorkspaceRunEvent>) => {
+			handlers.push(h)
+			return () => {}
+		}
+	}
+}
+
+function runEvent(id: string): WorkspaceRunEvent {
+	return {
+		type: 'run_event',
+		id,
+		run_id: 'run-1',
+		run_step_id: 'step-1',
+		ts: '2026-05-24T14:00:00.000Z',
+		kind: 'step_started',
+		level: 'info',
+		message: 'Code step started',
+		payload_json: { step_key: 'code' }
 	}
 }
 
@@ -64,6 +95,31 @@ describe('LaunchTaskEventBroker', () => {
 
 		expect(matched).toHaveLength(1)
 		expect(skipped).toHaveLength(0)
+	})
+
+	it('replays recent matching events to subscribers that mount after the stream event', () => {
+		const broker = createLaunchTaskBroker(createSubscribeHarness().subscribe)
+		broker.publishForTest(stepStarted('task-a', 'SUP-1'))
+		broker.publishForTest(stepStarted('task-b', 'SUP-9'))
+
+		const received: LaunchTaskBrokerNotice[] = []
+		broker.subscribe({ linearIssueId: 'SUP-1' }, (n) => received.push(n))
+
+		expect(received).toHaveLength(1)
+		expect(received[0]).toMatchObject({ kind: 'step_started', task_id: 'task-a' })
+	})
+
+	it('suppresses duplicate workspace events by id when the stream reconnects', () => {
+		const harness = createWorkspaceSubscribeHarness()
+		const broker = createWorkspaceBroker(harness.subscribe)
+		const received: BrokerNotice[] = []
+		broker.subscribe({ runId: 'run-1', variant: 'run_event' }, (n) => received.push(n))
+		broker.start()
+
+		harness.current()?.onEvent(runEvent('event-1'))
+		harness.current()?.onEvent(runEvent('event-1'))
+
+		expect(received).toHaveLength(1)
 	})
 
 	it('unsubscribe stops the subscriber from receiving further events', () => {
