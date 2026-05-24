@@ -2,9 +2,9 @@ const FIXED_NOW = '2026-05-24T14:00:00.000Z'
 const ISSUE_ID = 'issue-sup-169'
 const ISSUE_IDENTIFIER = 'SUP-169'
 const RUN_IDS = {
-	running: 'run-running',
-	needs: 'run-needs',
-	done: 'run-done'
+	running: 'run-7af2-1',
+	needs: 'run-7af2-needs',
+	done: 'run-7af2-done'
 }
 
 const status = {
@@ -36,7 +36,7 @@ const labels = {
 const baseIssue = {
 	id: ISSUE_ID,
 	identifier: ISSUE_IDENTIFIER,
-	title: 'Visual parity harness for Issue-centered V1',
+	title: 'Webhook signature rejection in us-east-2',
 	status: status.started,
 	team_id: 'team-superkick',
 	priority: priorities.urgent,
@@ -150,7 +150,9 @@ function launchTask(statusName, taskId) {
 		recipe_kind: 'plan_implement_review',
 		status: statusName,
 		current_step_id: current,
-		summary: needs ? 'Need operator decision before continuing.' : 'Capturing parity harness work.',
+		summary: needs
+			? 'Approval needed before retrying webhook tests.'
+			: 'Webhook signature rejection in us-east-2',
 		created_at: '2026-05-24T13:30:00.000Z',
 		updated_at: isDone ? '2026-05-24T13:58:00.000Z' : '2026-05-24T13:48:00.000Z'
 	}
@@ -166,7 +168,7 @@ function launchSteps(taskStatus, linkedRunId) {
 			sequence: 1,
 			kind: 'plan',
 			status: 'completed',
-			summary: 'Mapped approved artboards to route states and output artifacts.',
+			summary: 'Drafted 5 implementation steps and auto-approved the webhook fix plan.',
 			runId: linkedRunId
 		}),
 		step({
@@ -176,22 +178,21 @@ function launchSteps(taskStatus, linkedRunId) {
 			kind: 'implement',
 			status: needs ? 'needs_human' : done ? 'completed' : 'running',
 			summary: needs
-				? 'Need operator decision on manual acceptance threshold.'
+				? 'Need approval before updating signature tolerance and retrying tests.'
 				: done
-					? 'Added capture command, fixtures, docs, and PR checklist.'
-					: 'Implementing deterministic screenshots.',
+					? 'Fixed webhook clock skew handling and added signature coverage.'
+					: 'Editing internal/webhook/verify.go after reproducing Signature failure.',
 			runId: linkedRunId,
-			result: done
-				? {
-						status: 'completed',
-						summary: 'Harness implemented and sample captures generated.',
-						changed_files: [
-							'ui/visual-parity/capture.mjs',
-							'docs/design/issue-centered-v1/visual-parity.md'
-						],
-						questions: []
-					}
-				: null
+			result:
+				done || !needs
+					? {
+							status: 'completed',
+							summary:
+								'Webhook verification accepts bounded clock skew and reports stale signatures.',
+							changed_files: ['internal/webhook/verify.go', 'tests/webhook_signature_test.go'],
+							questions: []
+						}
+					: null
 		}),
 		step({
 			id: 'step-review',
@@ -217,9 +218,9 @@ function step({ id, taskId, sequence, kind, status: stepStatus, summary, runId, 
 		launch_task_id: taskId,
 		sequence,
 		step_kind: kind,
-		agent_name: kind === 'review' ? 'frontend-review' : 'codex',
-		provider: 'codex',
-		model: 'gpt-5',
+		agent_name: kind === 'review' ? 'review-bot' : 'fix-bot',
+		provider: 'claude',
+		model: 'claude-sonnet-4.5',
 		mode: 'semi_auto',
 		status: stepStatus,
 		linked_run_id: runId,
@@ -244,20 +245,20 @@ function run(id, state) {
 		issue_identifier: ISSUE_IDENTIFIER,
 		repo_slug: 'superkick',
 		state,
-		trigger_source: 'visual-parity-fixture',
+		trigger_source: 'task-7af2',
 		execution_mode: 'semi_auto',
 		current_step_key: finished ? null : state === 'waiting_human' ? 'await_human' : 'code',
 		base_branch: 'main',
-		worktree_path: '/Users/alimtunc/Developement/Side/superkick/.worktrees/sup-169-visual-parity',
-		branch_name: 'sup-169-visual-parity-harness-for-issue-centered-v1',
-		operator_instructions: 'Build the screenshot harness only; no redesign.',
+		worktree_path: '/Users/alimtunc/Developement/Side/superkick/.worktrees/run-7af2-1',
+		branch_name: 'fix/webhook-skew',
+		operator_instructions: 'Fix webhook signature rejection in us-east-2.',
 		started_at: '2026-05-24T13:35:00.000Z',
 		updated_at: finished ? '2026-05-24T13:57:00.000Z' : '2026-05-24T13:52:00.000Z',
 		finished_at: finished ? '2026-05-24T13:57:00.000Z' : null,
 		error_message: null,
 		budget: { duration_secs: 5400, retries_max: 1, token_ceiling: null },
 		pause_kind: state === 'waiting_human' ? 'approval' : 'none',
-		pause_reason: state === 'waiting_human' ? 'Manual threshold needs approval.' : null
+		pause_reason: state === 'waiting_human' ? 'Approve test retry after webhook skew fix.' : null
 	}
 }
 
@@ -278,7 +279,7 @@ function runStep(runId, key, statusName, attempt) {
 		step_key: key,
 		status: statusName,
 		attempt,
-		agent_provider: key === 'review_swarm' ? 'claude' : 'codex',
+		agent_provider: 'claude',
 		started_at: statusName === 'pending' ? null : '2026-05-24T13:35:00.000Z',
 		finished_at: statusName === 'succeeded' ? '2026-05-24T13:45:00.000Z' : null,
 		input_json: null,
@@ -292,8 +293,8 @@ function session(runId, statusName = 'running') {
 		id: `${runId}-session`,
 		run_id: runId,
 		run_step_id: `${runId}-code`,
-		provider: 'codex',
-		command: 'codex exec',
+		provider: 'claude',
+		command: 'claude --model sonnet-4.5',
 		pid: statusName === 'running' ? 4217 : null,
 		status: statusName,
 		started_at: '2026-05-24T13:37:00.000Z',
@@ -301,7 +302,7 @@ function session(runId, statusName = 'running') {
 		exit_code: statusName === 'completed' ? 0 : null,
 		linear_context_mode: 'issue',
 		role: 'implement',
-		purpose: 'Create visual parity harness',
+		purpose: 'Fix webhook signature rejection',
 		parent_session_id: null,
 		launch_reason: 'initial_step',
 		handoff_id: null
@@ -314,8 +315,8 @@ function attention(runId) {
 		run_id: runId,
 		kind: 'approval',
 		title: 'Need operator decision',
-		body: 'Confirm manual acceptance can be used until pixel thresholds stabilize.',
-		options: ['Approve manual threshold', 'Block until pixel threshold'],
+		body: 'Approve retrying the webhook suite after updating signature clock skew handling.',
+		options: ['Approve retry', 'Pause for review'],
 		status: 'pending',
 		reply: null,
 		replied_by: null,
@@ -332,8 +333,8 @@ function pullRequest(runId) {
 		repo_slug: 'superkick',
 		url: 'https://github.com/alimtunc/superkick/pull/169',
 		state: 'open',
-		title: 'Add Issue-centered V1 visual parity harness',
-		head_branch: 'sup-169-visual-parity-harness-for-issue-centered-v1',
+		title: 'Fix webhook signature clock skew handling',
+		head_branch: 'fix/webhook-skew',
 		created_at: '2026-05-24T13:56:00.000Z',
 		updated_at: '2026-05-24T13:57:00.000Z',
 		merged_at: null
@@ -342,15 +343,66 @@ function pullRequest(runId) {
 
 function runEvents(runId, needs = false) {
 	const base = [
-		timelineEvent(runId, 'step_started', 'Code step started', { step_key: 'code' }),
+		timelineEvent(runId, 'operator_input', 'Received task spec from Léa M', {
+			activity_kind: 'spec'
+		}),
+		timelineEvent(runId, 'command_output', 'grep webhook signature in internal/**', {
+			activity_kind: 'search',
+			detail: '4 matches · canonical:',
+			file: 'internal/webhook/verify.go',
+			command: 'rg "webhook signature" internal/**'
+		}),
+		timelineEvent(
+			runId,
+			'command_output',
+			'go test ./internal/webhook/ -run Signature -v',
+			{
+				activity_kind: 'test',
+				status: 'fail',
+				badge: '1 fail',
+				command: 'go test ./internal/webhook/ -run Signature -v',
+				tests: [
+					{ name: 'TestWebhookSignatureValid', result: 'pass' },
+					{ name: 'TestWebhookSignatureExpired', result: 'pass' },
+					{ name: 'TestWebhookSignatureDrift', result: 'fail' }
+				]
+			},
+			'error'
+		),
+		timelineEvent(runId, 'agent_output', 'Wrote tests/webhook_signature_test.go', {
+			activity_kind: 'write',
+			file: 'tests/webhook_signature_test.go',
+			changed: { added: 38, removed: 0 }
+		}),
+		timelineEvent(runId, 'agent_output', 'Edited internal/webhook/verify.go', {
+			activity_kind: 'diff',
+			file: 'internal/webhook/verify.go',
+			changed: { added: 11, removed: 3 },
+			snippet: [
+				'- if math.Abs(float64(now-ts)) > 5 {',
+				'+ skew := math.Abs(float64(now-ts))',
+				'+ metrics.WebhookSkew.Observe(skew)',
+				'+ if skew > clockSkewToleranceSeconds {',
+				'+   return ErrSignatureTooOld',
+				'  }'
+			]
+		}),
+		timelineEvent(runId, 'step_completed', '3,419 tests passed · coverage 84.6% (+0.3%)', {
+			activity_kind: 'summary',
+			status: 'green',
+			badge: 'green'
+		}),
+		timelineEvent(runId, 'step_started', 'Generating PR description…', {
+			activity_kind: 'progress',
+			status: 'running',
+			badge: 'running',
+			step_key: 'create_pr'
+		}),
 		timelineEvent(runId, 'session_spawned', 'Spawned implement agent', {
 			role: 'implement',
-			provider: 'codex',
-			purpose: 'Create visual parity harness',
+			provider: 'claude',
+			purpose: 'Fix webhook signature rejection',
 			launch_reason: 'initial_step'
-		}),
-		timelineEvent(runId, 'command_output', 'pnpm visual:parity captured /issues sample', {
-			command: 'pnpm --dir ui visual:parity -- --states issues-list-default'
 		})
 	]
 	if (needs) {

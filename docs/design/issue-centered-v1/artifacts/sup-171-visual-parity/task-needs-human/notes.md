@@ -4,7 +4,7 @@ Label: /tasks/:id needs human
 Route: `/tasks/task-needs`
 Mockup artboard: `cockpit-needs`
 Status: review
-Diff: 4.55% changed pixels (53557/1177600); threshold 1.00%
+Diff: 5.12% changed pixels (60272/1177600); threshold 1.00%
 
 Artifacts:
 - Mockup: `mockup.png`

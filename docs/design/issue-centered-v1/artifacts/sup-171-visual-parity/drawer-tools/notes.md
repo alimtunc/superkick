@@ -4,7 +4,7 @@ Label: execution drawer tools
 Route: `/issues/SUP-169`
 Mockup artboard: `drawer-tools`
 Status: review
-Diff: 2.30% changed pixels (13275/576000); threshold 1.00%
+Diff: 2.43% changed pixels (13977/576000); threshold 1.00%
 
 Artifacts:
 - Mockup: `mockup.png`

@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
 
 import { LaunchPlanStrip } from '@/components/launch/LaunchPlanStrip'
-import { TaskCockpitHeader } from '@/components/task-cockpit/TaskCockpitHeader'
 import { TaskCockpitNowPanel } from '@/components/task-cockpit/TaskCockpitNowPanel'
 import { TaskCockpitTabPanel } from '@/components/task-cockpit/TaskCockpitTabPanel'
 import { TaskCockpitTabs, type TaskCockpitTabId } from '@/components/task-cockpit/TaskCockpitTabs'
 import { TaskCockpitTimeline } from '@/components/task-cockpit/TaskCockpitTimeline'
 import { Pill } from '@/components/ui/pill'
+import { useEventStream } from '@/hooks/useEventStream'
 import { useLaunchTaskFeedState } from '@/hooks/useLaunchTaskFeedState'
 import { LAUNCH_TASK_STATUS_LABEL, LAUNCH_TASK_STATUS_TONE, fmtRelativeTime } from '@/lib/domain'
 import { TopbarBackButton } from '@/shell/TopbarBackButton'
@@ -33,6 +33,7 @@ export function TaskCockpit({ task, steps }: TaskCockpitProps) {
 		branchName,
 		interventions
 	} = useLaunchTaskFeedState(task, steps)
+	const stream = useEventStream(linkedRunId ?? '__no-linked-run__')
 
 	const status = task.status
 	const issueId = task.linear_issue_id.trim()
@@ -59,8 +60,7 @@ export function TaskCockpit({ task, steps }: TaskCockpitProps) {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<TaskCockpitHeader task={task} />
-			<LaunchPlanStrip task={task} steps={steps} />
+			<LaunchPlanStrip task={task} steps={steps} variant="stepper" />
 			<TaskCockpitTabs steps={steps} activeTab={activeTab} onChangeTab={setActiveTab} />
 			<div className="flex min-h-0 flex-1">
 				{activeTab === 'activity' ? (
@@ -77,6 +77,7 @@ export function TaskCockpit({ task, steps }: TaskCockpitProps) {
 						worktreePath={worktreePath}
 						branchName={branchName}
 						interventions={interventions}
+						runEvents={stream.events}
 					/>
 				) : (
 					<TaskCockpitTabPanel tab={activeTab} steps={steps} linkedRunId={linkedRunId} />

@@ -161,7 +161,14 @@ export function RunInspector({ detail, events, refTime }: RunInspectorProps) {
 					attentionRequests={attentionRequests}
 					isTerminal={isTerminal}
 				/>
-				<RunInspectorFacts run={run} pr={pr} steps={steps} sessions={sessions} refTime={refTime} />
+				<RunInspectorFacts
+					run={run}
+					pr={pr}
+					steps={steps}
+					sessions={sessions}
+					events={events}
+					refTime={refTime}
+				/>
 			</div>
 			<ConfirmDialog
 				open={cancelConfirm}

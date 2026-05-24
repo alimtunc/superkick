@@ -4,7 +4,7 @@ Label: execution drawer completed activity
 Route: `/issues/SUP-169`
 Mockup artboard: `drawer-done`
 Status: review
-Diff: 2.47% changed pixels (14232/576000); threshold 1.00%
+Diff: 3.88% changed pixels (22349/576000); threshold 1.00%
 
 Artifacts:
 - Mockup: `mockup.png`

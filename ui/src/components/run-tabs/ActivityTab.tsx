@@ -1,4 +1,6 @@
 import { LedgerList } from '@/components/run-detail/LedgerList'
+import { hasStructuredActivity } from '@/components/run-tabs/structuredActivity'
+import { StructuredActivityList } from '@/components/run-tabs/StructuredActivityList'
 import { Pill } from '@/components/ui/pill'
 import { TabEmptyState } from '@/components/ui/state-empty-tab'
 import { fmtRelativeTime, isLedgerEvent } from '@/lib/domain'
@@ -17,6 +19,7 @@ export function ActivityTab({ events, sessions, attentionRequests }: ActivityTab
 	const attentionById = indexById(attentionRequests)
 	const ledgerEvents = events.filter(isLedgerEvent)
 	const pendingAttentions = attentionRequests.filter((r) => r.status === 'pending')
+	const structured = hasStructuredActivity(events)
 
 	if (ledgerEvents.length === 0 && pendingAttentions.length === 0) {
 		return (
@@ -47,7 +50,11 @@ export function ActivityTab({ events, sessions, attentionRequests }: ActivityTab
 					))}
 				</ul>
 			) : null}
-			<LedgerList events={ledgerEvents} sessionById={sessionById} attentionById={attentionById} />
+			{structured ? (
+				<StructuredActivityList events={events} />
+			) : (
+				<LedgerList events={ledgerEvents} sessionById={sessionById} attentionById={attentionById} />
+			)}
 		</div>
 	)
 }

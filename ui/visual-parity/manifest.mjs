@@ -101,7 +101,7 @@ export const CAPTURE_STATES = [
 		fixture: 'task-running',
 		viewport: VIEWPORT_1280_920,
 		mockup: { file: TASK_RUN_ARTIFACT, artboardId: 'cockpit-running' },
-		waitForText: 'Capturing parity harness work.'
+		waitForText: 'Webhook signature rejection in us-east-2'
 	},
 	{
 		id: 'task-needs-human',
@@ -110,7 +110,7 @@ export const CAPTURE_STATES = [
 		fixture: 'task-needs',
 		viewport: VIEWPORT_1280_920,
 		mockup: { file: TASK_RUN_ARTIFACT, artboardId: 'cockpit-needs' },
-		waitForText: 'Need operator decision'
+		waitForText: 'Approval needed before retrying webhook tests.'
 	},
 	{
 		id: 'task-done',
