@@ -1,11 +1,9 @@
-import { ExecutionModeBadge } from '@/components/ExecutionModeBadge'
 import { PrStateBadge } from '@/components/PrStateBadge'
 import { CopyValue } from '@/components/run-detail/CopyValue'
 import { RunBudgetCard } from '@/components/run-detail/RunBudgetCard'
 import { InspectorSection } from '@/components/ui/inspector-section'
-import { Pill } from '@/components/ui/pill'
 import { Tooltip } from '@/components/ui/tooltip'
-import { fmtElapsed, fmtRelativeTime, providerLabel, stateTone, stepLabel } from '@/lib/domain'
+import { fmtElapsed, fmtRelativeTime, providerLabel, stepLabel } from '@/lib/domain'
 import { WORKTREE_PATH_MAX } from '@/lib/launch/display'
 import { middleTruncate } from '@/lib/path'
 import type { AgentSession, PullRequest, Run, RunEvent, RunStep } from '@/types'
@@ -58,16 +56,8 @@ export function RunInspectorFacts({ run, pr, steps, sessions, events, refTime }:
 				</h2>
 			</header>
 			<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-3">
-				<InspectorSection label="State">
-					<div className="mt-2 flex flex-wrap items-center gap-2">
-						<Pill tone={stateTone[run.state]} size="sm" dot pulse={!run.finished_at}>
-							{run.state.replace(/_/g, ' ')}
-						</Pill>
-						{run.execution_mode ? <ExecutionModeBadge mode={run.execution_mode} /> : null}
-						{phaseLabel ? (
-							<span className="font-data text-[11px] text-fg-muted">{phaseLabel}</span>
-						) : null}
-					</div>
+				<InspectorSection label="Progress">
+					{phaseLabel ? <p className="font-data mt-2 text-[12px] text-fg">{phaseLabel}</p> : null}
 					<p className="font-data mt-1.5 text-[11px] text-fg-dim">
 						{run.finished_at
 							? `Finished ${fmtRelativeTime(run.finished_at)}`

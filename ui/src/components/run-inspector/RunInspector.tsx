@@ -14,7 +14,6 @@ import {
 import { RunMetaStrip } from '@/components/run-shared/RunMetaStrip'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { Pill } from '@/components/ui/pill'
 import type { useEventStream } from '@/hooks/useEventStream'
 import type { LoadedRunDetail } from '@/hooks/useRunDetail'
 import { fmtElapsed, runNeedsHuman } from '@/lib/domain'
@@ -62,15 +61,12 @@ export function RunInspector({ detail, events, refTime }: RunInspectorProps) {
 	const sub = useMemo(
 		() => (
 			<>
-				<Pill mono size="xs">
-					{run.issue_identifier}
-				</Pill>
 				<RunStateBadge state={run.state} />
 				{run.execution_mode ? <ExecutionModeBadge mode={run.execution_mode} /> : null}
 				<span className="font-data text-[11px] text-fg-dim">· {elapsed}</span>
 			</>
 		),
-		[run.issue_identifier, run.state, run.execution_mode, elapsed]
+		[run.state, run.execution_mode, elapsed]
 	)
 
 	const right = useMemo(

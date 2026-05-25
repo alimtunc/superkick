@@ -4,6 +4,7 @@ import { cancelRun } from '@/api'
 import { TERMINAL_STATES } from '@/lib/constants'
 import { shouldShowInterrupts } from '@/lib/domain'
 import { runDetailQuery } from '@/lib/queries'
+import { invalidateAfterRunOrTaskStateChange } from '@/lib/queryInvalidation'
 import { queryKeys } from '@/lib/queryKeys'
 import type { Run } from '@/types'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
@@ -37,7 +38,10 @@ export function useRunDetail(runId: string) {
 		mutationFn: () => cancelRun(runId),
 		onSuccess: () => {
 			setCancelConfirm(false)
-			syncRun()
+			invalidateAfterRunOrTaskStateChange(queryClient, {
+				issueId: run?.issue_identifier,
+				runId
+			})
 		},
 		onError: () => setCancelConfirm(false)
 	})

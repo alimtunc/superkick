@@ -8,11 +8,12 @@ import { CircleStop } from 'lucide-react'
 interface LaunchTaskCancelButtonProps {
 	linearIssueId: string
 	taskId: string
+	linkedRunId?: string
 }
 
-export function LaunchTaskCancelButton({ linearIssueId, taskId }: LaunchTaskCancelButtonProps) {
+export function LaunchTaskCancelButton({ linearIssueId, taskId, linkedRunId }: LaunchTaskCancelButtonProps) {
 	const [confirmOpen, setConfirmOpen] = useState(false)
-	const cancel = useCancelLaunchTask({ linearIssueId, taskId })
+	const cancel = useCancelLaunchTask({ linearIssueId, taskId, linkedRunId })
 
 	return (
 		<>
