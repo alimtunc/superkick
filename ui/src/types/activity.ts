@@ -6,4 +6,5 @@ export type ActivityNodeRole = 'neutral' | 'accent' | 'success' | 'warn' | 'dang
 
 export type IssueActivityItem =
 	| { kind: 'comment'; node: CommentNode; ts: number; key: string }
-	| { kind: 'run'; run: LinkedRunSummary; ts: number; key: string }
+	| { kind: 'run_launched'; run: LinkedRunSummary; ts: number; key: string }
+	| { kind: 'run_completed'; run: LinkedRunSummary; ts: number; key: string }

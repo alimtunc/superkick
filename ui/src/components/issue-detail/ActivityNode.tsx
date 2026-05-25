@@ -7,6 +7,7 @@ import type { LucideIcon } from 'lucide-react'
 interface ActivityNodeProps {
 	kind: ActivityNodeKind
 	role?: ActivityNodeRole
+	variant?: 'comment' | 'event'
 	who: ReactNode
 	time?: ReactNode
 	link?: ReactNode
@@ -49,6 +50,7 @@ function DefaultDisc({ kind, role }: { kind: ActivityNodeKind; role: ActivityNod
 export function ActivityNode({
 	kind,
 	role = 'neutral',
+	variant = 'comment',
 	who,
 	time,
 	link,
@@ -56,8 +58,9 @@ export function ActivityNode({
 	disc,
 	children
 }: ActivityNodeProps) {
+	const isEvent = variant === 'event'
 	return (
-		<div className="relative flex gap-3 pb-5">
+		<div className={`relative flex gap-3 ${isEvent ? 'pb-2' : 'pb-5'}`}>
 			{connect ? (
 				<span
 					aria-hidden="true"
@@ -68,10 +71,11 @@ export function ActivityNode({
 			<div className="min-w-0 flex-1">
 				<div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12.5px] text-fg">
 					<span className="font-medium">{who}</span>
+					{isEvent ? children : null}
 					{link}
 					{time ? <span className="font-data text-[11px] text-fg-dim">{time}</span> : null}
 				</div>
-				{children ? (
+				{children && !isEvent ? (
 					<div className="mt-1.5 text-[13px] leading-relaxed text-fg-muted">{children}</div>
 				) : null}
 			</div>

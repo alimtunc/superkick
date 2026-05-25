@@ -1,23 +1,41 @@
+import { isTerminalRunState } from '@/lib/domain/runState'
 import type { CommentNode, IssueActivityItem, IssueComment, LinkedRunSummary } from '@/types'
+
+const KIND_ORDINAL: Record<IssueActivityItem['kind'], number> = {
+	comment: 0,
+	run_launched: 1,
+	run_completed: 2
+}
 
 export function buildIssueActivity(comments: IssueComment[], runs: LinkedRunSummary[]): IssueActivityItem[] {
 	const tree = buildCommentTree(comments)
 
-	const commentItems: IssueActivityItem[] = tree.map((node) => ({
+	const items: IssueActivityItem[] = tree.map((node) => ({
 		kind: 'comment',
 		node,
 		ts: new Date(node.comment.created_at).getTime(),
 		key: `comment:${node.comment.id}`
 	}))
 
-	const runItems: IssueActivityItem[] = runs.map((run) => ({
-		kind: 'run',
-		run,
-		ts: new Date(run.started_at).getTime(),
-		key: `run:${run.id}`
-	}))
+	for (const run of runs) {
+		if (run.state === 'waiting_human') continue
+		items.push({
+			kind: 'run_launched',
+			run,
+			ts: new Date(run.started_at).getTime(),
+			key: `run-launched:${run.id}`
+		})
+		if (isTerminalRunState(run.state) && run.finished_at) {
+			items.push({
+				kind: 'run_completed',
+				run,
+				ts: new Date(run.finished_at).getTime(),
+				key: `run-completed:${run.id}`
+			})
+		}
+	}
 
-	return [...commentItems, ...runItems].toSorted((a, b) => a.ts - b.ts)
+	return items.toSorted((a, b) => a.ts - b.ts || KIND_ORDINAL[a.kind] - KIND_ORDINAL[b.kind])
 }
 
 function buildCommentTree(comments: IssueComment[]): CommentNode[] {
