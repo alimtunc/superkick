@@ -56,7 +56,8 @@ function issueItem(identifier: string, id: string, stateType: 'unstarted' | 'sta
 			blocked_by: [],
 			url: '',
 			created_at: '2026-05-01T00:00:00Z',
-			updated_at: '2026-05-01T00:00:00Z'
+			updated_at: '2026-05-01T00:00:00Z',
+			completed_at: null
 		}
 	}
 }

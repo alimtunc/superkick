@@ -8,7 +8,7 @@ import { useIssuesView } from './useIssuesView'
 const NOW = new Date('2026-05-21T12:00:00Z')
 const VIEWER = 'viewer-1'
 
-function makeIssue(overrides: {
+interface MakeIssueOverrides {
 	identifier: string
 	stateType?: LinearStateType
 	assigneeId?: string | null
@@ -16,8 +16,12 @@ function makeIssue(overrides: {
 	statusName?: string
 	updated_at?: string
 	created_at?: string
+	completed_at?: string | null
 	runState?: RunState
-}): IssueWithState {
+	childrenCount?: number
+}
+
+function makeIssue(overrides: MakeIssueOverrides): IssueWithState {
 	const issue: LinearIssueListItem = {
 		id: overrides.identifier,
 		identifier: overrides.identifier,
@@ -36,16 +40,18 @@ function makeIssue(overrides: {
 				: { id: overrides.assigneeId, name: overrides.assigneeId, avatar_url: null },
 		project: null,
 		parent: null,
-		children: [],
+		children: childRefs(overrides.identifier, overrides.childrenCount ?? 0),
 		blocked_by: [],
 		url: 'https://l',
 		created_at: overrides.created_at ?? NOW.toISOString(),
-		updated_at: overrides.updated_at ?? NOW.toISOString()
+		updated_at: overrides.updated_at ?? NOW.toISOString(),
+		completed_at: overrides.completed_at ?? null
 	}
 	return {
 		issue,
 		state: 'open',
 		bucket: undefined,
+		reason: undefined,
 		linkedRun: overrides.runState
 			? {
 					kind: 'run',
@@ -76,6 +82,20 @@ function makeIssue(overrides: {
 				}
 			: undefined
 	}
+}
+
+function childRefs(parentId: string, count: number): LinearIssueListItem['children'] {
+	if (count <= 0) return []
+	return Array.from({ length: count }, (_, idx) => ({
+		id: `${parentId}-c${idx}`,
+		identifier: `${parentId}-c${idx}`,
+		title: `child ${idx}`,
+		status: { state_type: 'unstarted', name: 'todo', color: '#fff' },
+		priority: { value: 3, label: 'Medium' },
+		labels: [],
+		assignee: null,
+		updated_at: NOW.toISOString()
+	}))
 }
 
 function render(input: Parameters<typeof useIssuesView>[0]) {
@@ -140,7 +160,12 @@ describe('useIssuesView', () => {
 		const sixDaysAgo = new Date(NOW.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString()
 		const issues = [
 			makeIssue({ identifier: 'open', stateType: 'unstarted' }),
-			makeIssue({ identifier: 'recent-done', stateType: 'completed', updated_at: sixDaysAgo })
+			makeIssue({
+				identifier: 'recent-done',
+				stateType: 'completed',
+				updated_at: sixDaysAgo,
+				completed_at: sixDaysAgo
+			})
 		]
 		const hidden = render({
 			issues,
@@ -168,13 +193,28 @@ describe('useIssuesView', () => {
 		expect(shown.groups.map((g) => g.bucket)).toEqual(['open', 'done'])
 	})
 
-	it('shipped tab shows only recently-shipped done issues', () => {
+	it('shipped tab shows only recently-shipped done issues using completed_at', () => {
 		const sixDaysAgo = new Date(NOW.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString()
 		const longAgo = new Date(NOW.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
 		const r = render({
 			issues: [
-				makeIssue({ identifier: 'recent', stateType: 'completed', updated_at: sixDaysAgo }),
-				makeIssue({ identifier: 'old', stateType: 'completed', updated_at: longAgo }),
+				makeIssue({
+					identifier: 'recent',
+					stateType: 'completed',
+					completed_at: sixDaysAgo
+				}),
+				makeIssue({
+					identifier: 'old',
+					stateType: 'completed',
+					completed_at: longAgo
+				}),
+				// Recently updated but no completed_at: must NOT appear in shipped.
+				makeIssue({
+					identifier: 'no-completion',
+					stateType: 'completed',
+					updated_at: sixDaysAgo,
+					completed_at: null
+				}),
 				makeIssue({ identifier: 'open' })
 			],
 			viewerId: VIEWER,
@@ -239,7 +279,11 @@ describe('useIssuesView', () => {
 			issues: [
 				makeIssue({ identifier: 'A', assigneeId: VIEWER }),
 				makeIssue({ identifier: 'B', assigneeId: 'other' }),
-				makeIssue({ identifier: 'C', stateType: 'completed', updated_at: sixDaysAgo })
+				makeIssue({
+					identifier: 'C',
+					stateType: 'completed',
+					completed_at: sixDaysAgo
+				})
 			],
 			viewerId: VIEWER,
 			tab: 'all-open',
@@ -250,5 +294,108 @@ describe('useIssuesView', () => {
 			now: NOW
 		})
 		expect(r.tabCounts).toEqual({ mine: 1, 'all-open': 2, shipped: 1 })
+	})
+
+	it('list and kanban share the same filtered view-model', () => {
+		const sixDaysAgo = new Date(NOW.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString()
+		const issues = [
+			makeIssue({ identifier: 'A', assigneeId: VIEWER, stateType: 'started' }),
+			makeIssue({ identifier: 'B', assigneeId: 'other', stateType: 'unstarted' }),
+			makeIssue({
+				identifier: 'C',
+				assigneeId: 'other',
+				stateType: 'completed',
+				completed_at: sixDaysAgo
+			}),
+			makeIssue({ identifier: 'D', runState: 'coding', stateType: 'started' })
+		]
+
+		const r = render({
+			issues,
+			viewerId: VIEWER,
+			tab: 'mine',
+			filters: { ...EMPTY_FILTERS, status_not: ['canceled'] },
+			sort: 'updated',
+			group: 'lifecycle',
+			showDone: false,
+			now: NOW
+		})
+
+		const listIds = new Set(r.groups.flatMap((g) => g.issues.map((w) => w.issue.identifier)))
+		const boardIds = new Set(
+			Object.values(r.boardColumns).flatMap((items) => items.map((w) => w.issue.identifier))
+		)
+		expect(boardIds).toEqual(listIds)
+	})
+
+	it('filters by updated window using updated_at', () => {
+		const fiveDaysAgo = new Date(NOW.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString()
+		const tenDaysAgo = new Date(NOW.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString()
+		const r = render({
+			issues: [
+				makeIssue({ identifier: 'fresh', updated_at: fiveDaysAgo }),
+				makeIssue({ identifier: 'stale', updated_at: tenDaysAgo })
+			],
+			viewerId: VIEWER,
+			tab: 'all-open',
+			filters: { ...EMPTY_FILTERS, updated: ['7d'] },
+			sort: 'updated',
+			group: 'lifecycle',
+			showDone: false,
+			now: NOW
+		})
+		expect(r.total).toBe(1)
+		expect(r.groups[0].issues[0].issue.identifier).toBe('fresh')
+	})
+
+	it('filters by completed window using completed_at and ignores null', () => {
+		const twoDaysAgo = new Date(NOW.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString()
+		const fiveDaysAgo = new Date(NOW.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString()
+		const r = render({
+			issues: [
+				makeIssue({
+					identifier: 'in-window',
+					stateType: 'completed',
+					completed_at: twoDaysAgo
+				}),
+				makeIssue({
+					identifier: 'outside-window',
+					stateType: 'completed',
+					completed_at: fiveDaysAgo
+				}),
+				makeIssue({
+					identifier: 'no-completion',
+					stateType: 'completed',
+					completed_at: null,
+					updated_at: twoDaysAgo
+				})
+			],
+			viewerId: VIEWER,
+			tab: 'shipped',
+			filters: { ...EMPTY_FILTERS, completed: ['3d'] },
+			sort: 'updated',
+			group: 'lifecycle',
+			showDone: false,
+			now: NOW
+		})
+		expect(r.groups[0].issues.map((w) => w.issue.identifier)).toEqual(['in-window'])
+	})
+
+	it('filters by has_sub_issues = yes', () => {
+		const r = render({
+			issues: [
+				makeIssue({ identifier: 'with-subs', childrenCount: 2 }),
+				makeIssue({ identifier: 'no-subs' })
+			],
+			viewerId: VIEWER,
+			tab: 'all-open',
+			filters: { ...EMPTY_FILTERS, has_sub_issues: ['yes'] },
+			sort: 'updated',
+			group: 'lifecycle',
+			showDone: false,
+			now: NOW
+		})
+		expect(r.total).toBe(1)
+		expect(r.groups[0].issues[0].issue.identifier).toBe('with-subs')
 	})
 })

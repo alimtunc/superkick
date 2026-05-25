@@ -29,7 +29,8 @@ function issueItem(bucket: LaunchQueue, identifier = 'SUP-1'): LaunchQueueItem {
 			blocked_by: [],
 			url: '',
 			created_at: '2026-01-01T00:00:00Z',
-			updated_at: '2026-01-01T00:00:00Z'
+			updated_at: '2026-01-01T00:00:00Z',
+			completed_at: null
 		}
 	}
 }
@@ -149,7 +150,8 @@ describe('issueStateFor', () => {
 		blocked_by: [],
 		url: '',
 		created_at: '2026-01-01T00:00:00Z',
-		updated_at: '2026-01-01T00:00:00Z'
+		updated_at: '2026-01-01T00:00:00Z',
+		completed_at: null
 	}
 
 	it('prefers the launch-queue bucket when present', () => {

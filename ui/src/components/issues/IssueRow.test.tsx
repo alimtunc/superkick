@@ -41,6 +41,7 @@ function makeIssue(overrides: Partial<LinearIssueListItem> = {}): LinearIssueLis
 		url: 'https://l',
 		created_at: NOW.toISOString(),
 		updated_at: NOW.toISOString(),
+		completed_at: null,
 		...overrides
 	}
 }
@@ -50,6 +51,7 @@ function makeWrapper(issue: LinearIssueListItem, runState?: RunState): IssueWith
 		issue,
 		state: 'open',
 		bucket: undefined,
+		reason: undefined,
 		linkedRun: runState
 			? {
 					kind: 'run',

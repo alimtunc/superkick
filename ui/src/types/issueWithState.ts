@@ -5,5 +5,6 @@ export interface IssueWithState {
 	issue: LinearIssueListItem
 	state: IssueState
 	bucket: LaunchQueue | undefined
+	reason: string | undefined
 	linkedRun: Extract<LaunchQueueItem, { kind: 'run' }> | undefined
 }

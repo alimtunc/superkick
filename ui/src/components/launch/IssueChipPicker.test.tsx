@@ -23,7 +23,8 @@ const ISSUE_A: LinearIssueListItem = {
 	blocked_by: [],
 	url: 'https://linear.app/sup-101',
 	created_at: '2026-05-01T00:00:00Z',
-	updated_at: '2026-05-01T00:00:00Z'
+	updated_at: '2026-05-01T00:00:00Z',
+	completed_at: null
 }
 
 const ISSUE_B: LinearIssueListItem = {
@@ -41,7 +42,8 @@ const ISSUE_B: LinearIssueListItem = {
 	blocked_by: [],
 	url: 'https://linear.app/sup-202',
 	created_at: '2026-05-01T00:00:00Z',
-	updated_at: '2026-05-01T00:00:00Z'
+	updated_at: '2026-05-01T00:00:00Z',
+	completed_at: null
 }
 
 function withClient(node: ReactNode) {

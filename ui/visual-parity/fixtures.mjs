@@ -3,6 +3,9 @@ const ISSUE_ID = 'issue-sup-169'
 const ISSUE_IDENTIFIER = 'SUP-169'
 const DETAIL_ISSUE_ID = 'issue-iss-216'
 const DETAIL_ISSUE_IDENTIFIER = 'ISS-216'
+// Hover target for the `issues-list-hover` parity state — must resolve to the detail fixture.
+const HOVER_ISSUE_ID = 'issue-iss-201'
+const HOVER_ISSUE_IDENTIFIER = 'ISS-201'
 const RUN_IDS = {
 	running: 'run-7af2-1',
 	needs: 'run-7af2-needs',
@@ -56,7 +59,8 @@ const baseIssue = {
 	blocked_by: [],
 	url: 'https://linear.app/superkick/issue/SUP-169',
 	created_at: '2026-05-24T12:10:00.000Z',
-	updated_at: '2026-05-24T13:58:00.000Z'
+	updated_at: '2026-05-24T13:58:00.000Z',
+	completed_at: null
 }
 
 const issueList = [
@@ -70,7 +74,11 @@ const issueList = [
 			{ name: 'security', color: '#cf5a55' }
 		],
 		project: { name: 'migrations' },
-		updated_at: '2026-05-24T13:52:00.000Z'
+		updated_at: '2026-05-24T13:52:00.000Z',
+		children: [
+			child('ISS-201a', 'Idempotent retry for stuck tenants', status.todo, priorities.high),
+			child('ISS-201b', 'Backfill audit log for partial migrations', status.todo, priorities.medium)
+		]
 	}),
 	issue({
 		identifier: 'ISS-214',
@@ -191,7 +199,8 @@ const issueList = [
 		priority: priorities.low,
 		labels: [labels.foundations],
 		project: { name: 'superkick' },
-		updated_at: '2026-05-23T18:40:00.000Z'
+		updated_at: '2026-05-23T18:40:00.000Z',
+		completed_at: '2026-05-23T18:40:00.000Z'
 	})
 ]
 
@@ -206,10 +215,11 @@ function issue(overrides) {
 		labels: overrides.labels,
 		assignee: overrides.assignee ?? assignees.lea,
 		project: overrides.project ?? { name: 'Issue-centered V1' },
-		children: [],
+		children: overrides.children ?? [],
 		blocked_by: [],
 		created_at: overrides.created_at ?? '2026-05-23T10:00:00.000Z',
 		updated_at: overrides.updated_at,
+		completed_at: overrides.completed_at ?? null,
 		url: `https://linear.app/superkick/issue/${overrides.identifier.toLowerCase()}`
 	}
 }
@@ -699,7 +709,13 @@ export function responseForFixture(fixtureName, requestUrl) {
 	}
 	if (path === '/agents') return { agents: [] }
 	if (path === '/issues') return { issues: fixture.issues, total_count: fixture.issues.length }
-	if (path === `/issues/${ISSUE_IDENTIFIER}`) return fixture.issueDetail
+	if (
+		path === `/issues/${ISSUE_IDENTIFIER}` ||
+		path === `/issues/${HOVER_ISSUE_ID}` ||
+		path === `/issues/${HOVER_ISSUE_IDENTIFIER}`
+	) {
+		return fixture.issueDetail
+	}
 	if (path === `/issues/${ISSUE_IDENTIFIER}/context`) return workspaceContext()
 	if (path === `/issues/${ISSUE_IDENTIFIER}/context/memory`) return memoryEntries()
 	if (path === '/launch-queue') return fixture.queue

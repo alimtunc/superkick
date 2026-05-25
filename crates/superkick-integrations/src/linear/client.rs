@@ -49,6 +49,7 @@ query ListIssues($first: Int!, $after: String) {
       url
       createdAt
       updatedAt
+      completedAt
       state { type name color }
       team { id }
       priority
@@ -88,6 +89,7 @@ query SearchIssues($term: String!, $first: Int!) {
       url
       createdAt
       updatedAt
+      completedAt
       state { type name color }
       priority
       priorityLabel

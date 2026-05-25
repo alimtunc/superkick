@@ -155,6 +155,7 @@ impl From<GqlIssue> for LinearIssueListItem {
             url: g.url,
             created_at: g.created_at,
             updated_at: g.updated_at,
+            completed_at: g.completed_at,
         }
     }
 }

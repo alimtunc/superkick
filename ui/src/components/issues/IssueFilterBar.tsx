@@ -113,6 +113,9 @@ interface ChipDescriptor {
 		| 'repo'
 		| 'task'
 		| 'created'
+		| 'updated'
+		| 'completed'
+		| 'has_sub_issues'
 	value: string | number
 }
 
@@ -208,7 +211,43 @@ function buildChips(filters: IssueFilterState, options: FilterOptionSet): ChipDe
 			value: c
 		})
 	}
+	for (const u of filters.updated) {
+		chips.push({
+			key: `updated:${u}`,
+			name: 'Updated',
+			op: '=',
+			valueLabel: createdLabel(u),
+			axis: 'updated',
+			value: u
+		})
+	}
+	for (const c of filters.completed) {
+		chips.push({
+			key: `completed:${c}`,
+			name: 'Completed',
+			op: '=',
+			valueLabel: completedLabel(c),
+			axis: 'completed',
+			value: c
+		})
+	}
+	for (const v of filters.has_sub_issues) {
+		chips.push({
+			key: `has_sub_issues:${v}`,
+			name: 'Sub-issues',
+			op: '=',
+			valueLabel: hasSubIssuesLabel(v),
+			axis: 'has_sub_issues',
+			value: v
+		})
+	}
 	return chips
+}
+
+function hasSubIssuesLabel(value: string): string {
+	if (value === 'yes') return 'Yes'
+	if (value === 'no') return 'No'
+	return value
 }
 
 function removeChip(filters: IssueFilterState, chip: ChipDescriptor): IssueFilterState {
@@ -318,6 +357,19 @@ function createdLabel(value: string): string {
 	switch (value) {
 		case '24h':
 			return 'Last 24h'
+		case '7d':
+			return 'Last 7d'
+		case '30d':
+			return 'Last 30d'
+		default:
+			return value
+	}
+}
+
+function completedLabel(value: string): string {
+	switch (value) {
+		case '3d':
+			return 'Last 3d'
 		case '7d':
 			return 'Last 7d'
 		case '30d':

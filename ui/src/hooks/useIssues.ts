@@ -20,20 +20,23 @@ export function useIssues(limit = 200) {
 
 	// Live run takes precedence — its bucket reflects the run state, which
 	// is what the issue-state reduction wants for the linked issue.
-	const { bucketByIdentifier, runByIdentifier } = useMemo(() => {
+	const { bucketByIdentifier, reasonByIdentifier, runByIdentifier } = useMemo(() => {
 		const buckets = new Map<string, LaunchQueue>()
+		const reasons = new Map<string, string>()
 		const runs = new Map<string, Extract<LaunchQueueItem, { kind: 'run' }>>()
 		for (const item of queueItems) {
 			if (item.kind === 'issue') {
 				buckets.set(item.issue.identifier, item.bucket)
+				reasons.set(item.issue.identifier, item.reason)
 				continue
 			}
 			if (item.linked_issue) {
 				buckets.set(item.linked_issue.identifier, item.bucket)
+				reasons.set(item.linked_issue.identifier, item.reason)
 				runs.set(item.linked_issue.identifier, item)
 			}
 		}
-		return { bucketByIdentifier: buckets, runByIdentifier: runs }
+		return { bucketByIdentifier: buckets, reasonByIdentifier: reasons, runByIdentifier: runs }
 	}, [queueItems])
 
 	const issues: IssueWithState[] = useMemo(
@@ -42,9 +45,10 @@ export function useIssues(limit = 200) {
 				issue,
 				state: issueStateFor(issue, bucketByIdentifier),
 				bucket: bucketByIdentifier.get(issue.identifier),
+				reason: reasonByIdentifier.get(issue.identifier),
 				linkedRun: runByIdentifier.get(issue.identifier)
 			})),
-		[issuesQuery.allIssues, bucketByIdentifier, runByIdentifier]
+		[issuesQuery.allIssues, bucketByIdentifier, reasonByIdentifier, runByIdentifier]
 	)
 
 	return {

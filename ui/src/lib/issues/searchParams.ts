@@ -26,7 +26,10 @@ export const issuesSearchSchema = z.object({
 	project: z.array(z.string()).optional(),
 	repo: z.array(z.string()).optional(),
 	task: z.array(z.string()).optional(),
-	created: z.array(z.string()).optional()
+	created: z.array(z.string()).optional(),
+	updated: z.array(z.string()).optional(),
+	completed: z.array(z.string()).optional(),
+	has_sub_issues: z.array(z.string()).optional()
 })
 
 export type IssuesSearch = z.infer<typeof issuesSearchSchema>
@@ -50,7 +53,10 @@ export const EMPTY_FILTERS: IssueFilterState = {
 	project: [],
 	repo: [],
 	task: [],
-	created: []
+	created: [],
+	updated: [],
+	completed: [],
+	has_sub_issues: []
 }
 
 /** Validate and coerce raw search params, rewriting the legacy `kanban`
@@ -87,7 +93,10 @@ export function resolveSearch(
 			project: search.project ?? [],
 			repo: search.repo ?? [],
 			task: search.task ?? [],
-			created: search.created ?? []
+			created: search.created ?? [],
+			updated: search.updated ?? [],
+			completed: search.completed ?? [],
+			has_sub_issues: search.has_sub_issues ?? []
 		}
 	}
 }

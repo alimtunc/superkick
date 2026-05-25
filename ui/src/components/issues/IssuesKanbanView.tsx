@@ -5,28 +5,35 @@ import { KanbanIssueCard } from '@/components/issues/KanbanIssueCard'
 import { useDispatchFromQueue } from '@/hooks/useDispatchFromQueue'
 import { useIssueKanbanDnd } from '@/hooks/useIssueKanbanDnd'
 import { useNow } from '@/hooks/useNow'
-import { ISSUE_STATE_ORDER, groupItemsByIssueState } from '@/lib/domain'
-import type { LaunchQueueItem, RecentUnblocks } from '@/types'
+import { ISSUE_STATE_ORDER } from '@/lib/domain'
+import { projectBoardColumns } from '@/lib/issues/issueBoardAdapter'
+import type { IssueBoardColumns, IssueState, LaunchQueueItem, RecentUnblocks } from '@/types'
 import { DndContext, DragOverlay } from '@dnd-kit/core'
 
 interface IssuesKanbanViewProps {
-	queueItems: readonly LaunchQueueItem[]
+	/** Pre-filtered, viewer/tab-scoped board projection from `useIssuesView`. */
+	boardColumns: IssueBoardColumns
 	recentUnblocks: RecentUnblocks
 }
 
-export function IssuesKanbanView({ queueItems, recentUnblocks }: IssuesKanbanViewProps) {
+export function IssuesKanbanView({ boardColumns, recentUnblocks }: IssuesKanbanViewProps) {
 	const refTime = useNow()
 	const { dispatch, isPending } = useDispatchFromQueue()
 
-	const groups = useMemo(() => groupItemsByIssueState(queueItems), [queueItems])
+	const groups = useMemo<Record<IssueState, LaunchQueueItem[]>>(
+		() => projectBoardColumns(boardColumns),
+		[boardColumns]
+	)
 
 	const itemByIdentifier = useMemo(() => {
 		const map = new Map<string, Extract<LaunchQueueItem, { kind: 'issue' }>>()
-		for (const item of queueItems) {
-			if (item.kind === 'issue') map.set(item.issue.identifier, item)
+		for (const state of ISSUE_STATE_ORDER) {
+			for (const item of groups[state]) {
+				if (item.kind === 'issue') map.set(item.issue.identifier, item)
+			}
 		}
 		return map
-	}, [queueItems])
+	}, [groups])
 
 	const { activeIdentifier, sensors, accessibility, onDragStart, onDragEnd, onDragCancel } =
 		useIssueKanbanDnd({ groups })

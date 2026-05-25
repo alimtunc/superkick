@@ -7,7 +7,18 @@ import type { SKIconName } from '@/types/icons'
 import { Icon, PriorityIcon } from '@/ui'
 import { Popover } from '@base-ui/react/popover'
 
-type AxisKey = 'assignee' | 'status' | 'priority' | 'label' | 'project' | 'repo' | 'task' | 'created'
+type AxisKey =
+	| 'assignee'
+	| 'status'
+	| 'priority'
+	| 'label'
+	| 'project'
+	| 'repo'
+	| 'task'
+	| 'created'
+	| 'updated'
+	| 'completed'
+	| 'has_sub_issues'
 
 interface IssueFilterDropdownProps {
 	filters: IssueFilterState
@@ -34,6 +45,8 @@ interface AxisDef {
 	meta?: string
 }
 
+// Cycle / Milestone / Creator / Estimate intentionally absent: the list
+// query does not expose them today, so they cannot be applied honestly.
 const AXES: AxisDef[] = [
 	{ key: 'assignee', label: 'Assignee', icon: 'user' },
 	{ key: 'status', label: 'Status', icon: 'spark' },
@@ -42,7 +55,10 @@ const AXES: AxisDef[] = [
 	{ key: 'project', label: 'Project', icon: 'folder' },
 	{ key: 'repo', label: 'Repo', icon: 'branch' },
 	{ key: 'task', label: 'Task state', icon: 'loop', meta: 'running · needs · review · shipped' },
-	{ key: 'created', label: 'Created', icon: 'clock', meta: 'date…' }
+	{ key: 'created', label: 'Created', icon: 'clock', meta: 'date…' },
+	{ key: 'updated', label: 'Updated', icon: 'clock', meta: 'date…' },
+	{ key: 'completed', label: 'Completed', icon: 'check', meta: 'date…' },
+	{ key: 'has_sub_issues', label: 'Has sub-issues', icon: 'layers', meta: 'yes · no' }
 ]
 
 const TASK_OPTIONS: { value: TaskBadgeKind; label: string }[] = [
@@ -56,6 +72,19 @@ const CREATED_OPTIONS = [
 	{ value: '24h', label: 'Last 24h' },
 	{ value: '7d', label: 'Last 7d' },
 	{ value: '30d', label: 'Last 30d' }
+]
+
+const UPDATED_OPTIONS = CREATED_OPTIONS
+
+const COMPLETED_OPTIONS = [
+	{ value: '3d', label: 'Last 3d' },
+	{ value: '7d', label: 'Last 7d' },
+	{ value: '30d', label: 'Last 30d' }
+]
+
+const HAS_SUB_ISSUES_OPTIONS = [
+	{ value: 'yes', label: 'Yes' },
+	{ value: 'no', label: 'No' }
 ]
 
 export function IssueFilterDropdown({
@@ -263,6 +292,12 @@ function pickerItems(
 			return TASK_OPTIONS
 		case 'created':
 			return CREATED_OPTIONS
+		case 'updated':
+			return UPDATED_OPTIONS
+		case 'completed':
+			return COMPLETED_OPTIONS
+		case 'has_sub_issues':
+			return HAS_SUB_ISSUES_OPTIONS
 	}
 }
 
@@ -304,6 +339,12 @@ function isSelected(filters: IssueFilterState, axis: AxisKey, value: string | nu
 			return filters.task.includes(value as string)
 		case 'created':
 			return filters.created.includes(value as string)
+		case 'updated':
+			return filters.updated.includes(value as string)
+		case 'completed':
+			return filters.completed.includes(value as string)
+		case 'has_sub_issues':
+			return filters.has_sub_issues.includes(value as string)
 	}
 }
 
@@ -319,7 +360,7 @@ function toggleFilterValue(
 			: [...current, value as number]
 		return { ...filters, priority: next }
 	}
-	const key: 'assignee' | 'status' | 'label' | 'project' | 'repo' | 'task' | 'created' = axis
+	const key: Exclude<AxisKey, 'priority'> = axis
 	const current = filters[key]
 	const next = current.includes(value as string)
 		? current.filter((v) => v !== value)

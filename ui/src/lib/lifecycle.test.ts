@@ -63,7 +63,7 @@ describe('bucketFor', () => {
 	)
 
 	it.each<RunState>(['completed', 'failed', 'cancelled', 'opening_pr'])(
-		'returns done when the run state is %s',
+		'returns the linear-derived bucket regardless of terminal run state %s',
 		(state) => {
 			expect(
 				bucketFor(
@@ -74,9 +74,35 @@ describe('bucketFor', () => {
 					}),
 					VIEWER
 				)
-			).toBe('done')
+			).toBe('launchable')
 		}
 	)
+
+	it('returns open for an unassigned started issue with a terminal run instead of forcing done', () => {
+		expect(
+			bucketFor(
+				input({
+					issue: { status: status('started') },
+					activeRun: { state: 'completed' },
+					assigneeId: 'someone-else'
+				}),
+				VIEWER
+			)
+		).toBe('open')
+	})
+
+	it('still returns done when the linear state is completed even with a non-terminal run', () => {
+		expect(
+			bucketFor(
+				input({
+					issue: { status: status('completed') },
+					activeRun: { state: 'coding' },
+					assigneeId: VIEWER
+				}),
+				VIEWER
+			)
+		).toBe('done')
+	})
 
 	it.each<RunState>(['queued', 'preparing'])(
 		'treats %s as no-active-run, so a viewer-owned started issue is launchable',
