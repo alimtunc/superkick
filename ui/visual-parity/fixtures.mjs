@@ -712,7 +712,9 @@ export function responseForFixture(fixtureName, requestUrl) {
 	if (
 		path === `/issues/${ISSUE_IDENTIFIER}` ||
 		path === `/issues/${HOVER_ISSUE_ID}` ||
-		path === `/issues/${HOVER_ISSUE_IDENTIFIER}`
+		path === `/issues/${HOVER_ISSUE_IDENTIFIER}` ||
+		path === `/issues/${DETAIL_ISSUE_IDENTIFIER}` ||
+		path === `/issues/${DETAIL_ISSUE_ID}`
 	) {
 		return fixture.issueDetail
 	}

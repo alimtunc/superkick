@@ -6,6 +6,8 @@ const VIEWPORT_1280_800 = { width: 1280, height: 800 }
 const VIEWPORT_1280_920 = { width: 1280, height: 920 }
 const VIEWPORT_DRAWER = { width: 900, height: 900 }
 
+export const ISSUE_DETAIL_TITLE = 'Checkout 500s spike after stripe-rust 0.18 bump'
+
 export const DEFAULT_OUTPUT_DIR = '../.visual-parity-output/latest'
 export const DIFF_THRESHOLD = 0.01
 export const PIXELMATCH_THRESHOLD = 0.12
@@ -27,8 +29,10 @@ export const CAPTURE_STATES = [
 		fixture: 'issues-default',
 		viewport: VIEWPORT_1280_800,
 		mockup: { file: ISSUE_ARTIFACT, artboardId: 'hover-dark' },
-		waitFor: '[data-issue-row][data-identifier="ISS-201"]',
-		actions: [{ type: 'hoverIssue', identifier: 'ISS-201' }]
+		waitFor: '[data-issue-row][data-identifier="ISS-216"]',
+		actions: [{ type: 'hoverIssue', identifier: 'ISS-216' }],
+		fixtureNote:
+			'Hovers ISS-216 to match the approved hover-dark artboard; the issue-detail fixture is keyed to ISS-216 so the preview populates with real labels, last comment, and linked run.'
 	},
 	{
 		id: 'issues-list-filter',
@@ -93,7 +97,7 @@ export const CAPTURE_STATES = [
 		fixture: 'issue-idle',
 		viewport: VIEWPORT_1280_920,
 		mockup: { file: ISSUE_ARTIFACT, artboardId: 'detail-idle' },
-		waitForText: 'Checkout 500s spike after stripe-rust 0.18 bump'
+		waitForText: ISSUE_DETAIL_TITLE
 	},
 	{
 		id: 'issue-detail-running',
@@ -102,16 +106,18 @@ export const CAPTURE_STATES = [
 		fixture: 'issue-running',
 		viewport: VIEWPORT_1280_920,
 		mockup: { file: ISSUE_ARTIFACT, artboardId: 'detail-running' },
-		waitForText: 'Checkout 500s spike after stripe-rust 0.18 bump'
+		waitForText: ISSUE_DETAIL_TITLE
 	},
 	{
 		id: 'issue-detail-diff',
-		label: '/issues/:id diff',
+		label: '/issues/:id diff (manual checklist)',
 		route: '/issues/SUP-169',
 		fixture: 'issue-done',
 		viewport: VIEWPORT_1280_920,
 		mockup: { file: ISSUE_ARTIFACT, artboardId: 'detail-diff' },
-		waitForText: 'Checkout 500s spike after stripe-rust 0.18 bump'
+		waitForText: ISSUE_DETAIL_TITLE,
+		manualChecklist:
+			'The detail-diff artboard is a design-note board describing intended what-changed panel content, not a product screen. Pixel-comparing it to /issues/:id is guaranteed to mismatch. Use the captured mockup as an implementation checklist; treat the app screenshot as the current /issues/:id baseline.'
 	},
 	{
 		id: 'task-running',
@@ -174,7 +180,7 @@ export const CAPTURE_STATES = [
 		fixture: 'issue-running',
 		viewport: VIEWPORT_DRAWER,
 		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-activity' },
-		waitForText: 'Execution',
+		waitForText: ISSUE_DETAIL_TITLE,
 		actions: [{ type: 'openRunDrawer' }],
 		capture: { type: 'dialog', name: 'Run' }
 	},
@@ -185,7 +191,7 @@ export const CAPTURE_STATES = [
 		fixture: 'issue-running',
 		viewport: VIEWPORT_DRAWER,
 		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-tools' },
-		waitForText: 'Execution',
+		waitForText: ISSUE_DETAIL_TITLE,
 		actions: [{ type: 'openRunDrawer' }, { type: 'clickRole', role: 'tab', name: 'Tools' }],
 		capture: { type: 'dialog', name: 'Run' }
 	},
@@ -196,7 +202,7 @@ export const CAPTURE_STATES = [
 		fixture: 'issue-running',
 		viewport: VIEWPORT_DRAWER,
 		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-files' },
-		waitForText: 'Execution',
+		waitForText: ISSUE_DETAIL_TITLE,
 		actions: [{ type: 'openRunDrawer' }, { type: 'clickRole', role: 'tab', name: 'Files' }],
 		capture: { type: 'dialog', name: 'Run' }
 	},
@@ -207,7 +213,7 @@ export const CAPTURE_STATES = [
 		fixture: 'issue-running',
 		viewport: VIEWPORT_DRAWER,
 		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-logs' },
-		waitForText: 'Execution',
+		waitForText: ISSUE_DETAIL_TITLE,
 		actions: [{ type: 'openRunDrawer' }, { type: 'clickRole', role: 'tab', name: 'Logs' }],
 		capture: { type: 'dialog', name: 'Run' }
 	},
@@ -218,7 +224,7 @@ export const CAPTURE_STATES = [
 		fixture: 'issue-running',
 		viewport: VIEWPORT_DRAWER,
 		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-terminal' },
-		waitForText: 'Execution',
+		waitForText: ISSUE_DETAIL_TITLE,
 		actions: [{ type: 'openRunDrawer' }, { type: 'clickRole', role: 'tab', name: 'Terminal' }],
 		capture: { type: 'dialog', name: 'Run' }
 	},
@@ -229,7 +235,7 @@ export const CAPTURE_STATES = [
 		fixture: 'issue-done',
 		viewport: VIEWPORT_DRAWER,
 		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-done' },
-		waitForText: 'Execution',
+		waitForText: ISSUE_DETAIL_TITLE,
 		actions: [{ type: 'openRunDrawer' }],
 		capture: { type: 'dialog', name: 'Run' }
 	}
