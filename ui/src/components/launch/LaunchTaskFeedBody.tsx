@@ -81,7 +81,11 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 				<InterventionList label="Queued for next step" rows={interventions.pending} variant="below" />
 				{!isTerminal ? (
 					<div className="mt-2 flex items-center justify-end">
-						<LaunchTaskCancelButton linearIssueId={task.linear_issue_id} taskId={task.id} />
+						<LaunchTaskCancelButton
+							linearIssueId={task.linear_issue_id}
+							taskId={task.id}
+							linkedRunId={linkedRunId ?? undefined}
+						/>
 					</div>
 				) : null}
 			</div>

@@ -43,11 +43,11 @@ function buildRun(overrides: Partial<Run> = {}): Run {
 }
 
 describe('RunStatusBanner — NeedsHumanBanner', () => {
-	it('renders the Open Task link and the reason, with no decision form controls', () => {
+	it('renders the Open issue link and the reason, with no decision form controls', () => {
 		render(<RunStatusBanner run={buildRun()} pr={null} isTerminal={false} needsHuman={true} />)
 
 		const link = screen.getByRole('link', { name: 'Open issue SUP-178' })
-		expect(link).toHaveTextContent(/Open Task/)
+		expect(link).toHaveTextContent(/Open issue/)
 
 		expect(screen.getByText('Approval required')).toBeInTheDocument()
 		expect(screen.getByText('Please confirm approach')).toBeInTheDocument()

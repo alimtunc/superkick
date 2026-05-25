@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 
 import { LaunchTaskCancelButton } from '@/components/issue-detail/launch-task-feed/LaunchTaskCancelButton'
 import { PrStateBadge } from '@/components/PrStateBadge'
-import { Pill } from '@/components/ui/pill'
 import { LAUNCH_STEP_KIND_LABEL } from '@/lib/domain'
 import { WORKTREE_PATH_MAX } from '@/lib/launch/display'
 import { middleTruncate } from '@/lib/path'
@@ -41,14 +40,10 @@ export function TaskCockpitNowPanel({
 			aria-label="Now panel"
 			className="bg-carbon-dim/40 flex h-full min-h-0 w-80 shrink-0 flex-col border-l border-edge"
 		>
-			<header className="flex h-9 shrink-0 items-center gap-2 border-b border-edge px-4">
+			<header className="flex h-9 shrink-0 items-center border-b border-edge px-4">
 				<h2 className="font-data text-[11px] font-medium tracking-widest text-silver uppercase">
 					Now
 				</h2>
-				<span className="flex-1" />
-				<Pill tone="info" size="xs" dot pulse={!isTerminal}>
-					{task.status.replace(/_/g, ' ')}
-				</Pill>
 			</header>
 			<div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
 				<section>
@@ -187,7 +182,11 @@ export function TaskCockpitNowPanel({
 					<span className="font-data text-[10px] tracking-widest text-fg-dim uppercase">
 						Intervene
 					</span>
-					<LaunchTaskCancelButton linearIssueId={task.linear_issue_id} taskId={task.id} />
+					<LaunchTaskCancelButton
+						linearIssueId={task.linear_issue_id}
+						taskId={task.id}
+						linkedRunId={linkedRunId ?? undefined}
+					/>
 				</div>
 			) : null}
 		</aside>

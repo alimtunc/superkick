@@ -57,9 +57,17 @@ export function RunDrawerContent({ runId }: RunDrawerContentProps) {
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			<div className="flex shrink-0 items-center gap-2 border-b border-edge px-4 py-2">
-				<Pill mono size="xs">
-					{run.issue_identifier}
-				</Pill>
+				<Link
+					to="/issues/$issueId"
+					params={{ issueId: run.issue_identifier }}
+					aria-label={`Open issue ${run.issue_identifier}`}
+					title={`Open issue ${run.issue_identifier}`}
+					className="rounded-md focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+				>
+					<Pill mono size="xs" interactive>
+						{run.issue_identifier}
+					</Pill>
+				</Link>
 				<RunStateBadge state={run.state} />
 				<span className="font-data ml-auto text-[11px] text-fg-dim">{run.id.slice(0, 8)}</span>
 				<Link

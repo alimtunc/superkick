@@ -1,3 +1,4 @@
+import { invalidateAfterRunOrTaskStateChange } from '@/lib/queryInvalidation'
 import { isLaunchTaskForIssueKey, queryKeys } from '@/lib/queryKeys'
 import type { BrokerNotice, LaunchTaskBrokerNotice, RunEvent } from '@/types'
 import type { QueryClient } from '@tanstack/react-query'
@@ -138,14 +139,13 @@ export function invalidateForLaunchTaskNotice(
 			queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.queue })
 			return
 		case 'shadow_run_state_changed':
-			// Shadow runs change state via direct field writes that bypass the
-			// workspace event bus; this dedicated event is the only signal that
-			// `linked_runs` on the issue (and `/runs/<id>` detail) need a refresh
-			// between `StepStarted`/`StepFinished` pulses.
-			queryClient.invalidateQueries({ queryKey: queryKeys.issues.all })
-			queryClient.invalidateQueries({ queryKey: queryKeys.runs.detail(notice.run_id) })
-			queryClient.invalidateQueries({ queryKey: queryKeys.runs.all })
-			queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.queue })
+			// Shadow runs bypass the workspace event bus; this branch is the only
+			// invalidation signal between paired StepStarted/StepFinished pulses.
+			invalidateAfterRunOrTaskStateChange(queryClient, {
+				issueId: notice.linear_issue_id,
+				taskId: notice.task_id,
+				runId: notice.run_id
+			})
 			return
 		default: {
 			const _exhaustive: never = notice

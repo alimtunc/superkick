@@ -1,5 +1,5 @@
 import { cancelLaunchTask, retryLaunchTask } from '@/api'
-import { queryKeys } from '@/lib/queryKeys'
+import { invalidateAfterRunOrTaskStateChange } from '@/lib/queryInvalidation'
 import type { CancelLaunchTaskResponse, RetryLaunchTaskResponse } from '@/types'
 import { type QueryClient, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -7,14 +7,18 @@ import { toast } from 'sonner'
 interface UseLaunchTaskActionParams {
 	linearIssueId: string
 	taskId: string
+	linkedRunId?: string
 }
 
 function invalidateLaunchTaskCaches(
 	queryClient: QueryClient,
-	{ linearIssueId, taskId }: UseLaunchTaskActionParams
+	{ linearIssueId, taskId, linkedRunId }: UseLaunchTaskActionParams
 ) {
-	queryClient.invalidateQueries({ queryKey: queryKeys.launchTasks.forIssue(linearIssueId) })
-	queryClient.invalidateQueries({ queryKey: queryKeys.launchTasks.steps(taskId) })
+	invalidateAfterRunOrTaskStateChange(queryClient, {
+		issueId: linearIssueId,
+		taskId,
+		runId: linkedRunId
+	})
 }
 
 export function useCancelLaunchTask(params: UseLaunchTaskActionParams) {

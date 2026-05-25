@@ -85,7 +85,7 @@ function NeedsHumanBanner({ run }: { run: Run }) {
 					className="inline-flex shrink-0 items-center gap-1 rounded-md border border-warn/40 px-2.5 py-1 text-[12px] text-warn hover:bg-warn/10 focus-visible:ring-2 focus-visible:ring-warn/40 focus-visible:outline-none"
 					aria-label={`Open issue ${run.issue_identifier}`}
 				>
-					Open Task
+					Open issue
 					<ArrowUpRight size={12} strokeWidth={1.85} aria-hidden="true" />
 				</Link>
 			</div>

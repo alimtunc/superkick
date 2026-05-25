@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
-    ArtifactKind, ExecutionMode, LinkedPrSummary, PullRequest, Run, RunDiff, RunId, TriggerSource,
-    parse_pr_number,
+    ArtifactKind, EventKind, EventLevel, ExecutionMode, LinkedPrSummary, PullRequest, Run, RunDiff,
+    RunEvent, RunId, TriggerSource, parse_pr_number,
 };
 use superkick_runtime::{DiffError, collect_run_diff};
 use superkick_storage::SqliteRunRepo;
@@ -273,19 +273,40 @@ pub async fn cancel_run(
             .launch_task_executor
             .cancel(step.launch_task_id)
             .await?;
-        let refreshed = state
+        let mut refreshed = state
             .run_repo
             .get(run_id)
             .await?
             .ok_or(AppError::NotFound("run not found"))?;
+        if !refreshed.state.is_terminal() {
+            refreshed.transition_to(superkick_core::RunState::Cancelled)?;
+            state.run_repo.update(&refreshed).await?;
+            emit_cancel_event(&state, refreshed.id).await;
+        }
         return Ok(Json(refreshed));
     }
 
     tracing::info!(%run_id, "cancel run via direct state transition");
-    run.transition_to(superkick_core::RunState::Cancelled)
-        .map_err(|e| AppError::Internal(e.into()))?;
+    run.transition_to(superkick_core::RunState::Cancelled)?;
     state.run_repo.update(&run).await?;
+    emit_cancel_event(&state, run.id).await;
     Ok(Json(run))
+}
+
+// Sole writer for the shadow-run terminal transition on operator cancel:
+// `launch_task_executor::cancel` only touches the launch_task row, never the
+// run. If that invariant changes, gate this emit to avoid double `state_change`.
+async fn emit_cancel_event(state: &AppState, run_id: RunId) {
+    let event = RunEvent::new(
+        run_id,
+        None,
+        EventKind::StateChange,
+        EventLevel::Info,
+        "run cancelled by operator".to_string(),
+    );
+    if let Err(err) = state.event_repo.insert(&event).await {
+        tracing::warn!(%run_id, error = %err, "failed to emit cancel state-change event");
+    }
 }
 
 /// Resolve the PullRequest for a run. Lazily creates a record from the PrUrl

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 
 import { LaunchPlanStrip } from '@/components/launch/LaunchPlanStrip'
 import { TaskCockpitNowPanel } from '@/components/task-cockpit/TaskCockpitNowPanel'
+import { TaskCockpitParentBanner } from '@/components/task-cockpit/TaskCockpitParentBanner'
 import { TaskCockpitTabPanel } from '@/components/task-cockpit/TaskCockpitTabPanel'
 import { TaskCockpitTabs, type TaskCockpitTabId } from '@/components/task-cockpit/TaskCockpitTabs'
 import { TaskCockpitTimeline } from '@/components/task-cockpit/TaskCockpitTimeline'
@@ -62,6 +63,7 @@ export function TaskCockpit({ task, steps }: TaskCockpitProps) {
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			<LaunchPlanStrip task={task} steps={steps} variant="stepper" />
+			<TaskCockpitParentBanner task={task} />
 			<TaskCockpitTabs steps={steps} activeTab={activeTab} onChangeTab={setActiveTab} />
 			<div className="flex min-h-0 flex-1">
 				{activeTab === 'activity' ? (
