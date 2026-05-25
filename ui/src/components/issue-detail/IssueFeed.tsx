@@ -4,6 +4,7 @@ import { ActivityNode } from '@/components/issue-detail/ActivityNode'
 import { AuthorAvatar } from '@/components/issue-detail/AuthorAvatar'
 import { IssueIntro } from '@/components/issue-detail/IssueIntro'
 import { IssueMarkdown } from '@/components/issue-detail/IssueMarkdown'
+import { OpenRunActions } from '@/components/issue-detail/OpenRunActions'
 import { RunPrBadge } from '@/components/issue-detail/RunPrBadge'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { buildIssueActivity, fmtRelativeTime, isTerminalRunState, runNarrative } from '@/lib/domain'
@@ -14,20 +15,13 @@ import type {
 	IssueDetailResponse,
 	LinkedRunSummary
 } from '@/types'
-import { Link } from '@tanstack/react-router'
 import { MessageCircle } from 'lucide-react'
 
 function NeedsHumanBody({ run }: { run: LinkedRunSummary }) {
 	return (
 		<div className="flex flex-wrap items-center gap-2">
 			<span className="text-fg">Run is waiting on your decision.</span>
-			<Link
-				to="/runs/$runId"
-				params={{ runId: run.id }}
-				className="font-data text-[11.5px] text-warn hover:underline focus-visible:outline-none"
-			>
-				Open run →
-			</Link>
+			<OpenRunActions runId={run.id} tone="warn" />
 		</div>
 	)
 }
@@ -72,13 +66,7 @@ function RunNodeBody({ run }: { run: LinkedRunSummary }) {
 			<RunStateBadge state={run.state} />
 			<span className="text-[12.5px] text-fg-muted">{narrative.headline}</span>
 			{run.pr ? <RunPrBadge pr={run.pr} /> : null}
-			<Link
-				to="/runs/$runId"
-				params={{ runId: run.id }}
-				className="font-data ml-auto text-[11.5px] text-accent hover:underline focus-visible:outline-none"
-			>
-				Open run →
-			</Link>
+			<OpenRunActions runId={run.id} tone="accent" />
 		</div>
 	)
 }

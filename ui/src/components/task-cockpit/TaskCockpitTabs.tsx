@@ -1,14 +1,13 @@
 import { TabBar, type TabBarItem } from '@/components/ui/tab-bar'
 import type { LaunchTaskStep } from '@/types'
-import { Activity, FileDiff, ScrollText, Terminal, Wrench } from 'lucide-react'
+import { Activity, FileDiff, ScrollText, Terminal } from 'lucide-react'
 
-export type TaskCockpitTabId = 'activity' | 'files' | 'tools' | 'logs' | 'terminal'
+export type TaskCockpitTabId = 'activity' | 'files' | 'logs' | 'terminal'
 
 const TABS = [
 	{ id: 'activity', label: 'Activity', icon: Activity },
 	{ id: 'files', label: 'Files changed', icon: FileDiff },
-	{ id: 'tools', label: 'Tool calls', icon: Wrench },
-	{ id: 'logs', label: 'Raw logs', icon: ScrollText },
+	{ id: 'logs', label: 'Step summaries', icon: ScrollText },
 	{ id: 'terminal', label: 'Terminal', icon: Terminal }
 ] as const satisfies readonly TabBarItem<TaskCockpitTabId>[]
 

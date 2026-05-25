@@ -1,23 +1,29 @@
+import { useState } from 'react'
+
+import { CompactTaskRunRow } from '@/components/issue-detail/CompactTaskRunRow'
+import { TaskRunRow } from '@/components/issue-detail/TaskRunRow'
 import { useIssueLaunchTasks } from '@/hooks/useIssueLaunchTasks'
-import { fmtRelativeTime, isActiveRun, LAUNCH_TASK_STATUS_LABEL, pickLatestRun } from '@/lib/domain'
+import { isActiveRun, pickLatestRun, pickLinkedRunId, pickRunForTask } from '@/lib/domain'
 import { cn } from '@/lib/utils'
 import { useRunDrawerStore } from '@/stores/runDrawer'
-import type { IssueDetailResponse, LaunchTask, LinkedRunSummary } from '@/types'
-import { Dot } from '@/ui/Dot'
+import type { IssueDetailResponse } from '@/types'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, ExternalLink, Zap } from 'lucide-react'
+import { Zap } from 'lucide-react'
 
 interface ExecutionStatusCardProps {
 	issue: IssueDetailResponse
 }
 
 export function ExecutionStatusCard({ issue }: ExecutionStatusCardProps) {
-	const { view, activeTask } = useIssueLaunchTasks(issue.identifier)
+	const { activeTask, tasksWithSteps } = useIssueLaunchTasks(issue.identifier)
 	const activeRun = issue.linked_runs.find(isActiveRun)
 	const latestRun = pickLatestRun(issue.linked_runs)
 	const drawerRun = activeRun ?? latestRun
 	const openDrawer = useRunDrawerStore((s) => s.openDrawer)
-	const taskCount = view ? 1 : 0
+	const [historyExpanded, setHistoryExpanded] = useState(false)
+
+	const taskCount = tasksWithSteps.length
+	const [latest, ...older] = tasksWithSteps
 
 	return (
 		<section aria-label="Tasks" className="rounded-md border border-border bg-surface px-3 py-3">
@@ -25,12 +31,12 @@ export function ExecutionStatusCard({ issue }: ExecutionStatusCardProps) {
 				<Zap size={13} strokeWidth={1.85} className="text-accent" aria-hidden="true" />
 				<span className="text-[13px] font-semibold text-fg">Tasks</span>
 				<span className="font-data text-[11px] text-fg-dim">{taskCount}</span>
-				<span className="font-data ml-auto text-[11px] text-fg-dim">History</span>
+				<span className="font-data ml-auto text-[11px] text-fg-dim">Newest first</span>
 			</header>
-			{view ? (
+			{latest ? (
 				<TaskRunRow
-					task={view.task}
-					run={drawerRun}
+					task={latest.task}
+					run={pickRunForTask(latest, drawerRun)}
 					active={Boolean(activeRun)}
 					taskFinished={!activeTask}
 					onOpenDrawer={drawerRun ? () => openDrawer(drawerRun.id, 'activity') : undefined}
@@ -38,6 +44,38 @@ export function ExecutionStatusCard({ issue }: ExecutionStatusCardProps) {
 			) : (
 				<p className="py-2 text-[12.5px] leading-5 text-fg-muted">No task on this issue.</p>
 			)}
+			{older.length > 0 ? (
+				<div className="mt-2">
+					<button
+						type="button"
+						onClick={() => setHistoryExpanded((v) => !v)}
+						className="font-data inline-flex items-center gap-1 text-[11px] text-fg-muted hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+						aria-expanded={historyExpanded}
+					>
+						{historyExpanded ? 'Hide history' : `Show history (${older.length})`}
+					</button>
+					{historyExpanded ? (
+						<ul className="mt-2 space-y-1.5">
+							{older.map((entry) => {
+								const linkedRunId = pickLinkedRunId(entry.steps)
+								return (
+									<li key={entry.task.id}>
+										<CompactTaskRunRow
+											task={entry.task}
+											linkedRunId={linkedRunId}
+											onOpenDrawer={
+												linkedRunId
+													? () => openDrawer(linkedRunId, 'activity')
+													: undefined
+											}
+										/>
+									</li>
+								)
+							})}
+						</ul>
+					) : null}
+				</div>
+			) : null}
 			<Link
 				to="/tasks/new"
 				search={{ issue: issue.identifier }}
@@ -52,51 +90,5 @@ export function ExecutionStatusCard({ issue }: ExecutionStatusCardProps) {
 				{activeRun ? 'Launch another' : 'Launch task'}
 			</Link>
 		</section>
-	)
-}
-
-interface TaskRunRowProps {
-	task: LaunchTask
-	run: LinkedRunSummary | null
-	active: boolean
-	taskFinished: boolean
-	onOpenDrawer: (() => void) | undefined
-}
-
-function TaskRunRow({ task, run, active, taskFinished, onOpenDrawer }: TaskRunRowProps) {
-	const startedLabel = fmtRelativeTime(run ? run.started_at : task.created_at)
-	return (
-		<div className="rounded-md border border-border bg-canvas px-2 py-2">
-			<div className="flex items-center gap-2">
-				<Dot tone={active ? 'info' : 'success'} size={6} pulse={active} />
-				<span className="font-data min-w-0 flex-1 truncate text-[11.5px] text-fg">
-					{run ? run.id : task.id}
-				</span>
-				<span className="text-[11px] text-fg-dim">
-					{taskFinished ? 'finished' : LAUNCH_TASK_STATUS_LABEL[task.status]}
-				</span>
-				<span className="font-data text-[10.5px] text-fg-dim">{startedLabel}</span>
-				<Link
-					to="/tasks/$taskId"
-					params={{ taskId: task.id }}
-					className="inline-flex text-fg-dim hover:text-fg"
-					aria-label="Open task detail"
-					title="Open task detail"
-				>
-					<ExternalLink size={11} strokeWidth={1.85} aria-hidden="true" />
-				</Link>
-			</div>
-			{onOpenDrawer ? (
-				<button
-					type="button"
-					onClick={onOpenDrawer}
-					className="mt-2 inline-flex h-6 w-full items-center justify-between rounded border border-border bg-raised px-2 text-[11.5px] text-fg transition-colors hover:bg-overlay focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
-					aria-label={active ? 'Open active run drawer' : 'Open latest run drawer'}
-				>
-					<span>Open run</span>
-					<ArrowRight size={11} strokeWidth={1.85} aria-hidden="true" />
-				</button>
-			) : null}
-		</div>
 	)
 }

@@ -9,7 +9,9 @@ import {
 	fetchLaunchTask,
 	fetchLaunchTaskSteps,
 	fetchRun,
+	fetchRunDiff,
 	fetchRuns,
+	fetchRunToolCalls,
 	fetchRuntimes,
 	fetchSearch,
 	listAgents,
@@ -63,6 +65,20 @@ export const runDetailQuery = (id: string | null) =>
 	queryOptions({
 		queryKey: id ? queryKeys.runs.detail(id) : ['runs', 'detail', 'pending'],
 		queryFn: id ? () => fetchRun(id) : skipToken
+	})
+
+export const runToolCallsQuery = (id: string | null) =>
+	queryOptions({
+		queryKey: id ? queryKeys.runs.toolCalls(id) : ['runs', 'pending', 'tool-calls'],
+		queryFn: id ? () => fetchRunToolCalls(id) : skipToken,
+		staleTime: 10_000
+	})
+
+export const runDiffQuery = (id: string | null, enabled: boolean) =>
+	queryOptions({
+		queryKey: id ? queryKeys.runs.diff(id) : ['runs', 'pending', 'diff'],
+		queryFn: id && enabled ? () => fetchRunDiff(id) : skipToken,
+		staleTime: 10_000
 	})
 
 export const conversationDetailQuery = (id: string | null) =>

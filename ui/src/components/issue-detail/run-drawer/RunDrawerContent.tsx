@@ -2,6 +2,7 @@ import { RunDrawerTabs } from '@/components/issue-detail/run-drawer/RunDrawerTab
 import { ChangesTab } from '@/components/run-detail/RunWorkspaceTabs/ChangesTab'
 import { ShellTab } from '@/components/run-detail/RunWorkspaceTabs/ShellTab'
 import { ToolsTab } from '@/components/run-detail/RunWorkspaceTabs/ToolsTab'
+import { RunMetaStrip } from '@/components/run-shared/RunMetaStrip'
 import { ActivityTab } from '@/components/run-tabs/ActivityTab'
 import { LogsTab } from '@/components/run-tabs/LogsTab'
 import { RunStateBadge } from '@/components/RunStateBadge'
@@ -20,6 +21,7 @@ interface RunDrawerContentProps {
 
 export function RunDrawerContent({ runId }: RunDrawerContentProps) {
 	const tab = useRunDrawerStore((s) => s.tab)
+	const setTab = useRunDrawerStore((s) => s.setTab)
 	const detail = useRunDetail(runId)
 	const stream = useEventStream(runId, detail.syncRun)
 
@@ -71,6 +73,7 @@ export function RunDrawerContent({ runId }: RunDrawerContentProps) {
 					Detail
 				</Link>
 			</div>
+			<RunMetaStrip run={run} sessions={sessions} density="compact" />
 			<RunDrawerTabs />
 			<div className="min-h-0 flex-1 overflow-y-auto">
 				{tab === 'activity' ? (
@@ -80,15 +83,11 @@ export function RunDrawerContent({ runId }: RunDrawerContentProps) {
 						attentionRequests={attentionRequests}
 					/>
 				) : null}
-				{tab === 'tools' ? (
-					<ToolsTab
-						events={stream.events}
-						sessions={sessions}
-						attentionRequests={attentionRequests}
-					/>
-				) : null}
+				{tab === 'tools' ? <ToolsTab runId={run.id} /> : null}
 				{tab === 'files' ? <ChangesTab pr={pr} run={run} /> : null}
-				{tab === 'logs' ? <LogsTab events={stream.events} /> : null}
+				{tab === 'logs' ? (
+					<LogsTab events={stream.events} onOpenTerminal={() => setTab('terminal')} />
+				) : null}
 				{tab === 'terminal' ? <ShellTab runId={run.id} isTerminal={isTerminal} /> : null}
 			</div>
 		</div>

@@ -1,14 +1,9 @@
 import { Pill } from '@/components/ui/pill'
 import { TabEmptyState } from '@/components/ui/state-empty-tab'
-import {
-	LAUNCH_STEP_KIND_LABEL,
-	LAUNCH_STEP_STATUS_LABEL,
-	LAUNCH_STEP_STATUS_TONE,
-	providerLabel
-} from '@/lib/domain'
+import { LAUNCH_STEP_KIND_LABEL, LAUNCH_STEP_STATUS_LABEL, LAUNCH_STEP_STATUS_TONE } from '@/lib/domain'
 import type { LaunchTaskStep } from '@/types'
 import { Link } from '@tanstack/react-router'
-import { FileDiff, ScrollText, Terminal, Wrench } from 'lucide-react'
+import { FileDiff, ScrollText, Terminal } from 'lucide-react'
 
 import type { TaskCockpitTabId } from './TaskCockpitTabs'
 
@@ -48,39 +43,11 @@ function FilesPanel({ steps }: { steps: readonly LaunchTaskStep[] }) {
 	)
 }
 
-function ToolsPanel({ steps }: { steps: readonly LaunchTaskStep[] }) {
-	if (steps.length === 0) return <TabEmptyState icon={Wrench} title="No tool calls captured yet" />
-
-	return (
-		<div className="divide-y divide-edge">
-			{steps.map((step) => (
-				<div key={step.id} className="grid gap-2 px-6 py-4 md:grid-cols-[1fr_auto]">
-					<div className="min-w-0">
-						<StepBadge step={step} />
-						<div className="mt-2 truncate text-[13px] text-fg">{step.agent_name}</div>
-						<div className="mt-1 truncate font-mono text-[11px] text-fg-dim">
-							{step.provider
-								? (providerLabel[step.provider] ?? step.provider)
-								: 'provider pending'}
-							{step.model ? ` · ${step.model}` : ''}
-						</div>
-					</div>
-					{step.mode ? (
-						<Pill mono size="xs" tone="neutral">
-							{step.mode}
-						</Pill>
-					) : null}
-				</div>
-			))}
-		</div>
-	)
-}
-
-function LogsPanel({ steps }: { steps: readonly LaunchTaskStep[] }) {
+function StepSummariesPanel({ steps }: { steps: readonly LaunchTaskStep[] }) {
 	const rows = steps.filter(
 		(step) => step.summary || step.structured_result?.summary || step.failure_classification
 	)
-	if (rows.length === 0) return <TabEmptyState icon={ScrollText} title="No raw logs captured yet" />
+	if (rows.length === 0) return <TabEmptyState icon={ScrollText} title="No step summaries yet." />
 
 	return (
 		<div className="divide-y divide-edge">
@@ -119,8 +86,7 @@ export function TaskCockpitTabPanel({ tab, steps, linkedRunId }: TaskCockpitTabP
 	return (
 		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
 			{tab === 'files' ? <FilesPanel steps={steps} /> : null}
-			{tab === 'tools' ? <ToolsPanel steps={steps} /> : null}
-			{tab === 'logs' ? <LogsPanel steps={steps} /> : null}
+			{tab === 'logs' ? <StepSummariesPanel steps={steps} /> : null}
 			{tab === 'terminal' ? <TerminalPanel linkedRunId={linkedRunId} /> : null}
 		</div>
 	)

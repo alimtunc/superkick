@@ -1,6 +1,7 @@
 export { DuplicateRunError, TurnAlreadyStreamingError } from './_shared'
 export { fetchConfig } from './config'
-export { cancelRun, createRun, fetchRun, fetchRuns } from './runs'
+export { cancelRun, createRun, fetchRun, fetchRunDiff, fetchRuns } from './runs'
+export type { RunDiffResult, RunDiffUnavailable, RunDiffUnavailableReason } from './runs'
 export { fetchIssueDetail, fetchIssues, patchIssueState } from './issues'
 export { fetchMe } from './me'
 export { fetchIssueMemoryEntries, fetchIssueWorkspaceContext } from './issueContext'
@@ -33,6 +34,7 @@ export {
 	createConversation,
 	createTurn,
 	fetchConversation,
+	fetchRunToolCalls,
 	listConversationsByIssue,
 	listConversationsByRun,
 	subscribeToTurnEvents

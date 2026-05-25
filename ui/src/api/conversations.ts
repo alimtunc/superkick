@@ -5,6 +5,7 @@ import type {
 	CreateConversationRequest,
 	CreateTurnRequest,
 	CreateTurnResponse,
+	RunToolCall,
 	TurnEventEnvelope
 } from '@/types'
 
@@ -45,6 +46,43 @@ export async function listConversationsByRun(runId: string): Promise<Conversatio
 	if (!res.ok) throw new Error(`GET /conversations?run_id failed: ${res.status}`)
 	const body = (await res.json()) as { conversations: ConversationSummary[] }
 	return body.conversations
+}
+
+export async function fetchRunToolCalls(runId: string): Promise<RunToolCall[]> {
+	const conversations = await listConversationsByRun(runId)
+	if (conversations.length === 0) return []
+	const details = await Promise.all(conversations.map((c) => fetchConversation(c.id)))
+	const calls: RunToolCall[] = []
+	for (const detail of details) {
+		for (const turn of detail.turns) {
+			const events = detail.events_by_turn[turn.id] ?? []
+			const results = new Map<string, { output: unknown; is_error: boolean }>()
+			for (const event of events) {
+				if (event.envelope.kind === 'tool_result') {
+					results.set(event.envelope.call_id, {
+						output: event.envelope.output,
+						is_error: event.envelope.is_error
+					})
+				}
+			}
+			for (const event of events) {
+				if (event.envelope.kind !== 'tool_use') continue
+				const paired = results.get(event.envelope.call_id) ?? null
+				calls.push({
+					call_id: event.envelope.call_id,
+					tool_name: event.envelope.tool_name,
+					conversation_id: detail.conversation.id,
+					turn_id: turn.id,
+					at: event.envelope.at,
+					input: event.envelope.input,
+					output: paired?.output ?? null,
+					is_error: paired?.is_error ?? false
+				})
+			}
+		}
+	}
+	calls.sort((a, b) => a.at.localeCompare(b.at))
+	return calls
 }
 
 export async function createTurn(

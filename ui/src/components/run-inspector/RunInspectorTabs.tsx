@@ -57,11 +57,11 @@ export function RunInspectorTabs({
 				{tab === 'activity' ? (
 					<ActivityTab events={events} sessions={sessions} attentionRequests={attentionRequests} />
 				) : null}
-				{tab === 'tools' ? (
-					<ToolsTab events={events} sessions={sessions} attentionRequests={attentionRequests} />
-				) : null}
+				{tab === 'tools' ? <ToolsTab runId={run.id} /> : null}
 				{tab === 'files' ? <ChangesTab pr={pr} run={run} /> : null}
-				{tab === 'logs' ? <LogsTab events={events} /> : null}
+				{tab === 'logs' ? (
+					<LogsTab events={events} onOpenTerminal={() => onChangeTab('terminal')} />
+				) : null}
 				{tab === 'terminal' ? <ShellTab runId={run.id} isTerminal={isTerminal} /> : null}
 			</div>
 		</div>

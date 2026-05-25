@@ -38,6 +38,8 @@ const LEDGER_KINDS = new Set<EventKind>([
 	'ownership_released',
 	'ownership_suspended',
 	'ownership_resumed',
+	'terminal_takeover_opened',
+	'terminal_takeover_closed',
 	'review_completed',
 	'external_attach',
 	'operator_input',
@@ -81,6 +83,8 @@ export function categoryOf(kind: EventKind): LedgerCategory {
 		case 'ownership_released':
 		case 'ownership_suspended':
 		case 'ownership_resumed':
+		case 'terminal_takeover_opened':
+		case 'terminal_takeover_closed':
 			return 'ownership'
 		case 'operator_input':
 		case 'external_attach':
@@ -170,6 +174,10 @@ export function ledgerTitle(event: RunEvent, payload: Payload | null): string {
 			return 'Orchestrator suspended'
 		case 'ownership_resumed':
 			return 'Orchestrator resumed'
+		case 'terminal_takeover_opened':
+			return 'Operator opened terminal takeover'
+		case 'terminal_takeover_closed':
+			return 'Operator closed terminal takeover'
 		default:
 			return event.message
 	}
@@ -181,6 +189,9 @@ export function ledgerDetail(
 	sessionById: Map<string, AgentSession>,
 	attentionById: Map<string, AttentionRequest>
 ): string | null {
+	if (event.kind === 'terminal_takeover_opened' || event.kind === 'terminal_takeover_closed') {
+		return terminalTakeoverDetail(payload)
+	}
 	switch (categoryOf(event.kind)) {
 		case 'session':
 			return sessionDetail(payload as SessionPayload | null, sessionById)
@@ -193,6 +204,15 @@ export function ledgerDetail(
 		default:
 			return null
 	}
+}
+
+function terminalTakeoverDetail(payload: Payload | null): string | null {
+	if (!payload) return null
+	const bits: string[] = []
+	if (typeof payload.mode === 'string') bits.push(payload.mode)
+	if (typeof payload.operator_id === 'string') bits.push(`operator ${payload.operator_id}`)
+	if (typeof payload.reason === 'string') bits.push(payload.reason)
+	return bits.length > 0 ? bits.join(' · ') : null
 }
 
 function sessionDetail(

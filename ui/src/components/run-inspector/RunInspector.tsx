@@ -5,19 +5,19 @@ import { PrStateBadge } from '@/components/PrStateBadge'
 import { pinClass, pinTitle } from '@/components/run-detail/pinHelpers'
 import { RunStatusBanner } from '@/components/run-detail/RunStatusBanner'
 import { RunInspectorFacts } from '@/components/run-inspector/RunInspectorFacts'
-import { RunInspectorMetaStrip } from '@/components/run-inspector/RunInspectorMetaStrip'
 import { RunInspectorParentBanner } from '@/components/run-inspector/RunInspectorParentBanner'
 import {
 	RunInspectorTabs,
 	tabFromHash,
 	type RunInspectorTabId
 } from '@/components/run-inspector/RunInspectorTabs'
+import { RunMetaStrip } from '@/components/run-shared/RunMetaStrip'
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Pill } from '@/components/ui/pill'
 import type { useEventStream } from '@/hooks/useEventStream'
 import type { LoadedRunDetail } from '@/hooks/useRunDetail'
-import { fmtElapsed } from '@/lib/domain'
+import { fmtElapsed, runNeedsHuman } from '@/lib/domain'
 import { TopbarBackButton } from '@/shell/TopbarBackButton'
 import { usePageActions } from '@/shell/usePageActions'
 import { useWatchedSessionsStore } from '@/stores/watchedSessions'
@@ -37,16 +37,15 @@ export function RunInspector({ detail, events, refTime }: RunInspectorProps) {
 		steps,
 		sessions,
 		attentionRequests,
-		interrupts,
 		isTerminal,
-		showInterrupts,
 		refresh,
-		syncRun,
 		cancelConfirm,
 		setCancelConfirm,
 		handleCancel,
 		cancelling
 	} = detail
+
+	const needsHuman = runNeedsHuman(run, attentionRequests)
 
 	const { hash } = useLocation()
 	const [tab, setTab] = useState<RunInspectorTabId>(() => tabFromHash(hash) ?? 'activity')
@@ -139,17 +138,9 @@ export function RunInspector({ detail, events, refTime }: RunInspectorProps) {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<RunStatusBanner
-				run={run}
-				pr={pr}
-				isTerminal={isTerminal}
-				attentionRequests={attentionRequests}
-				interrupts={interrupts}
-				showInterrupts={showInterrupts}
-				onSync={syncRun}
-			/>
+			<RunStatusBanner run={run} pr={pr} isTerminal={isTerminal} needsHuman={needsHuman} />
 			<RunInspectorParentBanner run={run} />
-			<RunInspectorMetaStrip run={run} sessions={sessions} />
+			<RunMetaStrip run={run} sessions={sessions} density="comfortable" />
 			<div className="flex min-h-0 flex-1">
 				<RunInspectorTabs
 					tab={tab}

@@ -41,6 +41,8 @@ export {
 	pickFinalStep,
 	pickTerminalKind
 } from './launchTaskBlocking'
+export { pickLinkedRunId, pickRunForTask } from './launchTaskRuns'
+export { runNeedsHuman } from './runNeedsHuman'
 export { getDisposition, getFailureCopy } from './failureClassification'
 export type { FailureCopy } from './failureClassification'
 export {
