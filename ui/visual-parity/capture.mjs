@@ -73,11 +73,13 @@ async function captureState({ state, baseUrl, browser, outputDir }) {
 	const notesPath = path.join(stateDir, 'notes.md')
 
 	await captureMockup({ browser, state, outputPath: mockupPath })
-	await captureApp({ browser, state, baseUrl, outputPath: appPath })
-	const diff = await diffScreenshots(mockupPath, appPath, diffPath)
-	await writeNotes({ state, notesPath, mockupPath, appPath, diffPath, diff })
+	const diagnostics = await captureApp({ browser, state, baseUrl, outputPath: appPath })
+	const diff = state.manualChecklist
+		? { status: 'manual-checklist', reason: state.manualChecklist }
+		: await diffScreenshots(mockupPath, appPath, diffPath)
+	await writeNotes({ state, notesPath, mockupPath, appPath, diffPath, diff, diagnostics })
 
-	return { state, mockupPath, appPath, diffPath, notesPath, diff }
+	return { state, mockupPath, appPath, diffPath, notesPath, diff, diagnostics }
 }
 
 async function captureMockup({ browser, state, outputPath }) {
@@ -170,13 +172,14 @@ async function captureApp({ browser, state, baseUrl, outputPath }) {
 		await context.close()
 		activeFixture = null
 	}
+	return diagnostics
 }
 
 function collectDiagnostics(page) {
 	const messages = []
 	page.on('console', (message) => {
-		if (message.type() === 'error' || message.type() === 'warning') {
-			messages.push(`[console:${message.type()}] ${message.text()}`)
+		if (message.type() === 'error') {
+			messages.push(`[console:error] ${message.text()}`)
 		}
 	})
 	page.on('requestfailed', (request) => {
@@ -316,27 +319,52 @@ async function diffScreenshots(mockupPath, appPath, diffPath) {
 	}
 }
 
-async function writeNotes({ state, notesPath, mockupPath, appPath, diffPath, diff }) {
-	const diffLine =
-		diff.status === 'manual'
-			? `Manual review required: ${diff.reason}`
-			: `${formatPercent(diff.ratio)} changed pixels (${diff.mismatched}/${diff.total}); threshold ${formatPercent(DIFF_THRESHOLD)}`
+async function writeNotes({ state, notesPath, mockupPath, appPath, diffPath, diff, diagnostics }) {
+	const diffLine = diffLineFor(diff)
 	const lines = [
 		`# ${state.id}`,
 		'',
 		`Label: ${state.label}`,
 		`Route: \`${state.route}\``,
 		`Mockup artboard: \`${state.mockup.artboardId}\``,
+		`Fixture: \`${state.fixture}\``,
 		`Status: ${diff.status}`,
-		`Diff: ${diffLine}`,
+		`Diff: ${diffLine}`
+	]
+	if (diff.status === 'manual-checklist') {
+		lines.push('', '## Manual checklist', '', diff.reason)
+	}
+	if (state.fixtureNote) {
+		lines.push('', '## Fixture note', '', state.fixtureNote)
+	}
+	lines.push(
 		'',
-		'Artifacts:',
+		'## Artifacts',
+		'',
 		`- Mockup: \`${path.basename(mockupPath)}\``,
 		`- App: \`${path.basename(appPath)}\``,
-		diff.status === 'manual' ? '- Diff: not generated' : `- Diff: \`${path.basename(diffPath)}\``,
+		hasDiffImage(diff) ? `- Diff: \`${path.basename(diffPath)}\`` : '- Diff: not generated',
+		'',
+		'## Diagnostics',
 		''
-	]
+	)
+	if (!diagnostics || diagnostics.length === 0) {
+		lines.push('No console errors, request failures, or 4xx/5xx responses during capture.')
+	} else {
+		for (const entry of diagnostics) lines.push(`- ${entry}`)
+	}
+	lines.push('')
 	await fs.writeFile(notesPath, lines.join('\n'))
+}
+
+function diffLineFor(diff) {
+	if (diff.status === 'manual-checklist') return 'Manual checklist — pixel diff intentionally skipped.'
+	if (diff.status === 'manual') return `Manual review required: ${diff.reason}`
+	return `${formatPercent(diff.ratio)} changed pixels (${diff.mismatched}/${diff.total}); threshold ${formatPercent(DIFF_THRESHOLD)}`
+}
+
+function hasDiffImage(diff) {
+	return diff.status === 'pass' || diff.status === 'review'
 }
 
 async function writeSummary(root, results) {
@@ -345,24 +373,49 @@ async function writeSummary(root, results) {
 		'',
 		`Generated: ${new Date().toISOString()}`,
 		'',
-		'Manual acceptance rule: a state passes when either the pixel diff is at or below the configured threshold, or reviewers attach the generated screenshots and explain every intentional mismatch in the PR notes.',
+		'State classes:',
 		'',
-		'| State | Route | Mockup | App | Diff | Status |',
-		'|---|---|---|---|---|---|'
+		'- `pass` / `review` — screenshot-comparable; reviewer evaluates against threshold.',
+		'- `manual` — dimension mismatch; pixel diff not generated, reviewer compares visually.',
+		'- `manual-checklist` — the mockup artboard is a design checklist, not a product screen; pixel diff is intentionally skipped. Use the captured mockup as an implementation reference.',
+		'',
+		'Manual acceptance rule: a state passes when either the pixel diff is at or below the configured threshold, or reviewers attach the generated screenshots and explain every intentional mismatch (or manual/manual-checklist status) in the PR notes.',
+		'',
+		'| State | Route | Fixture | Mockup | App | Diff | Status | Diagnostics |',
+		'|---|---|---|---|---|---|---|---|'
 	]
 	for (const result of results) {
 		const stateDir = result.state.id
-		const diffCell = result.diff.status === 'manual' ? 'manual' : `[diff](${stateDir}/diff.png)`
-		const status =
-			result.diff.status === 'manual'
-				? result.diff.reason
-				: `${result.diff.status} (${formatPercent(result.diff.ratio)})`
+		const diffCell = hasDiffImage(result.diff) ? `[diff](${stateDir}/diff.png)` : '—'
+		const status = summaryStatusFor(result.diff)
+		const diagCell = summaryDiagnosticsFor(result.diagnostics)
 		lines.push(
-			`| ${result.state.id} | \`${result.state.route}\` | [mockup](${stateDir}/mockup.png) | [app](${stateDir}/app.png) | ${diffCell} | ${status} |`
+			`| ${result.state.id} | \`${result.state.route}\` | \`${result.state.fixture}\` | [mockup](${stateDir}/mockup.png) | [app](${stateDir}/app.png) | ${diffCell} | ${status} | ${diagCell} |`
 		)
 	}
 	lines.push('')
 	await fs.writeFile(path.join(root, 'summary.md'), lines.join('\n'))
+}
+
+function summaryStatusFor(diff) {
+	if (diff.status === 'manual-checklist') return 'manual-checklist (no pixel diff)'
+	if (diff.status === 'manual') return `manual (${diff.reason})`
+	return `${diff.status} (${formatPercent(diff.ratio)})`
+}
+
+function summaryDiagnosticsFor(diagnostics) {
+	if (!diagnostics || diagnostics.length === 0) return 'clean'
+	const counts = { console: 0, requestfailed: 0, response: 0 }
+	for (const entry of diagnostics) {
+		if (entry.startsWith('[console')) counts.console += 1
+		else if (entry.startsWith('[requestfailed')) counts.requestfailed += 1
+		else if (entry.startsWith('[response')) counts.response += 1
+	}
+	const parts = []
+	if (counts.response) parts.push(`${counts.response} 4xx/5xx`)
+	if (counts.requestfailed) parts.push(`${counts.requestfailed} reqfail`)
+	if (counts.console) parts.push(`${counts.console} console err`)
+	return parts.join(', ') || `${diagnostics.length} entries`
 }
 
 function parseArgs(argv) {
