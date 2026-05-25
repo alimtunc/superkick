@@ -1,182 +1,90 @@
-# Issue-centered V1 — Design Handoff
+# Superkick · Issue-centered v1 — design system spec
 
-This folder is the **frozen source of truth** for the Issue-centered V1 UI work
-(parent epic [SUP-125]). Coding agents implementing follow-up tickets must read
-this file before touching any UI route.
+**Status:** approved · source-of-truth for implementation
+**Round:** Issues redesign + Task/Run rework + Issue Detail with Execution log
+**Owner:** design (Léa) · implementation (orchestrator)
 
-The three Claude Design HTML artifacts in [`artifacts/`](artifacts/) are
-**reference assets**, not a spec. They contain many artboards — only the ones
-listed under [Use these artboards](#use-these-artboards) are approved. Anything
-not listed here is either out of scope or explicitly excluded.
+This folder is the implementation contract for the three approved artifacts. If
+the implementation deviates from these documents, the implementation is wrong —
+not the docs. Bring questions back here before guessing from screenshots.
 
-> No production UI changes belong on this branch. This is a docs-only handoff.
+---
 
-Visual parity capture workflow: [`visual-parity.md`](visual-parity.md).
+## What's in here
 
-## Archive index
+```
+docs/design/issue-centered-v1/
+├── README.md                ← you are here. orientation only.
+├── ORCHESTRATOR_HANDOFF.md  ← short one-pager for the orchestrator. READ FIRST if you're dispatching work.
+├── SPEC.md                  ← THE spec. tokens + every component anatomy.
+├── COMPONENT_MAPPING.md     ← app surface → spec component table.
+├── PARITY_CHECKLIST.md      ← P0 / P1 / P2 drift bugs to fix first (v2, verified against codebase).
+├── PARITY_CHECKLIST.v1.md   ← preserved heuristic version, kept for diff only.
+└── IMPLEMENTATION_EXTRAS.md ← features the app has that the spec doesn't — hide list (decision: strict spec alignment).
+```
 
-| File | Subject | Authoritative for |
-|---|---|---|
-| [`artifacts/issues-redesign-linear-like.html`](artifacts/issues-redesign-linear-like.html) | `/issues` list + kanban + Issue Detail | List, kanban, **and Issue Detail page** |
-| [`artifacts/task-and-run-rework.html`](artifacts/task-and-run-rework.html) | `/tasks/:id` cockpit + `/runs/:id` detail | Task Cockpit and Run Detail screens |
-| [`artifacts/issue-detail-with-execution-log.html`](artifacts/issue-detail-with-execution-log.html) | Issue Detail with Execution log drawer | **Drawer pattern only** — not the Issue Detail page itself |
+## Source artifacts (do not edit — these are the visual ground truth)
 
-The original filenames in `~/Downloads` were:
+Three approved HTML canvases are archived under
+`docs/design/issue-centered-v1/artifacts/`. Open them in a browser to see the
+live, layout-accurate target:
 
-- `Issues redesign Linear-like _standalone_ (1).html`
-- `Task and Run rework _standalone_.html`
-- `Issue Detail with Execution log _standalone_.html`
+| Artifact                               | Archived file                                 | Covers                                                    |
+|----------------------------------------|-----------------------------------------------|-----------------------------------------------------------|
+| **A1** Issues redesign · Linear-like   | `artifacts/issues-redesign-linear-like.html`  | List, hover preview, filters, kanban, list-mode detail.   |
+| **A2** Task and Run rework             | `artifacts/task-and-run-rework.html`          | Task Cockpit, Now panel, Run Inspector (simplified).      |
+| **A3** Issue Detail with Execution log | `artifacts/issue-detail-with-execution-log.html` | The current target: inline ExecutionLog + Run Drawer.  |
 
-Renamed on commit to slug-form to keep paths shell-friendly. Hashes are stable
-once landed — do **not** edit the archived HTML; replace the whole file via a
-new handoff branch if Design ships a new revision.
+When SPEC.md says **"see A3 / detail-running"**, open A3 and find the artboard
+labeled "Detail · dark · task in flight". Every artboard is labeled.
 
-## Use these artboards
+> **Important precedence rule.** A3 supersedes A1's `IssueDetailV3` and A2's
+> standalone Task Cockpit on the issue surface. A2 still defines Run Inspector
+> as a deep-link page, but on the issue page itself you embed `ExecutionLog`
+> (A3) and open `RunDrawer` (A3) — **not** a Task Cockpit. The referenced
+> `screens-v4/sk-v4-nav-memo.jsx` name comes from the design canvas source; in
+> this repository, use A3 plus this spec as the implementation contract.
 
-Route-by-route lock. Numbers in parentheses are the operator's artboard
-numbering from the rendered HTML grid (count top-to-bottom). The `id="…"`
-tokens are the literal `<Artboard id>` strings inside each file so a coding
-agent can `grep` them.
+## Source code (extracted from artifacts — also do not edit; reference only)
 
-### `/issues` — list view
+The design canvas was generated from these JSX source modules. They are listed
+as source names for traceability, but the standalone HTML artifacts and
+`SPEC.md` are the checked-in implementation contract.
 
-**File:** [`artifacts/issues-redesign-linear-like.html`](artifacts/issues-redesign-linear-like.html)
+```
+design-canvas.jsx                       canvas runtime
+screens/sk-tokens.jsx                   colors, type, radii, spacing
+screens/sk-primitives.jsx               Btn, Pill, Avatar, Kbd, Dot, Icon
+screens/sk-shell.jsx                    Sidebar, Topbar, Page
+screens-v2/sk-icons.jsx                 StatusIcon, PriorityIcon, Label
+screens-v3/sk-v3-row.jsx                IssueRowV3, GroupHeaderV3, TaskDot, EstimateChip, SubCountChip
+screens-v3/sk-v3-chrome.jsx             ViewTabsV3, FilterBarV3, FilterChipV3, FilterDropdownV3
+screens-v3/sk-v3-list.jsx               list states + IssueHoverV3
+screens-v3/sk-v3-kanban.jsx             KCardV3, KColV3
+screens-v3/sk-v3-detail.jsx             PropRow, Comment, TimelineEvent (issue-page variant), TaskLinkTile
+screens-rework/sk-task-shared.jsx       PhaseTracker, TimelineEvent (run-page variant), CodeBlock, KV, FileChangeRow
+screens-rework/sk-task-cockpit*.jsx     Task Cockpit (variant A) + Now panel + timeline
+screens-rework/sk-run-simplified.jsx    Run Inspector (deep-link page)
+screens-v4/sk-v4-exec-log.jsx           ExecutionLog (inline section on issue page) ← current
+screens-v4/sk-v4-issue-detail.jsx       IssueDetailWithExec (composition) ← current
+screens-v4/sk-v4-run-drawer.jsx         RunDrawer (640px slide-in) ← current
+screens-v4/sk-v4-nav-memo.jsx           Navigation rationale (Tasks/Runs not in sidebar)
+```
 
-**Approved artboards (02–06 in the rendered grid):**
+## How implementation agents should use this
 
-- `list-default-dark`, `list-default-light` — default list rows, density, status pills
-- `hover-dark`, `hover-light` — row hover, quick-action affordances
-- `filter-dark`, `filter-light` — filter dropdown anatomy
-- `empty-dark`, `empty-light` — empty state
-- `loading-dark` — skeleton/loading state
-- `shipped-dark`, `shipped-light` — shipped/archived rows
+1. **Read SPEC.md cover to cover before writing any component.** Don't pattern-match from screenshots — the spec carries the exact pixel intent.
+2. **For each PR, attach the artboard reference** (e.g. "matches A3 / detail-needs"). Reviewers check against that artboard.
+3. **When SPEC.md disagrees with the running app, the spec wins.** Open a PR against the app.
+4. **When SPEC.md disagrees with the artifact, the artifact wins.** Open a PR against this folder.
+5. **When you're unsure, do NOT invent fake data to make a layout look full.** Check `PARITY_CHECKLIST.md` § "Data gaps" to see whether the gap is a missing component (your job) or missing data (not your job).
 
-Dark mode is the implementation baseline. Light artboards are reference only
-unless the route already supports light mode in production.
+## Out of scope for this round
 
-### `/issues` — kanban view
-
-**File:** [`artifacts/issues-redesign-linear-like.html`](artifacts/issues-redesign-linear-like.html)
-
-**Approved artboard (08 in the rendered grid):**
-
-- `kanban-dark`, `kanban-light` — column layout, card density
-- `kanban-drag` — drag ghost + drop tint behaviour
-
-### `/issues/:id` — Issue Detail page
-
-**File:** [`artifacts/issues-redesign-linear-like.html`](artifacts/issues-redesign-linear-like.html) — **this file**, not the execution-log one.
-
-**Approved artboard (07 in the rendered grid) as the visual baseline:**
-
-- `detail-idle` — no task running
-- `detail-light` — task in flight, light theme
-- `detail-running` — task in flight, dark theme
-- `detail-diff` — what-changes panel
-
-The Issue Detail page **stays inside the Issues HTML's artboard 07 visual
-language**. The execution-log file's full-page issue mockups
-(`issue-running`, `issue-needs`, `issue-done`, `issue-light`) are **not** the
-baseline — see [Do not implement](#do-not-implement-as-is).
-
-### `/tasks/:id` — Task Cockpit
-
-**File:** [`artifacts/task-and-run-rework.html`](artifacts/task-and-run-rework.html)
-
-**Approved artboards:**
-
-- `cockpit-running` — running state
-- `cockpit-needs` — needs-human state
-- `cockpit-done` — completed state
-
-### `/runs/:id` — Run Detail (simplified)
-
-**File:** [`artifacts/task-and-run-rework.html`](artifacts/task-and-run-rework.html)
-
-**Approved artboards:**
-
-- `run-running`, `run-needs`, `run-done` — simplified Run Detail across states
-
-`split-closed` and `split-open` show the same layout with a side drawer
-collapsed/open; reuse only as cross-reference for the drawer (see below).
-
-### Execution-log drawer (compact)
-
-**File:** [`artifacts/issue-detail-with-execution-log.html`](artifacts/issue-detail-with-execution-log.html)
-
-**Approved artboards — drawer only:**
-
-- `drawer-activity` — Activity tab (running)
-- `drawer-done` — Activity tab (completed run)
-- `drawer-tools` — Tools tab (tool calls, expandable, copiable)
-- `drawer-files` — Files tab (diff preview)
-- `drawer-logs` — Logs tab (raw stdout/stderr)
-- `drawer-terminal` — Terminal tab (sandbox shell)
-
-Tab order is fixed: **Activity / Tools / Files / Logs / Terminal**.
-
-The drawer is a **compact overlay** on top of Issue Detail (or Task Cockpit /
-Run Detail). It is not a separate route.
-
-## Adapt — patterns to lift, not pixel-copy
-
-These are useful conventions in the artifacts that should inform implementation
-but **must be adapted** to our actual data shape and existing tokens:
-
-- **Visual baseline (typography, spacing, color tokens).** Inherit from the
-  Issues HTML's Linear-faithful pass. Where it diverges from
-  [`docs/conventions/visual-design.md`](../../conventions/visual-design.md),
-  the conventions file wins.
-- **Status pill / priority chip vocabulary** from the list artboards. Map to
-  our existing issue status enum, do not invent new statuses.
-- **Drawer entry/exit behaviour and tab anatomy** from the execution-log
-  drawer artboards. Implementation lives wherever Issue Detail / Task Cockpit
-  needs it.
-- **Run-state transitions** (running → needs human → done) from the
-  `cockpit-*` and `run-*` artboards. Use as visual reference; the actual state
-  machine is owned by `superkick-runtime`.
-
-## Do not implement as-is
-
-These are explicit non-goals. A coding agent that implements any of these is
-off-spec.
-
-- ❌ **Do not** use `artifacts/issue-detail-with-execution-log.html` as the
-  Issue Detail **page** baseline. Its `issue-running`, `issue-needs`,
-  `issue-done`, `issue-light`, `issue-drawer-running`, `issue-drawer-needs`,
-  `nav-memo`, `nav-memo-light` artboards are **reference for the drawer
-  overlay only**.
-- ❌ **Do not** replace the Issue Detail artboard 07 (the `detail-*` artboards
-  in the Issues HTML) with anything from the execution-log file.
-- ❌ **Do not** promote Tasks or Runs to top-level sidebar destinations. The
-  primary navigation remains Issue-centered.
-- ❌ **Do not** remove or demote existing Task/Run deep links outside the ticket
-  that explicitly owns navigation. Keep existing routes reachable.
-- ❌ **Do not** move the run/execution workflow out of Issue Detail.
-  Task Cockpit and Run Detail are zoom-in views; the orchestration entry point
-  stays on the issue.
-- ❌ **Do not** treat the `deps`, `reco`, `tickets` artboards in
-  `task-and-run-rework.html` (the 780×1080 narrow boards) as UI. Those are
-  design-doc panels, not screens to build.
-- ❌ **Do not** edit the archived HTML files in place. If Design ships a new
-  rev, open a new handoff branch that bumps the file and links the diff.
-
-## Follow-up tickets
-
-Implementation tickets that consume this handoff **must** link back to
-`docs/design/issue-centered-v1/README.md` (this file) in their description and
-name the specific artboards they target. Parent epic: [SUP-125].
-
-Known consumers:
-
-- [SUP-164] — `/issues` list, filters, hover, shipped, empty/loading, and kanban
-  using Issues artboards 02–06 and 08. Must not touch Issue Detail.
-- [SUP-165] — Issue Detail using Issues artboard 07, plus the compact Run drawer
-  from the execution-log artifact. Owns issue-centered execution integration.
-- [SUP-166] — `/tasks/:id` and `/runs/:id` deep-link redesign using Task Cockpit
-  and Run Detail simplified. Runs after or alongside SUP-165 depending on scope.
-
-[SUP-125]: https://linear.app/superkick/issue/SUP-125
-[SUP-164]: https://linear.app/superkick/issue/SUP-164
-[SUP-165]: https://linear.app/superkick/issue/SUP-165
-[SUP-166]: https://linear.app/superkick/issue/SUP-166
+- Inbox redesign.
+- Launch Task composer / launch flow surfaces.
+- Settings / Agents config surfaces.
+- Chat drawer, global terminal.
+- Bulk-select multi-edit on `/issues`.
+- Mobile / <1024px responsive.
+- Light theme is defined in tokens but not exhaustively designed; if a dark→light translation isn't obvious, ask before shipping.
