@@ -35,6 +35,12 @@ export interface IssueFilterState {
 	repo: string[]
 	task: string[]
 	created: string[]
+	/** Window literals: '24h' | '7d' | '30d'. Matches `updated_at`. */
+	updated: string[]
+	/** Window literals: '3d' | '7d' | '30d'. Matches `completed_at` (null is excluded). */
+	completed: string[]
+	/** `'yes' | 'no'` — backed by `children.length > 0`. */
+	has_sub_issues: string[]
 }
 
 /**
@@ -47,6 +53,18 @@ export interface IssueGroup {
 	label: string
 	tone: PillTone
 	issues: IssueWithState[]
+}
+
+/**
+ * Pre-grouped column projection consumed by the kanban so both surfaces
+ * share the same tab/filter/showDone/viewer-scoped view-model.
+ */
+export type IssueBoardColumns = {
+	open: IssueWithState[]
+	in_progress: IssueWithState[]
+	needs_human: IssueWithState[]
+	in_review: IssueWithState[]
+	done: IssueWithState[]
 }
 
 /** Tab counts surfaced next to each `IssueViewTabs` entry. */

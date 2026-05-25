@@ -14,7 +14,7 @@ import { ErrorState } from '@/components/ui/state-error'
 import { useIssues } from '@/hooks/useIssues'
 import { useIssuesView } from '@/hooks/useIssuesView'
 import { useViewer } from '@/hooks/useViewer'
-import { parseIssuesSearch, resolveSearch } from '@/lib/issues/searchParams'
+import { EMPTY_FILTERS, parseIssuesSearch, resolveSearch } from '@/lib/issues/searchParams'
 import { issuesQuery, launchQueueQuery } from '@/lib/queries'
 import { isVisualParityState } from '@/lib/visualParityState'
 import { usePageActions } from '@/shell/usePageActions'
@@ -115,6 +115,16 @@ function IssuesPage() {
 		[navigate]
 	)
 
+	const onClearFilters = useCallback(() => {
+		navigate({ search: (prev) => ({ ...prev, ...serializeFilters(EMPTY_FILTERS) }) })
+	}, [navigate])
+
+	const onBrowseAllOpen = useCallback(() => {
+		navigate({
+			search: (prev) => ({ ...prev, ...serializeFilters(EMPTY_FILTERS), tab: 'all-open' })
+		})
+	}, [navigate])
+
 	const onToggleDone = useCallback(() => {
 		const next = !resolved.showDone
 		setShowDonePref(next)
@@ -178,7 +188,10 @@ function IssuesPage() {
 					{visualLoading ? (
 						<IssueRowSkeleton rows={12} />
 					) : resolved.view === 'board' ? (
-						<IssuesKanbanView queueItems={data.queueItems} recentUnblocks={data.recentUnblocks} />
+						<IssuesKanbanView
+							boardColumns={view.boardColumns}
+							recentUnblocks={data.recentUnblocks}
+						/>
 					) : (
 						<IssuesListView
 							tab={resolved.tab}
@@ -188,6 +201,8 @@ function IssuesPage() {
 							showDone={resolved.showDone}
 							onToggleDone={onToggleDone}
 							focusedIdentifier={focused}
+							onClearFilters={onClearFilters}
+							onBrowseAllOpen={onBrowseAllOpen}
 						/>
 					)}
 
@@ -242,7 +257,10 @@ function serializeFilters(filters: IssueFilterState) {
 		project: nonEmpty(filters.project),
 		repo: nonEmpty(filters.repo),
 		task: nonEmpty(filters.task),
-		created: nonEmpty(filters.created)
+		created: nonEmpty(filters.created),
+		updated: nonEmpty(filters.updated),
+		completed: nonEmpty(filters.completed),
+		has_sub_issues: nonEmpty(filters.has_sub_issues)
 	}
 }
 

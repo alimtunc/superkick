@@ -11,6 +11,7 @@ const PROJECT_WIDTHS = ['w-16', 'w-20', 'w-12']
 export function IssueRowSkeleton({ rows = 5 }: IssueRowSkeletonProps) {
 	return (
 		<div role="status" aria-busy="true" aria-label="Loading issues" className="flex flex-col">
+			<SkeletonGroupHeader />
 			{Array.from({ length: rows }, (_, idx) => (
 				<SkeletonRow
 					key={idx}
@@ -19,6 +20,19 @@ export function IssueRowSkeleton({ rows = 5 }: IssueRowSkeletonProps) {
 					project={PROJECT_WIDTHS[idx % PROJECT_WIDTHS.length]}
 				/>
 			))}
+		</div>
+	)
+}
+
+function SkeletonGroupHeader() {
+	return (
+		<div
+			className="flex h-7 items-center gap-2 border-b border-border bg-surface px-5"
+			aria-hidden="true"
+		>
+			<Pulse className="size-2 rounded-full" />
+			<Pulse className="h-2.5 w-20 rounded-sm" />
+			<Pulse className="h-2.5 w-6 rounded-sm" />
 		</div>
 	)
 }

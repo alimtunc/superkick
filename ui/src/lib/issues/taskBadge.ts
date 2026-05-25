@@ -18,7 +18,7 @@ export const TASK_KIND_BG: Record<TaskBadgeKind, string> = {
  *  1. `needs`  — bucket = needs (run waiting on a human)
  *  2. `running` — bucket = active (run progressing)
  *  3. `review` — linked run in `reviewing` or `opening_pr`
- *  4. `shipped` — bucket = done and the issue updated within the rolling week
+ *  4. `shipped` — bucket = done and Linear `completed_at` within the rolling week
  *  5. `null` — no signal worth carrying
  *
  * Caller is expected to pass the already-classified bucket from
@@ -41,9 +41,9 @@ export function taskBadgeKindFor(
 }
 
 function shippedWithinWindow(issue: IssueWithState, now: Date): boolean {
-	const ts = issue.issue.updated_at
+	const ts = issue.issue.completed_at
 	if (!ts) return false
-	const updated = new Date(ts).getTime()
-	if (Number.isNaN(updated)) return false
-	return now.getTime() - updated <= SHIPPED_WINDOW_MS
+	const completed = new Date(ts).getTime()
+	if (Number.isNaN(completed)) return false
+	return now.getTime() - completed <= SHIPPED_WINDOW_MS
 }

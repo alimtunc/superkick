@@ -66,6 +66,11 @@ pub struct LinearIssueListItem {
     pub url: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Linear `completedAt` — set when the issue is in a `completed` (or
+    /// `canceled`) workflow state. Single source of truth for the "shipped"
+    /// window so `updated_at` cannot leak as a fake completion proxy.
+    #[serde(default)]
+    pub completed_at: Option<DateTime<Utc>>,
 }
 
 /// Minimal parent issue reference for launch context. Carries its own

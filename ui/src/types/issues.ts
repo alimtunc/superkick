@@ -100,6 +100,9 @@ export interface LinearIssueListItem {
 	url: string
 	created_at: string
 	updated_at: string
+	/** Linear `completedAt` — single source of truth for the shipped window.
+	 *  Null when the issue is not in a completed/canceled workflow state. */
+	completed_at: string | null
 }
 
 export interface IssueListResponse {

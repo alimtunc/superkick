@@ -15,6 +15,10 @@ interface IssuesListViewProps {
 	showDone: boolean
 	onToggleDone: () => void
 	focusedIdentifier: string | null
+	/** Reset URL filters; surfaces as the "Clear filters" empty-state action. */
+	onClearFilters?: () => void
+	/** Switch the tab from `mine` to `all-open` (with filters cleared). */
+	onBrowseAllOpen?: () => void
 	now?: Date
 }
 
@@ -28,6 +32,8 @@ export function IssuesListView({
 	showDone,
 	onToggleDone,
 	focusedIdentifier,
+	onClearFilters,
+	onBrowseAllOpen,
 	now
 }: IssuesListViewProps) {
 	const collapsed = useCollapsedBuckets(tab)
@@ -40,6 +46,7 @@ export function IssuesListView({
 					icon={CheckCircle2}
 					title={emptyTitle(tab)}
 					description={emptyDescription(tab)}
+					action={emptyAction(tab, { onClearFilters, onBrowseAllOpen })}
 				/>
 				{isShipped ? null : (
 					<DoneFooter count={doneCountThisWeek} revealed={showDone} onToggle={onToggleDone} />
@@ -134,6 +141,35 @@ function emptyDescription(tab: IssueViewTab): string {
 		default:
 			return 'Adjust filters or try another tab.'
 	}
+}
+
+function emptyAction(
+	tab: IssueViewTab,
+	handlers: { onClearFilters?: () => void; onBrowseAllOpen?: () => void }
+): React.ReactNode {
+	if (tab === 'mine' && handlers.onBrowseAllOpen) {
+		return (
+			<button
+				type="button"
+				onClick={handlers.onBrowseAllOpen}
+				className="inline-flex h-7 items-center rounded border border-border bg-raised px-2.5 text-[12px] font-medium text-fg hover:bg-overlay focus-visible:ring-1 focus-visible:ring-accent-soft focus-visible:outline-none"
+			>
+				Browse all open
+			</button>
+		)
+	}
+	if (tab !== 'shipped' && handlers.onClearFilters) {
+		return (
+			<button
+				type="button"
+				onClick={handlers.onClearFilters}
+				className="inline-flex h-7 items-center rounded border border-border bg-raised px-2.5 text-[12px] font-medium text-fg hover:bg-overlay focus-visible:ring-1 focus-visible:ring-accent-soft focus-visible:outline-none"
+			>
+				Clear filters
+			</button>
+		)
+	}
+	return null
 }
 
 function readCollapsed(tab: IssueViewTab): Set<string> {

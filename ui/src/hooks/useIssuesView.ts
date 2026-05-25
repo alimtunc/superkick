@@ -1,13 +1,16 @@
 import { useMemo } from 'react'
 
 import type { PillTone } from '@/components/ui/pill'
+import { issueStateFromLinear } from '@/lib/domain/issueState'
 import { taskBadgeKindFor } from '@/lib/issues/taskBadge'
 import { bucketFor } from '@/lib/lifecycle'
 import type {
+	IssueBoardColumns,
 	IssueFilterState,
 	IssueGroup,
 	IssueGroupBy,
 	IssueSort,
+	IssueState,
 	IssueTabCounts,
 	IssueViewTab,
 	IssueWithState,
@@ -27,6 +30,7 @@ interface UseIssuesViewInput {
 
 interface UseIssuesViewResult {
 	groups: IssueGroup[]
+	boardColumns: IssueBoardColumns
 	doneCountThisWeek: number
 	total: number
 	tabCounts: IssueTabCounts
@@ -34,6 +38,16 @@ interface UseIssuesViewResult {
 }
 
 const SHIPPED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+const COMPLETED_WINDOW_MS: Record<string, number> = {
+	'3d': 3 * 24 * 60 * 60 * 1000,
+	'7d': 7 * 24 * 60 * 60 * 1000,
+	'30d': 30 * 24 * 60 * 60 * 1000
+}
+const AGE_WINDOW_MS: Record<string, number> = {
+	'24h': 24 * 60 * 60 * 1000,
+	'7d': 7 * 24 * 60 * 60 * 1000,
+	'30d': 30 * 24 * 60 * 60 * 1000
+}
 
 const LIFECYCLE_ORDER: readonly LifecycleBucket[] = ['needs', 'active', 'launchable', 'open', 'done']
 
@@ -65,6 +79,10 @@ const STATUS_GROUP_ORDER = new Map(
  * Single derivation that owns: lifecycle bucketing, tab presets, filter
  * application, sort, and grouping. Pure inside `useMemo`. Empty buckets
  * are dropped — the renderer never receives a zero-count group.
+ *
+ * `boardColumns` mirrors the same filtered/sorted view-model for the
+ * kanban, so the list and the board cannot drift on tab/filter/viewer/
+ * showDone state.
  */
 export function useIssuesView(input: UseIssuesViewInput): UseIssuesViewResult {
 	const { issues, viewerId, tab, filters, sort, group, showDone, now } = input
@@ -117,8 +135,11 @@ export function useIssuesView(input: UseIssuesViewInput): UseIssuesViewResult {
 
 		const groups = buildGroups(sorted, bucketByIdentifier, group, tab, showDone, reference)
 
+		const boardColumns = groupBoardItems(sorted)
+
 		return {
 			groups,
+			boardColumns,
 			doneCountThisWeek,
 			total: filtered.length,
 			tabCounts,
@@ -128,11 +149,11 @@ export function useIssuesView(input: UseIssuesViewInput): UseIssuesViewResult {
 }
 
 function shippedWithinWindow(wrapper: IssueWithState, now: Date): boolean {
-	const ts = wrapper.issue.updated_at
+	const ts = wrapper.issue.completed_at
 	if (!ts) return false
-	const updated = new Date(ts).getTime()
-	if (Number.isNaN(updated)) return false
-	return now.getTime() - updated <= SHIPPED_WINDOW_MS
+	const completed = new Date(ts).getTime()
+	if (Number.isNaN(completed)) return false
+	return now.getTime() - completed <= SHIPPED_WINDOW_MS
 }
 
 function countShippedThisWeek(
@@ -214,28 +235,46 @@ function applyFilters(
 			const task = taskBadgeKindFor(wrapper, bucket, now)
 			if (!task || !filters.task.includes(task)) return false
 		}
-		if (filters.created.length > 0 && !createdMatches(issue.created_at, filters.created, now)) {
+		if (
+			filters.created.length > 0 &&
+			!ageMatches(issue.created_at, filters.created, now, AGE_WINDOW_MS)
+		) {
 			return false
+		}
+		if (
+			filters.updated.length > 0 &&
+			!ageMatches(issue.updated_at, filters.updated, now, AGE_WINDOW_MS)
+		) {
+			return false
+		}
+		if (filters.completed.length > 0) {
+			const ts = issue.completed_at
+			if (!ts) return false
+			if (!ageMatches(ts, filters.completed, now, COMPLETED_WINDOW_MS)) return false
+		}
+		if (filters.has_sub_issues.length > 0) {
+			const has = issue.children.length > 0
+			const allowYes = filters.has_sub_issues.includes('yes')
+			const allowNo = filters.has_sub_issues.includes('no')
+			if (has && !allowYes) return false
+			if (!has && !allowNo) return false
 		}
 		return true
 	})
 }
 
-function createdMatches(createdAt: string, windows: readonly string[], now: Date): boolean {
-	const created = new Date(createdAt).getTime()
-	if (Number.isNaN(created)) return false
-	const age = now.getTime() - created
+function ageMatches(
+	timestamp: string,
+	windows: readonly string[],
+	now: Date,
+	windowMap: Record<string, number>
+): boolean {
+	const ts = new Date(timestamp).getTime()
+	if (Number.isNaN(ts)) return false
+	const age = now.getTime() - ts
 	return windows.some((w) => {
-		switch (w) {
-			case '24h':
-				return age <= 24 * 60 * 60 * 1000
-			case '7d':
-				return age <= 7 * 24 * 60 * 60 * 1000
-			case '30d':
-				return age <= 30 * 24 * 60 * 60 * 1000
-			default:
-				return false
-		}
+		const limit = windowMap[w]
+		return limit !== undefined && age <= limit
 	})
 }
 
@@ -379,4 +418,25 @@ function keyForGroup(wrapper: IssueWithState, group: IssueGroupBy): string {
 		default:
 			return 'All'
 	}
+}
+
+function groupBoardItems(issues: readonly IssueWithState[]): IssueBoardColumns {
+	const groups: IssueBoardColumns = {
+		open: [],
+		in_progress: [],
+		needs_human: [],
+		in_review: [],
+		done: []
+	}
+	for (const wrapper of issues) {
+		groups[columnForBoard(wrapper)].push(wrapper)
+	}
+	return groups
+}
+
+function columnForBoard(wrapper: IssueWithState): IssueState {
+	const linkedState = wrapper.linkedRun?.run.state
+	if (linkedState === 'waiting_human') return 'needs_human'
+	if (linkedState === 'reviewing' || linkedState === 'opening_pr') return 'in_review'
+	return wrapper.state ?? issueStateFromLinear(wrapper.issue.status.state_type)
 }

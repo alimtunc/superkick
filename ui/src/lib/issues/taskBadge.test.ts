@@ -30,7 +30,13 @@ function makeRun(state: RunState): Run {
 	}
 }
 
-function makeIssue(overrides: { runState?: RunState; updated_at?: string } = {}): IssueWithState {
+interface IssueOverrides {
+	runState?: RunState
+	updated_at?: string
+	completed_at?: string | null
+}
+
+function makeIssue(overrides: IssueOverrides = {}): IssueWithState {
 	const issue: LinearIssueListItem = {
 		id: 'i-1',
 		identifier: 'SUP-1',
@@ -46,12 +52,14 @@ function makeIssue(overrides: { runState?: RunState; updated_at?: string } = {})
 		blocked_by: [],
 		url: 'https://l',
 		created_at: NOW.toISOString(),
-		updated_at: overrides.updated_at ?? NOW.toISOString()
+		updated_at: overrides.updated_at ?? NOW.toISOString(),
+		completed_at: overrides.completed_at ?? null
 	}
 	return {
 		issue,
 		state: 'open',
 		bucket: undefined,
+		reason: undefined,
 		linkedRun: overrides.runState
 			? {
 					kind: 'run',
@@ -86,12 +94,18 @@ describe('taskBadgeKindFor', () => {
 		expect(taskBadgeKindFor(makeIssue({ runState: 'reviewing' }), 'needs', NOW)).toBe('needs')
 	})
 
-	it('returns shipped when bucket is done and updated within a week', () => {
-		expect(taskBadgeKindFor(makeIssue({ updated_at: SIX_DAYS_AGO }), 'done', NOW)).toBe('shipped')
+	it('returns shipped when bucket is done and completed_at is within a week', () => {
+		expect(taskBadgeKindFor(makeIssue({ completed_at: SIX_DAYS_AGO }), 'done', NOW)).toBe('shipped')
 	})
 
-	it('returns null when bucket is done but updated more than a week ago', () => {
-		expect(taskBadgeKindFor(makeIssue({ updated_at: TEN_DAYS_AGO }), 'done', NOW)).toBeNull()
+	it('returns null when bucket is done but completed_at is more than a week ago', () => {
+		expect(taskBadgeKindFor(makeIssue({ completed_at: TEN_DAYS_AGO }), 'done', NOW)).toBeNull()
+	})
+
+	it('returns null when bucket is done but completed_at is missing, even with recent updated_at', () => {
+		expect(
+			taskBadgeKindFor(makeIssue({ completed_at: null, updated_at: SIX_DAYS_AGO }), 'done', NOW)
+		).toBeNull()
 	})
 
 	it('returns null for launchable / open with no run signal', () => {

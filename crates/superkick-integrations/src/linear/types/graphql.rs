@@ -44,6 +44,8 @@ pub(crate) struct GqlIssue {
     pub url: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(default)]
+    pub completed_at: Option<DateTime<Utc>>,
     pub state: GqlIssueState,
     #[serde(default)]
     pub team: Option<GqlTeamRef>,

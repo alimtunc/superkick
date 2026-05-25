@@ -63,6 +63,7 @@ fn sample_gql_issue() -> GqlIssue {
             }],
         }),
         inverse_relations: None,
+        completed_at: None,
     }
 }
 
@@ -120,9 +121,78 @@ fn list_item_serializes_to_stable_json() {
         "url",
         "created_at",
         "updated_at",
+        "completed_at",
     ] {
         assert!(json.get(key).is_some(), "missing field: {key}");
     }
+}
+
+#[test]
+fn completed_at_round_trips_when_present() {
+    let raw = r##"{
+        "data": {
+            "issues": {
+                "nodes": [{
+                    "id": "abc",
+                    "identifier": "SUP-1",
+                    "title": "Shipped issue",
+                    "url": "https://linear.app/t/SUP-1",
+                    "createdAt": "2026-01-01T00:00:00.000Z",
+                    "updatedAt": "2026-01-05T00:00:00.000Z",
+                    "completedAt": "2026-01-04T12:30:00.000Z",
+                    "state": { "type": "completed", "name": "Done", "color": "#0b0" },
+                    "priority": 2,
+                    "priorityLabel": "High",
+                    "labels": { "nodes": [] },
+                    "assignee": null,
+                    "project": null,
+                    "parent": null,
+                    "children": { "nodes": [] }
+                }],
+                "pageInfo": { "hasNextPage": false, "endCursor": null }
+            }
+        }
+    }"##;
+
+    let parsed: GqlResponse = serde_json::from_str(raw).unwrap();
+    let data = parsed.data.unwrap();
+    let item = LinearIssueListItem::from(data.issues.nodes.into_iter().next().unwrap());
+
+    let completed = item.completed_at.expect("completed_at should be hydrated");
+    assert_eq!(completed.to_rfc3339(), "2026-01-04T12:30:00+00:00");
+}
+
+#[test]
+fn completed_at_round_trips_when_null() {
+    let raw = r##"{
+        "data": {
+            "issues": {
+                "nodes": [{
+                    "id": "abc",
+                    "identifier": "SUP-1",
+                    "title": "Open issue",
+                    "url": "https://linear.app/t/SUP-1",
+                    "createdAt": "2026-01-01T00:00:00.000Z",
+                    "updatedAt": "2026-01-02T00:00:00.000Z",
+                    "completedAt": null,
+                    "state": { "type": "started", "name": "In Progress", "color": "#bbb" },
+                    "priority": 1,
+                    "priorityLabel": "Urgent",
+                    "labels": { "nodes": [] },
+                    "assignee": null,
+                    "project": null,
+                    "parent": null,
+                    "children": { "nodes": [] }
+                }],
+                "pageInfo": { "hasNextPage": false, "endCursor": null }
+            }
+        }
+    }"##;
+
+    let parsed: GqlResponse = serde_json::from_str(raw).unwrap();
+    let data = parsed.data.unwrap();
+    let item = LinearIssueListItem::from(data.issues.nodes.into_iter().next().unwrap());
+    assert!(item.completed_at.is_none());
 }
 
 #[test]

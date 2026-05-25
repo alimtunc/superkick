@@ -36,7 +36,9 @@ export function IssuePreview({ wrapper, bucket }: IssuePreviewProps) {
 
 	const lastComment = pickLastComment(detail?.comments)
 	const linkedRun = wrapper.linkedRun
-	const prUrl = detail?.linked_runs.find((r) => r.pr?.url)?.pr?.url ?? null
+	const assignee = issue.assignee
+	const subCount = issue.children.length
+	const hasMetaStrip = assignee !== null || subCount > 0
 
 	function onLaunch(event: React.MouseEvent) {
 		event.preventDefault()
@@ -81,6 +83,25 @@ export function IssuePreview({ wrapper, bucket }: IssuePreviewProps) {
 				</div>
 			) : null}
 
+			{hasMetaStrip ? (
+				<div className="flex items-center gap-3 px-4 pt-2 text-[11px] text-fg-dim">
+					{assignee ? (
+						<span className="inline-flex items-center gap-1.5">
+							<AssigneeAvatar name={assignee.name} avatarUrl={assignee.avatar_url} />
+							<span className="text-fg-muted">{assignee.name}</span>
+						</span>
+					) : null}
+					{subCount > 0 ? (
+						<span className="inline-flex items-center gap-1">
+							<Icon name="layers" size={11} />
+							<span>
+								{subCount} sub-issue{subCount === 1 ? '' : 's'}
+							</span>
+						</span>
+					) : null}
+				</div>
+			) : null}
+
 			{lastComment ? (
 				<div className="border-t border-border px-4 py-2">
 					<div className="flex items-center gap-1 text-[11px] text-fg-dim">
@@ -96,23 +117,22 @@ export function IssuePreview({ wrapper, bucket }: IssuePreviewProps) {
 				</div>
 			) : null}
 
-			{linkedRun || prUrl ? (
+			{linkedRun ? (
 				<div className="flex items-center gap-2 border-t border-border px-4 py-2">
-					{linkedRun ? (
-						<Pill
-							tone="info"
-							size="xs"
-							leading={
-								<span className="live-pulse inline-block size-1.5 rounded-full bg-info motion-reduce:animate-none" />
-							}
-						>
-							{linkedRun.run.state}
-						</Pill>
-					) : null}
-					{prUrl ? (
-						<Pill tone="accent" size="xs" leading={<Icon name="pr" size={11} />}>
-							PR
-						</Pill>
+					<Pill
+						tone="info"
+						size="xs"
+						leading={
+							<span className="live-pulse inline-block size-1.5 rounded-full bg-info motion-reduce:animate-none" />
+						}
+					>
+						run-{shortRunId(linkedRun.run.id)}
+					</Pill>
+					<span className="text-[11px] text-fg-dim">{linkedRun.run.state}</span>
+					{linkedRun.run.started_at ? (
+						<span className="text-[11px] text-fg-dim">
+							· {fmtRelativeShort(linkedRun.run.started_at)}
+						</span>
 					) : null}
 				</div>
 			) : null}
@@ -136,6 +156,29 @@ export function IssuePreview({ wrapper, bucket }: IssuePreviewProps) {
 			</div>
 		</div>
 	)
+}
+
+function AssigneeAvatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
+	if (avatarUrl) {
+		return (
+			<img
+				src={avatarUrl}
+				alt=""
+				className="size-4 rounded-full object-cover"
+				loading="lazy"
+				decoding="async"
+			/>
+		)
+	}
+	return (
+		<span className="inline-flex size-4 items-center justify-center rounded-full bg-raised text-[9px] font-medium text-fg-muted">
+			{name.slice(0, 1).toUpperCase()}
+		</span>
+	)
+}
+
+function shortRunId(id: string): string {
+	return id.slice(0, 8)
 }
 
 function pickLastComment<T extends { created_at: string }>(comments: T[] | undefined): T | null {
