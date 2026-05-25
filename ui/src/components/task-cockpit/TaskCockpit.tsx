@@ -31,6 +31,7 @@ export function TaskCockpit({ task, steps }: TaskCockpitProps) {
 		linkedRunId,
 		worktreePath,
 		branchName,
+		pr,
 		interventions
 	} = useLaunchTaskFeedState(task, steps)
 	const stream = useEventStream(linkedRunId)
@@ -89,6 +90,7 @@ export function TaskCockpit({ task, steps }: TaskCockpitProps) {
 					linkedRunId={linkedRunId}
 					worktreePath={worktreePath}
 					branchName={branchName}
+					pr={pr}
 				/>
 			</div>
 		</div>

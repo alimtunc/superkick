@@ -15,4 +15,17 @@ describe('TaskCockpitTabs', () => {
 
 		expect(onChangeTab).toHaveBeenCalledWith('files')
 	})
+
+	it('labels the summaries tab "Step summaries", not "Raw logs"', () => {
+		render(<TaskCockpitTabs steps={[]} activeTab="activity" onChangeTab={() => {}} />)
+
+		expect(screen.getByRole('tab', { name: 'Step summaries' })).toBeInTheDocument()
+		expect(screen.queryByRole('tab', { name: /raw logs/i })).not.toBeInTheDocument()
+	})
+
+	it('does not surface a Tool calls tab on Task Cockpit', () => {
+		render(<TaskCockpitTabs steps={[]} activeTab="activity" onChangeTab={() => {}} />)
+
+		expect(screen.queryByRole('tab', { name: /tool calls/i })).not.toBeInTheDocument()
+	})
 })

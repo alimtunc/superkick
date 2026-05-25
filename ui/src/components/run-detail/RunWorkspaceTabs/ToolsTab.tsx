@@ -1,43 +1,46 @@
-import { LedgerList } from '@/components/run-detail/LedgerList'
+import { ToolCallRow } from '@/components/run-detail/RunWorkspaceTabs/ToolCallRow'
 import { TabEmptyState } from '@/components/ui/state-empty-tab'
-import { categoryOf, isLedgerEvent } from '@/lib/domain'
-import { indexById } from '@/lib/utils'
-import type { AgentSession, AttentionRequest, EventKind, RunEvent } from '@/types'
+import { runToolCallsQuery } from '@/lib/queries'
+import { useQuery } from '@tanstack/react-query'
 import { Wrench } from 'lucide-react'
 
 interface ToolsTabProps {
-	events: RunEvent[]
-	sessions: AgentSession[]
-	attentionRequests: AttentionRequest[]
+	runId: string
 }
 
-function isToolEvent(kind: EventKind): boolean {
-	if (kind === 'operator_input' || kind === 'attention_replied') return false
-	if (categoryOf(kind) === 'attention') return false
-	return true
-}
+export function ToolsTab({ runId }: ToolsTabProps) {
+	const { data, isLoading, error } = useQuery(runToolCallsQuery(runId))
 
-export function ToolsTab({ events, sessions, attentionRequests }: ToolsTabProps) {
-	const sessionById = indexById(sessions)
-	const attentionById = indexById(attentionRequests)
-	const entries = events.filter(isLedgerEvent).filter((event) => isToolEvent(event.kind))
+	if (isLoading) {
+		return <TabEmptyState icon={Wrench} title="Loading tool calls…" />
+	}
 
-	if (entries.length === 0) {
+	if (error) {
+		return (
+			<TabEmptyState
+				icon={Wrench}
+				title="Tool calls unavailable"
+				description="The tool-call projection failed to load. Refresh the page to retry."
+			/>
+		)
+	}
+
+	const calls = data ?? []
+	if (calls.length === 0) {
 		return (
 			<TabEmptyState
 				icon={Wrench}
 				title="No tool calls yet"
-				description="Structured tool activity will appear here as the run progresses."
+				description="Tool calls will appear here as the run progresses."
 			/>
 		)
 	}
 
 	return (
-		<LedgerList
-			events={entries}
-			sessionById={sessionById}
-			attentionById={attentionById}
-			className="px-5 py-3 pl-7"
-		/>
+		<ul className="divide-y divide-edge">
+			{calls.map((call) => (
+				<ToolCallRow key={`${call.turn_id}:${call.call_id}`} call={call} />
+			))}
+		</ul>
 	)
 }

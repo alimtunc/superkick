@@ -39,7 +39,9 @@ const RUN_DETAIL_INVALIDATING_KINDS: ReadonlySet<RunEvent['kind']> = new Set<Run
 	'session_spawned',
 	'session_completed',
 	'session_failed',
-	'session_cancelled'
+	'session_cancelled',
+	'terminal_takeover_opened',
+	'terminal_takeover_closed'
 ])
 
 /**

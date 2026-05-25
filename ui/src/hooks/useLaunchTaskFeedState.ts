@@ -12,6 +12,7 @@ import type {
 	LaunchTask,
 	LaunchTaskIntervention,
 	LaunchTaskStep,
+	PullRequest,
 	TerminalKind
 } from '@/types'
 import { useQuery } from '@tanstack/react-query'
@@ -27,6 +28,7 @@ interface UseLaunchTaskFeedStateResult {
 	linkedRunId: string | null
 	worktreePath: string | null
 	branchName: string | null
+	pr: PullRequest | null
 	interventions: {
 		delivered: LaunchTaskIntervention[]
 		pending: LaunchTaskIntervention[]
@@ -47,6 +49,7 @@ export function useLaunchTaskFeedState(
 	const runDetail = useQuery(runDetailQuery(linkedRunId))
 	const worktreePath = runDetail.data?.run.worktree_path ?? null
 	const branchName = runDetail.data?.run.branch_name ?? null
+	const pr = runDetail.data?.pr ?? null
 
 	const finalStep = pickFinalStep(steps)
 	const finalClassification = finalStep?.failure_classification ?? null
@@ -67,6 +70,7 @@ export function useLaunchTaskFeedState(
 		linkedRunId,
 		worktreePath,
 		branchName,
+		pr,
 		interventions: {
 			delivered: rows.filter((i) => i.consumed_at != null),
 			pending: rows.filter((i) => i.consumed_at == null)

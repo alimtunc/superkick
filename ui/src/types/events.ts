@@ -31,6 +31,8 @@ export type EventKind =
 	| 'session_cancelled'
 	| 'budget_tripped'
 	| 'approval_gate_entered'
+	| 'terminal_takeover_opened'
+	| 'terminal_takeover_closed'
 
 export type EventLevel = 'debug' | 'info' | 'warn' | 'error'
 

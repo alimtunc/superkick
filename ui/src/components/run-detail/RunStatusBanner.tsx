@@ -1,21 +1,12 @@
-import { AttentionRequestPanel } from '@/components/run-detail/AttentionRequestPanel'
-import { InterruptPanel } from '@/components/run-detail/InterruptPanel'
-import { RaiseAttentionRequestForm } from '@/components/run-detail/RaiseAttentionRequestForm'
-import type { AttentionRequest, Interrupt, PullRequest, Run } from '@/types'
-import { CheckCircle2, AlertTriangle, Clock } from 'lucide-react'
+import type { PullRequest, Run } from '@/types'
+import { Link } from '@tanstack/react-router'
+import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock } from 'lucide-react'
 
 interface RunStatusBannerProps {
 	run: Run
 	pr: PullRequest | null
 	isTerminal: boolean
-	attentionRequests: AttentionRequest[]
-	interrupts: Interrupt[]
-	showInterrupts: boolean
-	onSync: () => void
-}
-
-function hasPendingAttention(requests: AttentionRequest[]): boolean {
-	return requests.some((r) => r.status === 'pending')
+	needsHuman: boolean
 }
 
 function isApprovalPaused(run: Run): boolean {
@@ -71,21 +62,7 @@ function CompletedBanner({ run, pr }: { run: Run; pr: PullRequest | null }) {
 	)
 }
 
-function NeedsHumanBanner({
-	run,
-	attentionRequests,
-	interrupts,
-	showInterrupts,
-	onSync,
-	isTerminal
-}: {
-	run: Run
-	attentionRequests: AttentionRequest[]
-	interrupts: Interrupt[]
-	showInterrupts: boolean
-	onSync: () => void
-	isTerminal: boolean
-}) {
+function NeedsHumanBanner({ run }: { run: Run }) {
 	const Icon = isBudgetPaused(run) ? Clock : AlertTriangle
 	const title = pauseTitle(run)
 	const reason = run.pause_reason ?? null
@@ -98,52 +75,27 @@ function NeedsHumanBanner({
 		>
 			<div className="flex items-start gap-3">
 				<Icon size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
-				<div className="min-w-0 flex-1 space-y-2">
+				<div className="min-w-0 flex-1">
 					<div className="text-[13px] font-medium text-fg">{title}</div>
-					{reason ? <div className="text-[12.5px] text-fg-muted">{reason}</div> : null}
-					{showInterrupts ? (
-						<InterruptPanel runId={run.id} interrupts={interrupts} onAnswered={onSync} />
-					) : null}
-					{attentionRequests.length > 0 ? (
-						<AttentionRequestPanel
-							runId={run.id}
-							requests={attentionRequests}
-							onUpdated={onSync}
-						/>
-					) : null}
-					{!isTerminal && attentionRequests.length === 0 ? (
-						<RaiseAttentionRequestForm runId={run.id} onCreated={onSync} />
-					) : null}
+					{reason ? <div className="mt-1 text-[12.5px] text-fg-muted">{reason}</div> : null}
 				</div>
+				<Link
+					to="/issues/$issueId"
+					params={{ issueId: run.issue_identifier }}
+					className="inline-flex shrink-0 items-center gap-1 rounded-md border border-warn/40 px-2.5 py-1 text-[12px] text-warn hover:bg-warn/10 focus-visible:ring-2 focus-visible:ring-warn/40 focus-visible:outline-none"
+					aria-label={`Open issue ${run.issue_identifier}`}
+				>
+					Open Task
+					<ArrowUpRight size={12} strokeWidth={1.85} aria-hidden="true" />
+				</Link>
 			</div>
 		</div>
 	)
 }
 
-export function RunStatusBanner({
-	run,
-	pr,
-	isTerminal,
-	attentionRequests,
-	interrupts,
-	showInterrupts,
-	onSync
-}: RunStatusBannerProps) {
-	const pendingAttention = hasPendingAttention(attentionRequests)
-	const needsHuman =
-		pendingAttention || isApprovalPaused(run) || isBudgetPaused(run) || run.state === 'waiting_human'
-
+export function RunStatusBanner({ run, pr, isTerminal, needsHuman }: RunStatusBannerProps) {
 	if (needsHuman) {
-		return (
-			<NeedsHumanBanner
-				run={run}
-				attentionRequests={attentionRequests}
-				interrupts={interrupts}
-				showInterrupts={showInterrupts}
-				onSync={onSync}
-				isTerminal={isTerminal}
-			/>
-		)
+		return <NeedsHumanBanner run={run} />
 	}
 
 	if (isTerminal && run.state !== 'cancelled') {

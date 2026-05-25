@@ -167,3 +167,15 @@ export interface ToolCallEntry {
 	output: unknown | null
 	is_error: boolean
 }
+
+// Pairs each `tool_use` with its `tool_result` across a run's conversations.
+export interface RunToolCall {
+	call_id: string
+	tool_name: string
+	conversation_id: string
+	turn_id: string
+	at: string
+	input: unknown
+	output: unknown | null
+	is_error: boolean
+}

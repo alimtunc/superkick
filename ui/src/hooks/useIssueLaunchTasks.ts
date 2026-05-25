@@ -5,7 +5,10 @@ import { toErrorMessage } from '@/lib/errors'
 import { launchTaskEventBroker } from '@/lib/eventBroker'
 import { queryKeys } from '@/lib/queryKeys'
 import type { LaunchTask, LaunchTaskWithSteps } from '@/types'
-import { skipToken, useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
+
+// Cap on tasks hydrated with steps; beyond this, deep-link to /tasks/$id.
+const HISTORY_CAP = 10
 
 function isTerminal(task: LaunchTask): boolean {
 	return TERMINAL_LAUNCH_TASK_STATUSES.has(task.status)
@@ -15,45 +18,21 @@ function sortByUpdatedDesc(tasks: LaunchTask[]): LaunchTask[] {
 	return tasks.toSorted((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
 }
 
-/**
- * Most-recently-updated non-terminal task. Drives the launcher / active-panel
- * toggle on Issue Detail — returns null once every task has finished so the
- * operator can launch a new one. v1 only renders a single in-flight task per
- * issue.
- */
 export function pickActiveTask(tasks: LaunchTask[]): LaunchTask | null {
 	if (tasks.length === 0) return null
 	return sortByUpdatedDesc(tasks).find((t) => !isTerminal(t)) ?? null
 }
 
-/**
- * Most relevant task to render in the feed: the active task if one exists,
- * otherwise the newest terminal one so the operator can still see what
- * happened last.
- */
-function pickDisplayTask(tasks: LaunchTask[]): LaunchTask | null {
-	if (tasks.length === 0) return null
-	const sorted = sortByUpdatedDesc(tasks)
-	return sorted.find((t) => !isTerminal(t)) ?? sorted[0]
-}
-
 interface UseIssueLaunchTasksResult {
-	/** All tasks for the issue, in the order returned by the API. */
 	tasks: LaunchTask[]
-	/** Non-terminal task driving the launcher vs panel toggle, or null. */
 	activeTask: LaunchTask | null
-	/** Task + ordered steps for the feed (history-tolerant). */
-	view: LaunchTaskWithSteps | null
+	tasksWithSteps: LaunchTaskWithSteps[]
 	loading: boolean
 	error: string | null
 }
 
-/**
- * SUP-117 / SUP-123 — single source of truth for launch-task data on an issue.
- * Subscribes to the launch-task SSE broker via cache invalidation
- * (`WorkspaceEventsProvider`), and falls back to slow polling only while SSE is
- * disconnected so the two paths never compete.
- */
+// Single source of truth for launch-task data on an issue; SSE invalidation
+// (WorkspaceEventsProvider) drives refresh, with slow polling as fallback.
 export function useIssueLaunchTasks(issueIdentifier: string): UseIssueLaunchTasksResult {
 	const sseConnected = useBrokerConnected(launchTaskEventBroker)
 
@@ -72,30 +51,32 @@ export function useIssueLaunchTasks(issueIdentifier: string): UseIssueLaunchTask
 
 	const tasks = tasksQuery.data ?? []
 	const activeTask = pickActiveTask(tasks)
-	const displayTask = pickDisplayTask(tasks)
-	const stepsTaskId = displayTask?.id ?? null
+	const recent = sortByUpdatedDesc(tasks).slice(0, HISTORY_CAP)
 
-	const stepsQuery = useQuery({
-		queryKey: queryKeys.launchTasks.steps(stepsTaskId ?? '__pending__'),
-		queryFn: stepsTaskId ? () => fetchLaunchTaskSteps(stepsTaskId) : skipToken,
-		staleTime: 5_000,
-		refetchInterval: () => {
-			if (sseConnected) return false
-			if (!displayTask || isTerminal(displayTask)) return false
-			return 30_000
-		}
+	const stepResults = useQueries({
+		queries: recent.map((task) => ({
+			queryKey: queryKeys.launchTasks.steps(task.id),
+			queryFn: () => fetchLaunchTaskSteps(task.id),
+			staleTime: 5_000,
+			refetchInterval: () => {
+				if (sseConnected) return false
+				return isTerminal(task) ? false : 30_000
+			}
+		}))
 	})
 
-	const loading = tasksQuery.isLoading || (stepsTaskId !== null && stepsQuery.isLoading)
-	const error = toErrorMessage(tasksQuery.error ?? stepsQuery.error)
+	const tasksWithSteps: LaunchTaskWithSteps[] = recent
+		.map((task, index) => {
+			const data = stepResults[index]?.data
+			if (!data) return null
+			return { task, steps: data.toSorted((a, b) => a.sequence - b.sequence) }
+		})
+		.filter((entry): entry is LaunchTaskWithSteps => entry !== null)
 
-	const view: LaunchTaskWithSteps | null =
-		displayTask && stepsQuery.data
-			? {
-					task: displayTask,
-					steps: stepsQuery.data.toSorted((a, b) => a.sequence - b.sequence)
-				}
-			: null
+	const stepsLoading = stepResults.some((q) => q.isLoading)
+	const loading = tasksQuery.isLoading || (recent.length > 0 && stepsLoading && tasksWithSteps.length === 0)
+	const error =
+		toErrorMessage(tasksQuery.error) ?? toErrorMessage(stepResults.find((q) => q.error)?.error) ?? null
 
-	return { tasks, activeTask, view, loading, error }
+	return { tasks, activeTask, tasksWithSteps, loading, error }
 }

@@ -71,6 +71,40 @@ export interface LinkedRunSummary {
 	pr?: LinkedPrSummary
 }
 
+// Mirrors `superkick_core::run_diff::FileDiffStatus` (snake_case serde).
+export type FileDiffStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'type_change' | 'untracked'
+
+// Mirrors `superkick_core::run_diff::FileDiff` (camelCase serde).
+export interface FileDiff {
+	path: string
+	status: FileDiffStatus
+	oldPath?: string | null
+	additions: number
+	deletions: number
+	binary: boolean
+	truncated: boolean
+	patch?: string | null
+}
+
+// Mirrors `superkick_core::run_diff::RunDiff`; `overflow` = file list capped.
+export interface RunDiff {
+	baseRef: string
+	headRef: string
+	files: FileDiff[]
+	fileCount: number
+	overflow: boolean
+}
+
+export interface RunDiffResponse {
+	run: {
+		id: string
+		useWorktree: boolean
+		worktreePath: string | null
+		branchName: string | null
+	}
+	diff: RunDiff
+}
+
 export interface ClassifiedRuns {
 	active: Run[]
 	completed: Run[]
