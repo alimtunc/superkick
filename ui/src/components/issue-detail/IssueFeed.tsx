@@ -3,7 +3,7 @@ import { useMemo, type ReactNode } from 'react'
 import { ActivityNode } from '@/components/issue-detail/ActivityNode'
 import { AuthorAvatar } from '@/components/issue-detail/AuthorAvatar'
 import { IssueMarkdown } from '@/components/issue-detail/IssueMarkdown'
-import { OpenRunActions } from '@/components/issue-detail/OpenRunActions'
+import { OpenRunButton } from '@/components/issue-detail/OpenRunButton'
 import { RunPrBadge } from '@/components/issue-detail/RunPrBadge'
 import { buildIssueActivity, fmtRelativeTime, runNarrative } from '@/lib/domain'
 import type {
@@ -16,7 +16,7 @@ import type {
 	NarrativeTone,
 	RunState
 } from '@/types'
-import { MessageCircle } from 'lucide-react'
+import { ChevronDown, MessageCircle } from 'lucide-react'
 
 interface FeedNode {
 	key: string
@@ -83,21 +83,21 @@ function CommentBody({ node }: { node: CommentNode }) {
 	)
 }
 
-function RunLaunchedEventBody({ runId }: { runId: string }) {
+function RunLaunchedBody({ runId }: { runId: string }) {
 	return (
 		<>
 			<span className="text-fg-muted">launched</span>
-			<OpenRunActions runId={runId} tone="accent" />
+			<OpenRunButton runId={runId} />
 		</>
 	)
 }
 
-function RunCompletedEventBody({ run }: { run: LinkedRunSummary }) {
+function RunCompletedBody({ run }: { run: LinkedRunSummary }) {
 	return (
 		<>
 			<span className="text-fg-muted">{completionPhrase(run.state)}</span>
 			{run.state === 'completed' && run.pr ? <RunPrBadge pr={run.pr} /> : null}
-			<OpenRunActions runId={run.id} tone="accent" />
+			<OpenRunButton runId={run.id} />
 		</>
 	)
 }
@@ -125,7 +125,7 @@ function buildNode(item: IssueActivityItem): FeedNode {
 				variant: 'event',
 				who: 'Run',
 				time: fmtRelativeTime(item.run.started_at),
-				body: <RunLaunchedEventBody runId={item.run.id} />
+				body: <RunLaunchedBody runId={item.run.id} />
 			}
 		case 'run_completed': {
 			const tone = runNarrative(item.run.state).tone
@@ -136,7 +136,7 @@ function buildNode(item: IssueActivityItem): FeedNode {
 				variant: 'event',
 				who: 'Run',
 				time: item.run.finished_at ? fmtRelativeTime(item.run.finished_at) : undefined,
-				body: <RunCompletedEventBody run={item.run} />
+				body: <RunCompletedBody run={item.run} />
 			}
 		}
 	}
@@ -145,20 +145,32 @@ function buildNode(item: IssueActivityItem): FeedNode {
 export function IssueFeed({ issue }: { issue: IssueDetailResponse }) {
 	const nodes = useMemo(() => {
 		const items = buildIssueActivity(issue.comments, issue.linked_runs)
-		return items.map(buildNode).toReversed()
+		const newestFirst = items.toSorted((a, b) => b.ts - a.ts)
+		return newestFirst.map(buildNode)
 	}, [issue.comments, issue.linked_runs])
 	const lastIndex = nodes.length - 1
 	const isEmpty = nodes.length === 0
 	return (
 		<section aria-label="Activity">
-			<header className="mb-3 flex items-center gap-2">
+			<header className="mb-3 flex items-center gap-1.5">
 				<MessageCircle size={13} strokeWidth={1.8} className="text-fg-dim" aria-hidden="true" />
 				<span className="text-[13px] font-semibold text-fg">Activity</span>
 				{isEmpty ? null : (
 					<>
-						<span className="font-data text-[11px] text-fg-dim">· {nodes.length}</span>
-						<span className="ml-auto text-[12px] text-fg-dim">Newest first</span>
+						<span className="font-data text-[11px] text-fg-dim" aria-hidden="true">
+							·
+						</span>
+						<span className="font-data text-[11px] text-fg-dim">{nodes.length}</span>
 					</>
+				)}
+				{isEmpty ? null : (
+					<span
+						className="ml-auto inline-flex items-center gap-0.5 text-[11.5px] text-fg-dim"
+						aria-label="Sorted newest first"
+					>
+						Newest first
+						<ChevronDown size={11} strokeWidth={1.8} aria-hidden="true" />
+					</span>
 				)}
 			</header>
 			{isEmpty ? (

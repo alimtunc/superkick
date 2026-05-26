@@ -14,8 +14,10 @@ import type {
 	IssueTabCounts,
 	IssueViewTab,
 	IssueWithState,
-	LifecycleBucket
+	LifecycleBucket,
+	StatusIconKind
 } from '@/types'
+import { statusIconKindFor } from '@/ui/StatusIcon'
 
 interface UseIssuesViewInput {
 	issues: readonly IssueWithState[]
@@ -65,6 +67,14 @@ const LIFECYCLE_TONES: Record<LifecycleBucket, PillTone> = {
 	launchable: 'accent',
 	open: 'neutral',
 	done: 'success'
+}
+
+const LIFECYCLE_TO_STATUS_KIND: Record<LifecycleBucket, StatusIconKind> = {
+	needs: 'needs',
+	active: 'progress',
+	launchable: 'todo',
+	open: 'backlog',
+	done: 'done'
 }
 
 // Linear's stock workflow labels. Custom workspace status names fall back to alphabetical.
@@ -323,27 +333,74 @@ function buildGroups(
 	if (group === 'none') {
 		return issues.length === 0
 			? []
-			: [{ key: 'all', bucket: null, label: 'All', tone: 'neutral', issues }]
+			: [
+					{
+						key: 'all',
+						bucket: null,
+						label: 'All',
+						tone: 'neutral',
+						issues,
+						statusKind: null,
+						pinned: false
+					}
+				]
 	}
 
 	if (group === 'lifecycle') {
 		return buildLifecycleGroups(issues, bucketByIdentifier, tab, showDone, now)
 	}
 
-	const grouped = new Map<string, IssueWithState[]>()
+	const remaining: IssueWithState[] = []
+	const pinnedNeeds: IssueWithState[] = []
+	const liftNeeds = tab !== 'shipped'
 	for (const wrapper of issues) {
+		if (liftNeeds && bucketByIdentifier.get(wrapper.issue.identifier) === 'needs') {
+			pinnedNeeds.push(wrapper)
+			continue
+		}
+		remaining.push(wrapper)
+	}
+
+	const grouped = new Map<string, IssueWithState[]>()
+	for (const wrapper of remaining) {
 		const key = keyForGroup(wrapper, group)
-		const bucket = grouped.get(key) ?? []
-		bucket.push(wrapper)
-		grouped.set(key, bucket)
+		const list = grouped.get(key) ?? []
+		list.push(wrapper)
+		grouped.set(key, list)
 	}
 
 	const out: IssueGroup[] = []
 	for (const [key, list] of grouped) {
-		out.push({ key, bucket: null, label: key, tone: 'neutral', issues: list })
+		out.push({
+			key,
+			bucket: null,
+			label: key,
+			tone: 'neutral',
+			issues: list,
+			statusKind: group === 'status' ? statusKindForGroup(list) : null,
+			pinned: false
+		})
 	}
 	out.sort((a, b) => compareGroupLabels(a.label, b.label, group))
+
+	if (pinnedNeeds.length > 0) {
+		out.unshift({
+			key: 'pinned-needs',
+			bucket: 'needs',
+			label: LIFECYCLE_LABELS.needs,
+			tone: LIFECYCLE_TONES.needs,
+			issues: pinnedNeeds,
+			statusKind: LIFECYCLE_TO_STATUS_KIND.needs,
+			pinned: true
+		})
+	}
 	return out
+}
+
+function statusKindForGroup(list: readonly IssueWithState[]): StatusIconKind | null {
+	const first = list[0]
+	if (!first) return null
+	return statusIconKindFor(first.issue.status)
 }
 
 function compareGroupLabels(a: string, b: string, group: IssueGroupBy): number {
@@ -379,6 +436,7 @@ function buildLifecycleGroups(
 	const out: IssueGroup[] = []
 	for (const bucket of order) {
 		const list = groupedByBucket[bucket]
+		const pinned = bucket === 'needs'
 		if (bucket === 'done' && tab !== 'shipped') {
 			if (!showDone) continue
 			const recent = list.filter((w) => shippedWithinWindow(w, now))
@@ -388,7 +446,9 @@ function buildLifecycleGroups(
 				bucket,
 				label: LIFECYCLE_LABELS[bucket],
 				tone: LIFECYCLE_TONES[bucket],
-				issues: recent
+				issues: recent,
+				statusKind: LIFECYCLE_TO_STATUS_KIND[bucket],
+				pinned
 			})
 			continue
 		}
@@ -398,7 +458,9 @@ function buildLifecycleGroups(
 			bucket,
 			label: LIFECYCLE_LABELS[bucket],
 			tone: LIFECYCLE_TONES[bucket],
-			issues: list
+			issues: list,
+			statusKind: LIFECYCLE_TO_STATUS_KIND[bucket],
+			pinned
 		})
 	}
 	return out

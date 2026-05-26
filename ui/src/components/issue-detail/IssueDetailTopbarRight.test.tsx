@@ -23,7 +23,10 @@ afterEach(() => {
 	mocks.toast.error.mockReset()
 })
 
-function renderCluster(onRefresh = vi.fn()) {
+function renderCluster({
+	onRefresh = vi.fn(),
+	isDone = false
+}: { onRefresh?: () => void; isDone?: boolean } = {}) {
 	const user = userEvent.setup()
 	const writeText = vi.fn<(value: string) => Promise<void>>()
 	Object.defineProperty(navigator, 'clipboard', {
@@ -35,7 +38,7 @@ function renderCluster(onRefresh = vi.fn()) {
 		user,
 		writeText,
 		onRefresh,
-		...render(<IssueDetailTopbarRight identifier="SUP-176" onRefresh={onRefresh} />)
+		...render(<IssueDetailTopbarRight identifier="SUP-176" isDone={isDone} onRefresh={onRefresh} />)
 	}
 }
 
@@ -71,9 +74,18 @@ describe('IssueDetailTopbarRight', () => {
 		expect(onRefresh).toHaveBeenCalledTimes(1)
 	})
 
-	it('navigates to /tasks/new with the issue identifier on Launch task', async () => {
+	it('navigates to /tasks/new with the issue identifier on Launch new run', async () => {
 		const { user } = renderCluster()
-		await user.click(screen.getByRole('button', { name: 'Launch task for SUP-176' }))
+		await user.click(screen.getByRole('button', { name: 'Launch new run for SUP-176' }))
+		expect(mocks.navigate).toHaveBeenCalledWith({
+			to: '/tasks/new',
+			search: { issue: 'SUP-176' }
+		})
+	})
+
+	it('relabels the primary action as Re-launch when the issue is done', async () => {
+		const { user } = renderCluster({ isDone: true })
+		await user.click(screen.getByRole('button', { name: 'Re-launch task for SUP-176' }))
 		expect(mocks.navigate).toHaveBeenCalledWith({
 			to: '/tasks/new',
 			search: { issue: 'SUP-176' }

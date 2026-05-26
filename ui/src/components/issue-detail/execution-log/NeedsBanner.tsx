@@ -35,16 +35,14 @@ export function NeedsBanner({ linearIssueId, taskId, linkedRunId, blocking }: Ne
 	return (
 		<section
 			aria-label="Needs your decision"
-			className="rounded-md border border-warn/40 bg-warn-soft/60 px-3.5 py-3"
+			className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md border border-warn/40 bg-warn-soft/60 px-3 py-2"
 		>
-			<div className="flex items-start gap-2.5">
-				<AlertTriangle size={14} strokeWidth={1.9} className="mt-0.5 text-warn" aria-hidden="true" />
-				<div className="min-w-0 flex-1">
-					<div className="text-[13px] font-medium text-warn">{blocking.headline}</div>
-					<div className="mt-0.5 text-[12px] text-fg-muted">{blocking.hint}</div>
-				</div>
-			</div>
-			<div className="mt-3 flex flex-wrap items-center gap-2">
+			<span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-warn">
+				<AlertTriangle size={13} strokeWidth={1.9} aria-hidden="true" />
+				{blocking.headline}
+			</span>
+			<span className="min-w-0 truncate text-[12px] text-fg-muted">{blocking.hint}</span>
+			<div className="ml-auto flex flex-wrap items-center gap-1.5">
 				<button
 					type="button"
 					onClick={() => retry.mutate()}
@@ -71,6 +69,7 @@ export function NeedsBanner({ linearIssueId, taskId, linkedRunId, blocking }: Ne
 					<MessageCircle size={12} strokeWidth={1.9} aria-hidden="true" />
 					Comment
 				</button>
+				<span className="text-[11px] text-fg-dim">Your decision is logged to the run.</span>
 			</div>
 			<ConfirmDialog
 				open={confirmReject}

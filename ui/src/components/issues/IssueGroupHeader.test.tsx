@@ -10,6 +10,8 @@ describe('IssueGroupHeader', () => {
 				label="Needs you"
 				count={3}
 				bucket="needs"
+				statusKind="needs"
+				pinned
 				collapsed={false}
 				onToggle={() => {}}
 			/>
@@ -24,13 +26,25 @@ describe('IssueGroupHeader', () => {
 				label="Active"
 				count={1}
 				bucket="active"
+				statusKind="progress"
+				pinned={false}
 				collapsed={false}
 				onToggle={() => {}}
 			/>
 		)
 		expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'true')
 
-		rerender(<IssueGroupHeader label="Active" count={1} bucket="active" collapsed onToggle={() => {}} />)
+		rerender(
+			<IssueGroupHeader
+				label="Active"
+				count={1}
+				bucket="active"
+				statusKind="progress"
+				pinned={false}
+				collapsed
+				onToggle={() => {}}
+			/>
+		)
 		expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'false')
 	})
 
@@ -42,6 +56,8 @@ describe('IssueGroupHeader', () => {
 				label="Launchable"
 				count={2}
 				bucket="launchable"
+				statusKind="todo"
+				pinned={false}
 				collapsed={false}
 				onToggle={onToggle}
 			/>
@@ -52,7 +68,15 @@ describe('IssueGroupHeader', () => {
 
 	it('uses the sticky positioning class for the row', () => {
 		render(
-			<IssueGroupHeader label="Open" count={5} bucket="open" collapsed={false} onToggle={() => {}} />
+			<IssueGroupHeader
+				label="Open"
+				count={5}
+				bucket="open"
+				statusKind="backlog"
+				pinned={false}
+				collapsed={false}
+				onToggle={() => {}}
+			/>
 		)
 		expect(screen.getByRole('button').className).toContain('sticky')
 	})

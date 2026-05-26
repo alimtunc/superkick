@@ -22,12 +22,24 @@ export function statusIconKindFromLinear(stateType: LinearStateType): StatusIcon
 	return LINEAR_STATE_TO_KIND[stateType]
 }
 
+/**
+ * Linear's stock workflow collapses "In Progress" and "In Review" into
+ * state_type='started' — the only signal that survives is the name. Promote
+ * any review-flavored status to the dedicated `review` glyph (filled disc
+ * with check), otherwise fall back to the state_type mapping.
+ */
+export function statusIconKindFor(status: { state_type: LinearStateType; name: string }): StatusIconKind {
+	const name = status.name.toLowerCase()
+	if (status.state_type === 'started' && name.includes('review')) return 'review'
+	return LINEAR_STATE_TO_KIND[status.state_type]
+}
+
 const TONE_CLASS: Record<StatusIconKind, string> = {
 	backlog: 'text-fg-dim',
 	todo: 'text-fg-muted',
 	progress: 'text-info',
 	needs: 'text-warn',
-	review: 'text-accent',
+	review: 'text-warn',
 	done: 'text-success',
 	cancelled: 'text-fg-dim'
 }
@@ -91,14 +103,10 @@ function StatusIconShape({ kind }: { kind: StatusIconKind }) {
 		case 'review':
 			return (
 				<>
-					<circle cx="8" cy="8" r="6.25" fill="currentColor" fillOpacity="0.35" />
 					<circle cx="8" cy="8" r="6.25" stroke="currentColor" strokeWidth="1.5" />
 					<path
-						d="m5 8 2 2 4-4"
-						stroke="currentColor"
-						strokeWidth="1.5"
-						strokeLinecap="round"
-						strokeLinejoin="round"
+						d="M8 1.75 A 6.25 6.25 0 0 1 14.25 8 A 6.25 6.25 0 0 1 8 14.25 L 8 8 Z"
+						fill="currentColor"
 					/>
 				</>
 			)

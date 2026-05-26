@@ -1,8 +1,11 @@
+import { Fragment, type ReactNode } from 'react'
+
 import { Pill, type PillTone } from '@/components/ui/pill'
 import { useNow } from '@/hooks/useNow'
 import { fmtElapsed } from '@/lib/domain'
 import { useRunDrawerStore } from '@/stores/runDrawer'
 import type { LaunchTaskStep, LinkedRunSummary, RunState } from '@/types'
+import { Bot, Zap } from 'lucide-react'
 
 type HeaderKind = 'running' | 'needs' | 'done'
 
@@ -35,6 +38,14 @@ function elapsedFromRun(run: LinkedRunSummary | null, now: number): string | nul
 	return fmtElapsed(run.started_at, ref || now)
 }
 
+function MetaSep() {
+	return (
+		<span className="font-data text-[11px] text-fg-dim" aria-hidden="true">
+			·
+		</span>
+	)
+}
+
 export function ExecutionLogHeader({ kind, currentStep, run }: ExecutionLogHeaderProps) {
 	const now = useNow()
 	const openDrawer = useRunDrawerStore((s) => s.openDrawer)
@@ -42,19 +53,57 @@ export function ExecutionLogHeader({ kind, currentStep, run }: ExecutionLogHeade
 	const elapsed = elapsedFromRun(run, now)
 	const agentName = currentStep?.agent_name ?? null
 	const modelLabel = currentStep?.model ?? null
-	const showAgentMeta = Boolean(agentName && modelLabel)
+	const elapsedSuffix = kind === 'done' ? 'total' : 'elapsed'
+
+	const meta: { key: string; node: ReactNode }[] = []
+	if (agentName) {
+		meta.push({
+			key: 'agent',
+			node: (
+				<span className="ml-1 inline-flex items-center gap-1.5">
+					<span
+						className="inline-flex size-4 items-center justify-center rounded-full bg-accent-soft text-accent"
+						aria-hidden="true"
+					>
+						<Bot size={10} strokeWidth={2} />
+					</span>
+					<span className="font-data text-[11.5px] text-fg-muted">{agentName}</span>
+				</span>
+			)
+		})
+	}
+	if (modelLabel) {
+		meta.push({
+			key: 'model',
+			node: <span className="font-data text-[11.5px] text-fg-muted">{modelLabel}</span>
+		})
+	}
+	if (elapsed) {
+		meta.push({
+			key: 'elapsed',
+			node: (
+				<span className="font-data text-[11px] text-fg-dim">
+					{elapsed} {elapsedSuffix}
+				</span>
+			)
+		})
+	}
 
 	return (
 		<header className="flex flex-wrap items-center gap-2">
+			<span className="inline-flex items-center gap-1 text-[12.5px] font-medium text-fg">
+				<Zap size={12} strokeWidth={2} className="text-accent" aria-hidden="true" />
+				Execution
+			</span>
 			<Pill tone={chip.tone} size="sm" dot={chip.dot} pulse={chip.pulse}>
 				{chip.label}
 			</Pill>
-			{showAgentMeta ? (
-				<span className="font-data text-[11.5px] text-fg-muted">
-					{agentName} · {modelLabel}
-				</span>
-			) : null}
-			{elapsed ? <span className="font-data text-[11px] text-fg-dim">{elapsed}</span> : null}
+			{meta.map((seg, i) => (
+				<Fragment key={seg.key}>
+					{i > 0 ? <MetaSep /> : null}
+					{seg.node}
+				</Fragment>
+			))}
 			{run ? (
 				<button
 					type="button"

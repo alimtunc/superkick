@@ -1,3 +1,23 @@
+/**
+ * Flatten a markdown body to a single line of prose for previews / hover cards.
+ * Strips headings, fenced code, list bullets, and inline emphasis / link syntax.
+ * Not a full markdown parser — only the noise patterns that show up in issue
+ * descriptions and comments.
+ */
+export function stripMarkdown(source: string): string {
+	return source
+		.replace(/```[\s\S]*?```/g, ' ')
+		.replace(/`([^`]+)`/g, '$1')
+		.replace(/^\s{0,3}#{1,6}\s+/gm, '')
+		.replace(/^\s{0,3}[-*•]\s+/gm, '')
+		.replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+		.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+		.replace(/(\*\*|__)(.+?)\1/g, '$2')
+		.replace(/(\*|_)(.+?)\1/g, '$2')
+		.replace(/\s+/g, ' ')
+		.trim()
+}
+
 export type MarkdownBlock =
 	| { type: 'heading'; level: 2 | 3; text: string }
 	| { type: 'paragraph'; text: string }
