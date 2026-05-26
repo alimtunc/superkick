@@ -1,6 +1,7 @@
 const ISSUE_ARTIFACT = '../docs/design/issue-centered-v1/artifacts/issues-redesign-linear-like.html'
 const TASK_RUN_ARTIFACT = '../docs/design/issue-centered-v1/artifacts/task-and-run-rework.html'
-const DRAWER_ARTIFACT = '../docs/design/issue-centered-v1/artifacts/issue-detail-with-execution-log.html'
+const ISSUE_DETAIL_ARTIFACT =
+	'../docs/design/issue-centered-v1/artifacts/issue-detail-with-execution-log.html'
 
 const VIEWPORT_1280_800 = { width: 1280, height: 800 }
 const VIEWPORT_1280_920 = { width: 1280, height: 920 }
@@ -96,7 +97,7 @@ export const CAPTURE_STATES = [
 		route: '/issues/SUP-169',
 		fixture: 'issue-idle',
 		viewport: VIEWPORT_1280_920,
-		mockup: { file: ISSUE_ARTIFACT, artboardId: 'detail-idle' },
+		mockup: { file: ISSUE_DETAIL_ARTIFACT, artboardId: 'detail-idle' },
 		waitForText: ISSUE_DETAIL_TITLE
 	},
 	{
@@ -105,7 +106,16 @@ export const CAPTURE_STATES = [
 		route: '/issues/SUP-169',
 		fixture: 'issue-running',
 		viewport: VIEWPORT_1280_920,
-		mockup: { file: ISSUE_ARTIFACT, artboardId: 'detail-running' },
+		mockup: { file: ISSUE_DETAIL_ARTIFACT, artboardId: 'detail-running' },
+		waitForText: ISSUE_DETAIL_TITLE
+	},
+	{
+		id: 'issue-detail-needs',
+		label: '/issues/:id needs',
+		route: '/issues/SUP-169',
+		fixture: 'issue-needs',
+		viewport: VIEWPORT_1280_920,
+		mockup: { file: ISSUE_DETAIL_ARTIFACT, artboardId: 'detail-needs' },
 		waitForText: ISSUE_DETAIL_TITLE
 	},
 	{
@@ -114,7 +124,7 @@ export const CAPTURE_STATES = [
 		route: '/issues/SUP-169',
 		fixture: 'issue-done',
 		viewport: VIEWPORT_1280_920,
-		mockup: { file: ISSUE_ARTIFACT, artboardId: 'detail-diff' },
+		mockup: { file: ISSUE_DETAIL_ARTIFACT, artboardId: 'detail-diff' },
 		waitForText: ISSUE_DETAIL_TITLE,
 		manualChecklist:
 			'The detail-diff artboard is a design-note board describing intended what-changed panel content, not a product screen. Pixel-comparing it to /issues/:id is guaranteed to mismatch. Use the captured mockup as an implementation checklist; treat the app screenshot as the current /issues/:id baseline.'
@@ -179,7 +189,7 @@ export const CAPTURE_STATES = [
 		route: '/issues/SUP-169',
 		fixture: 'issue-running',
 		viewport: VIEWPORT_DRAWER,
-		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-activity' },
+		mockup: { file: ISSUE_DETAIL_ARTIFACT, artboardId: 'drawer-activity' },
 		waitForText: ISSUE_DETAIL_TITLE,
 		actions: [{ type: 'openRunDrawer' }],
 		capture: { type: 'dialog', name: 'Run' }
@@ -190,7 +200,7 @@ export const CAPTURE_STATES = [
 		route: '/issues/SUP-169',
 		fixture: 'issue-running',
 		viewport: VIEWPORT_DRAWER,
-		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-tools' },
+		mockup: { file: ISSUE_DETAIL_ARTIFACT, artboardId: 'drawer-tools' },
 		waitForText: ISSUE_DETAIL_TITLE,
 		actions: [{ type: 'openRunDrawer' }, { type: 'clickRole', role: 'tab', name: 'Tools' }],
 		capture: { type: 'dialog', name: 'Run' }
@@ -201,7 +211,7 @@ export const CAPTURE_STATES = [
 		route: '/issues/SUP-169',
 		fixture: 'issue-running',
 		viewport: VIEWPORT_DRAWER,
-		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-files' },
+		mockup: { file: ISSUE_DETAIL_ARTIFACT, artboardId: 'drawer-files' },
 		waitForText: ISSUE_DETAIL_TITLE,
 		actions: [{ type: 'openRunDrawer' }, { type: 'clickRole', role: 'tab', name: 'Files' }],
 		capture: { type: 'dialog', name: 'Run' }
@@ -212,7 +222,7 @@ export const CAPTURE_STATES = [
 		route: '/issues/SUP-169',
 		fixture: 'issue-running',
 		viewport: VIEWPORT_DRAWER,
-		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-logs' },
+		mockup: { file: ISSUE_DETAIL_ARTIFACT, artboardId: 'drawer-logs' },
 		waitForText: ISSUE_DETAIL_TITLE,
 		actions: [{ type: 'openRunDrawer' }, { type: 'clickRole', role: 'tab', name: 'Logs' }],
 		capture: { type: 'dialog', name: 'Run' }
@@ -223,7 +233,7 @@ export const CAPTURE_STATES = [
 		route: '/issues/SUP-169',
 		fixture: 'issue-running',
 		viewport: VIEWPORT_DRAWER,
-		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-terminal' },
+		mockup: { file: ISSUE_DETAIL_ARTIFACT, artboardId: 'drawer-terminal' },
 		waitForText: ISSUE_DETAIL_TITLE,
 		actions: [{ type: 'openRunDrawer' }, { type: 'clickRole', role: 'tab', name: 'Terminal' }],
 		capture: { type: 'dialog', name: 'Run' }
@@ -234,7 +244,7 @@ export const CAPTURE_STATES = [
 		route: '/issues/SUP-169',
 		fixture: 'issue-done',
 		viewport: VIEWPORT_DRAWER,
-		mockup: { file: DRAWER_ARTIFACT, artboardId: 'drawer-done' },
+		mockup: { file: ISSUE_DETAIL_ARTIFACT, artboardId: 'drawer-done' },
 		waitForText: ISSUE_DETAIL_TITLE,
 		actions: [{ type: 'openRunDrawer' }],
 		capture: { type: 'dialog', name: 'Run' }

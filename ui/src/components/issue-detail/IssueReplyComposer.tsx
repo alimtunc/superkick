@@ -4,13 +4,15 @@ import { Icon } from '@/ui'
 import { Btn } from '@/ui/Btn'
 import { Kbd } from '@/ui/Kbd'
 
+export const ISSUE_REPLY_COMPOSER_ID = 'issue-reply-composer'
+
 const TOOLBAR_BTN =
 	'inline-flex size-6 items-center justify-center rounded-md text-fg-dim transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-fg-dim'
 
 export function IssueReplyComposer() {
 	const { viewer } = useViewer()
 	return (
-		<div className="rounded-lg border border-border bg-surface">
+		<div id={ISSUE_REPLY_COMPOSER_ID} className="rounded-lg border border-border bg-surface">
 			<div className="flex items-start gap-2.5 px-3 pt-3">
 				{viewer ? (
 					<AuthorAvatar name={viewer.name} avatarUrl={viewer.avatar_url} />

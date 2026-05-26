@@ -1,8 +1,10 @@
 import { useMemo } from 'react'
 
+import { ExecutionLog } from '@/components/issue-detail/execution-log/ExecutionLog'
 import { IssueDetailRail } from '@/components/issue-detail/IssueDetailRail'
 import { IssueDetailTopbarRight } from '@/components/issue-detail/IssueDetailTopbarRight'
 import { IssueFeed } from '@/components/issue-detail/IssueFeed'
+import { IssueIntro } from '@/components/issue-detail/IssueIntro'
 import { IssueReplyComposer } from '@/components/issue-detail/IssueReplyComposer'
 import { RunDrawer } from '@/components/issue-detail/run-drawer'
 import { Pill } from '@/components/ui/pill'
@@ -90,11 +92,11 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 		<>
 			<div className="flex h-full min-h-0 bg-canvas">
 				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-					<div className="mx-auto w-full max-w-180 px-6 py-6">
+					<div className="mx-auto flex w-full max-w-180 flex-col gap-5 px-6 py-6">
+						<IssueIntro issue={issue} />
+						<ExecutionLog issue={issue} />
 						<IssueFeed issue={issue} />
-						<div className="mt-5">
-							<IssueReplyComposer />
-						</div>
+						<IssueReplyComposer />
 					</div>
 				</div>
 				<IssueDetailRail issue={issue} />
