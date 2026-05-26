@@ -5,6 +5,8 @@ import type {
 	LaunchTask,
 	LaunchTaskStatus,
 	LaunchTaskStep,
+	LinkedRunSummary,
+	Run,
 	TerminalKind
 } from '@/types'
 
@@ -21,6 +23,8 @@ const STEP_KIND_HINT: Record<LaunchStepKind, string> = {
 
 const FALLBACK_HEADLINE = 'Launch task waiting on you'
 const FALLBACK_HINT = 'Reply in the chat to keep the task moving.'
+const RUN_WAITING_HUMAN_HEADLINE = 'Run paused — waiting on you'
+const RUN_WAITING_HUMAN_HINT = 'Open the run drawer to inspect the interrupt and unblock the agent.'
 
 function pickHeadline(kind: LaunchStepKind | null): string {
 	return kind ? `${LAUNCH_STEP_KIND_LABEL[kind]} step waiting on you` : FALLBACK_HEADLINE
@@ -30,7 +34,13 @@ function pickHint(kind: LaunchStepKind | null): string {
 	return kind ? STEP_KIND_HINT[kind] : FALLBACK_HINT
 }
 
-export function findBlockingContext(task: LaunchTask, steps: LaunchTaskStep[]): BlockingContext | null {
+type LinkedRunLike = Pick<Run, 'state'> | Pick<LinkedRunSummary, 'state'> | null | undefined
+
+export function findBlockingContext(
+	task: LaunchTask,
+	steps: LaunchTaskStep[],
+	linkedRun?: LinkedRunLike
+): BlockingContext | null {
 	const stepNeedsHuman = steps.find((s) => s.status === 'needs_human') ?? null
 	if (stepNeedsHuman) {
 		const kind = stepNeedsHuman.step_kind
@@ -63,6 +73,16 @@ export function findBlockingContext(task: LaunchTask, steps: LaunchTaskStep[]): 
 			stepKind: kind,
 			headline: pickHeadline(kind),
 			hint: task.summary?.trim() || pickHint(kind),
+			classification: null
+		}
+	}
+	// `interrupt_service::create_interrupt` can park a run in `waiting_human` without flipping any step/task.
+	if (linkedRun?.state === 'waiting_human') {
+		return {
+			step: null,
+			stepKind: null,
+			headline: RUN_WAITING_HUMAN_HEADLINE,
+			hint: RUN_WAITING_HUMAN_HINT,
 			classification: null
 		}
 	}

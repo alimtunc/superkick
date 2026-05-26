@@ -188,6 +188,35 @@ describe('ExecutionLog — state branches', () => {
 		expect(mocks.openDrawer).toHaveBeenCalledWith('run-running', 'activity')
 	})
 
+	it('needs: surfaces NeedsBanner when the linked run is in waiting_human even with no step in needs_human', () => {
+		const taskWithSteps: LaunchTaskWithSteps = {
+			task: buildTask({ status: 'running' satisfies LaunchTaskStatus }),
+			steps: [
+				buildStep({ id: 'step-plan', sequence: 1, step_kind: 'plan', status: 'completed' }),
+				buildStep({
+					id: 'step-implement',
+					sequence: 2,
+					step_kind: 'implement',
+					status: 'running',
+					linked_run_id: 'run-interrupted'
+				}),
+				buildStep({ id: 'step-review', sequence: 3, step_kind: 'review', status: 'pending' })
+			]
+		}
+		setTasks(taskWithSteps)
+		const interruptedRun: LinkedRunSummary = {
+			id: 'run-interrupted',
+			state: 'waiting_human',
+			started_at: '2026-05-26T09:30:00.000Z',
+			finished_at: null
+		}
+		render(wrap(<ExecutionLog issue={buildIssue({ linked_runs: [interruptedRun] })} />))
+
+		const banner = screen.getByRole('region', { name: /needs your decision/i })
+		expect(banner).toBeInTheDocument()
+		expect(within(banner).getByText(/run paused/i)).toBeInTheDocument()
+	})
+
 	it('needs: renders NeedsBanner with Approve / Reject / Comment, and Approve triggers retry', async () => {
 		const taskWithSteps: LaunchTaskWithSteps = {
 			task: buildTask({
