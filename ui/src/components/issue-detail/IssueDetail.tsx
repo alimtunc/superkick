@@ -75,9 +75,10 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 		[issue.identifier]
 	)
 
+	const isDone = issue.status.state_type === 'completed'
 	const right = useMemo(
-		() => <IssueDetailTopbarRight identifier={issue.identifier} onRefresh={onRefresh} />,
-		[issue.identifier, onRefresh]
+		() => <IssueDetailTopbarRight identifier={issue.identifier} isDone={isDone} onRefresh={onRefresh} />,
+		[issue.identifier, isDone, onRefresh]
 	)
 
 	usePageActions({

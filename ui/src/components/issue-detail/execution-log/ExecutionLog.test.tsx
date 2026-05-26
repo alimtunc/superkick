@@ -333,7 +333,7 @@ describe('ExecutionLog — state branches', () => {
 		expect(screen.getByText('shipped')).toBeInTheDocument()
 		expect(screen.getByText('sup-181-inline-execution-log')).toBeInTheDocument()
 
-		const toggle = screen.getByRole('button', { name: /past runs/i })
+		const toggle = screen.getByRole('button', { name: /\d+ past runs?/i })
 		expect(toggle).toHaveAttribute('aria-expanded', 'false')
 		const user = userEvent.setup()
 		await user.click(toggle)

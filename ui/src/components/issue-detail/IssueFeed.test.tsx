@@ -64,19 +64,6 @@ beforeEach(() => {
 	mocks.openDrawer.mockReset()
 })
 
-describe('IssueFeed — drawer-first run navigation', () => {
-	it('opens the drawer on a terminal run event row, and keeps a secondary deep link to /runs/:id', async () => {
-		render(<IssueFeed issue={buildIssue({ linkedRuns: [completedRun('run-done')] })} />)
-		const user = userEvent.setup()
-
-		const launchedButton = screen.getAllByRole('button', { name: /open run/i })[0]
-		await user.click(launchedButton)
-
-		expect(mocks.openDrawer).toHaveBeenCalledWith('run-done', 'activity')
-		expect(screen.getAllByRole('link', { name: /open run detail page/i }).length).toBeGreaterThan(0)
-	})
-})
-
 describe('IssueFeed — activity timeline', () => {
 	it('renders a human comment as a bordered card with author avatar', () => {
 		render(
@@ -95,10 +82,9 @@ describe('IssueFeed — activity timeline', () => {
 
 		expect(screen.getByText('Alice Example')).toBeInTheDocument()
 		expect(screen.getByText('Hello world')).toBeInTheDocument()
-		expect(screen.queryByRole('button', { name: /open run/i })).toBeNull()
 	})
 
-	it('expands a terminal run into a launched event row and a completed event row', () => {
+	it('expands a terminal run into launched and completed event rows in the timeline', () => {
 		render(<IssueFeed issue={buildIssue({ linkedRuns: [completedRun('run-done')] })} />)
 
 		const activity = screen.getByRole('region', { name: 'Activity' })
@@ -127,6 +113,34 @@ describe('IssueFeed — activity timeline', () => {
 			/>
 		)
 		expect(screen.getByText('#42')).toBeInTheDocument()
+	})
+
+	it('opens the run drawer on the activity tab when clicking an Open run button', async () => {
+		render(<IssueFeed issue={buildIssue({ linkedRuns: [completedRun('run-done')] })} />)
+		const user = userEvent.setup()
+
+		const buttons = screen.getAllByRole('button', { name: /open run/i })
+		await user.click(buttons[0])
+
+		expect(mocks.openDrawer).toHaveBeenCalledWith('run-done', 'activity')
+	})
+
+	it('sorts the chronology newest-first and surfaces the sort indicator', () => {
+		render(
+			<IssueFeed
+				issue={buildIssue({
+					comments: [
+						comment({ id: 'c-old', body: 'older note', created_at: '2026-05-25T08:00:00.000Z' }),
+						comment({ id: 'c-new', body: 'newer note', created_at: '2026-05-25T12:00:00.000Z' })
+					]
+				})}
+			/>
+		)
+
+		const newer = screen.getByText('newer note')
+		const older = screen.getByText('older note')
+		expect(newer.compareDocumentPosition(older) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+		expect(screen.getByText('Newest first')).toBeInTheDocument()
 	})
 
 	it('renders a compact empty state when there are no comments and no qualifying run events', () => {

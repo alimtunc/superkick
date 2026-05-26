@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 
 import { useIssueLaunchTasks } from '@/hooks/useIssueLaunchTasks'
 import {
-	deriveActivity,
 	derivePhases,
 	findBlockingContext,
 	isActiveRun,
@@ -62,14 +61,13 @@ export function useExecutionLogState(issue: IssueDetailResponse): UseExecutionLo
 		if (!latest) return { kind: 'idle' }
 
 		const phases = derivePhases(latest.steps)
-		const activity = deriveActivity(latest.steps)
 
 		if (blocking) {
-			return { kind: 'needs', task: latest, run: linkedRun, phases, activity, past }
+			return { kind: 'needs', task: latest, run: linkedRun, phases, past }
 		}
 
 		if (!isLatestTerminal) {
-			return { kind: 'running', task: latest, run: linkedRun, phases, activity, past }
+			return { kind: 'running', task: latest, run: linkedRun, phases, past }
 		}
 
 		const fullRun = runDetail.data?.run ?? null
@@ -90,7 +88,6 @@ export function useExecutionLogState(issue: IssueDetailResponse): UseExecutionLo
 			run: linkedRun,
 			runDetail: fullRun,
 			phases,
-			activity,
 			past,
 			worktree
 		}

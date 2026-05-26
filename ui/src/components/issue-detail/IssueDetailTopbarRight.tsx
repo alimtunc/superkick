@@ -6,10 +6,14 @@ import { Link as LinkIcon, MoreHorizontal, RefreshCw, Star, Zap } from 'lucide-r
 import { toast } from 'sonner'
 
 const GHOST =
-	'inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:text-fg-dim disabled:hover:bg-transparent disabled:hover:text-fg-dim'
+	'inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:text-fg-dim disabled:hover:bg-transparent disabled:hover:text-fg-dim'
+
+const GHOST_ICON =
+	'inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none'
 
 interface IssueDetailTopbarRightProps {
 	identifier: string
+	isDone: boolean
 	onRefresh: () => void
 }
 
@@ -20,8 +24,11 @@ function copyCurrentUrlToClipboard() {
 	)
 }
 
-export function IssueDetailTopbarRight({ identifier, onRefresh }: IssueDetailTopbarRightProps) {
+export function IssueDetailTopbarRight({ identifier, isDone, onRefresh }: IssueDetailTopbarRightProps) {
 	const navigate = useNavigate()
+	const launchLabel = isDone ? 'Re-launch' : 'Launch new run'
+	const launchAriaLabel = isDone ? `Re-launch task for ${identifier}` : `Launch new run for ${identifier}`
+	const LaunchIcon = isDone ? RefreshCw : Zap
 
 	return (
 		<>
@@ -32,19 +39,20 @@ export function IssueDetailTopbarRight({ identifier, onRefresh }: IssueDetailTop
 				title="Subscribe — coming soon"
 				className={GHOST}
 			>
-				<Star size={14} strokeWidth={1.75} aria-hidden="true" />
+				<Star size={13} strokeWidth={1.75} aria-hidden="true" />
+				Subscribe
 			</button>
 			<button
 				type="button"
 				onClick={copyCurrentUrlToClipboard}
 				aria-label="Copy link to this issue"
 				title="Copy link"
-				className={GHOST}
+				className={GHOST_ICON}
 			>
 				<LinkIcon size={14} strokeWidth={1.75} aria-hidden="true" />
 			</button>
 			<Menu.Root>
-				<Menu.Trigger aria-label="More actions" title="More" className={GHOST}>
+				<Menu.Trigger aria-label="More actions" title="More" className={GHOST_ICON}>
 					<MoreHorizontal size={14} strokeWidth={1.75} aria-hidden="true" />
 				</Menu.Trigger>
 				<MenuPopup align="end" popupClassName="min-w-44">
@@ -62,10 +70,10 @@ export function IssueDetailTopbarRight({ identifier, onRefresh }: IssueDetailTop
 				kind="primary"
 				size="sm"
 				onClick={() => navigate({ to: '/tasks/new', search: { issue: identifier } })}
-				aria-label={`Launch task for ${identifier}`}
+				aria-label={launchAriaLabel}
 			>
-				<Zap size={14} strokeWidth={1.85} aria-hidden="true" />
-				Launch task
+				<LaunchIcon size={14} strokeWidth={1.85} aria-hidden="true" />
+				{launchLabel}
 			</Btn>
 		</>
 	)

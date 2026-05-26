@@ -1,5 +1,6 @@
 import { IssuePropertiesBlock } from '@/components/issue-detail/IssuePropertiesBlock'
 import { fmtRelativeTime } from '@/lib/domain'
+import { formatShortDate } from '@/lib/format'
 import type { IssueDetailResponse } from '@/types'
 
 interface IssueDetailRailProps {
@@ -7,6 +8,7 @@ interface IssueDetailRailProps {
 }
 
 export function IssueDetailRail({ issue }: IssueDetailRailProps) {
+	const createdLabel = formatShortDate(issue.created_at)
 	return (
 		<aside
 			aria-label="Issue rail"
@@ -18,7 +20,7 @@ export function IssueDetailRail({ issue }: IssueDetailRailProps) {
 				</h2>
 				<IssuePropertiesBlock issue={issue} />
 				<div className="mt-5 border-t border-border pt-3 text-[11.5px] leading-5 text-fg-dim">
-					<div>Created {fmtRelativeTime(issue.created_at)}</div>
+					<div>Created {createdLabel}</div>
 					<div>Updated {fmtRelativeTime(issue.updated_at)}</div>
 				</div>
 			</div>

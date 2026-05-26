@@ -1,18 +1,19 @@
 import { cn } from '@/lib/utils'
 import type { Phase, PhaseStatus } from '@/types'
-import { Check, Loader2, X } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 
 interface PhaseDiscProps {
 	phase: Phase
 	label: string
+	index: number
 }
 
 const STATUS_CLASS: Record<PhaseStatus, string> = {
-	done: 'border-success/40 bg-success-soft text-success',
-	active: 'border-accent/50 bg-accent-soft text-accent',
+	done: 'border-success/50 bg-success-soft text-success',
+	active: 'border-transparent bg-accent text-white',
 	paused: 'border-warn/40 bg-warn-soft text-warn',
 	failed: 'border-danger/40 bg-danger-soft text-danger',
-	pending: 'border-border bg-surface text-fg-dim'
+	pending: 'border-border bg-transparent text-fg-dim'
 }
 
 const STATUS_LABEL: Record<PhaseStatus, string> = {
@@ -23,15 +24,15 @@ const STATUS_LABEL: Record<PhaseStatus, string> = {
 	pending: 'pending'
 }
 
-function StatusGlyph({ status }: { status: PhaseStatus }) {
-	if (status === 'done') return <Check size={11} strokeWidth={2.2} aria-hidden="true" />
-	if (status === 'failed') return <X size={11} strokeWidth={2.2} aria-hidden="true" />
+function StatusGlyph({ status, index }: { status: PhaseStatus; index: number }) {
+	if (status === 'done') return <Check size={11} strokeWidth={2.4} aria-hidden="true" />
+	if (status === 'failed') return <X size={11} strokeWidth={2.4} aria-hidden="true" />
 	if (status === 'active')
-		return <Loader2 size={11} strokeWidth={2.2} className="animate-spin" aria-hidden="true" />
-	return null
+		return <span className="block size-1.5 rounded-full bg-white" aria-hidden="true" />
+	return <span className="font-data text-[10px] leading-none">{index + 1}</span>
 }
 
-export function PhaseDisc({ phase, label }: PhaseDiscProps) {
+export function PhaseDisc({ phase, label, index }: PhaseDiscProps) {
 	return (
 		<div
 			role="group"
@@ -45,9 +46,9 @@ export function PhaseDisc({ phase, label }: PhaseDiscProps) {
 				)}
 				aria-hidden="true"
 			>
-				<StatusGlyph status={phase.status} />
+				<StatusGlyph status={phase.status} index={index} />
 			</span>
-			<span className="text-[11.5px] text-fg-muted">{label}</span>
+			<span className="text-[12px] text-fg">{label}</span>
 		</div>
 	)
 }

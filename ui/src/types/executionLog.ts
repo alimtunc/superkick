@@ -9,16 +9,6 @@ export interface Phase {
 	status: PhaseStatus
 }
 
-export type ExecRowKind = 'plan' | 'edit' | 'test' | 'ask' | 'stuck' | 'done'
-
-export interface ExecActivity {
-	id: string
-	kind: ExecRowKind
-	title: string
-	meta: string | null
-	stepIndex: number
-}
-
 export interface WorktreeFacts {
 	branch: string | null
 	worktreePath: string | null
@@ -34,7 +24,6 @@ interface ExecutionLogActiveState {
 	task: LaunchTaskWithSteps
 	run: LinkedRunSummary | null
 	phases: Phase[]
-	activity: ExecActivity[]
 	past: LaunchTaskWithSteps[]
 }
 
@@ -44,7 +33,6 @@ interface ExecutionLogDoneState {
 	run: LinkedRunSummary | null
 	runDetail: Run | null
 	phases: Phase[]
-	activity: ExecActivity[]
 	past: LaunchTaskWithSteps[]
 	worktree: WorktreeFacts | null
 }
