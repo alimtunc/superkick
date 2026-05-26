@@ -38,10 +38,19 @@ export function useExecutionLogState(issue: IssueDetailResponse): UseExecutionLo
 	const latest = tasksWithSteps.at(0) ?? null
 	const past = useMemo(() => tasksWithSteps.slice(1), [tasksWithSteps])
 
+	const linkedRun = useMemo(() => {
+		if (!latest) return null
+		const activeRun = issue.linked_runs.find(isActiveRun) ?? null
+		const linkedRunId = pickLinkedRunId(latest.steps)
+		return linkedRunId
+			? (issue.linked_runs.find((r) => r.id === linkedRunId) ?? null)
+			: (activeRun ?? pickLatestRun(issue.linked_runs))
+	}, [latest, issue.linked_runs])
+
 	const blocking = useMemo(() => {
 		if (!latest) return null
-		return findBlockingContext(latest.task, latest.steps)
-	}, [latest])
+		return findBlockingContext(latest.task, latest.steps, linkedRun)
+	}, [latest, linkedRun])
 
 	const isLatestTerminal = latest ? TERMINAL_LAUNCH_TASK_STATUSES.has(latest.task.status) : false
 	const isLatestDone = isLatestTerminal && !blocking
@@ -51,12 +60,6 @@ export function useExecutionLogState(issue: IssueDetailResponse): UseExecutionLo
 
 	const state = useMemo<ExecutionLogState>(() => {
 		if (!latest) return { kind: 'idle' }
-
-		const activeRun = issue.linked_runs.find(isActiveRun) ?? null
-		const linkedRunId = pickLinkedRunId(latest.steps)
-		const linkedRun = linkedRunId
-			? (issue.linked_runs.find((r) => r.id === linkedRunId) ?? null)
-			: (activeRun ?? pickLatestRun(issue.linked_runs))
 
 		const phases = derivePhases(latest.steps)
 		const activity = deriveActivity(latest.steps)
@@ -91,7 +94,7 @@ export function useExecutionLogState(issue: IssueDetailResponse): UseExecutionLo
 			past,
 			worktree
 		}
-	}, [latest, blocking, isLatestTerminal, issue, past, runDetail.data])
+	}, [latest, blocking, isLatestTerminal, linkedRun, past, runDetail.data])
 
 	return { state, blocking, loading }
 }

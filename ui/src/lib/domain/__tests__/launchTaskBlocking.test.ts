@@ -90,6 +90,31 @@ describe('findBlockingContext', () => {
 		expect(ctx?.classification).toBeNull()
 		expect(ctx?.headline).toBeTruthy()
 	})
+
+	it('surfaces a run-level fallback when the linked run is waiting_human and no step/task is needs_human', () => {
+		const t = task({ status: 'running' })
+		const s = [step({ status: 'running' })]
+		const ctx = findBlockingContext(t, s, { state: 'waiting_human' })
+		expect(ctx).not.toBeNull()
+		expect(ctx?.step).toBeNull()
+		expect(ctx?.stepKind).toBeNull()
+		expect(ctx?.classification).toBeNull()
+		expect(ctx?.headline).toMatch(/run paused/i)
+	})
+
+	it('still returns null when the linked run is in a non-blocking state', () => {
+		const t = task({ status: 'running' })
+		const s = [step({ status: 'running' })]
+		expect(findBlockingContext(t, s, { state: 'coding' })).toBeNull()
+	})
+
+	it('prefers the step-level blocking context over a run-level waiting_human signal', () => {
+		const t = task({ status: 'running' })
+		const s = [step({ status: 'needs_human', step_kind: 'implement', summary: 'needs review' })]
+		const ctx = findBlockingContext(t, s, { state: 'waiting_human' })
+		expect(ctx?.step).not.toBeNull()
+		expect(ctx?.headline).not.toMatch(/run paused/i)
+	})
 })
 
 describe('pickFinalStep', () => {
