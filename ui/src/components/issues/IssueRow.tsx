@@ -7,7 +7,7 @@ import { fmtRelativeShort } from '@/lib/domain/formatters'
 import { taskBadgeKindFor } from '@/lib/issues/taskBadge'
 import { cn } from '@/lib/utils'
 import type { IssueWithState, LifecycleBucket } from '@/types'
-import { Icon, PriorityIcon, priorityIconKindFromValue, StatusIcon, statusIconKindFromLinear } from '@/ui'
+import { Icon, PriorityIcon, priorityIconKindFromValue, StatusIcon, statusIconKindFor } from '@/ui'
 import { Link } from '@tanstack/react-router'
 
 interface IssueRowProps {
@@ -34,7 +34,7 @@ export function IssueRow({ wrapper, bucket, focused = false, now }: IssueRowProp
 				data-issue-row
 				data-identifier={issue.identifier}
 				className={cn(
-					'group flex h-8 items-center gap-2.5 border-b border-border pr-6 pl-5 transition-colors hover:bg-raised focus-visible:bg-raised focus-visible:outline-none',
+					'group flex h-9 items-center gap-2.5 border-b border-border pr-6 pl-5 transition-colors hover:bg-raised focus-visible:bg-raised focus-visible:outline-none',
 					focused ? 'bg-raised ring-1 ring-accent-soft ring-inset' : null
 				)}
 			>
@@ -43,7 +43,7 @@ export function IssueRow({ wrapper, bucket, focused = false, now }: IssueRowProp
 				</span>
 
 				<span className="flex w-3.5 shrink-0 items-center justify-center">
-					<StatusIcon kind={statusIconKindFromLinear(issue.status.state_type)} size={13} />
+					<StatusIcon kind={statusIconKindFor(issue.status)} size={13} />
 				</span>
 
 				<span className="font-data w-15 shrink-0 truncate text-[11px] text-fg-dim">
@@ -76,8 +76,8 @@ export function IssueRow({ wrapper, bucket, focused = false, now }: IssueRowProp
 				) : null}
 
 				{issue.project ? (
-					<span className="font-data inline-flex shrink-0 items-center gap-0.5 truncate text-[11px] text-fg-dim">
-						<Icon name="chev" size={11} />
+					<span className="font-data inline-flex shrink-0 items-center gap-1 truncate text-[11px] text-fg-dim">
+						<Icon name="folder" size={11} />
 						{issue.project.name}
 					</span>
 				) : null}

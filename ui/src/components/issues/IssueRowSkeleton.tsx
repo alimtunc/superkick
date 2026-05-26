@@ -45,7 +45,7 @@ interface SkeletonRowProps {
 
 function SkeletonRow({ title, label, project }: SkeletonRowProps) {
 	return (
-		<div className="flex h-8 items-center gap-2.5 border-b border-border pr-6 pl-5" aria-hidden="true">
+		<div className="flex h-9 items-center gap-2.5 border-b border-border pr-6 pl-5" aria-hidden="true">
 			<Pulse className="size-2.5 rounded-sm" />
 			<Pulse className="size-3 rounded-full" />
 			<Pulse className="h-2.5 w-12 rounded-sm" />

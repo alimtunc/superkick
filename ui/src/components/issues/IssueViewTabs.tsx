@@ -34,7 +34,6 @@ export function IssueViewTabs({ tab, counts, onChange }: IssueViewTabsProps) {
 								: 'border-transparent text-fg-muted hover:text-fg'
 						)}
 					>
-						{value === 'mine' ? <Icon name="star" size={12} className="text-accent" /> : null}
 						<span>{TAB_LABELS[value]}</span>
 						<span className="font-data text-[11px] text-fg-dim">{counts[value]}</span>
 					</button>
@@ -44,7 +43,7 @@ export function IssueViewTabs({ tab, counts, onChange }: IssueViewTabsProps) {
 				type="button"
 				disabled
 				title="Saved views — coming soon"
-				className="ml-1 inline-flex h-10 items-center gap-1 px-2 text-[12px] text-fg-dim opacity-60"
+				className="ml-1 inline-flex h-10 cursor-default items-center gap-1 px-2 text-[12px] text-fg-dim hover:text-fg"
 			>
 				<Icon name="plus" size={12} />
 				<span>New view</span>

@@ -64,6 +64,8 @@ export function IssuesListView({
 							label={group.label}
 							count={group.issues.length}
 							bucket={group.bucket}
+							statusKind={group.statusKind}
+							pinned={group.pinned}
 							collapsed={collapsed.has(group.key)}
 							onToggle={() => collapsed.toggle(group.key)}
 						/>

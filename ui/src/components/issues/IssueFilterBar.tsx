@@ -1,9 +1,11 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 import { IssueFilterDropdown, type FilterOptionSet } from '@/components/issues/IssueFilterDropdown'
+import { PopoverPopup } from '@/components/ui/popover-shell'
 import { cn } from '@/lib/utils'
 import type { IssueFilterState, IssueGroupBy, IssueSort, IssueViewLayout } from '@/types'
 import { Icon } from '@/ui'
+import { Popover } from '@base-ui/react/popover'
 
 interface IssueFilterBarProps {
 	filters: IssueFilterState
@@ -390,21 +392,45 @@ function SelectControl<T extends string>({
 	options: [T, string][]
 	onChange: (next: T) => void
 }) {
+	const [open, setOpen] = useState(false)
+	const current = options.find(([v]) => v === value)?.[1] ?? value
 	return (
-		<label className="inline-flex h-6.5 items-center gap-1 rounded px-1.5 text-[12px] text-fg-muted hover:text-fg">
-			<span className="text-fg-dim">{label}</span>
-			<select
-				value={value}
-				onChange={(e) => onChange(e.target.value as T)}
-				className="appearance-none bg-transparent text-[12px] font-medium text-fg outline-none"
-			>
-				{options.map(([v, optionLabel]) => (
-					<option key={v} value={v}>
-						{optionLabel}
-					</option>
-				))}
-			</select>
-		</label>
+		<Popover.Root open={open} onOpenChange={setOpen}>
+			<Popover.Trigger
+				render={(props) => (
+					<button
+						{...props}
+						type="button"
+						className="inline-flex h-6.5 items-center gap-1 rounded px-1.5 text-[12px] text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-1 focus-visible:ring-accent-soft focus-visible:outline-none"
+					>
+						<span className="text-fg-dim">{label}</span>
+						<span className="font-medium text-fg">{current}</span>
+					</button>
+				)}
+			/>
+			<PopoverPopup popupClassName="min-w-32 py-1">
+				{options.map(([v, optionLabel]) => {
+					const active = v === value
+					return (
+						<button
+							key={v}
+							type="button"
+							onClick={() => {
+								onChange(v)
+								setOpen(false)
+							}}
+							className={cn(
+								'flex h-7 w-full items-center justify-between px-2.5 text-left text-[12px] transition-colors hover:bg-overlay',
+								active ? 'text-fg' : 'text-fg-muted'
+							)}
+						>
+							<span>{optionLabel}</span>
+							{active ? <Icon name="check" size={12} className="text-accent" /> : null}
+						</button>
+					)
+				})}
+			</PopoverPopup>
+		</Popover.Root>
 	)
 }
 

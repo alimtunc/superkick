@@ -1,7 +1,7 @@
 import type { PillTone } from '@/components/ui/pill'
 
 import type { IssueWithState } from './issueWithState'
-import type { LifecycleBucket } from './lifecycle'
+import type { LifecycleBucket, StatusIconKind } from './lifecycle'
 
 /** Saved-view tab. `mine` is the default landing — the other two are pinned. */
 export type IssueViewTab = 'mine' | 'all-open' | 'shipped'
@@ -53,6 +53,11 @@ export interface IssueGroup {
 	label: string
 	tone: PillTone
 	issues: IssueWithState[]
+	/** When the group is a Linear status bucket, the matching glyph kind for the header.
+	 *  Renderer falls back to a colored dot when null (priority, project, assignee, etc.). */
+	statusKind: StatusIconKind | null
+	/** Pinned group floats to the top of the list with warn-tinted chrome. */
+	pinned: boolean
 }
 
 /**

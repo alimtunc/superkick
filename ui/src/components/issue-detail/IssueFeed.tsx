@@ -145,7 +145,7 @@ function buildNode(item: IssueActivityItem): FeedNode {
 export function IssueFeed({ issue }: { issue: IssueDetailResponse }) {
 	const nodes = useMemo(() => {
 		const items = buildIssueActivity(issue.comments, issue.linked_runs)
-		return items.map(buildNode).toReversed()
+		return items.map(buildNode)
 	}, [issue.comments, issue.linked_runs])
 	const lastIndex = nodes.length - 1
 	const isEmpty = nodes.length === 0
@@ -154,12 +154,7 @@ export function IssueFeed({ issue }: { issue: IssueDetailResponse }) {
 			<header className="mb-3 flex items-center gap-2">
 				<MessageCircle size={13} strokeWidth={1.8} className="text-fg-dim" aria-hidden="true" />
 				<span className="text-[13px] font-semibold text-fg">Activity</span>
-				{isEmpty ? null : (
-					<>
-						<span className="font-data text-[11px] text-fg-dim">· {nodes.length}</span>
-						<span className="ml-auto text-[12px] text-fg-dim">Newest first</span>
-					</>
-				)}
+				{isEmpty ? null : <span className="font-data text-[11px] text-fg-dim">· {nodes.length}</span>}
 			</header>
 			{isEmpty ? (
 				<p className="text-[12px] text-fg-dim">No activity yet.</p>
