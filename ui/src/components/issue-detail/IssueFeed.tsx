@@ -2,11 +2,10 @@ import { useMemo, type ReactNode } from 'react'
 
 import { ActivityNode } from '@/components/issue-detail/ActivityNode'
 import { AuthorAvatar } from '@/components/issue-detail/AuthorAvatar'
-import { IssueIntro } from '@/components/issue-detail/IssueIntro'
 import { IssueMarkdown } from '@/components/issue-detail/IssueMarkdown'
 import { OpenRunActions } from '@/components/issue-detail/OpenRunActions'
 import { RunPrBadge } from '@/components/issue-detail/RunPrBadge'
-import { buildIssueActivity, fmtRelativeTime, pickLatestRun, runNarrative } from '@/lib/domain'
+import { buildIssueActivity, fmtRelativeTime, runNarrative } from '@/lib/domain'
 import type {
 	ActivityNodeKind,
 	ActivityNodeRole,
@@ -17,7 +16,7 @@ import type {
 	NarrativeTone,
 	RunState
 } from '@/types'
-import { Flag, MessageCircle } from 'lucide-react'
+import { MessageCircle } from 'lucide-react'
 
 interface FeedNode {
 	key: string
@@ -103,23 +102,6 @@ function RunCompletedEventBody({ run }: { run: LinkedRunSummary }) {
 	)
 }
 
-function NeedsHumanCallout({ run }: { run: LinkedRunSummary }) {
-	return (
-		<section
-			aria-label="Needs your decision"
-			className="rounded-md border border-warn/40 bg-warn-soft/60 px-3.5 py-3"
-		>
-			<div className="flex flex-wrap items-center gap-2 text-[13px]">
-				<Flag size={13} strokeWidth={1.9} className="text-warn" aria-hidden="true" />
-				<span className="font-medium text-warn">Needs your decision</span>
-				<span className="font-data text-[11px] text-fg-dim">{fmtRelativeTime(run.started_at)}</span>
-				<span className="text-fg-muted">Run is waiting on your decision.</span>
-				<OpenRunActions runId={run.id} tone="warn" />
-			</div>
-		</section>
-	)
-}
-
 function buildNode(item: IssueActivityItem): FeedNode {
 	switch (item.kind) {
 		case 'comment': {
@@ -161,10 +143,6 @@ function buildNode(item: IssueActivityItem): FeedNode {
 }
 
 export function IssueFeed({ issue }: { issue: IssueDetailResponse }) {
-	const needsHuman = useMemo(
-		() => pickLatestRun(issue.linked_runs.filter((r) => r.state === 'waiting_human')),
-		[issue.linked_runs]
-	)
 	const nodes = useMemo(() => {
 		const items = buildIssueActivity(issue.comments, issue.linked_runs)
 		return items.map(buildNode).toReversed()
@@ -172,41 +150,37 @@ export function IssueFeed({ issue }: { issue: IssueDetailResponse }) {
 	const lastIndex = nodes.length - 1
 	const isEmpty = nodes.length === 0
 	return (
-		<div className="flex flex-col gap-5">
-			<IssueIntro issue={issue} />
-			{needsHuman ? <NeedsHumanCallout run={needsHuman} /> : null}
-			<section aria-label="Activity" className="mt-1">
-				<header className="mb-3 flex items-center gap-2">
-					<MessageCircle size={13} strokeWidth={1.8} className="text-fg-dim" aria-hidden="true" />
-					<span className="text-[13px] font-semibold text-fg">Activity</span>
-					{isEmpty ? null : (
-						<>
-							<span className="font-data text-[11px] text-fg-dim">· {nodes.length}</span>
-							<span className="ml-auto text-[12px] text-fg-dim">Newest first</span>
-						</>
-					)}
-				</header>
-				{isEmpty ? (
-					<p className="text-[12px] text-fg-dim">No activity yet.</p>
-				) : (
-					<div className="pl-1">
-						{nodes.map((node, index) => (
-							<ActivityNode
-								key={node.key}
-								kind={node.kind}
-								role={node.role}
-								variant={node.variant}
-								who={node.who}
-								time={node.time}
-								disc={node.disc}
-								connect={index < lastIndex}
-							>
-								{node.body}
-							</ActivityNode>
-						))}
-					</div>
+		<section aria-label="Activity">
+			<header className="mb-3 flex items-center gap-2">
+				<MessageCircle size={13} strokeWidth={1.8} className="text-fg-dim" aria-hidden="true" />
+				<span className="text-[13px] font-semibold text-fg">Activity</span>
+				{isEmpty ? null : (
+					<>
+						<span className="font-data text-[11px] text-fg-dim">· {nodes.length}</span>
+						<span className="ml-auto text-[12px] text-fg-dim">Newest first</span>
+					</>
 				)}
-			</section>
-		</div>
+			</header>
+			{isEmpty ? (
+				<p className="text-[12px] text-fg-dim">No activity yet.</p>
+			) : (
+				<div className="pl-1">
+					{nodes.map((node, index) => (
+						<ActivityNode
+							key={node.key}
+							kind={node.kind}
+							role={node.role}
+							variant={node.variant}
+							who={node.who}
+							time={node.time}
+							disc={node.disc}
+							connect={index < lastIndex}
+						>
+							{node.body}
+						</ActivityNode>
+					))}
+				</div>
+			)}
+		</section>
 	)
 }

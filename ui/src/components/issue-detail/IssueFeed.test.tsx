@@ -28,22 +28,6 @@ vi.mock('@tanstack/react-router', () => ({
 	}
 }))
 
-// IssueIntro / IssueMarkdown render rich pieces that need their own fixtures.
-// We stub the intro because the feed-level behaviour we care about is the
-// drawer wiring on the activity rows.
-vi.mock('@/components/issue-detail/IssueIntro', () => ({
-	IssueIntro: () => <div data-testid="issue-intro" />
-}))
-
-function needsHumanRun(id: string): LinkedRunSummary {
-	return {
-		id,
-		state: 'waiting_human',
-		started_at: '2026-05-25T10:00:00.000Z',
-		finished_at: null
-	}
-}
-
 function completedRun(id: string, pr?: LinkedPrSummary): LinkedRunSummary {
 	return {
 		id,
@@ -81,16 +65,6 @@ beforeEach(() => {
 })
 
 describe('IssueFeed — drawer-first run navigation', () => {
-	it('opens the drawer (not /runs/:id) when clicking Open run on the needs-human callout', async () => {
-		render(<IssueFeed issue={buildIssue({ linkedRuns: [needsHumanRun('run-nh')] })} />)
-		const user = userEvent.setup()
-
-		const open = screen.getByRole('button', { name: /open run/i })
-		await user.click(open)
-
-		expect(mocks.openDrawer).toHaveBeenCalledWith('run-nh', 'activity')
-	})
-
 	it('opens the drawer on a terminal run event row, and keeps a secondary deep link to /runs/:id', async () => {
 		render(<IssueFeed issue={buildIssue({ linkedRuns: [completedRun('run-done')] })} />)
 		const user = userEvent.setup()
@@ -132,16 +106,6 @@ describe('IssueFeed — activity timeline', () => {
 		expect(within(activity).getByText('completed')).toBeInTheDocument()
 	})
 
-	it('promotes the waiting-human run to a callout above the Activity header (not in the timeline)', () => {
-		render(<IssueFeed issue={buildIssue({ linkedRuns: [needsHumanRun('run-nh')] })} />)
-
-		const callout = screen.getByRole('region', { name: 'Needs your decision' })
-		expect(callout).toBeInTheDocument()
-		const activity = screen.getByRole('region', { name: 'Activity' })
-		expect(within(activity).queryByText(/needs your decision/i)).toBeNull()
-		expect(within(activity).getByText(/no activity yet/i)).toBeInTheDocument()
-	})
-
 	it('renders the PR badge inline only when the completed run has a linked PR', () => {
 		const { rerender } = render(
 			<IssueFeed issue={buildIssue({ linkedRuns: [completedRun('run-no-pr')] })} />
@@ -169,6 +133,5 @@ describe('IssueFeed — activity timeline', () => {
 		render(<IssueFeed issue={buildIssue()} />)
 
 		expect(screen.getByText(/no activity yet/i)).toBeInTheDocument()
-		expect(screen.queryByRole('region', { name: 'Needs your decision' })).toBeNull()
 	})
 })

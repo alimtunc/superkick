@@ -1,4 +1,3 @@
-import { ExecutionStatusCard } from '@/components/issue-detail/ExecutionStatusCard'
 import { IssuePropertiesBlock } from '@/components/issue-detail/IssuePropertiesBlock'
 import { fmtRelativeTime } from '@/lib/domain'
 import type { IssueDetailResponse } from '@/types'
@@ -18,9 +17,6 @@ export function IssueDetailRail({ issue }: IssueDetailRailProps) {
 					Properties
 				</h2>
 				<IssuePropertiesBlock issue={issue} />
-				<div className="mt-5">
-					<ExecutionStatusCard issue={issue} />
-				</div>
 				<div className="mt-5 border-t border-border pt-3 text-[11.5px] leading-5 text-fg-dim">
 					<div>Created {fmtRelativeTime(issue.created_at)}</div>
 					<div>Updated {fmtRelativeTime(issue.updated_at)}</div>

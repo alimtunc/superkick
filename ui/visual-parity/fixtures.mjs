@@ -224,24 +224,25 @@ function issue(overrides) {
 	}
 }
 
+function runStateOf(runState) {
+	if (runState === 'done') return 'completed'
+	if (runState === 'needs') return 'waiting_human'
+	return 'coding'
+}
+
 function detailFor(runState) {
-	const linked_runs =
-		runState === 'idle'
-			? []
-			: [
-					{
-						id: RUN_IDS[runState],
-						state:
-							runState === 'done'
-								? 'completed'
-								: runState === 'needs'
-									? 'waiting_human'
-									: 'coding',
-						started_at: '2026-05-24T13:35:00.000Z',
-						finished_at: runState === 'done' ? '2026-05-24T13:57:00.000Z' : null,
-						pr: runState === 'done' ? pullRequest(RUN_IDS.done) : undefined
-					}
-				]
+	const isLinkedRunState = runState === 'running' || runState === 'needs' || runState === 'done'
+	const linked_runs = isLinkedRunState
+		? [
+				{
+					id: RUN_IDS[runState],
+					state: runStateOf(runState),
+					started_at: '2026-05-24T13:35:00.000Z',
+					finished_at: runState === 'done' ? '2026-05-24T13:57:00.000Z' : null,
+					pr: runState === 'done' ? pullRequest(RUN_IDS.done) : undefined
+				}
+			]
+		: []
 	return {
 		...baseIssue,
 		id: DETAIL_ISSUE_ID,
@@ -654,35 +655,47 @@ function runDetail(runId) {
 	}
 }
 
+function detailStateFor(name) {
+	if (name === 'issue-idle') return 'idle'
+	if (name === 'issue-needs') return 'needs'
+	if (name === 'issue-done') return 'done'
+	return 'running'
+}
+
+const NEEDS_FIXTURE_NAMES = new Set(['task-needs', 'run-needs', 'issue-needs'])
+const DONE_FIXTURE_NAMES = new Set(['task-done', 'run-done', 'issue-done'])
+
+function taskStatusFor(name) {
+	if (NEEDS_FIXTURE_NAMES.has(name)) return 'needs_human'
+	if (DONE_FIXTURE_NAMES.has(name)) return 'completed'
+	return 'running'
+}
+
+function runIdFor(name) {
+	if (NEEDS_FIXTURE_NAMES.has(name)) return RUN_IDS.needs
+	if (DONE_FIXTURE_NAMES.has(name)) return RUN_IDS.done
+	return RUN_IDS.running
+}
+
 function fixtureFor(name) {
 	const empty = name === 'issues-empty'
-	const taskStatus =
-		name === 'task-needs' || name === 'run-needs'
-			? 'needs_human'
-			: name === 'task-done' || name === 'run-done' || name === 'issue-done'
-				? 'completed'
-				: 'running'
+	const taskStatus = taskStatusFor(name)
 	const taskId = taskIdForStatus(taskStatus)
-	const runId =
-		name === 'run-needs' || name === 'task-needs'
-			? RUN_IDS.needs
-			: name === 'run-done' || name === 'task-done' || name === 'issue-done'
-				? RUN_IDS.done
-				: RUN_IDS.running
+	const runId = runIdFor(name)
 
 	const task = name === 'issue-idle' ? null : launchTask(taskStatus, taskId)
 
 	return {
 		now: FIXED_NOW,
 		issues: empty ? [] : issueList,
-		issueDetail: detailFor(name === 'issue-idle' ? 'idle' : name === 'issue-done' ? 'done' : 'running'),
+		issueDetail: detailFor(detailStateFor(name)),
 		queue: empty
 			? { generated_at: FIXED_NOW, active_capacity: { current: 0, max: 3 }, groups: emptyGroups() }
 			: queueResponse(),
 		task,
 		taskSteps: task ? launchSteps(taskStatus, runId) : [],
 		runDetail: runDetail(runId),
-		events: runEvents(runId, name === 'run-needs' || name === 'task-needs')
+		events: runEvents(runId, NEEDS_FIXTURE_NAMES.has(name))
 	}
 }
 
