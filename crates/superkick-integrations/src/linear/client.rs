@@ -11,10 +11,12 @@ use chrono::{DateTime, Duration as ChronoDuration, Utc};
 
 use super::error::LinearError;
 use super::types::{
-    CachedComment, GqlCommentsResponse, GqlDetailResponse, GqlIssueUpdateResponse,
-    GqlRecentComment, GqlResponse, GqlSearchResponse, GqlTeamStatesResponse, GqlViewerResponse,
-    IssueDetailResponse, IssueListResponse, IssueStateMutation, LinearIssueListItem,
-    ViewerResponse,
+    CachedComment, GqlCommentCreateResponse, GqlCommentsResponse, GqlDetailResponse,
+    GqlIssueCreateResponse, GqlIssueUpdateResponse, GqlOptionsResponse, GqlRecentComment,
+    GqlResponse, GqlSearchResponse, GqlTeamStatesResponse, GqlViewerResponse, IssueComment,
+    IssueCreateInput, IssueDetailResponse, IssueListResponse, IssueStateMutation, IssueUpdateInput,
+    LinearIssueListItem, LinearOptions, ViewerResponse, WorkflowStateOption,
+    classify_graphql_errors,
 };
 
 const LINEAR_API_URL: &str = "https://api.linear.app/graphql";
@@ -135,16 +137,134 @@ const TEAM_STATES_QUERY: &str = r#"
 query TeamStates($teamId: String!) {
   team(id: $teamId) {
     states {
-      nodes { id type position }
+      nodes { id type name color position }
     }
   }
 }
 "#;
 
-const ISSUE_UPDATE_MUTATION: &str = r#"
+/// Selection set for a fully hydrated issue. Shared by both write mutations
+/// and any future query that returns a `GqlIssueDetail`.
+macro_rules! issue_detail_selection {
+    () => {
+        r#"
+      id
+      identifier
+      title
+      description
+      url
+      createdAt
+      updatedAt
+      state { type name color }
+      priority
+      priorityLabel
+      labels { nodes { name color } }
+      assignee { id name avatarUrl }
+      project { name }
+      cycle { name number }
+      estimate
+      dueDate
+      parent { id identifier title state { type name color } }
+      children {
+        nodes {
+          id identifier title updatedAt
+          state { type name color }
+          priority priorityLabel
+          labels { nodes { name color } }
+          assignee { id name avatarUrl }
+        }
+      }
+      inverseRelations {
+        nodes {
+          type
+          issue { id identifier title state { type name color } }
+        }
+      }
+      comments(first: 50, orderBy: createdAt) {
+        nodes {
+          id
+          body
+          user { id name avatarUrl }
+          createdAt
+          updatedAt
+          parent { id }
+          children { nodes {
+            id
+            body
+            user { id name avatarUrl }
+            createdAt
+            updatedAt
+          } }
+        }
+      }
+        "#
+    };
+}
+
+const ISSUE_UPDATE_STATE_ONLY_MUTATION: &str = r#"
 mutation UpdateIssueState($id: String!, $stateId: String!) {
   issueUpdate(id: $id, input: { stateId: $stateId }) {
     success
+  }
+}
+"#;
+
+const ISSUE_UPDATE_MUTATION: &str = concat!(
+    "mutation UpdateIssue($id: String!, $input: IssueUpdateInput!) {",
+    "  issueUpdate(id: $id, input: $input) {",
+    "    success",
+    "    issue {",
+    issue_detail_selection!(),
+    "    }",
+    "  }",
+    "}",
+);
+
+const ISSUE_CREATE_MUTATION: &str = concat!(
+    "mutation CreateIssue($input: IssueCreateInput!) {",
+    "  issueCreate(input: $input) {",
+    "    success",
+    "    issue {",
+    issue_detail_selection!(),
+    "    }",
+    "  }",
+    "}",
+);
+
+const COMMENT_CREATE_MUTATION: &str = r#"
+mutation CreateComment($issueId: String!, $body: String!) {
+  commentCreate(input: { issueId: $issueId, body: $body }) {
+    success
+    comment {
+      id
+      body
+      user { id name avatarUrl }
+      createdAt
+      updatedAt
+      parent { id }
+    }
+  }
+}
+"#;
+
+const LINEAR_OPTIONS_QUERY: &str = r#"
+query LinearOptions($first: Int!) {
+  teams(first: $first) {
+    nodes {
+      id
+      key
+      name
+      states { nodes { id type name color position } }
+    }
+  }
+  users(first: $first, filter: { active: { eq: true } }) {
+    nodes { id name avatarUrl }
+  }
+  projects(first: $first) {
+    nodes { id name color state }
+  }
+  issueLabels(first: $first) {
+    nodes { id name color team { id } }
   }
 }
 "#;
@@ -169,6 +289,7 @@ query GetIssue($id: String!) {
     estimate
     dueDate
     parent { id identifier title state { type name color } }
+    team { id }
     children {
       nodes {
         id identifier title updatedAt
@@ -215,6 +336,8 @@ struct TeamWorkflowStates {
 struct WorkflowState {
     id: String,
     state_type: String,
+    name: String,
+    color: String,
     /// Linear's user-defined ordering. Teams can have multiple workflow states of the
     /// same `type` (e.g. "In Progress" and "In Review" both `started`); position
     /// disambiguates so `started` resolves to the leftmost lane the user expects.
@@ -430,30 +553,23 @@ impl LinearClient {
         })
     }
 
-    /// Move an issue to the first workflow state matching `mutation`'s type
-    /// for the issue's team. Passing `team_id` skips a per-drag lookup hop.
+    /// Kanban drop path: slim state-only mutation, response discarded.
     pub async fn update_issue_state(
         &self,
         issue_id: &str,
         team_id: Option<&str>,
         mutation: IssueStateMutation,
     ) -> Result<(), LinearError> {
-        let team_id = match team_id {
-            Some(id) => id.to_string(),
-            None => self.fetch_issue_team_id(issue_id).await?,
-        };
         let state_id = self
-            .resolve_workflow_state_id(&team_id, mutation.linear_state_type())
+            .resolve_workflow_state_for_type(team_id, mutation.linear_state_type(), Some(issue_id))
             .await?;
-
         let body = serde_json::json!({
-            "query": ISSUE_UPDATE_MUTATION,
+            "query": ISSUE_UPDATE_STATE_ONLY_MUTATION,
             "variables": { "id": issue_id, "stateId": state_id }
         });
         let gql: GqlIssueUpdateResponse = self.post(&body).await?;
         if let Some(errors) = gql.errors {
-            let msgs: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
-            return Err(LinearError::Graphql(msgs.join("; ")));
+            return Err(classify_graphql_errors(&errors));
         }
         let data = gql.data.ok_or(LinearError::NoData)?;
         if !data.issue_update.success {
@@ -462,6 +578,178 @@ impl LinearClient {
             ));
         }
         Ok(())
+    }
+
+    /// Apply a full `IssueUpdateInput` to an existing issue. Returns the
+    /// hydrated detail so the API layer can respond without a follow-up `GET`.
+    pub async fn update_issue(
+        &self,
+        issue_id: &str,
+        input: IssueUpdateInput,
+    ) -> Result<IssueDetailResponse, LinearError> {
+        let body = serde_json::json!({
+            "query": ISSUE_UPDATE_MUTATION,
+            "variables": { "id": issue_id, "input": input }
+        });
+        let gql: GqlIssueUpdateResponse = self.post(&body).await?;
+        if let Some(errors) = gql.errors {
+            return Err(classify_graphql_errors(&errors));
+        }
+        let data = gql.data.ok_or(LinearError::NoData)?;
+        if !data.issue_update.success {
+            return Err(LinearError::Rejected(
+                "Linear refused the update (issueUpdate returned success=false)".into(),
+            ));
+        }
+        let issue = data
+            .issue_update
+            .issue
+            .ok_or_else(|| LinearError::InvalidResponse("issueUpdate.issue was null".into()))?;
+        Ok(IssueDetailResponse::from(issue))
+    }
+
+    /// Create a new issue from `input`. Returns the hydrated detail so the
+    /// API layer can respond with `201 Created + body` and the UI can prime
+    /// its cache without a follow-up `GET`.
+    pub async fn create_issue(
+        &self,
+        input: IssueCreateInput,
+    ) -> Result<IssueDetailResponse, LinearError> {
+        let body = serde_json::json!({
+            "query": ISSUE_CREATE_MUTATION,
+            "variables": { "input": input }
+        });
+        let gql: GqlIssueCreateResponse = self.post(&body).await?;
+        if let Some(errors) = gql.errors {
+            return Err(classify_graphql_errors(&errors));
+        }
+        let data = gql.data.ok_or(LinearError::NoData)?;
+        if !data.issue_create.success {
+            return Err(LinearError::Rejected(
+                "Linear refused the create (issueCreate returned success=false)".into(),
+            ));
+        }
+        let issue = data
+            .issue_create
+            .issue
+            .ok_or_else(|| LinearError::InvalidResponse("issueCreate.issue was null".into()))?;
+        Ok(IssueDetailResponse::from(issue))
+    }
+
+    /// Post a top-level comment on `issue_id`. Returns the persisted comment
+    /// in the same shape `IssueDetailResponse.comments` carries.
+    pub async fn create_comment(
+        &self,
+        issue_id: &str,
+        body: &str,
+    ) -> Result<IssueComment, LinearError> {
+        let payload = serde_json::json!({
+            "query": COMMENT_CREATE_MUTATION,
+            "variables": { "issueId": issue_id, "body": body }
+        });
+        let gql: GqlCommentCreateResponse = self.post(&payload).await?;
+        if let Some(errors) = gql.errors {
+            return Err(classify_graphql_errors(&errors));
+        }
+        let data = gql.data.ok_or(LinearError::NoData)?;
+        if !data.comment_create.success {
+            return Err(LinearError::Rejected(
+                "Linear refused the comment (commentCreate returned success=false)".into(),
+            ));
+        }
+        let comment = data
+            .comment_create
+            .comment
+            .ok_or_else(|| LinearError::InvalidResponse("commentCreate.comment was null".into()))?;
+        Ok(IssueComment::from(comment))
+    }
+
+    /// Fetch the picker metadata for the workspace in a single round-trip:
+    /// teams (with their workflow states), active users, projects, and
+    /// labels. Capped at 250 per resource — the UI surfaces a truncated
+    /// flag when the cap is reached and switches to server-side search.
+    pub async fn list_options(&self) -> Result<LinearOptions, LinearError> {
+        let body = serde_json::json!({
+            "query": LINEAR_OPTIONS_QUERY,
+            "variables": { "first": 250 }
+        });
+        let gql: GqlOptionsResponse = self.post(&body).await?;
+        if let Some(errors) = gql.errors {
+            return Err(classify_graphql_errors(&errors));
+        }
+        let data = gql.data.ok_or(LinearError::NoData)?;
+        // Warm the workflow-state cache from the same payload so a follow-up
+        // `update_issue_state` for any returned team skips the team-states
+        // round-trip.
+        for team in &data.teams.nodes {
+            let states: Vec<WorkflowState> = team
+                .states
+                .nodes
+                .iter()
+                .map(|s| WorkflowState {
+                    id: s.id.clone(),
+                    state_type: s.state_type.clone(),
+                    name: s.name.clone(),
+                    color: s.color.clone(),
+                    position: s.position,
+                })
+                .collect();
+            self.put_team_states(team.id.clone(), states);
+        }
+        Ok(LinearOptions::from(data))
+    }
+
+    /// Resolve the workflow-state UUID for `target_type` on the supplied
+    /// team. When `team_id` is `None`, looks it up from `issue_id` (the
+    /// kanban code path that came in with the URL `:id` but no body
+    /// `team_id`).
+    pub async fn resolve_workflow_state_for_type(
+        &self,
+        team_id: Option<&str>,
+        target_type: &str,
+        issue_id_for_lookup: Option<&str>,
+    ) -> Result<String, LinearError> {
+        let team_id = match team_id {
+            Some(id) => id.to_string(),
+            None => {
+                let issue_id = issue_id_for_lookup.ok_or_else(|| {
+                    LinearError::Rejected(
+                        "team_id is required to resolve a workflow state without an issue_id"
+                            .into(),
+                    )
+                })?;
+                self.fetch_issue_team_id(issue_id).await?
+            }
+        };
+        self.resolve_workflow_state_id(&team_id, target_type).await
+    }
+
+    /// Read the workflow states for `team_id`, returning the picker-ready
+    /// option shape (name + color + position + type). Warm-reads the cache,
+    /// fetches on miss. Used by handlers that need to translate a
+    /// workflow-state lane the UI selected by id back into a display label.
+    pub async fn list_workflow_states_for_team(
+        &self,
+        team_id: &str,
+    ) -> Result<Vec<WorkflowStateOption>, LinearError> {
+        let states = match self.cached_team_states(team_id) {
+            Some(states) => states,
+            None => {
+                let fetched = self.fetch_team_states(team_id).await?;
+                self.put_team_states(team_id.to_string(), fetched.clone());
+                fetched
+            }
+        };
+        Ok(states
+            .into_iter()
+            .map(|s| WorkflowStateOption {
+                id: s.id,
+                name: s.name,
+                state_type: s.state_type,
+                color: s.color,
+                position: s.position,
+            })
+            .collect())
     }
 
     async fn fetch_issue_team_id(&self, issue_id: &str) -> Result<String, LinearError> {
@@ -547,6 +835,8 @@ impl LinearClient {
             .map(|s| WorkflowState {
                 id: s.id,
                 state_type: s.state_type,
+                name: s.name,
+                color: s.color,
                 position: s.position,
             })
             .collect())
@@ -617,6 +907,8 @@ mod tests {
         WorkflowState {
             id: id.to_string(),
             state_type: ty.to_string(),
+            name: String::new(),
+            color: String::new(),
             position,
         }
     }

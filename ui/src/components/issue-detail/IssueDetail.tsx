@@ -97,7 +97,7 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 						<IssueIntro issue={issue} />
 						<ExecutionLog issue={issue} />
 						<IssueFeed issue={issue} />
-						<IssueReplyComposer />
+						<IssueReplyComposer issueId={issue.id} />
 					</div>
 				</div>
 				<IssueDetailRail issue={issue} />

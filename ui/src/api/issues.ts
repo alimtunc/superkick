@@ -1,6 +1,13 @@
-import type { IssueDetailResponse, IssueListResponse, IssueStateMutable } from '@/types'
+import type {
+	IssueComment,
+	IssueCreateRequest,
+	IssueDetailResponse,
+	IssueListResponse,
+	IssueStateMutable,
+	IssueUpdateRequest
+} from '@/types'
 
-import { BASE, throwGenericApiError } from './_shared'
+import { BASE, throwGenericApiError, throwLinearError } from './_shared'
 
 export async function fetchIssues(limit = 200): Promise<IssueListResponse> {
 	const res = await fetch(`${BASE}/issues?limit=${limit}`)
@@ -26,4 +33,36 @@ export async function patchIssueState(
 		body: JSON.stringify({ state, team_id: teamId })
 	})
 	if (!res.ok) await throwGenericApiError(res, `PATCH /issues/${id} failed`)
+}
+
+/** Create a Linear issue. Returns the fully hydrated detail so the caller can navigate without a follow-up GET. */
+export async function createIssue(body: IssueCreateRequest): Promise<IssueDetailResponse> {
+	const res = await fetch(`${BASE}/issues`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(body)
+	})
+	if (!res.ok) await throwLinearError(res, 'POST /issues failed')
+	return res.json()
+}
+
+/** `undefined` = no change (dropped by JSON.stringify), `null` = clear on Linear; response is the hydrated detail. */
+export async function patchIssue(id: string, patch: IssueUpdateRequest): Promise<IssueDetailResponse> {
+	const res = await fetch(`${BASE}/issues/${id}`, {
+		method: 'PATCH',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(patch)
+	})
+	if (!res.ok) await throwLinearError(res, `PATCH /issues/${id} failed`)
+	return res.json()
+}
+
+export async function createIssueComment(issueId: string, body: string): Promise<IssueComment> {
+	const res = await fetch(`${BASE}/issues/${issueId}/comments`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ body })
+	})
+	if (!res.ok) await throwLinearError(res, `POST /issues/${issueId}/comments failed`)
+	return res.json()
 }

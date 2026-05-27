@@ -10,8 +10,10 @@ pub(crate) mod graphql;
 
 pub use contract::*;
 pub(crate) use graphql::{
-    GqlCommentsResponse, GqlDetailResponse, GqlIssueTeamResponse, GqlIssueUpdateResponse,
-    GqlRecentComment, GqlResponse, GqlSearchResponse, GqlTeamStatesResponse, GqlViewerResponse,
+    GqlCommentCreateResponse, GqlCommentsResponse, GqlDetailResponse, GqlIssueCreateResponse,
+    GqlIssueTeamResponse, GqlIssueUpdateResponse, GqlOptionsResponse, GqlRecentComment,
+    GqlResponse, GqlSearchResponse, GqlTeamStatesResponse, GqlViewerResponse,
+    classify_graphql_errors,
 };
 
 #[cfg(test)]

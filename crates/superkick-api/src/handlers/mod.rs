@@ -9,6 +9,7 @@ pub mod issue_context;
 pub mod issues;
 pub mod launch_queue;
 pub mod launch_tasks;
+pub mod linear_options;
 pub mod me;
 pub mod orchestrator_sessions;
 pub mod ownership;

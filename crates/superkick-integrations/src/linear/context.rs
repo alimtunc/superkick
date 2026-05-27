@@ -109,6 +109,7 @@ mod tests {
             parent: None,
             children: vec![],
             blocked_by: vec![],
+            team_id: None,
             comments,
             linked_runs: vec![],
         }
