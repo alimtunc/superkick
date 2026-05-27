@@ -9,6 +9,7 @@ import { IssuesKanbanView } from '@/components/issues/IssuesKanbanView'
 import { IssuesListView } from '@/components/issues/IssuesListView'
 import { IssuesTopbarActions } from '@/components/issues/IssuesTopbarActions'
 import { IssueViewTabs } from '@/components/issues/IssueViewTabs'
+import { NewIssueDialog } from '@/components/issues/NewIssueDialog'
 import { Pill } from '@/components/ui/pill'
 import { ErrorState } from '@/components/ui/state-error'
 import { useIssues } from '@/hooks/useIssues'
@@ -71,7 +72,17 @@ function IssuesPage() {
 
 	const [dropdownOpen, setDropdownOpen] = useState(false)
 	const [focused, setFocused] = useState<string | null>(null)
+	const [newDialogOpen, setNewDialogOpen] = useState(false)
 	const visualLoading = isVisualParityState('issues-list-loading')
+
+	const defaultTeamId = useMemo(() => {
+		const ordered = data.issues.toSorted(
+			(a, b) => Date.parse(b.issue.updated_at) - Date.parse(a.issue.updated_at)
+		)
+		return ordered.find((wrapper) => wrapper.issue.team_id)?.issue.team_id ?? null
+	}, [data.issues])
+
+	const onNewIssue = useCallback(() => setNewDialogOpen(true), [])
 
 	const visibleIdentifiers = useMemo(
 		() => view.groups.flatMap((g) => g.issues.map((w) => w.issue.identifier)),
@@ -147,7 +158,10 @@ function IssuesPage() {
 			),
 			[view.total]
 		),
-		right: useMemo(() => <IssuesTopbarActions onSearch={openCommandBar} />, [openCommandBar])
+		right: useMemo(
+			() => <IssuesTopbarActions onSearch={openCommandBar} onNew={onNewIssue} />,
+			[openCommandBar, onNewIssue]
+		)
 	})
 
 	return (
@@ -214,6 +228,11 @@ function IssuesPage() {
 					/>
 				</>
 			) : null}
+			<NewIssueDialog
+				open={newDialogOpen}
+				onOpenChange={setNewDialogOpen}
+				defaultTeamId={defaultTeamId}
+			/>
 		</div>
 	)
 }

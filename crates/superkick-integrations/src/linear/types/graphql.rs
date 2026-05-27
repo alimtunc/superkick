@@ -238,6 +238,8 @@ pub(crate) struct GqlIssueDetail {
     pub due_date: Option<String>,
     pub parent: Option<GqlIssueRef>,
     #[serde(default)]
+    pub team: Option<GqlTeamRef>,
+    #[serde(default)]
     pub children: Option<GqlChildConnection>,
     #[serde(default)]
     pub inverse_relations: Option<GqlInverseRelationConnection>,

@@ -1,3 +1,4 @@
+import { linearErrorMessage } from '@/lib/linearErrorMessage'
 import type { SseHandlers } from '@/types'
 
 export const BASE = '/api'
@@ -57,6 +58,12 @@ export async function throwApiError(res: Response, fallbackLabel: string): Promi
 export async function throwGenericApiError(res: Response, fallbackLabel: string): Promise<never> {
 	const body = await readApiErrorBody(res)
 	throw new Error(apiErrorMessage(body, `${fallbackLabel}: ${res.status}`))
+}
+
+/** Linear-write error surface: forwards 422 verbatim, rewrites 503/429. Use only on Linear write routes. */
+export async function throwLinearError(res: Response, fallbackLabel: string): Promise<never> {
+	const body = await readApiErrorBody(res)
+	throw new Error(linearErrorMessage(res.status, apiErrorField(body, 'error'), fallbackLabel))
 }
 
 export function subscribeToSse<T>(path: string, eventName: string, handlers: SseHandlers<T>): () => void {

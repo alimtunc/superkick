@@ -45,6 +45,9 @@ export const queryKeys = {
 	},
 	search: {
 		query: (q: string, scope: string, includeDone: boolean) => ['search', q, scope, includeDone] as const
+	},
+	linearOptions: {
+		all: ['linear-options'] as const
 	}
 }
 

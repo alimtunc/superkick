@@ -213,6 +213,7 @@ fn sample_detail() -> IssueDetailResponse {
         parent: None,
         children: Vec::new(),
         blocked_by: Vec::new(),
+        team_id: Some("team-uuid".into()),
         comments: Vec::new(),
         linked_runs: Vec::new(),
     }

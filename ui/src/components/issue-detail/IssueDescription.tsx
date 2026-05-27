@@ -1,7 +1,10 @@
-import { IssueMarkdown } from '@/components/issue-detail/IssueMarkdown'
+import { EditableDescription } from '@/components/issue-detail/properties/EditableDescription'
+import type { IssueDetailResponse } from '@/types'
 
-export function IssueDescription({ description }: { description: string }) {
-	if (!description.trim()) return null
+interface IssueDescriptionProps {
+	issue: IssueDetailResponse
+}
 
-	return <IssueMarkdown text={description} className="text-[14px] leading-7" />
+export function IssueDescription({ issue }: IssueDescriptionProps) {
+	return <EditableDescription issue={issue} />
 }

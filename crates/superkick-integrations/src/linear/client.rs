@@ -289,6 +289,7 @@ query GetIssue($id: String!) {
     estimate
     dueDate
     parent { id identifier title state { type name color } }
+    team { id }
     children {
       nodes {
         id identifier title updatedAt

@@ -257,6 +257,9 @@ fn sample_gql_issue_detail() -> GqlIssueDetail {
                 color: "#f2c94c".into(),
             },
         }),
+        team: Some(GqlTeamRef {
+            id: "team-uuid".into(),
+        }),
         children: Some(GqlChildConnection {
             nodes: vec![GqlChildIssue {
                 id: "child-1".into(),

@@ -143,6 +143,7 @@ impl From<GqlIssueDetail> for IssueDetailResponse {
                 .map(gql_child_to_child_ref)
                 .collect(),
             blocked_by: blockers_from_inverse_relations(g.inverse_relations),
+            team_id: g.team.map(|t| t.id),
             url: g.url,
             created_at: g.created_at,
             updated_at: g.updated_at,

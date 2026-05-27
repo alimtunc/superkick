@@ -161,6 +161,11 @@ pub struct IssueDetailResponse {
     /// See `LinearIssueListItem::blocked_by`.
     #[serde(default)]
     pub blocked_by: Vec<IssueBlockerRef>,
+    /// Linear team UUID — needed by the detail UI to scope status and label
+    /// pickers (workflow states are owned per-team, labels are workspace-wide
+    /// or team-scoped). Optional so older payloads still deserialize.
+    #[serde(default)]
+    pub team_id: Option<String>,
     pub comments: Vec<IssueComment>,
     pub linked_runs: Vec<LinkedRunSummary>,
 }

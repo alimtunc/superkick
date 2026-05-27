@@ -3,9 +3,10 @@ import { Kbd } from '@/ui/Kbd'
 
 interface IssuesTopbarActionsProps {
 	onSearch: () => void
+	onNew: () => void
 }
 
-export function IssuesTopbarActions({ onSearch }: IssuesTopbarActionsProps) {
+export function IssuesTopbarActions({ onSearch, onNew }: IssuesTopbarActionsProps) {
 	return (
 		<>
 			<button
@@ -20,6 +21,7 @@ export function IssuesTopbarActions({ onSearch }: IssuesTopbarActionsProps) {
 			</button>
 			<button
 				type="button"
+				onClick={onNew}
 				className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-raised px-3 text-[12.5px] font-semibold text-fg transition-colors hover:border-border-strong hover:bg-surface focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
 				aria-label="New issue"
 			>

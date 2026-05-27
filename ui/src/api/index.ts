@@ -2,7 +2,15 @@ export { DuplicateRunError, TurnAlreadyStreamingError } from './_shared'
 export { fetchConfig } from './config'
 export { cancelRun, createRun, fetchRun, fetchRunDiff, fetchRunEvents, fetchRuns } from './runs'
 export type { RunDiffResult, RunDiffUnavailable, RunDiffUnavailableReason } from './runs'
-export { fetchIssueDetail, fetchIssues, patchIssueState } from './issues'
+export {
+	createIssue,
+	createIssueComment,
+	fetchIssueDetail,
+	fetchIssues,
+	patchIssue,
+	patchIssueState
+} from './issues'
+export { fetchLinearOptions } from './linearOptions'
 export { fetchMe } from './me'
 export { fetchIssueMemoryEntries, fetchIssueWorkspaceContext } from './issueContext'
 export { fetchDashboardQueue } from './dashboard'

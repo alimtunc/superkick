@@ -146,6 +146,10 @@ export interface IssueDetailResponse {
 	/** Linear `blocks` relations gating this issue (SUP-81). Empty when none. */
 	blocked_by: IssueBlockerRef[]
 
+	/** Linear team UUID — required client-side so status / label pickers can
+	 *  scope to the issue's team. Null only when Linear withheld it. */
+	team_id: string | null
+
 	// Optional: review-relevant context (SUP-21 ready)
 	comments: IssueComment[]
 
@@ -165,6 +169,38 @@ export type IssueState = 'open' | 'in_progress' | 'needs_human' | 'in_review' | 
 export type IssueStateMutable = Extract<IssueState, 'open' | 'in_progress' | 'done'>
 
 export type IssueStateFilter = IssueState | 'all'
+
+// ── Write contracts (SUP-183) ─────────────────────────────────────────
+
+/** Mirrors Rust `Patchable<T>`: `undefined` = omit, `null` = clear, `T` = set. */
+export type Patchable<T> = T | null | undefined
+
+export interface IssueCreateRequest {
+	team_id: string
+	title: string
+	description?: string
+	state_id?: string
+	assignee_id?: string
+	priority?: number
+	label_ids?: string[]
+	project_id?: string
+	due_date?: string
+	estimate?: number
+}
+
+/** PATCH body — assignee/project/due_date/estimate accept `null` to clear; everything else is `T | undefined`. */
+export interface IssueUpdateRequest {
+	title?: string
+	description?: string
+	state_id?: string
+	team_id?: string
+	assignee_id?: Patchable<string>
+	priority?: number
+	label_ids?: string[]
+	project_id?: Patchable<string>
+	due_date?: Patchable<string>
+	estimate?: Patchable<number>
+}
 
 // ── Comment tree (view model) ─────────────────────────────────────────
 
