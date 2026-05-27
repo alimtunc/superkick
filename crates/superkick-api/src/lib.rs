@@ -181,7 +181,32 @@ pub fn run_diff_test_router(repo: Arc<SqliteRunRepo>, base_branch: String) -> Ro
 #[cfg(feature = "test-support")]
 pub mod test_handlers {
     pub use crate::handlers::issue_context::{IssueContextState, IssueLookup};
+    pub use crate::handlers::issues::{IssueWritesState, LinearFuture, LinearWriter};
     pub use superkick_storage::repo::{IssueWorkspaceContextRepoDyn, MemoryEntryRepoDyn};
+}
+
+/// Test-only router for the Linear write paths (`POST /issues`,
+/// `PATCH /issues/{id}`, `POST /issues/{id}/comments`, `GET /linear/options`).
+#[cfg(feature = "test-support")]
+pub fn linear_writes_test_router(writer: Option<Arc<dyn test_handlers::LinearWriter>>) -> Router {
+    let state = test_handlers::IssueWritesState {
+        linear_writer: writer,
+    };
+    Router::new()
+        .route("/issues", post(handlers::issues::create_issue))
+        .route(
+            "/issues/{id}",
+            axum::routing::patch(handlers::issues::patch_issue),
+        )
+        .route(
+            "/issues/{id}/comments",
+            post(handlers::issues::create_comment),
+        )
+        .route(
+            "/linear/options",
+            get(handlers::linear_options::get_options),
+        )
+        .with_state(state)
 }
 
 /// Test-only router builder for the SUP-148 issue-context + memory routes.
@@ -572,10 +597,21 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         )
         .route("/events", get(handlers::events::workspace_events))
         .route("/me", get(handlers::me::get_me))
-        .route("/issues", get(handlers::issues::list_issues))
+        .route(
+            "/issues",
+            get(handlers::issues::list_issues).post(handlers::issues::create_issue),
+        )
         .route(
             "/issues/{id}",
             get(handlers::issues::get_issue).patch(handlers::issues::patch_issue),
+        )
+        .route(
+            "/issues/{id}/comments",
+            post(handlers::issues::create_comment),
+        )
+        .route(
+            "/linear/options",
+            get(handlers::linear_options::get_options),
         )
         .route("/search", get(handlers::search::search))
         .route(

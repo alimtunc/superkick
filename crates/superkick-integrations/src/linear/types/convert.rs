@@ -1,6 +1,6 @@
 //! Conversions from internal GraphQL types to public contract types.
 
-use chrono::{DateTime, Utc};
+use std::collections::HashMap;
 
 use super::contract::*;
 use super::graphql::*;
@@ -15,25 +15,90 @@ impl From<GqlIssueState> for IssueStatus {
     }
 }
 
-fn gql_comment_to_issue_comment(
-    id: String,
-    body: String,
-    user: Option<GqlUser>,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-    parent_id: Option<String>,
-) -> IssueComment {
-    IssueComment {
-        id,
-        body,
-        author: user.map(|u| IssueAssignee {
-            id: u.id,
-            name: u.name,
-            avatar_url: u.avatar_url,
-        }),
-        created_at,
-        updated_at,
-        parent_id,
+impl From<GqlComment> for IssueComment {
+    fn from(c: GqlComment) -> Self {
+        Self {
+            id: c.id,
+            body: c.body,
+            author: c.user.map(|u| IssueAssignee {
+                id: u.id,
+                name: u.name,
+                avatar_url: u.avatar_url,
+            }),
+            created_at: c.created_at,
+            updated_at: c.updated_at,
+            parent_id: c.parent.map(|p| p.id),
+        }
+    }
+}
+
+impl From<GqlOptionsData> for LinearOptions {
+    fn from(data: GqlOptionsData) -> Self {
+        let mut workflow_states_by_team: HashMap<String, Vec<WorkflowStateOption>> = HashMap::new();
+        let teams = data
+            .teams
+            .nodes
+            .into_iter()
+            .map(|t| {
+                let states: Vec<WorkflowStateOption> = t
+                    .states
+                    .nodes
+                    .into_iter()
+                    .map(|s| WorkflowStateOption {
+                        id: s.id,
+                        name: s.name,
+                        state_type: s.state_type,
+                        color: s.color,
+                        position: s.position,
+                    })
+                    .collect();
+                workflow_states_by_team.insert(t.id.clone(), states);
+                TeamOption {
+                    id: t.id,
+                    key: t.key,
+                    name: t.name,
+                }
+            })
+            .collect();
+        let users = data
+            .users
+            .nodes
+            .into_iter()
+            .map(|u| UserOption {
+                id: u.id,
+                name: u.name,
+                avatar_url: u.avatar_url,
+            })
+            .collect();
+        let projects = data
+            .projects
+            .nodes
+            .into_iter()
+            .map(|p| ProjectOption {
+                id: p.id,
+                name: p.name,
+                color: p.color,
+                state: p.state,
+            })
+            .collect();
+        let labels = data
+            .issue_labels
+            .nodes
+            .into_iter()
+            .map(|l| LabelOption {
+                id: l.id,
+                name: l.name,
+                color: l.color,
+                team_id: l.team.map(|t| t.id),
+            })
+            .collect();
+        Self {
+            teams,
+            users,
+            projects,
+            labels,
+            workflow_states_by_team,
+        }
     }
 }
 
@@ -85,31 +150,18 @@ impl From<GqlIssueDetail> for IssueDetailResponse {
                 .comments
                 .nodes
                 .into_iter()
-                .flat_map(|c| {
-                    let child_parent_id = c.id.clone();
-                    let parent = gql_comment_to_issue_comment(
-                        c.id,
-                        c.body,
-                        c.user,
-                        c.created_at,
-                        c.updated_at,
-                        c.parent.map(|p| p.id),
-                    );
-                    let children =
-                        c.children
-                            .into_iter()
-                            .flat_map(|cc| cc.nodes)
-                            .map(move |child| {
-                                gql_comment_to_issue_comment(
-                                    child.id,
-                                    child.body,
-                                    child.user,
-                                    child.created_at,
-                                    child.updated_at,
-                                    Some(child_parent_id.clone()),
-                                )
-                            });
-                    std::iter::once(parent).chain(children)
+                .flat_map(|mut c| {
+                    let children = std::mem::take(&mut c.children)
+                        .into_iter()
+                        .flat_map(|cc| cc.nodes);
+                    let parent = IssueComment::from(c);
+                    let parent_id_for_children = parent.id.clone();
+                    let children_iter = children.map(move |child| {
+                        let mut comment = IssueComment::from(child);
+                        comment.parent_id = Some(parent_id_for_children.clone());
+                        comment
+                    });
+                    std::iter::once(parent).chain(children_iter)
                 })
                 .collect(),
             linked_runs: Vec::new(),

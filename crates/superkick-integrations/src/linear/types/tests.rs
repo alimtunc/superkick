@@ -2,6 +2,7 @@ use chrono::Utc;
 
 use super::contract::*;
 use super::graphql::*;
+use crate::linear::LinearError;
 
 fn sample_gql_issue() -> GqlIssue {
     GqlIssue {
@@ -677,4 +678,288 @@ fn issue_state_mutation_maps_to_linear_state_type() {
         "started"
     );
     assert_eq!(IssueStateMutation::Done.linear_state_type(), "completed");
+}
+
+#[test]
+fn issue_create_input_serializes_with_camel_case_and_drops_nones() {
+    let input = IssueCreateInput {
+        team_id: "team-1".into(),
+        title: "Fix Safari login".into(),
+        description: None,
+        state_id: None,
+        assignee_id: Some("user-1".into()),
+        priority: Some(2),
+        label_ids: None,
+        project_id: None,
+        due_date: None,
+        estimate: None,
+    };
+
+    let json = serde_json::to_value(&input).expect("serialize");
+    let obj = json.as_object().expect("object");
+    assert_eq!(obj["teamId"], "team-1");
+    assert_eq!(obj["title"], "Fix Safari login");
+    assert_eq!(obj["assigneeId"], "user-1");
+    assert_eq!(obj["priority"], 2);
+    assert!(!obj.contains_key("description"));
+    assert!(!obj.contains_key("stateId"));
+    assert!(!obj.contains_key("labelIds"));
+    assert!(!obj.contains_key("projectId"));
+    assert!(!obj.contains_key("dueDate"));
+    assert!(!obj.contains_key("estimate"));
+}
+
+#[test]
+fn issue_update_input_distinguishes_missing_null_and_value() {
+    // Missing on all nullable fields: nothing should appear in the JSON.
+    let input = IssueUpdateInput {
+        title: Some("New title".into()),
+        ..Default::default()
+    };
+    let json = serde_json::to_value(&input).expect("serialize");
+    let obj = json.as_object().expect("object");
+    assert_eq!(obj.len(), 1, "only `title` should be present: {json}");
+    assert_eq!(obj["title"], "New title");
+
+    // Explicit null on every clearable field.
+    let input = IssueUpdateInput {
+        assignee_id: Some(None),
+        project_id: Some(None),
+        due_date: Some(None),
+        estimate: Some(None),
+        ..Default::default()
+    };
+    let json = serde_json::to_value(&input).expect("serialize");
+    let obj = json.as_object().expect("object");
+    assert!(obj["assigneeId"].is_null(), "assigneeId should be null");
+    assert!(obj["projectId"].is_null(), "projectId should be null");
+    assert!(obj["dueDate"].is_null(), "dueDate should be null");
+    assert!(obj["estimate"].is_null(), "estimate should be null");
+
+    // Concrete value on every clearable field plus `label_ids` and `state_id`.
+    let input = IssueUpdateInput {
+        title: None,
+        description: None,
+        state_id: Some("state-1".into()),
+        assignee_id: Some(Some("user-1".into())),
+        priority: Some(1),
+        label_ids: Some(vec!["lbl-a".into(), "lbl-b".into()]),
+        project_id: Some(Some("proj-1".into())),
+        due_date: Some(Some("2026-06-15".into())),
+        estimate: Some(Some(3.0)),
+    };
+    let json = serde_json::to_value(&input).expect("serialize");
+    let obj = json.as_object().expect("object");
+    assert_eq!(obj["stateId"], "state-1");
+    assert_eq!(obj["assigneeId"], "user-1");
+    assert_eq!(obj["priority"], 1);
+    assert_eq!(obj["labelIds"], serde_json::json!(["lbl-a", "lbl-b"]));
+    assert_eq!(obj["projectId"], "proj-1");
+    assert_eq!(obj["dueDate"], "2026-06-15");
+    assert_eq!(obj["estimate"], 3.0);
+}
+
+#[test]
+fn issue_update_input_empty_serializes_to_empty_object() {
+    let input = IssueUpdateInput::default();
+    let json = serde_json::to_value(&input).expect("serialize");
+    assert_eq!(json, serde_json::json!({}));
+}
+
+#[test]
+fn issue_update_input_label_ids_empty_vec_clears_labels() {
+    // Linear semantics: `labelIds: []` removes every label, distinct from
+    // omitting the key entirely.
+    let input = IssueUpdateInput {
+        label_ids: Some(Vec::new()),
+        ..Default::default()
+    };
+    let json = serde_json::to_value(&input).expect("serialize");
+    assert_eq!(json, serde_json::json!({ "labelIds": [] }));
+}
+
+#[test]
+fn gql_error_extensions_deserializes_classifiable_code() {
+    let raw = r#"{
+        "message": "Title is required",
+        "extensions": {
+            "code": "INVALID_INPUT",
+            "userPresentableMessage": "Title is required"
+        }
+    }"#;
+    let parsed: GqlError = serde_json::from_str(raw).expect("parse");
+    assert_eq!(parsed.message, "Title is required");
+    let ext = parsed.extensions.expect("extensions");
+    assert_eq!(ext.code.as_deref(), Some("INVALID_INPUT"));
+    assert_eq!(
+        ext.user_presentable_message.as_deref(),
+        Some("Title is required"),
+    );
+}
+
+#[test]
+fn gql_error_without_extensions_deserializes() {
+    let raw = r#"{ "message": "Unknown failure" }"#;
+    let parsed: GqlError = serde_json::from_str(raw).expect("parse");
+    assert!(parsed.extensions.is_none());
+}
+
+#[test]
+fn classify_uses_user_presentable_message_on_known_code() {
+    let raw = r#"[{
+        "message": "Internal error",
+        "extensions": {
+            "code": "INVALID_INPUT",
+            "userPresentableMessage": "Title is required"
+        }
+    }]"#;
+    let errors: Vec<GqlError> = serde_json::from_str(raw).expect("parse");
+    match classify_graphql_errors(&errors) {
+        LinearError::Rejected(msg) => assert_eq!(msg, "Title is required"),
+        other => panic!("expected Rejected, got {other:?}"),
+    }
+}
+
+#[test]
+fn classify_falls_back_to_message_when_extensions_missing() {
+    let raw = r#"[{ "message": "boom" }]"#;
+    let errors: Vec<GqlError> = serde_json::from_str(raw).expect("parse");
+    match classify_graphql_errors(&errors) {
+        LinearError::Graphql(msg) => assert_eq!(msg, "boom"),
+        other => panic!("expected Graphql, got {other:?}"),
+    }
+}
+
+#[test]
+fn classify_joins_multiple_unclassified_messages() {
+    let raw = r#"[
+        { "message": "first" },
+        { "message": "second", "extensions": { "code": "SOMETHING_ELSE" } }
+    ]"#;
+    let errors: Vec<GqlError> = serde_json::from_str(raw).expect("parse");
+    match classify_graphql_errors(&errors) {
+        LinearError::Graphql(msg) => assert_eq!(msg, "first; second"),
+        other => panic!("expected Graphql, got {other:?}"),
+    }
+}
+
+#[test]
+fn linear_options_query_response_deserializes_to_contract() {
+    let raw = r##"{
+        "data": {
+            "teams": { "nodes": [{
+                "id": "team-1",
+                "key": "SUP",
+                "name": "Superkick",
+                "states": { "nodes": [
+                    { "id": "s1", "type": "unstarted", "name": "Todo", "color": "#bbb", "position": 0.0 },
+                    { "id": "s2", "type": "started",   "name": "In Progress", "color": "#fc0", "position": 1.0 }
+                ] }
+            }] },
+            "users": { "nodes": [
+                { "id": "u1", "name": "Alice", "avatarUrl": "https://example/a.png" }
+            ] },
+            "projects": { "nodes": [
+                { "id": "p1", "name": "Q2 epic", "color": "#0a0", "state": "started" }
+            ] },
+            "issueLabels": { "nodes": [
+                { "id": "lbl-1", "name": "bug", "color": "#eb5757", "team": { "id": "team-1" } },
+                { "id": "lbl-2", "name": "ws-wide", "color": "#5ec8eb", "team": null }
+            ] }
+        }
+    }"##;
+
+    let parsed: GqlOptionsResponse = serde_json::from_str(raw).expect("parse");
+    let options = LinearOptions::from(parsed.data.expect("data"));
+
+    assert_eq!(options.teams.len(), 1);
+    assert_eq!(options.teams[0].key, "SUP");
+    assert_eq!(options.users.len(), 1);
+    assert_eq!(options.users[0].name, "Alice");
+    assert_eq!(options.projects.len(), 1);
+    assert_eq!(options.projects[0].state.as_deref(), Some("started"));
+    assert_eq!(options.labels.len(), 2);
+    assert_eq!(options.labels[0].team_id.as_deref(), Some("team-1"));
+    assert!(options.labels[1].team_id.is_none());
+
+    let team_states = options
+        .workflow_states_by_team
+        .get("team-1")
+        .expect("team states populated");
+    assert_eq!(team_states.len(), 2);
+    assert_eq!(team_states[0].name, "Todo");
+    assert_eq!(team_states[1].state_type, "started");
+}
+
+#[test]
+fn create_comment_response_converts_to_issue_comment() {
+    let raw = r##"{
+        "data": {
+            "commentCreate": {
+                "success": true,
+                "comment": {
+                    "id": "comment-1",
+                    "body": "Reproduced on Safari 17",
+                    "user": { "id": "u1", "name": "Bob", "avatarUrl": null },
+                    "createdAt": "2026-01-01T00:00:00.000Z",
+                    "updatedAt": "2026-01-01T00:05:00.000Z",
+                    "parent": null
+                }
+            }
+        }
+    }"##;
+
+    let parsed: GqlCommentCreateResponse = serde_json::from_str(raw).expect("parse");
+    let gql_comment = parsed
+        .data
+        .expect("data")
+        .comment_create
+        .comment
+        .expect("comment");
+    let comment = IssueComment::from(gql_comment);
+    assert_eq!(comment.id, "comment-1");
+    assert_eq!(comment.body, "Reproduced on Safari 17");
+    let author = comment.author.expect("author");
+    assert_eq!(author.name, "Bob");
+    assert!(comment.parent_id.is_none());
+}
+
+#[test]
+fn issue_update_response_deserializes_with_hydrated_issue() {
+    // Sanity check: the enriched `issueUpdate` payload (success + full issue)
+    // round-trips through serde. The issue body reuses the shared detail shape
+    // already covered elsewhere, so we only assert on the wrapper fields.
+    let raw = r##"{
+        "data": {
+            "issueUpdate": {
+                "success": true,
+                "issue": {
+                    "id": "abc",
+                    "identifier": "SUP-1",
+                    "title": "Updated",
+                    "description": null,
+                    "url": "https://linear.app/t/SUP-1",
+                    "createdAt": "2026-01-01T00:00:00.000Z",
+                    "updatedAt": "2026-01-02T00:00:00.000Z",
+                    "state": { "type": "started", "name": "In Progress", "color": "#bbb" },
+                    "priority": 1,
+                    "priorityLabel": "Urgent",
+                    "labels": { "nodes": [] },
+                    "assignee": null,
+                    "project": null,
+                    "cycle": null,
+                    "estimate": null,
+                    "dueDate": null,
+                    "parent": null,
+                    "children": { "nodes": [] },
+                    "comments": { "nodes": [] }
+                }
+            }
+        }
+    }"##;
+    let parsed: GqlIssueUpdateResponse = serde_json::from_str(raw).expect("parse");
+    let update = parsed.data.expect("data").issue_update;
+    assert!(update.success);
+    let issue = update.issue.expect("issue hydrated");
+    assert_eq!(issue.identifier, "SUP-1");
 }

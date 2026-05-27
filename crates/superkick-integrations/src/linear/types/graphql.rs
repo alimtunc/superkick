@@ -3,6 +3,8 @@
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
+use super::super::error::LinearError;
+
 // ── Issue list response ──────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -14,6 +16,58 @@ pub(crate) struct GqlResponse {
 #[derive(Debug, Deserialize)]
 pub(crate) struct GqlError {
     pub message: String,
+    #[serde(default)]
+    pub extensions: Option<GqlErrorExtensions>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GqlErrorExtensions {
+    #[serde(default)]
+    pub code: Option<String>,
+    #[serde(default)]
+    pub user_presentable_message: Option<String>,
+}
+
+/// Linear `extensions.code` values that map to operator-actionable
+/// rejections — validation, missing permission, rate-limit. The HTTP layer
+/// turns these into 422 with the verbatim `userPresentableMessage`;
+/// everything else stays a generic `Graphql` (500) so we don't paper over
+/// real bugs as user errors.
+const REJECTABLE_GQL_CODES: &[&str] = &[
+    "INVALID_INPUT",
+    "FEATURE_NOT_ACCESSIBLE",
+    "AUTHENTICATION_ERROR",
+    "FORBIDDEN",
+    "RATELIMITED",
+];
+
+/// Map a Linear GraphQL `errors[]` array onto the closest `LinearError`.
+/// Used by every write path so the API's `LinearError → AppError` mapping
+/// picks the right HTTP status without per-handler heuristics.
+pub(crate) fn classify_graphql_errors(errors: &[GqlError]) -> LinearError {
+    if let Some(err) = errors.iter().find(|e| {
+        e.extensions
+            .as_ref()
+            .and_then(|x| x.code.as_deref())
+            .is_some_and(|code| REJECTABLE_GQL_CODES.contains(&code))
+    }) {
+        let extensions = err
+            .extensions
+            .as_ref()
+            .expect("REJECTABLE_GQL_CODES match guarantees extensions");
+        let msg = extensions
+            .user_presentable_message
+            .clone()
+            .unwrap_or_else(|| err.message.clone());
+        return LinearError::Rejected(msg);
+    }
+    let joined = errors
+        .iter()
+        .map(|e| e.message.as_str())
+        .collect::<Vec<_>>()
+        .join("; ");
+    LinearError::Graphql(joined)
 }
 
 #[derive(Debug, Deserialize)]
@@ -304,6 +358,10 @@ pub(crate) struct GqlWorkflowState {
     #[serde(rename = "type")]
     pub state_type: String,
     #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub color: String,
+    #[serde(default)]
     pub position: f64,
 }
 
@@ -342,4 +400,123 @@ pub(crate) struct GqlIssueUpdateData {
 #[derive(Debug, Deserialize)]
 pub(crate) struct GqlIssueUpdate {
     pub success: bool,
+    /// Populated by the enriched mutation that returns the full issue detail;
+    /// the legacy state-only mutation leaves this `None`.
+    #[serde(default)]
+    pub issue: Option<GqlIssueDetail>,
+}
+
+// ── issueCreate mutation response ────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlIssueCreateResponse {
+    pub data: Option<GqlIssueCreateData>,
+    pub errors: Option<Vec<GqlError>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GqlIssueCreateData {
+    pub issue_create: GqlIssueCreate,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlIssueCreate {
+    pub success: bool,
+    #[serde(default)]
+    pub issue: Option<GqlIssueDetail>,
+}
+
+// ── commentCreate mutation response ──────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlCommentCreateResponse {
+    pub data: Option<GqlCommentCreateData>,
+    pub errors: Option<Vec<GqlError>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GqlCommentCreateData {
+    pub comment_create: GqlCommentCreate,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlCommentCreate {
+    pub success: bool,
+    #[serde(default)]
+    pub comment: Option<GqlComment>,
+}
+
+// ── linearOptions composite query response ───────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlOptionsResponse {
+    pub data: Option<GqlOptionsData>,
+    pub errors: Option<Vec<GqlError>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GqlOptionsData {
+    pub teams: GqlOptionsTeamConnection,
+    pub users: GqlOptionsUserConnection,
+    pub projects: GqlOptionsProjectConnection,
+    pub issue_labels: GqlOptionsLabelConnection,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlOptionsTeamConnection {
+    pub nodes: Vec<GqlOptionsTeam>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlOptionsTeam {
+    pub id: String,
+    pub key: String,
+    pub name: String,
+    pub states: GqlWorkflowStateConnection,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlOptionsUserConnection {
+    pub nodes: Vec<GqlOptionsUser>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GqlOptionsUser {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub avatar_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlOptionsProjectConnection {
+    pub nodes: Vec<GqlOptionsProject>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlOptionsProject {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub color: Option<String>,
+    #[serde(default)]
+    pub state: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlOptionsLabelConnection {
+    pub nodes: Vec<GqlOptionsLabel>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlOptionsLabel {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+    #[serde(default)]
+    pub team: Option<GqlTeamRef>,
 }

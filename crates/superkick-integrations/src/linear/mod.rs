@@ -9,7 +9,9 @@ pub use client::LinearClient;
 pub use context::issue_context_from_detail;
 pub use error::LinearError;
 pub use types::{
-    CachedComment, IssueAssignee, IssueBlockerRef, IssueChildRef, IssueComment, IssueCycle,
-    IssueDetailResponse, IssueLabel, IssueListResponse, IssueParentRef, IssuePriority,
-    IssueProject, IssueStateMutation, IssueStatus, LinearIssueListItem, ViewerResponse,
+    CachedComment, IssueAssignee, IssueBlockerRef, IssueChildRef, IssueComment, IssueCreateInput,
+    IssueCycle, IssueDetailResponse, IssueLabel, IssueListResponse, IssueParentRef, IssuePriority,
+    IssueProject, IssueStateMutation, IssueStatus, IssueUpdateInput, LabelOption,
+    LinearIssueListItem, LinearOptions, ProjectOption, TeamOption, UserOption, ViewerResponse,
+    WorkflowStateOption,
 };

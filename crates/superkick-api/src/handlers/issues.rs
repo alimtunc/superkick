@@ -1,9 +1,19 @@
-use axum::extract::{Path, State};
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+
+use axum::extract::{FromRef, Path, State};
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json};
-use serde::Deserialize;
+use chrono::NaiveDate;
+use serde::de::{MapAccess, Visitor};
+use serde::{Deserialize, Deserializer};
 
 use superkick_core::LinkedRunSummary;
-use superkick_integrations::linear::IssueStateMutation;
+use superkick_integrations::linear::{
+    IssueComment, IssueCreateInput, IssueDetailResponse, IssueStateMutation, IssueUpdateInput,
+    LinearClient, LinearError, LinearOptions,
+};
 use superkick_storage::repo::RunRepo;
 
 use crate::AppState;
@@ -78,33 +88,363 @@ impl From<IssueStateMutable> for IssueStateMutation {
     }
 }
 
+/// Three-state PATCH field: `Missing` (key absent), `Null` (`"key": null`,
+/// clear on Linear), `Set(v)`. Lowers to `IssueUpdateInput`'s
+/// `Option<Option<T>>` so the integration layer never sees this enum.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub(crate) enum Patchable<T> {
+    #[default]
+    Missing,
+    Null,
+    Set(T),
+}
+
+impl<T> Patchable<T> {
+    pub fn into_double_option(self) -> Option<Option<T>> {
+        match self {
+            Patchable::Missing => None,
+            Patchable::Null => Some(None),
+            Patchable::Set(v) => Some(Some(v)),
+        }
+    }
+}
+
+fn patchable_from_option<T>(opt: Option<T>) -> Patchable<T> {
+    match opt {
+        Some(v) => Patchable::Set(v),
+        None => Patchable::Null,
+    }
+}
+
+#[derive(Clone)]
+pub struct IssueWritesState {
+    pub linear_writer: Option<Arc<dyn LinearWriter>>,
+}
+
+impl FromRef<AppState> for IssueWritesState {
+    fn from_ref(state: &AppState) -> Self {
+        let linear_writer = state
+            .linear_client
+            .as_ref()
+            .map(|client| Arc::clone(client) as Arc<dyn LinearWriter>);
+        Self { linear_writer }
+    }
+}
+
+pub(crate) fn require_writer(state: &IssueWritesState) -> Result<&Arc<dyn LinearWriter>, AppError> {
+    state
+        .linear_writer
+        .as_ref()
+        .ok_or(AppError::ServiceUnavailable(
+            "LINEAR_API_KEY not configured",
+        ))
+}
+
+pub type LinearFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, LinearError>> + Send + 'a>>;
+
+pub trait LinearWriter: Send + Sync {
+    fn create_issue<'a>(&'a self, input: IssueCreateInput)
+    -> LinearFuture<'a, IssueDetailResponse>;
+    fn update_issue<'a>(
+        &'a self,
+        id: &'a str,
+        input: IssueUpdateInput,
+    ) -> LinearFuture<'a, IssueDetailResponse>;
+    fn create_comment<'a>(
+        &'a self,
+        issue_id: &'a str,
+        body: &'a str,
+    ) -> LinearFuture<'a, IssueComment>;
+    fn list_options<'a>(&'a self) -> LinearFuture<'a, LinearOptions>;
+    fn resolve_workflow_state_for_type<'a>(
+        &'a self,
+        team_id: Option<&'a str>,
+        target_type: &'a str,
+        issue_id_for_lookup: Option<&'a str>,
+    ) -> LinearFuture<'a, String>;
+}
+
+impl LinearWriter for LinearClient {
+    fn create_issue<'a>(
+        &'a self,
+        input: IssueCreateInput,
+    ) -> LinearFuture<'a, IssueDetailResponse> {
+        Box::pin(LinearClient::create_issue(self, input))
+    }
+    fn update_issue<'a>(
+        &'a self,
+        id: &'a str,
+        input: IssueUpdateInput,
+    ) -> LinearFuture<'a, IssueDetailResponse> {
+        Box::pin(LinearClient::update_issue(self, id, input))
+    }
+    fn create_comment<'a>(
+        &'a self,
+        issue_id: &'a str,
+        body: &'a str,
+    ) -> LinearFuture<'a, IssueComment> {
+        Box::pin(LinearClient::create_comment(self, issue_id, body))
+    }
+    fn list_options<'a>(&'a self) -> LinearFuture<'a, LinearOptions> {
+        Box::pin(LinearClient::list_options(self))
+    }
+    fn resolve_workflow_state_for_type<'a>(
+        &'a self,
+        team_id: Option<&'a str>,
+        target_type: &'a str,
+        issue_id_for_lookup: Option<&'a str>,
+    ) -> LinearFuture<'a, String> {
+        Box::pin(LinearClient::resolve_workflow_state_for_type(
+            self,
+            team_id,
+            target_type,
+            issue_id_for_lookup,
+        ))
+    }
+}
+
 #[derive(Debug, Deserialize)]
-pub struct PatchIssueRequest {
-    pub state: IssueStateMutable,
-    /// Linear team UUID. When the UI supplies it, the client skips a team-lookup hop.
+pub struct CreateIssueRequest {
+    pub team_id: String,
+    pub title: String,
     #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub state_id: Option<String>,
+    #[serde(default)]
+    pub assignee_id: Option<String>,
+    #[serde(default)]
+    pub priority: Option<u8>,
+    #[serde(default)]
+    pub label_ids: Option<Vec<String>>,
+    #[serde(default)]
+    pub project_id: Option<String>,
+    #[serde(default)]
+    pub due_date: Option<String>,
+    #[serde(default)]
+    pub estimate: Option<f32>,
+}
+
+pub async fn create_issue(
+    State(state): State<IssueWritesState>,
+    Json(body): Json<CreateIssueRequest>,
+) -> Result<axum::response::Response, AppError> {
+    let writer = require_writer(&state)?;
+    validate_create_issue(&body)?;
+    let input = IssueCreateInput {
+        team_id: body.team_id,
+        title: body.title.trim().to_string(),
+        description: body.description,
+        state_id: body.state_id,
+        assignee_id: body.assignee_id,
+        priority: body.priority,
+        label_ids: body.label_ids,
+        project_id: body.project_id,
+        due_date: body.due_date,
+        estimate: body.estimate,
+    };
+    let detail = writer.create_issue(input).await?;
+    let location = format!("/issues/{}", detail.id);
+    let value = axum::http::HeaderValue::from_str(&location)
+        .expect("Linear issue id is ASCII, safe for header value");
+    let mut response = (StatusCode::CREATED, Json(detail)).into_response();
+    response.headers_mut().insert("Location", value);
+    Ok(response)
+}
+
+fn validate_create_issue(body: &CreateIssueRequest) -> Result<(), AppError> {
+    if body.team_id.trim().is_empty() {
+        return Err(AppError::BadRequest("team_id must not be empty".into()));
+    }
+    if body.title.trim().is_empty() {
+        return Err(AppError::BadRequest("title must not be empty".into()));
+    }
+    validate_priority(body.priority)?;
+    validate_due_date(body.due_date.as_deref())?;
+    Ok(())
+}
+
+fn validate_priority(priority: Option<u8>) -> Result<(), AppError> {
+    if let Some(p) = priority {
+        if p > 4 {
+            return Err(AppError::BadRequest("priority must be 0..=4".into()));
+        }
+    }
+    Ok(())
+}
+
+fn validate_due_date(due_date: Option<&str>) -> Result<(), AppError> {
+    if let Some(raw) = due_date {
+        NaiveDate::parse_from_str(raw, "%Y-%m-%d")
+            .map_err(|_| AppError::BadRequest("due_date must be in YYYY-MM-DD format".into()))?;
+    }
+    Ok(())
+}
+
+#[derive(Debug, Default)]
+pub struct PatchIssueRequest {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub state: Option<IssueStateMutable>,
+    pub state_id: Option<String>,
     pub team_id: Option<String>,
+    pub assignee_id: Patchable<String>,
+    pub priority: Option<u8>,
+    pub label_ids: Option<Vec<String>>,
+    pub project_id: Patchable<String>,
+    pub due_date: Patchable<String>,
+    pub estimate: Patchable<f32>,
+}
+
+impl<'de> Deserialize<'de> for PatchIssueRequest {
+    fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        struct PatchVisitor;
+
+        impl<'de> Visitor<'de> for PatchVisitor {
+            type Value = PatchIssueRequest;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a PATCH /issues body")
+            }
+
+            fn visit_map<M: MapAccess<'de>>(self, mut map: M) -> Result<Self::Value, M::Error> {
+                let mut out = PatchIssueRequest::default();
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "title" => out.title = map.next_value()?,
+                        "description" => out.description = map.next_value()?,
+                        "state" => out.state = map.next_value()?,
+                        "state_id" => out.state_id = map.next_value()?,
+                        "team_id" => out.team_id = map.next_value()?,
+                        "priority" => out.priority = map.next_value()?,
+                        "label_ids" => out.label_ids = map.next_value()?,
+                        "assignee_id" => {
+                            out.assignee_id =
+                                patchable_from_option(map.next_value::<Option<String>>()?);
+                        }
+                        "project_id" => {
+                            out.project_id =
+                                patchable_from_option(map.next_value::<Option<String>>()?);
+                        }
+                        "due_date" => {
+                            out.due_date =
+                                patchable_from_option(map.next_value::<Option<String>>()?);
+                        }
+                        "estimate" => {
+                            out.estimate = patchable_from_option(map.next_value::<Option<f32>>()?);
+                        }
+                        // Unknown field: drain the value and ignore. Linear's
+                        // wire grows over time; we don't want every new
+                        // optional UI input to bounce off the API.
+                        _ => {
+                            let _ignored: serde_json::Value = map.next_value()?;
+                        }
+                    }
+                }
+                Ok(out)
+            }
+        }
+
+        de.deserialize_map(PatchVisitor)
+    }
 }
 
 pub async fn patch_issue(
-    State(state): State<AppState>,
+    State(state): State<IssueWritesState>,
     Path(id): Path<String>,
     Json(body): Json<PatchIssueRequest>,
-) -> Result<impl IntoResponse, AppError> {
-    let client = state
-        .linear_client
-        .as_ref()
-        .ok_or_else(|| AppError::ServiceUnavailable("LINEAR_API_KEY not configured"))?;
+) -> Result<Json<IssueDetailResponse>, AppError> {
+    let writer = require_writer(&state)?;
+    validate_patch_issue(&body)?;
+    let input = build_update_input(writer, &id, body).await?;
+    let detail = writer.update_issue(&id, input).await?;
+    Ok(Json(detail))
+}
 
-    client
-        .update_issue_state(
-            &id,
-            body.team_id.as_deref(),
-            IssueStateMutation::from(body.state),
-        )
-        .await?;
+fn validate_patch_issue(body: &PatchIssueRequest) -> Result<(), AppError> {
+    if body.state.is_some() && body.state_id.is_some() {
+        return Err(AppError::BadRequest(
+            "provide either `state` or `state_id`, not both".into(),
+        ));
+    }
+    validate_priority(body.priority)?;
+    let due_date_to_check = match &body.due_date {
+        Patchable::Set(v) => Some(v.as_str()),
+        _ => None,
+    };
+    validate_due_date(due_date_to_check)?;
+    if patch_has_no_fields(body) {
+        return Err(AppError::BadRequest(
+            "at least one field is required".into(),
+        ));
+    }
+    Ok(())
+}
 
-    Ok(axum::http::StatusCode::NO_CONTENT)
+fn patch_has_no_fields(body: &PatchIssueRequest) -> bool {
+    body.title.is_none()
+        && body.description.is_none()
+        && body.state.is_none()
+        && body.state_id.is_none()
+        && matches!(body.assignee_id, Patchable::Missing)
+        && body.priority.is_none()
+        && body.label_ids.is_none()
+        && matches!(body.project_id, Patchable::Missing)
+        && matches!(body.due_date, Patchable::Missing)
+        && matches!(body.estimate, Patchable::Missing)
+}
+
+async fn build_update_input(
+    writer: &Arc<dyn LinearWriter>,
+    issue_id: &str,
+    body: PatchIssueRequest,
+) -> Result<IssueUpdateInput, AppError> {
+    let state_id = match (body.state, body.state_id) {
+        (Some(state), None) => Some(
+            writer
+                .resolve_workflow_state_for_type(
+                    body.team_id.as_deref(),
+                    IssueStateMutation::from(state).linear_state_type(),
+                    Some(issue_id),
+                )
+                .await?,
+        ),
+        (None, Some(state_id)) => Some(state_id),
+        (None, None) => None,
+        // Rejected by `validate_patch_issue` before we get here.
+        (Some(_), Some(_)) => unreachable!(),
+    };
+
+    Ok(IssueUpdateInput {
+        title: body.title,
+        description: body.description,
+        state_id,
+        assignee_id: body.assignee_id.into_double_option(),
+        priority: body.priority,
+        label_ids: body.label_ids,
+        project_id: body.project_id.into_double_option(),
+        due_date: body.due_date.into_double_option(),
+        estimate: body.estimate.into_double_option(),
+    })
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateCommentRequest {
+    pub body: String,
+}
+
+pub async fn create_comment(
+    State(state): State<IssueWritesState>,
+    Path(id): Path<String>,
+    Json(body): Json<CreateCommentRequest>,
+) -> Result<axum::response::Response, AppError> {
+    let writer = require_writer(&state)?;
+    let trimmed = body.body.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::BadRequest("body must not be empty".into()));
+    }
+    let comment = writer.create_comment(&id, trimmed).await?;
+    Ok((StatusCode::CREATED, Json(comment)).into_response())
 }
 
 #[cfg(test)]
@@ -120,7 +460,7 @@ mod tests {
         ];
         for (raw, expected) in cases {
             let parsed: PatchIssueRequest = serde_json::from_str(raw).expect("valid state");
-            assert_eq!(parsed.state, expected, "state for {raw}");
+            assert_eq!(parsed.state, Some(expected), "state for {raw}");
             assert!(
                 parsed.team_id.is_none(),
                 "team_id defaults to None for {raw}"
@@ -132,7 +472,7 @@ mod tests {
     fn patch_request_threads_team_id() {
         let raw = r#"{"state":"in_progress","team_id":"team-uuid"}"#;
         let parsed: PatchIssueRequest = serde_json::from_str(raw).expect("valid body");
-        assert_eq!(parsed.state, IssueStateMutable::InProgress);
+        assert_eq!(parsed.state, Some(IssueStateMutable::InProgress));
         assert_eq!(parsed.team_id.as_deref(), Some("team-uuid"));
     }
 
@@ -166,5 +506,174 @@ mod tests {
             IssueStateMutation::from(IssueStateMutable::Done).linear_state_type(),
             "completed",
         );
+    }
+
+    #[test]
+    fn patch_request_distinguishes_missing_null_and_value_on_assignee() {
+        let missing: PatchIssueRequest = serde_json::from_str("{}").expect("empty");
+        assert_eq!(missing.assignee_id, Patchable::Missing);
+
+        let null: PatchIssueRequest =
+            serde_json::from_str(r#"{"assignee_id":null}"#).expect("null");
+        assert_eq!(null.assignee_id, Patchable::Null);
+
+        let set: PatchIssueRequest =
+            serde_json::from_str(r#"{"assignee_id":"u-1"}"#).expect("value");
+        assert_eq!(set.assignee_id, Patchable::Set("u-1".to_string()));
+    }
+
+    #[test]
+    fn patch_request_distinguishes_missing_null_and_value_on_project_due_date_estimate() {
+        let raw = r#"{"project_id":null,"due_date":"2026-06-15","estimate":3.5}"#;
+        let parsed: PatchIssueRequest = serde_json::from_str(raw).expect("parse");
+        assert_eq!(parsed.project_id, Patchable::Null);
+        assert_eq!(parsed.due_date, Patchable::Set("2026-06-15".into()));
+        assert_eq!(parsed.estimate, Patchable::Set(3.5));
+    }
+
+    #[test]
+    fn patch_request_rejects_both_state_and_state_id() {
+        let body: PatchIssueRequest =
+            serde_json::from_str(r#"{"state":"in_progress","state_id":"s-1"}"#).expect("parse");
+        let err = validate_patch_issue(&body).expect_err("should reject");
+        match err {
+            AppError::BadRequest(msg) => {
+                assert!(msg.contains("state"), "msg = {msg}");
+            }
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn patch_request_rejects_empty_body() {
+        let body: PatchIssueRequest = serde_json::from_str("{}").expect("parse");
+        let err = validate_patch_issue(&body).expect_err("should reject");
+        match err {
+            AppError::BadRequest(msg) => {
+                assert!(msg.contains("required"), "msg = {msg}");
+            }
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn patch_request_rejects_invalid_priority() {
+        let body: PatchIssueRequest = serde_json::from_str(r#"{"priority":5}"#).expect("parse");
+        let err = validate_patch_issue(&body).expect_err("should reject");
+        match err {
+            AppError::BadRequest(msg) => assert!(msg.contains("priority"), "msg = {msg}"),
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn patch_request_rejects_invalid_due_date_format() {
+        let body: PatchIssueRequest =
+            serde_json::from_str(r#"{"due_date":"15/06/2026"}"#).expect("parse");
+        let err = validate_patch_issue(&body).expect_err("should reject");
+        match err {
+            AppError::BadRequest(msg) => assert!(msg.contains("due_date"), "msg = {msg}"),
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn create_issue_request_parses_minimal_body() {
+        let parsed: CreateIssueRequest =
+            serde_json::from_str(r#"{"team_id":"t-1","title":"Fix it"}"#).expect("parse");
+        assert_eq!(parsed.team_id, "t-1");
+        assert_eq!(parsed.title, "Fix it");
+        assert!(parsed.description.is_none());
+        assert!(parsed.priority.is_none());
+    }
+
+    #[test]
+    fn create_issue_request_parses_full_body() {
+        let raw = r#"{
+            "team_id": "t-1",
+            "title": "Fix Safari",
+            "description": "Some markdown",
+            "state_id": "s-1",
+            "assignee_id": "u-1",
+            "priority": 3,
+            "label_ids": ["l-1", "l-2"],
+            "project_id": "p-1",
+            "due_date": "2026-06-15",
+            "estimate": 2.5
+        }"#;
+        let parsed: CreateIssueRequest = serde_json::from_str(raw).expect("parse");
+        assert_eq!(parsed.priority, Some(3));
+        assert_eq!(parsed.label_ids.unwrap(), vec!["l-1", "l-2"]);
+        assert_eq!(parsed.estimate, Some(2.5));
+        assert_eq!(parsed.due_date.as_deref(), Some("2026-06-15"));
+    }
+
+    #[test]
+    fn create_issue_request_rejects_invalid_priority() {
+        let body = CreateIssueRequest {
+            team_id: "t-1".into(),
+            title: "x".into(),
+            description: None,
+            state_id: None,
+            assignee_id: None,
+            priority: Some(7),
+            label_ids: None,
+            project_id: None,
+            due_date: None,
+            estimate: None,
+        };
+        let err = validate_create_issue(&body).expect_err("rejects priority");
+        match err {
+            AppError::BadRequest(msg) => assert!(msg.contains("priority"), "msg = {msg}"),
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn create_issue_request_rejects_empty_title_after_trim() {
+        let body = CreateIssueRequest {
+            team_id: "t-1".into(),
+            title: "   ".into(),
+            description: None,
+            state_id: None,
+            assignee_id: None,
+            priority: None,
+            label_ids: None,
+            project_id: None,
+            due_date: None,
+            estimate: None,
+        };
+        let err = validate_create_issue(&body).expect_err("rejects empty title");
+        match err {
+            AppError::BadRequest(msg) => assert!(msg.contains("title"), "msg = {msg}"),
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn create_issue_request_rejects_invalid_due_date() {
+        let body = CreateIssueRequest {
+            team_id: "t-1".into(),
+            title: "x".into(),
+            description: None,
+            state_id: None,
+            assignee_id: None,
+            priority: None,
+            label_ids: None,
+            project_id: None,
+            due_date: Some("not-a-date".into()),
+            estimate: None,
+        };
+        let err = validate_create_issue(&body).expect_err("rejects due_date");
+        match err {
+            AppError::BadRequest(msg) => assert!(msg.contains("due_date"), "msg = {msg}"),
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn create_comment_request_parses() {
+        let parsed: CreateCommentRequest = serde_json::from_str(r#"{"body":"yo"}"#).expect("parse");
+        assert_eq!(parsed.body, "yo");
     }
 }
