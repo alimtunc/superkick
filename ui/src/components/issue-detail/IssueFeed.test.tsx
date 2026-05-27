@@ -125,7 +125,7 @@ describe('IssueFeed — activity timeline', () => {
 		expect(mocks.openDrawer).toHaveBeenCalledWith('run-done', 'activity')
 	})
 
-	it('sorts the chronology newest-first and surfaces the sort indicator', () => {
+	it('sorts the chronology oldest-first like Linear', () => {
 		render(
 			<IssueFeed
 				issue={buildIssue({
@@ -137,10 +137,10 @@ describe('IssueFeed — activity timeline', () => {
 			/>
 		)
 
-		const newer = screen.getByText('newer note')
 		const older = screen.getByText('older note')
-		expect(newer.compareDocumentPosition(older) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-		expect(screen.getByText('Newest first')).toBeInTheDocument()
+		const newer = screen.getByText('newer note')
+		expect(older.compareDocumentPosition(newer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+		expect(screen.queryByText('Newest first')).toBeNull()
 	})
 
 	it('renders a compact empty state when there are no comments and no qualifying run events', () => {

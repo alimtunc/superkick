@@ -1,7 +1,9 @@
-import { useEffect, useReducer, useRef } from 'react'
+import { useEffect, useMemo, useReducer, useRef } from 'react'
 
 import { workspaceEventBroker } from '@/lib/eventBroker'
+import { runEventsQuery } from '@/lib/queries'
 import type { RunEvent } from '@/types'
+import { useQuery } from '@tanstack/react-query'
 
 const MAX_EVENTS = 500
 
@@ -11,10 +13,17 @@ interface EventStreamState {
 	done: boolean
 }
 
-type EventStreamAction = { type: 'event_received'; event: RunEvent }
+type EventStreamAction =
+	| { type: 'event_received'; event: RunEvent }
+	| { type: 'backfill'; events: RunEvent[] }
+	| { type: 'reset' }
 
 function createInitialState(): EventStreamState {
 	return { events: [], connected: true, done: false }
+}
+
+function isInitialState(state: EventStreamState): boolean {
+	return state.events.length === 0 && state.connected && !state.done
 }
 
 export function appendRunEvent(events: RunEvent[], event: RunEvent): RunEvent[] {
@@ -23,30 +32,48 @@ export function appendRunEvent(events: RunEvent[], event: RunEvent): RunEvent[] 
 	return next.length > MAX_EVENTS ? next.slice(-MAX_EVENTS) : next
 }
 
-function reducer(state: EventStreamState, action: EventStreamAction): EventStreamState {
-	return { ...state, events: appendRunEvent(state.events, action.event) }
+// Live broker events and DB rows share `id`, so dedup-by-id is safe.
+export function mergeRunEvents(base: RunEvent[], incoming: RunEvent[]): RunEvent[] {
+	const seen = new Set(base.map((event) => event.id))
+	const merged = [...base]
+	for (const event of incoming) {
+		if (seen.has(event.id)) continue
+		seen.add(event.id)
+		merged.push(event)
+	}
+	merged.sort((a, b) => a.ts.localeCompare(b.ts))
+	return merged.length > MAX_EVENTS ? merged.slice(-MAX_EVENTS) : merged
 }
 
-/**
- * Stream of `RunEvent`s for a single run, backed by the shell-level
- * workspace broker (SUP-84). Previously this opened its own
- * `/runs/{id}/events` SSE connection per page mount — consolidating onto
- * the workspace substrate is what unlocks multi-run supervision without
- * N duplicate EventSources.
- *
- * The `connected`/`done` flags are retained for existing callers, but now
- * reflect the broker contract: the broker owns reconnection, so subscribers
- * are effectively always "connected" and never "done" (the broker itself
- * keeps trying). Consumers who cared about the stream ending on a terminal
- * run state should observe `run.state.is_terminal()` via the query cache
- * instead — that's the authoritative signal.
- */
+export function eventStreamReducer(state: EventStreamState, action: EventStreamAction): EventStreamState {
+	switch (action.type) {
+		case 'event_received':
+			return { ...state, events: appendRunEvent(state.events, action.event) }
+		case 'backfill':
+			return { ...state, events: mergeRunEvents(state.events, action.events) }
+		case 'reset':
+			return isInitialState(state) ? state : createInitialState()
+	}
+}
+
+// Backfills the persisted log on mount; the broker bus only delivers events
+// published after subscription. `connected`/`done` are legacy fields — observe
+// `run.state.is_terminal()` for the authoritative end signal.
 export function useEventStream(runId: string | null | undefined, onStateChange?: () => void) {
-	const [state, dispatch] = useReducer(reducer, undefined, createInitialState)
+	const [state, dispatch] = useReducer(eventStreamReducer, undefined, createInitialState)
 	const onStateChangeRef = useRef(onStateChange)
 	onStateChangeRef.current = onStateChange
 
+	const backfill = useQuery(runEventsQuery(runId ?? null))
+	const backfillEvents = backfill.data
+
 	useEffect(() => {
+		if (!backfillEvents) return
+		dispatch({ type: 'backfill', events: backfillEvents })
+	}, [backfillEvents])
+
+	useEffect(() => {
+		dispatch({ type: 'reset' })
 		if (!runId) return
 		workspaceEventBroker.start()
 		const unsubscribe = workspaceEventBroker.subscribe({ runId, variant: 'run_event' }, (notice) => {
@@ -66,5 +93,8 @@ export function useEventStream(runId: string | null | undefined, onStateChange?:
 		return unsubscribe
 	}, [runId])
 
-	return state
+	return useMemo(
+		() => ({ events: state.events, connected: state.connected, done: state.done }),
+		[state.events, state.connected, state.done]
+	)
 }
