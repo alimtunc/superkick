@@ -597,6 +597,10 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         .route("/runs/{id}", get(handlers::runs::get_run))
         .route("/runs/{id}/diff", get(handlers::runs::get_run_diff))
         .route("/runs/{id}/events", get(handlers::runs::get_run_events))
+        .route(
+            "/runs/{id}/events/log",
+            get(handlers::runs::list_run_events),
+        )
         .route("/runs/{id}/cancel", post(handlers::runs::cancel_run))
         .route(
             "/runs/{id}/interrupts",

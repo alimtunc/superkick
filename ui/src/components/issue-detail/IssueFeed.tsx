@@ -16,7 +16,7 @@ import type {
 	NarrativeTone,
 	RunState
 } from '@/types'
-import { ChevronDown, MessageCircle } from 'lucide-react'
+import { MessageCircle } from 'lucide-react'
 
 interface FeedNode {
 	key: string
@@ -145,8 +145,8 @@ function buildNode(item: IssueActivityItem): FeedNode {
 export function IssueFeed({ issue }: { issue: IssueDetailResponse }) {
 	const nodes = useMemo(() => {
 		const items = buildIssueActivity(issue.comments, issue.linked_runs)
-		const newestFirst = items.toSorted((a, b) => b.ts - a.ts)
-		return newestFirst.map(buildNode)
+		const oldestFirst = items.toSorted((a, b) => a.ts - b.ts)
+		return oldestFirst.map(buildNode)
 	}, [issue.comments, issue.linked_runs])
 	const lastIndex = nodes.length - 1
 	const isEmpty = nodes.length === 0
@@ -162,15 +162,6 @@ export function IssueFeed({ issue }: { issue: IssueDetailResponse }) {
 						</span>
 						<span className="font-data text-[11px] text-fg-dim">{nodes.length}</span>
 					</>
-				)}
-				{isEmpty ? null : (
-					<span
-						className="ml-auto inline-flex items-center gap-0.5 text-[11.5px] text-fg-dim"
-						aria-label="Sorted newest first"
-					>
-						Newest first
-						<ChevronDown size={11} strokeWidth={1.8} aria-hidden="true" />
-					</span>
 				)}
 			</header>
 			{isEmpty ? (

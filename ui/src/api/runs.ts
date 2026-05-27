@@ -6,6 +6,7 @@ import type {
 	PullRequest,
 	Run,
 	RunDiffResponse,
+	RunEvent,
 	RunStep
 } from '@/types'
 
@@ -47,6 +48,12 @@ export async function fetchRun(id: string): Promise<{
 }> {
 	const res = await fetch(`${BASE}/runs/${id}`)
 	if (!res.ok) throw new Error(`GET /runs/${id} failed: ${res.status}`)
+	return res.json()
+}
+
+export async function fetchRunEvents(id: string): Promise<RunEvent[]> {
+	const res = await fetch(`${BASE}/runs/${id}/events/log`)
+	if (!res.ok) throw new Error(`GET /runs/${id}/events/log failed: ${res.status}`)
 	return res.json()
 }
 

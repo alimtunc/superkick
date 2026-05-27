@@ -188,6 +188,20 @@ pub async fn get_run(
     })))
 }
 
+/// JSON snapshot of persisted events for a run; the SSE bus at
+/// `/runs/{id}/events` only delivers events published after the subscription.
+pub async fn list_run_events(
+    State(state): State<AppState>,
+    Path(id): Path<uuid::Uuid>,
+) -> Result<Json<Vec<RunEvent>>, AppError> {
+    let run_id = RunId(id);
+    if state.run_repo.get(run_id).await?.is_none() {
+        return Err(AppError::NotFound("run not found"));
+    }
+    let events = state.event_repo.list_by_run(run_id).await?;
+    Ok(Json(events))
+}
+
 pub async fn get_run_events(
     State(state): State<AppState>,
     Path(id): Path<uuid::Uuid>,

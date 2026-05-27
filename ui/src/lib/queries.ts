@@ -10,6 +10,7 @@ import {
 	fetchLaunchTaskSteps,
 	fetchRun,
 	fetchRunDiff,
+	fetchRunEvents,
 	fetchRuns,
 	fetchRunToolCalls,
 	fetchRuntimes,
@@ -65,6 +66,13 @@ export const runDetailQuery = (id: string | null) =>
 	queryOptions({
 		queryKey: id ? queryKeys.runs.detail(id) : ['runs', 'detail', 'pending'],
 		queryFn: id ? () => fetchRun(id) : skipToken
+	})
+
+export const runEventsQuery = (id: string | null) =>
+	queryOptions({
+		queryKey: id ? queryKeys.runs.events(id) : ['runs', 'pending', 'events'],
+		queryFn: id ? () => fetchRunEvents(id) : skipToken,
+		staleTime: 10_000
 	})
 
 export const runToolCallsQuery = (id: string | null) =>

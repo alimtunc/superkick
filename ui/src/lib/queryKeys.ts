@@ -9,6 +9,7 @@ export const queryKeys = {
 	runs: {
 		all: ['runs'] as const,
 		detail: (id: string) => ['runs', id] as const,
+		events: (id: string) => ['runs', id, 'events'] as const,
 		toolCalls: (id: string) => ['runs', id, 'tool-calls'] as const,
 		diff: (id: string) => ['runs', id, 'diff'] as const
 	},
