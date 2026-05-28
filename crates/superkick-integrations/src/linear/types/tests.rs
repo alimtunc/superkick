@@ -293,6 +293,7 @@ fn sample_gql_issue_detail() -> GqlIssueDetail {
                 children: None,
             }],
         },
+        history: None,
     }
 }
 
@@ -925,6 +926,396 @@ fn create_comment_response_converts_to_issue_comment() {
     let author = comment.author.expect("author");
     assert_eq!(author.name, "Bob");
     assert!(comment.parent_id.is_none());
+}
+
+// ── Issue history (SUP-184) ──────────────────────────────────────────
+
+fn empty_history_node(id: &str, created_at: &str) -> serde_json::Value {
+    serde_json::json!({
+        "id": id,
+        "createdAt": created_at,
+        "actor": null,
+        "updatedDescription": null,
+        "fromTitle": null,
+        "toTitle": null,
+        "fromPriority": null,
+        "toPriority": null,
+        "fromState": null,
+        "toState": null,
+        "fromAssignee": null,
+        "toAssignee": null,
+        "fromCycle": null,
+        "toCycle": null,
+        "fromProject": null,
+        "toProject": null,
+        "fromEstimate": null,
+        "toEstimate": null,
+        "fromDueDate": null,
+        "toDueDate": null,
+        "addedLabels": null,
+        "removedLabels": null,
+    })
+}
+
+fn parse_detail_with_history(history: serde_json::Value) -> IssueDetailResponse {
+    let raw = serde_json::json!({
+        "data": {
+            "issue": {
+                "id": "issue-uuid",
+                "identifier": "SUP-1",
+                "title": "Test",
+                "description": "body",
+                "url": "https://linear.app/t/SUP-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "updatedAt": "2026-01-02T00:00:00.000Z",
+                "state": { "type": "unstarted", "name": "Todo", "color": "#bbb" },
+                "priority": 1,
+                "priorityLabel": "Urgent",
+                "labels": { "nodes": [] },
+                "assignee": null,
+                "project": null,
+                "cycle": null,
+                "estimate": null,
+                "dueDate": null,
+                "parent": null,
+                "children": { "nodes": [] },
+                "comments": { "nodes": [] },
+                "history": history,
+            }
+        }
+    });
+
+    let parsed: GqlDetailResponse = serde_json::from_value(raw).expect("parse");
+    IssueDetailResponse::from(parsed.data.expect("data").issue)
+}
+
+#[test]
+fn history_status_change_maps_to_status_changed_event() {
+    let mut node = empty_history_node("h-status", "2026-01-02T10:00:00.000Z");
+    node["fromState"] = serde_json::json!({
+        "id": "s-backlog", "name": "Backlog", "color": "#bec2c8", "type": "backlog",
+    });
+    node["toState"] = serde_json::json!({
+        "id": "s-progress", "name": "In Progress", "color": "#f2c94c", "type": "started",
+    });
+    node["actor"] = serde_json::json!({ "id": "u-1", "name": "Alice", "avatarUrl": null });
+
+    let detail = parse_detail_with_history(serde_json::json!({
+        "nodes": [node],
+        "pageInfo": { "hasNextPage": false, "endCursor": null }
+    }));
+
+    // Created prepended, real history entry second.
+    assert_eq!(detail.history.len(), 2);
+    let created = &detail.history[0];
+    assert!(matches!(created.events[0], IssueHistoryEvent::Created));
+    assert_eq!(created.id, "created:issue-uuid");
+    assert!(created.actor.is_none());
+
+    let status = &detail.history[1];
+    assert_eq!(status.id, "h-status");
+    assert_eq!(status.actor.as_ref().unwrap().name, "Alice");
+    match &status.events[0] {
+        IssueHistoryEvent::StatusChanged { from, to } => {
+            assert_eq!(from.state_type, "backlog");
+            assert_eq!(to.state_type, "started");
+            assert_eq!(to.name, "In Progress");
+        }
+        other => panic!("expected StatusChanged, got {other:?}"),
+    }
+}
+
+#[test]
+fn history_assignee_change_handles_unassigned_transition() {
+    let mut node = empty_history_node("h-assignee", "2026-01-02T11:00:00.000Z");
+    node["fromAssignee"] = serde_json::json!({ "id": "u-1", "name": "Alice", "avatarUrl": null });
+    node["toAssignee"] = serde_json::Value::Null;
+
+    let detail = parse_detail_with_history(serde_json::json!({
+        "nodes": [node],
+        "pageInfo": { "hasNextPage": false, "endCursor": null }
+    }));
+    let entry = detail.history.last().unwrap();
+    match &entry.events[0] {
+        IssueHistoryEvent::AssigneeChanged { from, to } => {
+            assert_eq!(from.as_ref().unwrap().name, "Alice");
+            assert!(to.is_none());
+        }
+        other => panic!("expected AssigneeChanged, got {other:?}"),
+    }
+}
+
+#[test]
+fn history_priority_change_clamps_float_to_u8() {
+    let mut node = empty_history_node("h-priority", "2026-01-02T12:00:00.000Z");
+    node["fromPriority"] = serde_json::json!(0.0);
+    node["toPriority"] = serde_json::json!(2.0);
+
+    let detail = parse_detail_with_history(serde_json::json!({
+        "nodes": [node],
+        "pageInfo": { "hasNextPage": false, "endCursor": null }
+    }));
+    let entry = detail.history.last().unwrap();
+    match entry.events[0] {
+        IssueHistoryEvent::PriorityChanged { from, to } => {
+            assert_eq!(from, 0);
+            assert_eq!(to, 2);
+        }
+        ref other => panic!("expected PriorityChanged, got {other:?}"),
+    }
+}
+
+#[test]
+fn history_priority_event_drops_out_of_range_values() {
+    let mut node = empty_history_node("h-priority-bad", "2026-01-02T12:00:00.000Z");
+    node["fromPriority"] = serde_json::json!(7.0);
+    node["toPriority"] = serde_json::json!(2.0);
+
+    let detail = parse_detail_with_history(serde_json::json!({
+        "nodes": [node],
+        "pageInfo": { "hasNextPage": false, "endCursor": null }
+    }));
+    // Out-of-range priority => no PriorityChanged event => the row has no
+    // events at all => the row is dropped => only the synthetic Created remains.
+    assert_eq!(detail.history.len(), 1);
+    assert!(matches!(
+        detail.history[0].events[0],
+        IssueHistoryEvent::Created
+    ));
+}
+
+#[test]
+fn history_labels_change_collapses_into_single_event() {
+    let mut node = empty_history_node("h-labels", "2026-01-02T13:00:00.000Z");
+    node["addedLabels"] = serde_json::json!([
+        { "name": "bug", "color": "#eb5757" },
+        { "name": "p1", "color": "#000" }
+    ]);
+    node["removedLabels"] = serde_json::json!([{ "name": "old", "color": "#aaa" }]);
+
+    let detail = parse_detail_with_history(serde_json::json!({
+        "nodes": [node],
+        "pageInfo": { "hasNextPage": false, "endCursor": null }
+    }));
+    let entry = detail.history.last().unwrap();
+    assert_eq!(entry.events.len(), 1);
+    match &entry.events[0] {
+        IssueHistoryEvent::LabelsChanged { added, removed } => {
+            assert_eq!(added.len(), 2);
+            assert_eq!(added[0].name, "bug");
+            assert_eq!(removed.len(), 1);
+            assert_eq!(removed[0].name, "old");
+        }
+        other => panic!("expected LabelsChanged, got {other:?}"),
+    }
+}
+
+#[test]
+fn history_description_edit_emits_description_edited() {
+    let mut node = empty_history_node("h-desc", "2026-01-02T14:00:00.000Z");
+    node["updatedDescription"] = serde_json::json!(true);
+
+    let detail = parse_detail_with_history(serde_json::json!({
+        "nodes": [node],
+        "pageInfo": { "hasNextPage": false, "endCursor": null }
+    }));
+    assert!(matches!(
+        detail.history.last().unwrap().events[0],
+        IssueHistoryEvent::DescriptionEdited
+    ));
+}
+
+#[test]
+fn history_multi_event_record_emits_all_changes() {
+    let mut node = empty_history_node("h-multi", "2026-01-02T15:00:00.000Z");
+    node["fromState"] = serde_json::json!({
+        "id": "s-backlog", "name": "Backlog", "color": "#bbb", "type": "backlog",
+    });
+    node["toState"] = serde_json::json!({
+        "id": "s-progress", "name": "In Progress", "color": "#fc0", "type": "started",
+    });
+    node["fromPriority"] = serde_json::json!(3.0);
+    node["toPriority"] = serde_json::json!(1.0);
+    node["fromTitle"] = serde_json::json!("Old");
+    node["toTitle"] = serde_json::json!("New");
+
+    let detail = parse_detail_with_history(serde_json::json!({
+        "nodes": [node],
+        "pageInfo": { "hasNextPage": false, "endCursor": null }
+    }));
+    let entry = detail.history.last().unwrap();
+    let kinds: Vec<&'static str> = entry
+        .events
+        .iter()
+        .map(|e| match e {
+            IssueHistoryEvent::StatusChanged { .. } => "status",
+            IssueHistoryEvent::PriorityChanged { .. } => "priority",
+            IssueHistoryEvent::TitleChanged { .. } => "title",
+            _ => "other",
+        })
+        .collect();
+    assert_eq!(kinds, vec!["status", "priority", "title"]);
+}
+
+#[test]
+fn history_is_reversed_to_oldest_first_with_created_prepended() {
+    // Linear returns newest-first; the conversion must reverse and prepend
+    // the synthetic Created entry so the UI sees the oldest event first.
+    let mut newest = empty_history_node("h-new", "2026-01-05T00:00:00.000Z");
+    newest["updatedDescription"] = serde_json::json!(true);
+    let mut oldest = empty_history_node("h-old", "2026-01-02T00:00:00.000Z");
+    oldest["fromState"] = serde_json::json!({
+        "id": "s1", "name": "Backlog", "color": "#bbb", "type": "backlog",
+    });
+    oldest["toState"] = serde_json::json!({
+        "id": "s2", "name": "Todo", "color": "#ccc", "type": "unstarted",
+    });
+
+    let detail = parse_detail_with_history(serde_json::json!({
+        "nodes": [newest, oldest],
+        "pageInfo": { "hasNextPage": false, "endCursor": null }
+    }));
+
+    assert_eq!(detail.history.len(), 3);
+    assert!(matches!(
+        detail.history[0].events[0],
+        IssueHistoryEvent::Created
+    ));
+    assert_eq!(detail.history[1].id, "h-old");
+    assert_eq!(detail.history[2].id, "h-new");
+}
+
+#[test]
+fn history_created_synthesized_when_linear_omits_it() {
+    let detail = parse_detail_with_history(serde_json::json!({
+        "nodes": [],
+        "pageInfo": { "hasNextPage": false, "endCursor": null }
+    }));
+    assert_eq!(detail.history.len(), 1);
+    let created = &detail.history[0];
+    assert_eq!(created.id, "created:issue-uuid");
+    assert_eq!(created.created_at.to_rfc3339(), "2026-01-01T00:00:00+00:00");
+    assert!(matches!(created.events[0], IssueHistoryEvent::Created));
+}
+
+#[test]
+fn history_has_more_propagates_page_info() {
+    let detail = parse_detail_with_history(serde_json::json!({
+        "nodes": [],
+        "pageInfo": { "hasNextPage": true, "endCursor": "cursor-1" }
+    }));
+    assert!(detail.history_has_more);
+}
+
+#[test]
+fn issue_history_event_round_trips_through_json() {
+    // Every variant must (de)serialize through serde with `tag = "kind"`.
+    let cases: Vec<IssueHistoryEvent> = vec![
+        IssueHistoryEvent::Created,
+        IssueHistoryEvent::DescriptionEdited,
+        IssueHistoryEvent::StatusChanged {
+            from: WorkflowStateRef {
+                id: "a".into(),
+                name: "Backlog".into(),
+                color: "#bbb".into(),
+                state_type: "backlog".into(),
+            },
+            to: WorkflowStateRef {
+                id: "b".into(),
+                name: "Todo".into(),
+                color: "#ccc".into(),
+                state_type: "unstarted".into(),
+            },
+        },
+        IssueHistoryEvent::AssigneeChanged {
+            from: None,
+            to: Some(IssueAssignee {
+                id: "u".into(),
+                name: "Alice".into(),
+                avatar_url: None,
+            }),
+        },
+        IssueHistoryEvent::PriorityChanged { from: 0, to: 2 },
+        IssueHistoryEvent::LabelsChanged {
+            added: vec![IssueLabel {
+                name: "bug".into(),
+                color: "#eb5757".into(),
+            }],
+            removed: vec![],
+        },
+        IssueHistoryEvent::ProjectChanged {
+            from: None,
+            to: Some(ProjectRef {
+                id: "p".into(),
+                name: "Q2".into(),
+            }),
+        },
+        IssueHistoryEvent::CycleChanged {
+            from: Some(CycleRef {
+                id: "c".into(),
+                name: Some("Sprint 1".into()),
+                number: 1,
+            }),
+            to: None,
+        },
+        IssueHistoryEvent::EstimateChanged {
+            from: Some(1.0),
+            to: Some(3.0),
+        },
+        IssueHistoryEvent::DueDateChanged {
+            from: None,
+            to: Some("2026-06-15".into()),
+        },
+        IssueHistoryEvent::TitleChanged {
+            from: "Old".into(),
+            to: "New".into(),
+        },
+    ];
+
+    for event in &cases {
+        let json = serde_json::to_string(event).expect("serialize");
+        // Tag is the discriminator.
+        assert!(json.contains("\"kind\""), "missing kind tag: {json}");
+        let parsed: IssueHistoryEvent = serde_json::from_str(&json).expect("round-trip");
+        // Compare by serialized form — Eq isn't derived on the variants
+        // because IssueAssignee/WorkflowStateRef carry plain Strings.
+        assert_eq!(
+            serde_json::to_value(&parsed).unwrap(),
+            serde_json::to_value(event).unwrap(),
+        );
+    }
+}
+
+#[test]
+fn issue_detail_response_history_defaults_to_empty() {
+    // Existing fixtures that don't carry `history` / `history_has_more`
+    // must still deserialize cleanly thanks to `#[serde(default)]`.
+    let raw = r##"{
+        "id": "x",
+        "identifier": "SUP-9",
+        "title": "Legacy fixture",
+        "status": { "state_type": "started", "name": "In Progress", "color": "#bbb" },
+        "priority": { "value": 2, "label": "High" },
+        "url": "https://linear.app/t/SUP-9",
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "description": "",
+        "labels": [],
+        "assignee": null,
+        "project": null,
+        "cycle": null,
+        "estimate": null,
+        "due_date": null,
+        "parent": null,
+        "children": [],
+        "blocked_by": [],
+        "team_id": null,
+        "comments": [],
+        "linked_runs": []
+    }"##;
+    let parsed: IssueDetailResponse = serde_json::from_str(raw).expect("parse");
+    assert!(parsed.history.is_empty());
+    assert!(!parsed.history_has_more);
 }
 
 #[test]

@@ -1,5 +1,6 @@
 import { PopoverPopup } from '@/components/ui/popover-shell'
 import type { WorkflowStateOption } from '@/types'
+import { StatusIcon, statusIconKindFor } from '@/ui'
 
 interface StatusPickerProps {
 	states: WorkflowStateOption[]
@@ -26,10 +27,13 @@ export function StatusPicker({ states, currentId, onSelect }: StatusPickerProps)
 								className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-[12.5px] text-fg hover:bg-raised focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
 							>
 								<span className="inline-flex items-center gap-2">
-									<span
-										aria-hidden="true"
-										className="size-2 rounded-full"
-										style={{ backgroundColor: state.color }}
+									<StatusIcon
+										kind={statusIconKindFor({
+											state_type: state.state_type,
+											name: state.name
+										})}
+										size={13}
+										color={state.color}
 									/>
 									<span>{state.name}</span>
 								</span>

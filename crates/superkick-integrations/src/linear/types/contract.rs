@@ -168,6 +168,84 @@ pub struct IssueDetailResponse {
     pub team_id: Option<String>,
     pub comments: Vec<IssueComment>,
     pub linked_runs: Vec<LinkedRunSummary>,
+    #[serde(default)]
+    pub history: Vec<IssueHistoryEntry>,
+    #[serde(default)]
+    pub history_has_more: bool,
+}
+
+/// A single Linear history record can carry multiple deltas — hence `Vec<IssueHistoryEvent>`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IssueHistoryEntry {
+    /// Linear's history-record uuid, or `"created:<issue_id>"` for the synthetic Created entry.
+    pub id: String,
+    pub created_at: DateTime<Utc>,
+    pub actor: Option<IssueAssignee>,
+    pub events: Vec<IssueHistoryEvent>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum IssueHistoryEvent {
+    StatusChanged {
+        from: WorkflowStateRef,
+        to: WorkflowStateRef,
+    },
+    AssigneeChanged {
+        from: Option<IssueAssignee>,
+        to: Option<IssueAssignee>,
+    },
+    PriorityChanged {
+        from: u8,
+        to: u8,
+    },
+    LabelsChanged {
+        added: Vec<IssueLabel>,
+        removed: Vec<IssueLabel>,
+    },
+    ProjectChanged {
+        from: Option<ProjectRef>,
+        to: Option<ProjectRef>,
+    },
+    CycleChanged {
+        from: Option<CycleRef>,
+        to: Option<CycleRef>,
+    },
+    EstimateChanged {
+        from: Option<f32>,
+        to: Option<f32>,
+    },
+    DueDateChanged {
+        from: Option<String>,
+        to: Option<String>,
+    },
+    TitleChanged {
+        from: String,
+        to: String,
+    },
+    DescriptionEdited,
+    Created,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowStateRef {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+    pub state_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectRef {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CycleRef {
+    pub id: String,
+    pub name: Option<String>,
+    pub number: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

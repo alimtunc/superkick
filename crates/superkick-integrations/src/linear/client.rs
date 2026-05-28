@@ -143,8 +143,8 @@ query TeamStates($teamId: String!) {
 }
 "#;
 
-/// Selection set for a fully hydrated issue. Shared by both write mutations
-/// and any future query that returns a `GqlIssueDetail`.
+/// Selection set for a fully hydrated issue. Shared by `get_issue`, the
+/// mutations, and any future query that returns a `GqlIssueDetail`.
 macro_rules! issue_detail_selection {
     () => {
         r#"
@@ -165,6 +165,7 @@ macro_rules! issue_detail_selection {
       estimate
       dueDate
       parent { id identifier title state { type name color } }
+      team { id }
       children {
         nodes {
           id identifier title updatedAt
@@ -196,6 +197,33 @@ macro_rules! issue_detail_selection {
             updatedAt
           } }
         }
+      }
+      history(first: 100, orderBy: createdAt) {
+        nodes {
+          id
+          createdAt
+          actor { id name avatarUrl }
+          updatedDescription
+          fromTitle
+          toTitle
+          fromPriority
+          toPriority
+          fromState { id type name color }
+          toState { id type name color }
+          fromAssignee { id name avatarUrl }
+          toAssignee { id name avatarUrl }
+          fromCycle { id name number }
+          toCycle { id name number }
+          fromProject { id name }
+          toProject { id name }
+          fromEstimate
+          toEstimate
+          fromDueDate
+          toDueDate
+          addedLabels { name color }
+          removedLabels { name color }
+        }
+        pageInfo { hasNextPage endCursor }
       }
         "#
     };
@@ -269,62 +297,13 @@ query LinearOptions($first: Int!) {
 }
 "#;
 
-const ISSUE_DETAIL_QUERY: &str = r#"
-query GetIssue($id: String!) {
-  issue(id: $id) {
-    id
-    identifier
-    title
-    description
-    url
-    createdAt
-    updatedAt
-    state { type name color }
-    priority
-    priorityLabel
-    labels { nodes { name color } }
-    assignee { id name avatarUrl }
-    project { name }
-    cycle { name number }
-    estimate
-    dueDate
-    parent { id identifier title state { type name color } }
-    team { id }
-    children {
-      nodes {
-        id identifier title updatedAt
-        state { type name color }
-        priority priorityLabel
-        labels { nodes { name color } }
-        assignee { id name avatarUrl }
-      }
-    }
-    inverseRelations {
-      nodes {
-        type
-        issue { id identifier title state { type name color } }
-      }
-    }
-    comments(first: 50, orderBy: createdAt) {
-      nodes {
-        id
-        body
-        user { id name avatarUrl }
-        createdAt
-        updatedAt
-        parent { id }
-        children { nodes {
-          id
-          body
-          user { id name avatarUrl }
-          createdAt
-          updatedAt
-        } }
-      }
-    }
-  }
-}
-"#;
+const ISSUE_DETAIL_QUERY: &str = concat!(
+    "query GetIssue($id: String!) {",
+    "  issue(id: $id) {",
+    issue_detail_selection!(),
+    "  }",
+    "}",
+);
 
 #[derive(Debug, Clone)]
 struct TeamWorkflowStates {

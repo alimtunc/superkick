@@ -244,6 +244,10 @@ pub(crate) struct GqlIssueDetail {
     #[serde(default)]
     pub inverse_relations: Option<GqlInverseRelationConnection>,
     pub comments: GqlCommentConnection,
+    /// Optional so mutation responses keep deserializing if Linear ever
+    /// omits the selection set, and so test fixtures don't have to model it.
+    #[serde(default)]
+    pub history: Option<GqlIssueHistoryConnection>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -255,6 +259,88 @@ pub(crate) struct GqlProject {
 pub(crate) struct GqlCycle {
     pub name: Option<String>,
     pub number: u32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GqlIssueHistoryConnection {
+    pub nodes: Vec<GqlIssueHistory>,
+    pub page_info: GqlPageInfo,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GqlIssueHistory {
+    pub id: String,
+    pub created_at: DateTime<Utc>,
+    #[serde(default)]
+    pub actor: Option<GqlUser>,
+    #[serde(default)]
+    pub updated_description: Option<bool>,
+    #[serde(default)]
+    pub from_title: Option<String>,
+    #[serde(default)]
+    pub to_title: Option<String>,
+    #[serde(default)]
+    pub from_priority: Option<f32>,
+    #[serde(default)]
+    pub to_priority: Option<f32>,
+    #[serde(default)]
+    pub from_state: Option<GqlWorkflowStateRef>,
+    #[serde(default)]
+    pub to_state: Option<GqlWorkflowStateRef>,
+    #[serde(default)]
+    pub from_assignee: Option<GqlUser>,
+    #[serde(default)]
+    pub to_assignee: Option<GqlUser>,
+    #[serde(default)]
+    pub from_cycle: Option<GqlCycleRef>,
+    #[serde(default)]
+    pub to_cycle: Option<GqlCycleRef>,
+    #[serde(default)]
+    pub from_project: Option<GqlProjectRef>,
+    #[serde(default)]
+    pub to_project: Option<GqlProjectRef>,
+    #[serde(default)]
+    pub from_estimate: Option<f32>,
+    #[serde(default)]
+    pub to_estimate: Option<f32>,
+    #[serde(default)]
+    pub from_due_date: Option<String>,
+    #[serde(default)]
+    pub to_due_date: Option<String>,
+    #[serde(default)]
+    pub added_labels: Option<Vec<GqlHistoryLabel>>,
+    #[serde(default)]
+    pub removed_labels: Option<Vec<GqlHistoryLabel>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlWorkflowStateRef {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+    #[serde(rename = "type")]
+    pub state_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlCycleRef {
+    pub id: String,
+    pub name: Option<String>,
+    pub number: u32,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlProjectRef {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlHistoryLabel {
+    pub name: String,
+    pub color: String,
 }
 
 #[derive(Debug, Deserialize)]
