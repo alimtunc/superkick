@@ -1,7 +1,13 @@
 import type { ReactNode } from 'react'
 
 import { IssueFeed } from '@/components/issue-detail/IssueFeed'
-import type { IssueComment, IssueDetailResponse, LinkedPrSummary, LinkedRunSummary } from '@/types'
+import type {
+	IssueComment,
+	IssueDetailResponse,
+	IssueHistoryEntry,
+	LinkedPrSummary,
+	LinkedRunSummary
+} from '@/types'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -51,12 +57,21 @@ function comment(overrides: Pick<IssueComment, 'id' | 'body' | 'created_at'>): I
 
 function buildIssue({
 	linkedRuns = [],
-	comments = []
-}: { linkedRuns?: LinkedRunSummary[]; comments?: IssueComment[] } = {}): IssueDetailResponse {
+	comments = [],
+	history,
+	historyHasMore
+}: {
+	linkedRuns?: LinkedRunSummary[]
+	comments?: IssueComment[]
+	history?: IssueHistoryEntry[]
+	historyHasMore?: boolean
+} = {}): IssueDetailResponse {
 	return {
 		identifier: 'SUP-173',
 		linked_runs: linkedRuns,
-		comments
+		comments,
+		history,
+		history_has_more: historyHasMore
 	} as unknown as IssueDetailResponse
 }
 
@@ -147,5 +162,76 @@ describe('IssueFeed — activity timeline', () => {
 		render(<IssueFeed issue={buildIssue()} />)
 
 		expect(screen.getByText(/no activity yet/i)).toBeInTheDocument()
+	})
+
+	it('renders history rows interleaved with comments and runs', () => {
+		render(
+			<IssueFeed
+				issue={buildIssue({
+					comments: [
+						comment({
+							id: 'c-mid',
+							body: 'mid comment',
+							created_at: '2026-05-25T10:00:00.000Z'
+						})
+					],
+					history: [
+						{
+							id: 'created:abc',
+							created_at: '2026-05-25T08:00:00.000Z',
+							actor: null,
+							events: [{ kind: 'created' }]
+						},
+						{
+							id: 'h-desc',
+							created_at: '2026-05-25T11:00:00.000Z',
+							actor: { id: 'u-a', name: 'Alice', avatar_url: null },
+							events: [{ kind: 'description_edited' }]
+						}
+					]
+				})}
+			/>
+		)
+
+		const activity = screen.getByRole('region', { name: 'Activity' })
+		expect(within(activity).getByText(/created the issue/i)).toBeInTheDocument()
+		expect(within(activity).getByText('mid comment')).toBeInTheDocument()
+		expect(within(activity).getByText(/updated the description/i)).toBeInTheDocument()
+	})
+
+	it('renders the truncated footer only when history_has_more is true', () => {
+		const { rerender } = render(
+			<IssueFeed
+				issue={buildIssue({
+					history: [
+						{
+							id: 'created:abc',
+							created_at: '2026-05-25T08:00:00.000Z',
+							actor: null,
+							events: [{ kind: 'created' }]
+						}
+					],
+					historyHasMore: false
+				})}
+			/>
+		)
+		expect(screen.queryByText(/older history not loaded/i)).toBeNull()
+
+		rerender(
+			<IssueFeed
+				issue={buildIssue({
+					history: [
+						{
+							id: 'created:abc',
+							created_at: '2026-05-25T08:00:00.000Z',
+							actor: null,
+							events: [{ kind: 'created' }]
+						}
+					],
+					historyHasMore: true
+				})}
+			/>
+		)
+		expect(screen.getByText(/older history not loaded/i)).toBeInTheDocument()
 	})
 })

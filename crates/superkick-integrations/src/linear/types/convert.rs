@@ -104,6 +104,7 @@ impl From<GqlOptionsData> for LinearOptions {
 
 impl From<GqlIssueDetail> for IssueDetailResponse {
     fn from(g: GqlIssueDetail) -> Self {
+        let (history, history_has_more) = history_from_gql(g.history, &g.id, g.created_at);
         Self {
             id: g.id,
             identifier: g.identifier,
@@ -166,8 +167,192 @@ impl From<GqlIssueDetail> for IssueDetailResponse {
                 })
                 .collect(),
             linked_runs: Vec::new(),
+            history,
+            history_has_more,
         }
     }
+}
+
+/// Linear returns newest-first; reverse and prepend a synthetic Created entry (Linear emits none).
+fn history_from_gql(
+    connection: Option<super::graphql::GqlIssueHistoryConnection>,
+    issue_id: &str,
+    issue_created_at: chrono::DateTime<chrono::Utc>,
+) -> (Vec<IssueHistoryEntry>, bool) {
+    let Some(conn) = connection else {
+        let synthetic = synthesize_created_entry(issue_id, issue_created_at);
+        return (vec![synthetic], false);
+    };
+    let has_more = conn.page_info.has_next_page;
+    let mut entries: Vec<IssueHistoryEntry> = conn
+        .nodes
+        .into_iter()
+        .filter_map(history_entry_from_gql)
+        .collect();
+    entries.reverse();
+    if !entries.first().is_some_and(|e| {
+        e.events
+            .iter()
+            .any(|ev| matches!(ev, IssueHistoryEvent::Created))
+    }) {
+        entries.insert(0, synthesize_created_entry(issue_id, issue_created_at));
+    }
+    (entries, has_more)
+}
+
+fn synthesize_created_entry(
+    issue_id: &str,
+    issue_created_at: chrono::DateTime<chrono::Utc>,
+) -> IssueHistoryEntry {
+    IssueHistoryEntry {
+        id: format!("created:{issue_id}"),
+        created_at: issue_created_at,
+        actor: None,
+        events: vec![IssueHistoryEvent::Created],
+    }
+}
+
+fn history_entry_from_gql(node: super::graphql::GqlIssueHistory) -> Option<IssueHistoryEntry> {
+    let mut events: Vec<IssueHistoryEvent> = Vec::new();
+
+    if let (Some(from), Some(to)) = (node.from_state, node.to_state) {
+        events.push(IssueHistoryEvent::StatusChanged {
+            from: WorkflowStateRef {
+                id: from.id,
+                name: from.name,
+                color: from.color,
+                state_type: from.state_type,
+            },
+            to: WorkflowStateRef {
+                id: to.id,
+                name: to.name,
+                color: to.color,
+                state_type: to.state_type,
+            },
+        });
+    }
+
+    if node.from_assignee.is_some() || node.to_assignee.is_some() {
+        events.push(IssueHistoryEvent::AssigneeChanged {
+            from: node.from_assignee.map(gql_user_to_assignee),
+            to: node.to_assignee.map(gql_user_to_assignee),
+        });
+    }
+
+    if let Some(priority_event) = priority_event(node.from_priority, node.to_priority) {
+        events.push(priority_event);
+    }
+
+    let added_labels = node.added_labels.unwrap_or_default();
+    let removed_labels = node.removed_labels.unwrap_or_default();
+    if !added_labels.is_empty() || !removed_labels.is_empty() {
+        events.push(IssueHistoryEvent::LabelsChanged {
+            added: added_labels
+                .into_iter()
+                .map(|l| IssueLabel {
+                    name: l.name,
+                    color: l.color,
+                })
+                .collect(),
+            removed: removed_labels
+                .into_iter()
+                .map(|l| IssueLabel {
+                    name: l.name,
+                    color: l.color,
+                })
+                .collect(),
+        });
+    }
+
+    if node.from_project.is_some() || node.to_project.is_some() {
+        events.push(IssueHistoryEvent::ProjectChanged {
+            from: node.from_project.map(|p| ProjectRef {
+                id: p.id,
+                name: p.name,
+            }),
+            to: node.to_project.map(|p| ProjectRef {
+                id: p.id,
+                name: p.name,
+            }),
+        });
+    }
+
+    if node.from_cycle.is_some() || node.to_cycle.is_some() {
+        events.push(IssueHistoryEvent::CycleChanged {
+            from: node.from_cycle.map(|c| CycleRef {
+                id: c.id,
+                name: c.name,
+                number: c.number,
+            }),
+            to: node.to_cycle.map(|c| CycleRef {
+                id: c.id,
+                name: c.name,
+                number: c.number,
+            }),
+        });
+    }
+
+    if node.from_estimate.is_some() || node.to_estimate.is_some() {
+        events.push(IssueHistoryEvent::EstimateChanged {
+            from: node.from_estimate,
+            to: node.to_estimate,
+        });
+    }
+
+    if node.from_due_date.is_some() || node.to_due_date.is_some() {
+        events.push(IssueHistoryEvent::DueDateChanged {
+            from: node.from_due_date,
+            to: node.to_due_date,
+        });
+    }
+
+    if let (Some(from), Some(to)) = (node.from_title, node.to_title) {
+        events.push(IssueHistoryEvent::TitleChanged { from, to });
+    }
+
+    if node.updated_description == Some(true) {
+        events.push(IssueHistoryEvent::DescriptionEdited);
+    }
+
+    if events.is_empty() {
+        return None;
+    }
+
+    Some(IssueHistoryEntry {
+        id: node.id,
+        created_at: node.created_at,
+        actor: node.actor.map(gql_user_to_assignee),
+        events,
+    })
+}
+
+fn gql_user_to_assignee(u: super::graphql::GqlUser) -> IssueAssignee {
+    IssueAssignee {
+        id: u.id,
+        name: u.name,
+        avatar_url: u.avatar_url,
+    }
+}
+
+/// Clamp Linear's `Float` priority into the documented 0..=4 range and emit a
+/// `PriorityChanged` event. Linear's wire shape is `Float` but the live range
+/// is integer 0..=4 — anything outside is dropped defensively rather than
+/// silently round-tripping a garbage value.
+fn priority_event(from: Option<f32>, to: Option<f32>) -> Option<IssueHistoryEvent> {
+    let from = clamp_priority(from?)?;
+    let to = clamp_priority(to?)?;
+    Some(IssueHistoryEvent::PriorityChanged { from, to })
+}
+
+fn clamp_priority(raw: f32) -> Option<u8> {
+    if !raw.is_finite() {
+        return None;
+    }
+    let rounded = raw.round();
+    if !(0.0..=4.0).contains(&rounded) {
+        return None;
+    }
+    Some(rounded as u8)
 }
 
 impl From<GqlIssue> for LinearIssueListItem {

@@ -2,6 +2,8 @@ import { useMemo, type ReactNode } from 'react'
 
 import { ActivityNode } from '@/components/issue-detail/ActivityNode'
 import { AuthorAvatar } from '@/components/issue-detail/AuthorAvatar'
+import { HistoryEntryBody } from '@/components/issue-detail/HistoryEntryBody'
+import { HistoryTruncatedFooter } from '@/components/issue-detail/HistoryTruncatedFooter'
 import { IssueMarkdown } from '@/components/issue-detail/IssueMarkdown'
 import { OpenRunButton } from '@/components/issue-detail/OpenRunButton'
 import { RunPrBadge } from '@/components/issue-detail/RunPrBadge'
@@ -139,17 +141,30 @@ function buildNode(item: IssueActivityItem): FeedNode {
 				body: <RunCompletedBody run={item.run} />
 			}
 		}
+		case 'history': {
+			const actor = item.entry.actor
+			return {
+				key: item.key,
+				kind: 'system',
+				role: 'neutral',
+				variant: 'event',
+				who: actor?.name ?? 'Linear',
+				time: fmtRelativeTime(item.entry.created_at),
+				disc: actor ? <AuthorAvatar name={actor.name} avatarUrl={actor.avatar_url} /> : null,
+				body: <HistoryEntryBody entry={item.entry} />
+			}
+		}
 	}
 }
 
 export function IssueFeed({ issue }: { issue: IssueDetailResponse }) {
 	const nodes = useMemo(() => {
-		const items = buildIssueActivity(issue.comments, issue.linked_runs)
-		const oldestFirst = items.toSorted((a, b) => a.ts - b.ts)
-		return oldestFirst.map(buildNode)
-	}, [issue.comments, issue.linked_runs])
+		const items = buildIssueActivity(issue.comments, issue.linked_runs, issue.history ?? [])
+		return items.map(buildNode)
+	}, [issue.comments, issue.linked_runs, issue.history])
 	const lastIndex = nodes.length - 1
 	const isEmpty = nodes.length === 0
+	const showFooter = issue.history_has_more === true
 	return (
 		<section aria-label="Activity">
 			<header className="mb-3 flex items-center gap-1.5">
@@ -184,6 +199,7 @@ export function IssueFeed({ issue }: { issue: IssueDetailResponse }) {
 					))}
 				</div>
 			)}
+			{showFooter ? <HistoryTruncatedFooter /> : null}
 		</section>
 	)
 }

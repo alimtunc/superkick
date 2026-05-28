@@ -1,13 +1,25 @@
 import { isTerminalRunState } from '@/lib/domain/runState'
-import type { CommentNode, IssueActivityItem, IssueComment, LinkedRunSummary } from '@/types'
+import type {
+	CommentNode,
+	IssueActivityItem,
+	IssueComment,
+	IssueHistoryEntry,
+	LinkedRunSummary
+} from '@/types'
 
+// Tie-break by key (below) keeps React keys stable when comment/history share a timestamp.
 const KIND_ORDINAL: Record<IssueActivityItem['kind'], number> = {
 	comment: 0,
+	history: 0,
 	run_launched: 1,
 	run_completed: 2
 }
 
-export function buildIssueActivity(comments: IssueComment[], runs: LinkedRunSummary[]): IssueActivityItem[] {
+export function buildIssueActivity(
+	comments: IssueComment[],
+	runs: LinkedRunSummary[],
+	history: IssueHistoryEntry[] = []
+): IssueActivityItem[] {
 	const tree = buildCommentTree(comments)
 
 	const items: IssueActivityItem[] = tree.map((node) => ({
@@ -35,7 +47,18 @@ export function buildIssueActivity(comments: IssueComment[], runs: LinkedRunSumm
 		}
 	}
 
-	return items.toSorted((a, b) => a.ts - b.ts || KIND_ORDINAL[a.kind] - KIND_ORDINAL[b.kind])
+	for (const entry of history) {
+		items.push({
+			kind: 'history',
+			entry,
+			ts: new Date(entry.created_at).getTime(),
+			key: `history:${entry.id}`
+		})
+	}
+
+	return items.toSorted(
+		(a, b) => a.ts - b.ts || KIND_ORDINAL[a.kind] - KIND_ORDINAL[b.kind] || a.key.localeCompare(b.key)
+	)
 }
 
 function buildCommentTree(comments: IssueComment[]): CommentNode[] {

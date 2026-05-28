@@ -117,6 +117,7 @@ export interface IssueListResponse {
 // - SUP-19 (run history linkage): `linked_runs` populated server-side.
 // - SUP-21 (review context): `comments` carries latest review context.
 
+import type { IssueHistoryEntry } from './issueHistory'
 import type { LinkedRunSummary } from './runs'
 
 export interface IssueDetailResponse {
@@ -155,6 +156,9 @@ export interface IssueDetailResponse {
 
 	// Optional: linked run state (SUP-19 ready)
 	linked_runs: LinkedRunSummary[]
+
+	history?: IssueHistoryEntry[]
+	history_has_more?: boolean
 }
 
 // ── Operator-facing classification ────────────────────────────────────

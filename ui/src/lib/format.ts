@@ -3,6 +3,11 @@ export function formatShortDate(iso: string): string {
 	return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+export function formatLongDate(iso: string): string {
+	const d = new Date(iso)
+	return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 export function getInitials(name: string): string {
 	return name
 		.split(/\s+/)

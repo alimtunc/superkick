@@ -1,7 +1,16 @@
-import type { IssueComment, LinkedPrSummary, LinkedRunSummary } from '@/types'
+import type { IssueComment, IssueHistoryEntry, LinkedPrSummary, LinkedRunSummary } from '@/types'
 import { describe, expect, it } from 'vitest'
 
 import { buildIssueActivity } from '../issueActivity'
+
+function historyEntry(id: string, created_at: string): IssueHistoryEntry {
+	return {
+		id,
+		created_at,
+		actor: null,
+		events: [{ kind: 'description_edited' }]
+	}
+}
 
 function comment(overrides: Partial<IssueComment> & Pick<IssueComment, 'id' | 'created_at'>): IssueComment {
 	return {
@@ -150,5 +159,38 @@ describe('buildIssueActivity', () => {
 			'run-launched:r-tie',
 			'run-completed:r-tie'
 		])
+	})
+
+	it('interleaves history entries with comments and runs by timestamp', () => {
+		const items = buildIssueActivity(
+			[comment({ id: 'c-mid', created_at: '2026-05-25T10:00:00.000Z' })],
+			[
+				run({
+					id: 'r-late',
+					state: 'completed',
+					started_at: '2026-05-25T11:00:00.000Z',
+					finished_at: '2026-05-25T12:00:00.000Z'
+				})
+			],
+			[
+				historyEntry('h-early', '2026-05-25T08:00:00.000Z'),
+				historyEntry('h-late', '2026-05-25T13:00:00.000Z')
+			]
+		)
+
+		expect(items.map((i) => i.key)).toEqual([
+			'history:h-early',
+			'comment:c-mid',
+			'run-launched:r-late',
+			'run-completed:r-late',
+			'history:h-late'
+		])
+	})
+
+	it('breaks comment/history timestamp ties deterministically by key', () => {
+		const ts = '2026-05-25T09:00:00.000Z'
+		const items = buildIssueActivity([comment({ id: 'a', created_at: ts })], [], [historyEntry('z', ts)])
+		// `comment:a` and `history:z` share ordinal 0; key compare keeps `comment:a` first.
+		expect(items.map((i) => i.key)).toEqual(['comment:a', 'history:z'])
 	})
 })

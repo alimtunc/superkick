@@ -34,7 +34,9 @@ export const issueDetailQuery = (id: string) =>
 	queryOptions({
 		queryKey: queryKeys.issues.detail(id),
 		queryFn: () => fetchIssueDetail(id),
-		staleTime: 15_000
+		staleTime: 15_000,
+		refetchInterval: 30_000,
+		refetchIntervalInBackground: false
 	})
 
 export const issueWorkspaceContextQuery = (id: string | null) =>
