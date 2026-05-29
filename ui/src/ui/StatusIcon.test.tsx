@@ -18,7 +18,7 @@ const LABELS: Record<StatusIconKind, string> = {
 	backlog: 'Backlog',
 	todo: 'Todo',
 	progress: 'In progress',
-	needs: 'Needs human',
+	needs: 'Needs you',
 	review: 'In review',
 	done: 'Done',
 	cancelled: 'Cancelled'

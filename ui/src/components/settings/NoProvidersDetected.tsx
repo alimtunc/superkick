@@ -5,7 +5,7 @@ interface NoProvidersDetectedProps {
 export function NoProvidersDetected({ variant = 'card' }: NoProvidersDetectedProps) {
 	const wrapper =
 		variant === 'card'
-			? 'rounded-md border border-border bg-raised/30 p-6 text-center'
+			? 'rounded-[7px] border border-border bg-raised p-6 text-center shadow-(--shadow-sm)'
 			: 'px-4 py-6 text-center'
 	return (
 		<div className={wrapper}>

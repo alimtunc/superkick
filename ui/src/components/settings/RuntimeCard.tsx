@@ -13,7 +13,7 @@ export function RuntimeCard({ runtime }: RuntimeCardProps) {
 		.filter((segment): segment is string => segment !== null)
 		.join(' / ')
 	return (
-		<article className="rounded-md border border-border bg-raised/30">
+		<article className="rounded-[7px] border border-border bg-raised shadow-(--shadow-sm)">
 			<header className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
 				<span className="font-data text-[13px] font-medium tracking-wider text-fg uppercase">
 					{runtime.name}

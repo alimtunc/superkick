@@ -1,6 +1,6 @@
 import type { PullRequest, Run } from '@/types'
+import { Icon } from '@/ui/Icon'
 import { Link } from '@tanstack/react-router'
-import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock } from 'lucide-react'
 
 interface RunStatusBannerProps {
 	run: Run
@@ -31,31 +31,29 @@ function pauseTitle(run: Run): string {
 }
 
 function CompletedBanner({ run, pr }: { run: Run; pr: PullRequest | null }) {
-	const tone =
-		run.state === 'completed'
-			? 'border-success bg-success-soft text-success'
-			: 'border-warn bg-warn-soft text-warn'
-	const Cmp = run.state === 'completed' ? CheckCircle2 : AlertTriangle
+	const success = run.state === 'completed'
 	return (
 		<div
 			role="status"
-			className={`flex items-center gap-3 border-b px-6 py-3 ${tone}`}
+			className="opbanner"
+			style={{
+				background: success ? 'var(--success-soft)' : 'var(--warn-soft)',
+				borderColor: success ? 'var(--success)' : 'var(--warn)'
+			}}
 			data-banner-state={run.state}
 		>
-			<Cmp size={16} aria-hidden="true" className="shrink-0" />
-			<div className="min-w-0 flex-1">
-				<div className="text-[13px] font-medium text-fg">{shipSummary(run)}</div>
-			</div>
-			<div className="flex shrink-0 items-center gap-2">
+			<span className="opbanner__icon" style={{ color: success ? 'var(--success)' : 'var(--warn)' }}>
+				<Icon name={success ? 'check' : 'alert'} size={18} className="ic" />
+			</span>
+			<div className="opbanner__body">
+				<p className="opbanner__title">{shipSummary(run)}</p>
 				{pr ? (
-					<a
-						href={pr.url}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="font-data inline-flex items-center gap-1 rounded-md border border-success/40 px-2.5 py-1 text-[12px] text-success hover:bg-success/10 focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:outline-none"
-					>
-						View PR #{pr.number}
-					</a>
+					<div className="opbanner__actions">
+						<a href={pr.url} target="_blank" rel="noopener noreferrer" className="btn btn--sm">
+							<Icon name="external" size={14} className="ic" />
+							View PR #{pr.number}
+						</a>
+					</div>
 				) : null}
 			</div>
 		</div>
@@ -63,31 +61,28 @@ function CompletedBanner({ run, pr }: { run: Run; pr: PullRequest | null }) {
 }
 
 function NeedsHumanBanner({ run }: { run: Run }) {
-	const Icon = isBudgetPaused(run) ? Clock : AlertTriangle
 	const title = pauseTitle(run)
 	const reason = run.pause_reason ?? null
 
 	return (
-		<div
-			role="alert"
-			className="border-b border-warn bg-warn-soft px-6 py-3 text-warn"
-			data-banner-state="needs-human"
-		>
-			<div className="flex items-start gap-3">
-				<Icon size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
-				<div className="min-w-0 flex-1">
-					<div className="text-[13px] font-medium text-fg">{title}</div>
-					{reason ? <div className="mt-1 text-[12.5px] text-fg-muted">{reason}</div> : null}
+		<div role="alert" className="opbanner" data-banner-state="needs-human">
+			<span className="opbanner__icon">
+				<Icon name={isBudgetPaused(run) ? 'clock' : 'alert'} size={18} className="ic" />
+			</span>
+			<div className="opbanner__body">
+				<p className="opbanner__title">{title}</p>
+				{reason ? <p className="opbanner__q">{reason}</p> : null}
+				<div className="opbanner__actions">
+					<Link
+						to="/issues/$issueId"
+						params={{ issueId: run.issue_identifier }}
+						className="btn btn--sm"
+						aria-label={`Open issue ${run.issue_identifier}`}
+					>
+						Open issue
+						<Icon name="arrowRight" size={14} className="ic" />
+					</Link>
 				</div>
-				<Link
-					to="/issues/$issueId"
-					params={{ issueId: run.issue_identifier }}
-					className="inline-flex shrink-0 items-center gap-1 rounded-md border border-warn/40 px-2.5 py-1 text-[12px] text-warn hover:bg-warn/10 focus-visible:ring-2 focus-visible:ring-warn/40 focus-visible:outline-none"
-					aria-label={`Open issue ${run.issue_identifier}`}
-				>
-					Open issue
-					<ArrowUpRight size={12} strokeWidth={1.85} aria-hidden="true" />
-				</Link>
 			</div>
 		</div>
 	)
@@ -95,11 +90,19 @@ function NeedsHumanBanner({ run }: { run: Run }) {
 
 export function RunStatusBanner({ run, pr, isTerminal, needsHuman }: RunStatusBannerProps) {
 	if (needsHuman) {
-		return <NeedsHumanBanner run={run} />
+		return (
+			<div className="px-6 pt-5">
+				<NeedsHumanBanner run={run} />
+			</div>
+		)
 	}
 
 	if (isTerminal && run.state !== 'cancelled') {
-		return <CompletedBanner run={run} pr={pr} />
+		return (
+			<div className="px-6 pt-5">
+				<CompletedBanner run={run} pr={pr} />
+			</div>
+		)
 	}
 
 	return null

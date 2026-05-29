@@ -15,9 +15,9 @@ interface TaskBadgeProps {
 }
 
 const TONE: Record<TaskBadgeKind, PillTone> = {
-	needs: 'warn',
-	running: 'info',
-	review: 'accent',
+	needs: 'needs',
+	running: 'accent',
+	review: 'review',
 	shipped: 'success'
 }
 

@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 
 import { AgentCard } from '@/components/agents/AgentCard'
 import { AGENTS_FIXTURE } from '@/components/agents/agentsFixture'
-import { Pill } from '@/components/ui/pill'
 import { usePageActions } from '@/shell/usePageActions'
 import { Btn } from '@/ui/Btn'
 import { createRoute } from '@tanstack/react-router'
@@ -16,43 +15,35 @@ export const Route = createRoute({
 })
 
 function AgentsPage() {
-	const { active, paused, activeAgents } = useMemo(() => {
-		const activeList = AGENTS_FIXTURE.filter((agent) => agent.status === 'active')
-		const pausedCount = AGENTS_FIXTURE.length - activeList.length
-		return { active: activeList.length, paused: pausedCount, activeAgents: activeList }
+	const { running, total } = useMemo(() => {
+		const runningCount = AGENTS_FIXTURE.filter((agent) => agent.status === 'active').length
+		return { running: runningCount, total: AGENTS_FIXTURE.length }
 	}, [])
-
-	const sub = useMemo(
-		() => (
-			<Pill tone="neutral" mono size="xs">
-				{active} active · {paused} paused
-			</Pill>
-		),
-		[active, paused]
-	)
 
 	const right = useMemo(
 		() => (
 			<div className="flex items-center gap-2">
-				<Btn kind="ghost" size="sm" icon="filter">
-					All teams
-				</Btn>
+				<span className="pill pill--accent">
+					<span className="agdot agdot--running" />
+					{running} / {total} running
+				</span>
 				<Btn kind="primary" size="sm" icon="plus">
 					New agent
 				</Btn>
 			</div>
 		),
-		[]
+		[running, total]
 	)
 
-	usePageActions({ sub, right })
+	usePageActions({ right })
 
 	return (
 		<div className="px-6 py-6">
-			<div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-3">
-				{activeAgents.map((agent) => (
+			<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+				{AGENTS_FIXTURE.map((agent) => (
 					<AgentCard
 						key={agent.id}
+						id={agent.id}
 						name={agent.name}
 						role={agent.role}
 						model={agent.model}
@@ -61,8 +52,7 @@ function AgentsPage() {
 						sparkline={agent.sparkline}
 						tags={agent.tags}
 						tone={agent.tone}
-						runner_mode={agent.runner_mode}
-						billing_profile={agent.billing_profile}
+						status={agent.status}
 					/>
 				))}
 			</div>

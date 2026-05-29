@@ -2,15 +2,25 @@ import { CommandBar } from '@/components/command/CommandBar'
 import { SessionWatchRail } from '@/components/dashboard/SessionWatchRail'
 import { useDashboardRuns } from '@/hooks/useDashboardRuns'
 import { FEATURES } from '@/lib/features'
+import { ConnectionBanner } from '@/shell/ConnectionBanner'
 import { pathnameToTitle } from '@/shell/pathnameToTitle'
 import { Sidebar } from '@/shell/Sidebar'
 import { Topbar } from '@/shell/Topbar'
 import { TopbarStatus } from '@/shell/TopbarStatus'
 import { usePageActionsStore } from '@/shell/usePageActions'
+import type { ShellNavId } from '@/types'
+import type { SKIconName } from '@/types/icons'
 import { Outlet, useMatches } from '@tanstack/react-router'
 import { Toaster } from 'sonner'
 
 import { RunDock } from './RunDock'
+
+const SECTION_ICON: Record<Exclude<ShellNavId, null>, SKIconName> = {
+	inbox: 'inbox',
+	issues: 'issue',
+	agents: 'agent',
+	settings: 'settings'
+}
 
 export function AppShell() {
 	const dashboard = useDashboardRuns()
@@ -25,15 +35,17 @@ export function AppShell() {
 
 	return (
 		<div className="flex h-screen bg-canvas">
-			<Sidebar active={active} />
+			<Sidebar active={active} agentActive={dashboard.active.length > 0} />
 			<div className="flex min-w-0 flex-1 flex-col">
 				<Topbar
 					title={pageTitle ?? title}
+					icon={active ? SECTION_ICON[active] : undefined}
 					crumbs={pageCrumbs ?? crumbs}
 					sub={pageSub ?? undefined}
 					right={pageRight ?? <TopbarStatus />}
 					back={pageBack ?? undefined}
 				/>
+				<ConnectionBanner />
 				{FEATURES.sessionWatchRail ? (
 					<SessionWatchRail refTime={dashboard.refTime} mode="overview" />
 				) : null}

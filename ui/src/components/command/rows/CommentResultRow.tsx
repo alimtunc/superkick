@@ -19,7 +19,7 @@ export function CommentResultRow({ comment, selected, onSelect, onActivate }: Co
 			selected={selected}
 			onSelect={onSelect}
 			onActivate={onActivate}
-			leading={<Icon name="comment" size={13} className="text-fg-muted" />}
+			leading={<Icon name="comment" size={16} className="text-fg-muted" />}
 			primary={
 				<span className="text-fg-muted">
 					<span className="text-fg">{author}</span> on{' '}

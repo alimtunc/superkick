@@ -30,38 +30,37 @@ export function LaunchTaskNeedsHumanCallout({
 	const linkedRunId = blockingStep?.linked_run_id ?? null
 	const isTerminal = classification ? getDisposition(classification) === 'failed' : false
 
-	const containerClass = isTerminal
-		? 'mb-4 rounded-md border border-danger/40 bg-danger-soft px-3.5 py-3'
-		: 'mb-4 rounded-md border border-warn/40 bg-warn-soft px-3.5 py-3'
-	const headlineClass = isTerminal
-		? 'text-[13px] font-medium text-danger'
-		: 'text-[13px] font-medium text-warn'
 	const ctaClass = cn(
-		'inline-flex items-center gap-1 font-mono text-[11.5px] hover:underline focus-visible:ring-2 focus-visible:outline-none',
-		isTerminal ? 'text-danger focus-visible:ring-danger/40' : 'text-warn focus-visible:ring-warn/40'
+		'inline-flex items-center gap-1 font-mono text-[11.5px] hover:underline focus-visible:outline-none',
+		isTerminal ? 'text-danger' : 'text-[var(--status-needs)]'
 	)
-
 	const ctaLabel = linkedRunId ? 'Open run' : 'Open chat'
 	const cta = linkedRunId ? (
 		<Link to="/runs/$runId" params={{ runId: linkedRunId }} className={ctaClass}>
 			{ctaLabel}
-			<Icon name="arrowRight" size={12} />
+			<Icon name="arrowRight" size={12} className="ic" />
 		</Link>
 	) : (
 		<button type="button" onClick={openChat} className={ctaClass}>
 			{ctaLabel}
-			<Icon name="arrowRight" size={12} />
+			<Icon name="arrowRight" size={12} className="ic" />
 		</button>
 	)
 
 	return (
-		<div className={containerClass}>
-			<div className="flex items-center justify-between gap-3">
-				<div className="flex flex-col">
-					<span className={headlineClass}>{headline}</span>
-					<span className="font-mono text-[11.5px] text-fg-muted">{hint}</span>
-				</div>
-				<div className="flex items-center gap-2">
+		<div
+			className={cn('opbanner', isTerminal ? 'opbanner--danger' : 'opbanner--needs')}
+			style={
+				isTerminal ? { background: 'var(--danger-soft)', borderColor: 'var(--danger)' } : undefined
+			}
+		>
+			<span className="opbanner__icon" style={isTerminal ? { color: 'var(--danger)' } : undefined}>
+				<Icon name="alert" size={16} className="ic" />
+			</span>
+			<div className="opbanner__body">
+				<p className="opbanner__title">{headline}</p>
+				<p className="opbanner__q font-mono">{hint}</p>
+				<div className="opbanner__actions">
 					{canRetry ? (
 						<LaunchTaskRetryButton linearIssueId={linearIssueId} taskId={taskId} />
 					) : null}

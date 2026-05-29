@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 
 import { SETTINGS_NAV_ITEMS } from '@/components/settings/settingsNav'
 import { SettingsPaneComingSoon } from '@/components/settings/SettingsPaneComingSoon'
+import { SettingsPaneGeneral } from '@/components/settings/SettingsPaneGeneral'
 import { SettingsPaneRules } from '@/components/settings/SettingsPaneRules'
 import { SettingsPaneRuntimes } from '@/components/settings/SettingsPaneRuntimes'
 import { SettingsShell } from '@/components/settings/SettingsShell'
@@ -18,7 +19,7 @@ export const Route = createRoute({
 })
 
 function SettingsPage() {
-	const [active, setActive] = useState<SettingsPaneId>('rules')
+	const [active, setActive] = useState<SettingsPaneId>('general')
 	const activeLabel = SETTINGS_NAV_ITEMS.find((item) => item.id === active)?.label ?? 'Settings'
 
 	usePageActions({
@@ -40,6 +41,7 @@ function SettingsPage() {
 }
 
 function renderPane(id: SettingsPaneId, label: string) {
+	if (id === 'general') return <SettingsPaneGeneral />
 	if (id === 'rules') return <SettingsPaneRules />
 	if (id === 'runtimes') return <SettingsPaneRuntimes />
 	return <SettingsPaneComingSoon label={label} />

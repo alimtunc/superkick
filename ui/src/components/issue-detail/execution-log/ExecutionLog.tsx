@@ -29,11 +29,15 @@ export function ExecutionLog({ issue }: ExecutionLogProps) {
 	const changedFiles = deriveChangedFiles(task.steps)
 
 	return (
-		<section
-			aria-label="Execution log"
-			className="overflow-hidden rounded-[10px] border border-border bg-surface"
-		>
-			<ExecutionLogHeader kind={state.kind} currentStep={currentStep} run={run} />
+		<>
+			<section aria-label="Execution log" className="execlog">
+				<ExecutionLogHeader kind={state.kind} currentStep={currentStep} run={run} />
+				<PhaseStrip phases={phases} />
+				<RecentActivitySection rows={activityRows} runId={run?.id ?? null} />
+				<FilesChangedSection files={changedFiles} runId={run?.id ?? null} />
+				{state.kind === 'done' && state.worktree ? <WorktreeSection facts={state.worktree} /> : null}
+				<PastRunsSection past={past} />
+			</section>
 			{state.kind === 'needs' && blocking ? (
 				<NeedsBanner
 					linearIssueId={issue.identifier}
@@ -42,11 +46,6 @@ export function ExecutionLog({ issue }: ExecutionLogProps) {
 					blocking={blocking}
 				/>
 			) : null}
-			<PhaseStrip phases={phases} />
-			<RecentActivitySection rows={activityRows} runId={run?.id ?? null} />
-			<FilesChangedSection files={changedFiles} runId={run?.id ?? null} />
-			{state.kind === 'done' && state.worktree ? <WorktreeSection facts={state.worktree} /> : null}
-			<PastRunsSection past={past} />
-		</section>
+		</>
 	)
 }

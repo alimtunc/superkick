@@ -159,8 +159,15 @@ function IssuesPage() {
 			[view.total]
 		),
 		right: useMemo(
-			() => <IssuesTopbarActions onSearch={openCommandBar} onNew={onNewIssue} />,
-			[openCommandBar, onNewIssue]
+			() => (
+				<IssuesTopbarActions
+					onSearch={openCommandBar}
+					onNew={onNewIssue}
+					layout={resolved.view}
+					onLayoutChange={onLayoutChange}
+				/>
+			),
+			[openCommandBar, onNewIssue, resolved.view, onLayoutChange]
 		)
 	})
 
@@ -189,12 +196,10 @@ function IssuesPage() {
 						filters={resolved.filters}
 						sort={resolved.sort}
 						group={resolved.group}
-						layout={resolved.view}
 						options={options}
 						onFiltersChange={onFiltersChange}
 						onSortChange={onSortChange}
 						onGroupChange={onGroupChange}
-						onLayoutChange={onLayoutChange}
 						dropdownOpen={dropdownOpen}
 						onDropdownOpenChange={setDropdownOpen}
 					/>

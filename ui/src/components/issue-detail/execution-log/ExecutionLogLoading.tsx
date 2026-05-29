@@ -1,12 +1,15 @@
-import { LoadingState } from '@/components/ui/state-loading'
-
 export function ExecutionLogLoading() {
 	return (
 		<section
 			aria-label="Execution log loading"
-			className="rounded-[10px] border border-border bg-surface px-3.5 py-3"
+			role="status"
+			className="execlog"
+			style={{ padding: 'var(--space-6)' }}
 		>
-			<LoadingState rows={2} density="compact" />
+			<div className="skel" style={{ height: 24, width: '40%', marginBottom: 'var(--space-5)' }} />
+			<div className="skel" style={{ height: 13, width: '100%', marginBottom: 'var(--space-3)' }} />
+			<div className="skel" style={{ height: 13, width: '92%', marginBottom: 'var(--space-3)' }} />
+			<div className="skel" style={{ height: 60, width: '100%', borderRadius: 'var(--radius-md)' }} />
 		</section>
 	)
 }

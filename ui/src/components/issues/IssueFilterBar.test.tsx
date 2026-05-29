@@ -32,12 +32,10 @@ function renderBar(
 			filters={overrides.filters ?? EMPTY_FILTERS}
 			sort="updated"
 			group="lifecycle"
-			layout="list"
 			options={OPTIONS}
 			onFiltersChange={onFiltersChange}
 			onSortChange={() => {}}
 			onGroupChange={() => {}}
-			onLayoutChange={() => {}}
 			dropdownOpen={false}
 			onDropdownOpenChange={() => {}}
 		/>
@@ -86,11 +84,5 @@ describe('IssueFilterBar', () => {
 			status: [],
 			status_not: ['completed']
 		})
-	})
-
-	it('renders the layout toggle with the right active button', () => {
-		renderBar()
-		expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute('aria-pressed', 'true')
-		expect(screen.getByRole('button', { name: 'Board view' })).toHaveAttribute('aria-pressed', 'false')
 	})
 })

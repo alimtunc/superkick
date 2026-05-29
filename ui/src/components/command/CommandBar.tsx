@@ -109,7 +109,7 @@ export function CommandBar() {
 			<DialogPopup
 				align="top"
 				initialFocus={inputRef}
-				popupClassName="z-command w-full max-w-[580px] overflow-hidden rounded-[10px] border border-border bg-overlay shadow-2xl"
+				popupClassName="z-command w-full max-w-[560px] overflow-hidden rounded-[14px] border border-border-strong bg-overlay shadow-[var(--shadow-lg)]"
 			>
 				<Dialog.Title className="sr-only">Command bar</Dialog.Title>
 				<div className="flex max-h-155 min-h-105 flex-col">
@@ -129,7 +129,7 @@ export function CommandBar() {
 							onPick={(s) => reducer.setScope(s)}
 						/>
 					) : null}
-					<div className="flex-1 overflow-y-auto" role="listbox" aria-label="Search results">
+					<div className="flex-1 overflow-y-auto px-2" role="listbox" aria-label="Search results">
 						{reducer.mode === 'empty' ? (
 							<EmptySectionsView
 								needsYou={needsYou}

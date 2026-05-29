@@ -9,7 +9,7 @@ import { subIssueCount } from '@/lib/issues/subIssues'
 import { taskBadgeKindFor } from '@/lib/issues/taskBadge'
 import { cn } from '@/lib/utils'
 import type { IssueWithState, LifecycleBucket } from '@/types'
-import { PriorityIcon, priorityIconKindFromValue, StatusIcon, statusIconKindFor, SubCountChip } from '@/ui'
+import { Icon, PriorityIcon, priorityIconKindFromValue, StatusIcon, statusIconKindFor } from '@/ui'
 import { Link } from '@tanstack/react-router'
 
 interface IssueRowProps {
@@ -27,6 +27,7 @@ export function IssueRow({ wrapper, bucket, focused = false, now }: IssueRowProp
 	const visibleLabels = issue.labels.slice(0, MAX_LABELS)
 	const extraLabels = issue.labels.length - visibleLabels.length
 	const subCount = subIssueCount(issue.children)
+	const assignee = issue.assignee
 
 	return (
 		<HoverCard openDelay={350} content={<IssuePreview wrapper={wrapper} bucket={bucket} />}>
@@ -35,65 +36,56 @@ export function IssueRow({ wrapper, bucket, focused = false, now }: IssueRowProp
 				params={{ issueId: issue.identifier }}
 				data-issue-row
 				data-identifier={issue.identifier}
-				className={cn(
-					'group flex h-9 items-center gap-2.5 border-b border-border pr-6 pl-5 transition-colors hover:bg-raised focus-visible:bg-raised focus-visible:outline-none',
-					focused ? 'bg-accent-soft shadow-[inset_2px_0_0_var(--color-accent)]' : null
-				)}
+				className={cn('row', focused ? 'row--kbd' : null)}
 			>
-				<span className="flex w-3.5 shrink-0 items-center justify-center">
-					<PriorityIcon kind={priorityIconKindFromValue(issue.priority.value)} size={13} />
+				<span>
+					<PriorityIcon kind={priorityIconKindFromValue(issue.priority.value)} size={16} />
 				</span>
 
-				<span className="flex w-3.5 shrink-0 items-center justify-center">
+				<span>
 					<StatusIcon kind={statusIconKindFor(issue.status)} size={14} />
 				</span>
 
-				<span className="font-data w-16 shrink-0 truncate text-[11.5px] text-fg-dim">
-					{issue.identifier}
+				<span className="row__id mono">{issue.identifier}</span>
+
+				<span className="row__main">
+					<span className="row__title">{issue.title}</span>
+					{subCount.total > 0 ? (
+						<span className="row__subcount">
+							<Icon name="layers" size={11} className="ic" />
+							{subCount.total}
+						</span>
+					) : null}
+					{visibleLabels.length > 0 ? (
+						<span className="row__labels">
+							{visibleLabels.map((label) => (
+								<LabelChip key={label.name} label={label} />
+							))}
+							{extraLabels > 0 ? (
+								<span
+									className="font-data text-[11px] text-fg-dim"
+									title={`${extraLabels} more label${extraLabels === 1 ? '' : 's'}`}
+								>
+									+{extraLabels}
+								</span>
+							) : null}
+						</span>
+					) : null}
 				</span>
 
-				<span className="min-w-0 flex-1 truncate text-[13px] font-normal text-fg">{issue.title}</span>
-
-				{visibleLabels.length > 0 ? (
-					<div className="flex shrink-0 items-center gap-1">
-						{visibleLabels.map((label) => (
-							<LabelChip key={label.name} label={label} />
-						))}
-						{extraLabels > 0 ? (
-							<span
-								className="font-data text-[11px] text-fg-dim"
-								title={`${extraLabels} more label${extraLabels === 1 ? '' : 's'}`}
-							>
-								+{extraLabels}
-							</span>
-						) : null}
-					</div>
-				) : null}
-
-				<div className="flex w-[42px] shrink-0 justify-end">
-					{subCount.total > 0 ? <SubCountChip done={subCount.done} total={subCount.total} /> : null}
-				</div>
-
-				<div className="flex w-[140px] shrink-0 justify-start">
+				<span className="row__meta">
 					{issue.project ? <ProjectTag name={issue.project.name} /> : null}
-				</div>
-
-				<div className="w-[22px] shrink-0" />
-
-				<div className="flex w-[22px] shrink-0 justify-center">
-					<AssigneeAvatar
-						name={issue.assignee?.name ?? null}
-						avatarUrl={issue.assignee?.avatar_url ?? null}
-						size={20}
-					/>
-				</div>
-
-				<span className="font-data w-[38px] shrink-0 text-right text-[11.5px] whitespace-nowrap text-fg-dim">
-					{fmtRelativeShort(issue.updated_at, (now ?? new Date()).getTime())}
-				</span>
-
-				<span className="flex w-2.5 shrink-0 items-center justify-center">
-					{taskKind ? <TaskDot kind={taskKind} size={8} /> : null}
+					<span className="row__updated">
+						{fmtRelativeShort(issue.updated_at, (now ?? new Date()).getTime())}
+					</span>
+					<span className="avatar-cell">
+						<AssigneeAvatar
+							name={assignee?.name ?? null}
+							avatarUrl={assignee?.avatar_url ?? null}
+							size={20}
+						/>
+					</span>
+					<span className="row__agent">{taskKind ? <TaskDot kind={taskKind} /> : null}</span>
 				</span>
 			</Link>
 		</HoverCard>

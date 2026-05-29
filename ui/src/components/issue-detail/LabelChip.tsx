@@ -2,17 +2,14 @@ import type { IssueLabel } from '@/types'
 
 interface LabelChipProps {
 	label: IssueLabel
+	truncate?: boolean
 }
 
-export function LabelChip({ label }: LabelChipProps) {
+export function LabelChip({ label, truncate = false }: LabelChipProps) {
 	return (
-		<span className="font-data inline-flex h-4.5 shrink-0 items-center gap-1.5 rounded-full border border-border px-1.5 text-[11px] leading-none whitespace-nowrap text-fg-muted">
-			<span
-				className="inline-block size-1.5 rounded-full"
-				style={{ backgroundColor: label.color }}
-				aria-hidden="true"
-			/>
-			{label.name}
+		<span className="label-chip">
+			<span className="dot" style={{ backgroundColor: label.color }} aria-hidden="true" />
+			{truncate ? <span className="max-w-20 truncate">{label.name}</span> : label.name}
 		</span>
 	)
 }

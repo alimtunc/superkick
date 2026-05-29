@@ -26,20 +26,21 @@ export function LaunchQueueColumn({
 	const accent = launchQueueAccent[queue]
 	return (
 		<div
-			className="flex w-65 shrink-0 flex-col border-r border-border last:border-r-0"
+			className="column border-r border-border last:border-r-0"
+			style={{ width: '260px' }}
 			title={accent.description}
 		>
-			<div className="flex items-center gap-2 px-3.5 pt-3 pb-2.5">
+			<div className="column__head">
 				<Dot tone={accent.tone} size={8} />
-				<span className="text-[12px] font-semibold text-fg">{accent.label}</span>
-				<span className="font-mono text-[11px] text-fg-dim">{items.length}</span>
+				<span className="column__name">{accent.label}</span>
+				<span className="column__count">{items.length}</span>
 			</div>
 			{items.length === 0 ? (
 				<div className="px-3.5 pb-3.5">
 					<EmptyState density="compact" title="Empty" />
 				</div>
 			) : (
-				<div className="flex flex-1 flex-col gap-2 overflow-y-auto px-3.5 pb-3.5">
+				<div className="column__cards flex-1 px-3.5 pb-3.5">
 					{items.map((item, index) => (
 						<LaunchQueueCard
 							key={keyForItem(item)}

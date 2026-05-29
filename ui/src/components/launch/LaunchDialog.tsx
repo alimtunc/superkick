@@ -1,11 +1,26 @@
-import { ModeButton } from '@/components/launch/ModeButton'
-import { ProfileFlags } from '@/components/launch/ProfileFlags'
-import { Button } from '@/components/ui/button'
+import { AgentPicker } from '@/components/launch/AgentPicker'
 import { DialogPopup } from '@/components/ui/dialog-shell'
-import { Switch } from '@/components/ui/switch'
-import type { ExecutionMode, LaunchProfile } from '@/types'
+import { LAUNCH_STEP_KIND_LABEL } from '@/lib/domain'
+import type { Agent, ExecutionMode, LaunchProfile, LaunchStepKind } from '@/types'
+import type { SKIconName } from '@/types/icons'
+import { Btn } from '@/ui/Btn'
+import { Icon } from '@/ui/Icon'
+import { Toggle } from '@/ui/Toggle'
 import { Dialog } from '@base-ui/react/dialog'
-import { X } from 'lucide-react'
+
+type AgentSelection = Record<LaunchStepKind, string | null>
+
+interface RecipeStepDescriptor {
+	kind: LaunchStepKind
+	label: string
+	icon: SKIconName
+}
+
+const RECIPE_STEPS: readonly RecipeStepDescriptor[] = [
+	{ kind: 'plan', label: 'planner', icon: 'doc' },
+	{ kind: 'implement', label: 'coder', icon: 'bot' },
+	{ kind: 'review', label: 'reviewer', icon: 'check' }
+]
 
 interface LaunchDialogProps {
 	open: boolean
@@ -14,6 +29,10 @@ interface LaunchDialogProps {
 	useWorktree: boolean
 	executionMode: ExecutionMode
 	isPending: boolean
+	agents: readonly Agent[]
+	selection: AgentSelection
+	agentsLoading?: boolean
+	onAgentChange: (kind: LaunchStepKind, name: string) => void
 	onInstructionsChange: (value: string) => void
 	onUseWorktreeChange: (value: boolean) => void
 	onExecutionModeChange: (value: ExecutionMode) => void
@@ -32,12 +51,17 @@ export function LaunchDialog({
 	useWorktree,
 	executionMode,
 	isPending,
+	agents,
+	selection,
+	agentsLoading,
+	onAgentChange,
 	onInstructionsChange,
 	onUseWorktreeChange,
 	onExecutionModeChange,
 	onLaunch,
 	onClose
 }: LaunchDialogProps) {
+	const worktreeHint = profile.use_worktree ? 'Run in an isolated worktree' : 'Use the current checkout'
 	return (
 		<Dialog.Root
 			open={open}
@@ -45,84 +69,121 @@ export function LaunchDialog({
 				if (!nextOpen) onClose()
 			}}
 		>
-			<DialogPopup popupClassName="panel w-full max-w-xl p-5">
-				<div className="mb-4 flex items-center justify-between">
-					<Dialog.Title className="font-data text-sm font-medium text-fg-muted">
-						LAUNCH RUN
-					</Dialog.Title>
-					<Dialog.Close
-						className="inline-flex size-6 items-center justify-center rounded-md text-fg-dim transition-colors hover:bg-border hover:text-fg-muted focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:outline-none"
-						aria-label="Close"
-					>
-						<X size={14} strokeWidth={1.75} aria-hidden="true" />
+			<DialogPopup popupClassName="dialog">
+				<div className="dialog__head">
+					<Icon name="zap" size={18} className="ic" />
+					<Dialog.Title className="dialog__title">Launch agent</Dialog.Title>
+					<span className="spacer" />
+					<Dialog.Close className="iconbtn" aria-label="Close">
+						<Icon name="x" size={16} className="ic" />
 					</Dialog.Close>
 				</div>
 
-				<ProfileFlags profile={profile} />
+				<div className="dialog__body">
+					<div className="field">
+						<span className="field__label">Recipe · plan → implement → review</span>
+						<div
+							style={{
+								background: 'var(--bg-app)',
+								border: '1px solid var(--border)',
+								borderRadius: 'var(--radius-md)',
+								padding: '0 var(--space-5)'
+							}}
+						>
+							{RECIPE_STEPS.map((step, index) => (
+								<div key={step.kind} className="step-pick">
+									<span className="step-pick__kind">
+										<span className="n">{index + 1}</span>
+										{LAUNCH_STEP_KIND_LABEL[step.kind]}
+									</span>
+									<AgentPicker
+										value={selection[step.kind]}
+										agents={agents}
+										onChange={(name) => onAgentChange(step.kind, name)}
+										recommendedFor={step.kind}
+										icon={step.icon}
+										label={step.label}
+										disabled={agentsLoading}
+									/>
+								</div>
+							))}
+						</div>
+					</div>
 
-				<div className="mt-4">
-					<span className="font-data mb-1.5 block text-[10px] tracking-wider text-fg-dim uppercase">
-						EXECUTION MODE
-					</span>
-					<div className="flex gap-2">
-						<ModeButton
-							mode="full_auto"
-							label="FULL AUTO"
-							description="Autonomous — interrupts only on failure"
-							selected={executionMode === 'full_auto'}
-							onSelect={onExecutionModeChange}
+					<div className="field">
+						<span className="field__label">Execution mode</span>
+						<div className="seg">
+							<button
+								type="button"
+								className={executionMode === 'full_auto' ? 'on' : undefined}
+								onClick={() => onExecutionModeChange('full_auto')}
+							>
+								Full-auto
+							</button>
+							<button
+								type="button"
+								className={executionMode === 'semi_auto' ? 'on' : undefined}
+								onClick={() => onExecutionModeChange('semi_auto')}
+							>
+								Semi-auto
+							</button>
+						</div>
+						{executionMode === 'semi_auto' ? (
+							<div
+								style={{
+									display: 'flex',
+									alignItems: 'center',
+									gap: 'var(--space-3)',
+									marginTop: 'var(--space-2)',
+									fontSize: 'var(--text-12)',
+									color: 'var(--status-needs)'
+								}}
+							>
+								<Icon name="alert" size={13} className="ic" />
+								Pauses for your approval after each step
+							</div>
+						) : null}
+					</div>
+
+					<div className="field">
+						<Toggle
+							checked={useWorktree}
+							onChange={onUseWorktreeChange}
+							ariaLabel="Use worktree"
+							label={
+								<>
+									{worktreeHint}{' '}
+									<span style={{ color: 'var(--fg-dim)' }}>· ~/.superkick/wt</span>
+								</>
+							}
 						/>
-						<ModeButton
-							mode="semi_auto"
-							label="SEMI AUTO"
-							description="Pauses after plan for operator review"
-							selected={executionMode === 'semi_auto'}
-							onSelect={onExecutionModeChange}
+					</div>
+
+					<div className="field">
+						<span className="field__label">
+							Operator instructions{' '}
+							<span style={{ color: 'var(--fg-dim)', fontWeight: 400 }}>· optional</span>
+						</span>
+						<textarea
+							className="textarea"
+							rows={4}
+							value={instructions}
+							onChange={(e) => onInstructionsChange(e.target.value)}
+							placeholder={PLACEHOLDER}
+							aria-label="Operator instructions"
 						/>
 					</div>
 				</div>
 
-				<label className="mt-4 block">
-					<span className="font-data mb-1.5 block text-[10px] tracking-wider text-fg-dim uppercase">
-						INSTRUCTIONS
-					</span>
-					<textarea
-						value={instructions}
-						onChange={(e) => onInstructionsChange(e.target.value)}
-						rows={8}
-						className="font-data w-full resize-y rounded border border-border bg-surface px-3 py-2 text-[12px] leading-relaxed text-fg-muted placeholder:text-fg-dim/60 focus:border-border-strong focus:outline-none"
-						placeholder={PLACEHOLDER}
-					/>
-				</label>
-
-				<div className="mt-5 flex items-center justify-between">
-					<div className="flex items-center gap-2">
-						<Switch
-							checked={useWorktree}
-							onCheckedChange={onUseWorktreeChange}
-							aria-label="Use worktree"
-						/>
-						<span className="font-data text-[11px] text-fg-dim">Use worktree</span>
-					</div>
-
-					<div className="flex items-center gap-2">
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={onClose}
-							className="font-data text-[11px]"
-						>
-							CANCEL
-						</Button>
-						<Button
-							size="sm"
-							disabled={isPending}
-							onClick={onLaunch}
-							className="font-data text-[11px]"
-						>
-							{isPending ? 'LAUNCHING...' : 'LAUNCH'}
-						</Button>
-					</div>
+				<div className="dialog__foot">
+					<span className="hint">⌘↵ to launch</span>
+					<span className="spacer" />
+					<Btn kind="ghost" size="sm" onClick={onClose}>
+						Cancel
+					</Btn>
+					<Btn kind="primary" size="sm" icon="play" disabled={isPending} onClick={onLaunch}>
+						{isPending ? 'Launching…' : 'Launch'}
+					</Btn>
 				</div>
 			</DialogPopup>
 		</Dialog.Root>

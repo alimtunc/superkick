@@ -10,16 +10,14 @@ interface LedgerListProps {
 }
 
 export function LedgerList({ events, sessionById, attentionById, className }: LedgerListProps) {
-	const lastIndex = events.length - 1
 	return (
-		<ol className={cn('space-y-1', className)}>
-			{events.map((event, index) => (
+		<ol className={cn('feed', className)}>
+			{events.map((event) => (
 				<LedgerRow
 					key={event.id}
 					event={event}
 					sessionById={sessionById}
 					attentionById={attentionById}
-					connect={index < lastIndex}
 				/>
 			))}
 		</ol>

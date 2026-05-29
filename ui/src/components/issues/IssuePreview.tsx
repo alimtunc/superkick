@@ -3,10 +3,12 @@ import { useEffect } from 'react'
 import { LabelChip } from '@/components/issue-detail/LabelChip'
 import { AssigneeAvatar } from '@/components/issues/AssigneeAvatar'
 import { ProjectTag } from '@/components/issues/ProjectTag'
+import { TaskDot } from '@/components/issues/TaskDot'
 import { agentColor } from '@/lib/domain/agentColor'
 import { runStateLabel } from '@/lib/domain/displayLabels'
 import { fmtRelativeShort, fmtRelativeTime } from '@/lib/domain/formatters'
 import { subIssueCount } from '@/lib/issues/subIssues'
+import { taskBadgeKindFor } from '@/lib/issues/taskBadge'
 import { stripMarkdown } from '@/lib/markdown'
 import { issueDetailQuery } from '@/lib/queries'
 import { cn } from '@/lib/utils'
@@ -33,9 +35,9 @@ const BODY_CLAMP = 'line-clamp-3'
 const COMMENT_CLAMP = 'line-clamp-2'
 
 export function IssuePreview({ wrapper, bucket }: IssuePreviewProps) {
-	void bucket
 	const issue = wrapper.issue
 	const navigate = useNavigate()
+	const taskKind = taskBadgeKindFor(wrapper, bucket)
 	const { data: detail } = useQuery(issueDetailQuery(issue.id))
 
 	useEffect(() => {
@@ -53,7 +55,6 @@ export function IssuePreview({ wrapper, bucket }: IssuePreviewProps) {
 	const assignee = issue.assignee
 	const subCount = subIssueCount(issue.children)
 	const estimate = detail?.estimate ?? null
-	const hasMetaRow = assignee !== null || subCount.total > 0 || estimate !== null
 	const hasLabelsRow = issue.labels.length > 0 || issue.project !== null
 	const description = detail?.description ? stripMarkdown(detail.description) : ''
 
@@ -64,57 +65,42 @@ export function IssuePreview({ wrapper, bucket }: IssuePreviewProps) {
 	}
 
 	return (
-		<div className="z-popover w-[480px] overflow-hidden rounded-[10px] border border-border bg-overlay shadow-[0_24px_56px_rgba(0,0,0,0.55)]">
-			<div className="flex items-center justify-between gap-2 px-[14px] pt-[12px] pb-[6px]">
-				<div className="flex items-center gap-2">
-					<PriorityIcon kind={priorityIconKindFromValue(issue.priority.value)} size={13} />
-					<StatusIcon kind={statusIconKindFor(issue.status)} size={13} />
-					<span className="font-data text-[11.5px] text-fg-dim">{issue.identifier}</span>
-				</div>
-				<span className="text-[11px] text-fg-dim">updated {fmtRelativeTime(issue.updated_at)}</span>
+		<div className="preview-card z-popover">
+			<div className="preview-card__head">
+				<PriorityIcon kind={priorityIconKindFromValue(issue.priority.value)} size={16} />
+				<StatusIcon kind={statusIconKindFor(issue.status)} size={16} />
+				<span className="preview-card__id mono">{issue.identifier}</span>
+				<span className="spacer" />
+				{taskKind ? <TaskDot kind={taskKind} /> : null}
 			</div>
 
-			<h3 className="px-[14px] pb-[10px] text-[14px] leading-[1.35] font-medium text-fg">
-				{issue.title}
-			</h3>
+			<h3 className="preview-card__title">{issue.title}</h3>
 
-			{description ? (
-				<p
-					className={cn(
-						'px-[14px] pb-[12px] text-[12.5px] leading-[1.55] text-fg-muted',
-						BODY_CLAMP
-					)}
-				>
-					{description}
-				</p>
-			) : null}
+			{description ? <p className={cn('preview-card__desc', BODY_CLAMP)}>{description}</p> : null}
 
-			{hasLabelsRow ? (
-				<div className="flex flex-wrap items-center gap-[5px] px-[14px] pb-[12px]">
+			{hasLabelsRow || assignee ? (
+				<div className="preview-card__foot">
 					{issue.labels.map((label) => (
 						<LabelChip key={label.name} label={label} />
 					))}
 					{issue.project ? <ProjectTag name={issue.project.name} /> : null}
+					<span className="spacer" style={{ flex: 1 }} />
+					{assignee ? (
+						<AssigneeAvatar name={assignee.name} avatarUrl={assignee.avatar_url} size={16} />
+					) : null}
+					<span>{fmtRelativeTime(issue.updated_at)}</span>
 				</div>
 			) : null}
 
-			{hasMetaRow ? (
-				<div className="flex items-center gap-3 border-t border-border px-[14px] py-[10px] text-[11.5px] text-fg-muted">
-					{assignee ? (
-						<span className="inline-flex items-center gap-1.5">
-							<Icon name="user" size={11} className="text-fg-dim" />
-							<span>Assigned to</span>
-							<AssigneeAvatar name={assignee.name} avatarUrl={assignee.avatar_url} size={18} />
-							<span className="text-fg">{assignee.name}</span>
-						</span>
-					) : null}
+			{subCount.total > 0 || estimate !== null ? (
+				<div className="preview-card__foot">
 					{subCount.total > 0 ? <SubCountChip done={subCount.done} total={subCount.total} /> : null}
 					{estimate !== null ? <EstimateChip n={estimate} /> : null}
 				</div>
 			) : null}
 
 			{lastComment ? (
-				<div className="flex items-start gap-[9px] border-t border-border bg-surface px-[14px] py-[10px]">
+				<div className="preview-card__foot items-start">
 					<AssigneeAvatar
 						name={lastComment.author?.name ?? null}
 						avatarUrl={lastComment.author?.avatar_url ?? null}
@@ -122,7 +108,7 @@ export function IssuePreview({ wrapper, bucket }: IssuePreviewProps) {
 						tint={agentColor(lastComment.author?.name)}
 					/>
 					<div className="min-w-0 flex-1">
-						<div className="flex items-center gap-1 text-[12.5px] text-fg-dim">
+						<div className="flex items-center gap-1 text-[12px] text-fg-dim">
 							<span className="text-fg-muted">{lastComment.author?.name ?? 'Unknown'}</span>
 							<span>·</span>
 							<span>last comment</span>
@@ -134,28 +120,21 @@ export function IssuePreview({ wrapper, bucket }: IssuePreviewProps) {
 						</p>
 					</div>
 				</div>
-			) : (
-				<div className="border-t border-border bg-surface px-[14px] py-[10px] text-[12px] text-fg-muted">
-					No comments yet · Be the first.
-				</div>
-			)}
+			) : null}
 
 			{linkedRun ? (
-				<div className="flex items-center justify-between gap-[7px] border-t border-border bg-void px-[14px] py-[9px]">
-					<div className="flex items-center gap-1.5 text-[11px] text-fg-dim">
-						<Dot tone="info" pulse size={6} />
-						<span className="font-data text-[11px] text-fg">
-							run-{shortRunId(linkedRun.run.id)}
-						</span>
-						<span>·</span>
-						<span>{runStateLabel[linkedRun.run.state]}</span>
-						{linkedRun.run.started_at ? (
-							<>
-								<span>·</span>
-								<span>{fmtRelativeShort(linkedRun.run.started_at)}</span>
-							</>
-						) : null}
-					</div>
+				<div className="preview-card__foot">
+					<Dot tone="info" pulse size={6} />
+					<span className="font-data text-[11px] text-fg">run-{shortRunId(linkedRun.run.id)}</span>
+					<span>·</span>
+					<span>{runStateLabel[linkedRun.run.state]}</span>
+					{linkedRun.run.started_at ? (
+						<>
+							<span>·</span>
+							<span>{fmtRelativeShort(linkedRun.run.started_at)}</span>
+						</>
+					) : null}
+					<span className="spacer" style={{ flex: 1 }} />
 					<button
 						type="button"
 						onClick={onOpen}

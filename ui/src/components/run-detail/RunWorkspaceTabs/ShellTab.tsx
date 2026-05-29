@@ -7,7 +7,7 @@ interface ShellTabProps {
 
 export function ShellTab({ runId, isTerminal }: ShellTabProps) {
 	return (
-		<div className="px-4 py-3">
+		<div>
 			<TerminalTakeover runId={runId} isTerminal={isTerminal} />
 		</div>
 	)

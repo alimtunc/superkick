@@ -19,7 +19,7 @@ export function FileResultRow({ file, query, selected, onSelect, onActivate }: F
 			selected={selected}
 			onSelect={onSelect}
 			onActivate={onActivate}
-			leading={<Icon name="doc" size={13} className="text-fg-muted" />}
+			leading={<Icon name="doc" size={16} className="text-fg-muted" />}
 			primary={
 				<span className="font-mono">
 					<MatchHighlight text={file.path} query={query} />

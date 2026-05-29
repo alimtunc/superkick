@@ -57,7 +57,7 @@ export function LabelsRow({ issue }: LabelsRowProps) {
 							))}
 						</span>
 					) : (
-						<span className="text-fg-dim">Add label</span>
+						<span className="prop__empty">Add label…</span>
 					)}
 				</Popover.Trigger>
 				<LabelsPicker labels={visibleLabels} selectedIds={selectedIds} onApply={onApply} />

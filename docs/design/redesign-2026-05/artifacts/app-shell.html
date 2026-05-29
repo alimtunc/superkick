@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Superkick — App shell</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="detail.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<div class="doc">
+	<nav class="idx">
+		<div class="idx__brand"><div class="idx__logo">S</div><div class="idx__title">Superkick</div></div>
+		<div class="idx__sub">Redesign · 2026-05</div>
+		<div class="idx__group">Reference</div>
+		<a href="index.html">System Legend <span class="n">00</span></a>
+		<div class="idx__group">Surfaces</div>
+		<a href="issues-list.html">Issues list <span class="n">01</span></a>
+		<a href="issue-detail.html">Issue detail <span class="n">02</span></a>
+		<a class="cur" href="app-shell.html">App shell <span class="n">03</span></a>
+		<a href="run-drawer.html">Run drawer <span class="n">04</span></a>
+		<a href="run-inspector.html">Run inspector <span class="n">05</span></a>
+		<a href="launch.html">Launch flow <span class="n">06</span></a>
+		<a href="agents.html">Agents &amp; Settings <span class="n">07</span></a>
+		<a href="patterns.html">Patterns &amp; states <span class="n">08</span></a>
+	</nav>
+
+	<main class="canvas">
+	<div class="page">
+		<div class="page__kicker">Surface 03</div>
+		<h1 class="page__title">App shell</h1>
+		<p class="page__lede">A two-pane frame on the tier&nbsp;0 floor: a fixed sidebar (separated by a right border) and a content column whose topbar carries breadcrumbs and a per-page action cluster. The nav set is <strong>Inbox · Issues · Agents · Settings</strong> plus saved views — deliberately <strong>no Tasks or Runs</strong>; those live inline on the issue.</p>
+
+		<!-- ════ Sidebar anatomy ════ -->
+		<section class="sect">
+			<div class="board-label"><span class="board-label__state state--active">Anatomy</span><span class="board-label__title">Sidebar</span><span class="board-label__dim">240px · tier 0</span></div>
+			<div class="specimen" style="align-items:flex-start;gap:var(--space-9)">
+				<div style="width:240px;height:560px;display:flex;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden"><div class="sidebar" id="sb" style="width:240px;border-right:none"></div></div>
+				<div style="flex:1;min-width:240px;display:flex;flex-direction:column;gap:var(--space-6);padding-top:var(--space-4)">
+					<div class="legend-row"><span class="legend-row__name">Brand</span><span class="legend-row__desc">logo + “local” daemon indicator · 44px row, matches topbar height</span></div>
+					<div class="legend-row"><span class="legend-row__name">Primary nav</span><span class="legend-row__desc">Inbox · Issues · Agents · Settings. Counts right-aligned; Agents shows a live state dot when a run is active.</span></div>
+					<div class="legend-row"><span class="legend-row__name">Saved views</span><span class="legend-row__desc">Pinned operator lenses — “Needs you” first. URL-driven filter/sort presets.</span></div>
+					<div class="legend-row"><span class="legend-row__name">Footer</span><span class="legend-row__desc">Viewer identity (the “assigned to me” key) + account menu.</span></div>
+					<div class="callout" style="margin-top:var(--space-3)"><span class="callout__tag">Hard constraint</span><div>No <code style="font-family:var(--font-mono)">Tasks</code> / <code style="font-family:var(--font-mono)">Runs</code> destinations. Agent work is reached <em>through</em> the issue it belongs to.</div></div>
+				</div>
+			</div>
+		</section>
+
+		<!-- ════ Nav item states ════ -->
+		<section class="sect">
+			<div class="board-label"><span class="board-label__state state--active">States</span><span class="board-label__title">Nav item</span></div>
+			<div class="card" style="padding:var(--space-7);max-width:360px">
+				<div style="display:flex;flex-direction:column;gap:var(--space-3)">
+					<div class="navitem"><svg class="ic"><use href="#ic-issue"></use></svg>Default<span class="navitem__count">42</span></div>
+					<div class="navitem" style="background:var(--bg-hover);color:var(--fg)"><svg class="ic"><use href="#ic-issue"></use></svg>Hover<span class="navitem__count">42</span></div>
+					<div class="navitem navitem--active"><svg class="ic"><use href="#ic-issue"></use></svg>Active (selected)<span class="navitem__count">42</span></div>
+					<div class="navitem"><svg class="ic"><use href="#ic-agent"></use></svg>With live dot<span class="navitem__dot agdot agdot--running"></span></div>
+				</div>
+			</div>
+		</section>
+
+		<!-- ════ Topbar variants ════ -->
+		<section class="sect">
+			<div class="board-label"><span class="board-label__state state--active">Per-page</span><span class="board-label__title">Topbar &amp; action cluster</span><span class="board-label__dim">44px · tier 0</span></div>
+
+			<div class="board-label" style="margin-top:var(--space-6)"><span class="board-label__desc">Issues list — list/board toggle, search, new issue</span></div>
+			<div class="artboard" style="height:auto">
+				<div class="topbar">
+					<div class="crumbs"><svg class="ic" style="width:15px;height:15px;color:var(--fg-dim)"><use href="#ic-issue"></use></svg><span class="cur">Issues</span></div>
+					<div class="topbar__actions">
+						<div class="seg"><button class="on"><svg class="ic"><use href="#ic-layers"></use></svg>List</button><button><svg class="ic"><use href="#ic-folder"></use></svg>Board</button></div>
+						<button class="iconbtn"><svg class="ic"><use href="#ic-search"></use></svg></button>
+						<button class="btn btn--primary btn--sm"><svg class="ic"><use href="#ic-plus"></use></svg>New issue</button>
+					</div>
+				</div>
+			</div>
+
+			<div class="board-label" style="margin-top:var(--space-6)"><span class="board-label__desc">Issue detail — breadcrumb trail + run / copy / external</span></div>
+			<div class="artboard" style="height:auto">
+				<div class="topbar">
+					<div class="crumbs"><span>Issues</span><span class="sep">/</span><span class="mono">SUP-128</span><span class="sep">/</span><span class="cur truncate" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Approve database migration</span></div>
+					<div class="topbar__actions">
+						<button class="btn btn--sm"><svg class="ic"><use href="#ic-terminal"></use></svg>Open run</button>
+						<button class="iconbtn"><svg class="ic"><use href="#ic-copy"></use></svg></button>
+						<button class="iconbtn"><svg class="ic"><use href="#ic-external"></use></svg></button>
+						<button class="iconbtn"><svg class="ic"><use href="#ic-more"></use></svg></button>
+					</div>
+				</div>
+			</div>
+
+			<div class="board-label" style="margin-top:var(--space-6)"><span class="board-label__desc">Agents — capacity meter + new agent</span></div>
+			<div class="artboard" style="height:auto">
+				<div class="topbar">
+					<div class="crumbs"><svg class="ic" style="width:15px;height:15px;color:var(--fg-dim)"><use href="#ic-agent"></use></svg><span class="cur">Agents</span></div>
+					<div class="topbar__actions">
+						<span class="pill pill--accent"><span class="agdot agdot--running"></span>2 / 4 running</span>
+						<button class="btn btn--sm"><svg class="ic"><use href="#ic-plus"></use></svg>New agent</button>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- ════ Command bar overlay ════ -->
+		<section class="sect">
+			<div class="board-label"><span class="board-label__state state--active">Overlay</span><span class="board-label__title">Command bar (⌘K)</span><span class="board-label__dim">tier 3 · z-command</span></div>
+			<div class="artboard" style="height:380px;display:flex;align-items:flex-start;justify-content:center;padding-top:64px;background:var(--bg-scrim)">
+				<div style="width:560px;background:var(--bg-overlay);border:1px solid var(--border-strong);border-radius:var(--radius-xl);box-shadow:var(--shadow-lg);overflow:hidden">
+					<div style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-5) var(--space-6);border-bottom:1px solid var(--border)">
+						<svg class="ic" style="width:18px;height:18px;color:var(--fg-dim)"><use href="#ic-search"></use></svg>
+						<input class="input" style="border:none;background:none;padding:0;font-size:var(--text-16)" placeholder="Search issues or run a command…" value="launch">
+						<span class="pill pill--neutral">esc</span>
+					</div>
+					<div style="padding:var(--space-4)">
+						<div style="font-size:var(--text-11);text-transform:uppercase;letter-spacing:var(--tracking-wide);color:var(--fg-dim);padding:var(--space-3) var(--space-4);font-weight:600">Commands</div>
+						<div class="popline" style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-4);border-radius:var(--radius-sm);background:var(--bg-active)"><svg class="ic" style="width:16px;height:16px;color:var(--accent)"><use href="#ic-play"></use></svg>Launch agent on current issue<span style="margin-left:auto;color:var(--fg-dim)" class="mono">⌘↵</span></div>
+						<div class="popline" style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-4);border-radius:var(--radius-sm);color:var(--fg-muted)"><svg class="ic" style="width:16px;height:16px"><use href="#ic-plus"></use></svg>New issue<span style="margin-left:auto" class="mono">C</span></div>
+						<div class="popline" style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-4);border-radius:var(--radius-sm);color:var(--fg-muted)"><svg class="ic" style="width:16px;height:16px"><use href="#ic-terminal"></use></svg>Open run drawer</div>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- ════ Full shell ════ -->
+		<section class="sect">
+			<div class="board-label"><span class="board-label__state state--active">Assembled</span><span class="board-label__title">Full shell · Inbox</span><span class="board-label__dim">1380 × 720</span></div>
+			<div class="scale-frame"><div class="scaled" style="width:1380px;height:720px">
+				<div class="shell">
+					<aside class="sidebar" id="sb-full"></aside>
+					<div class="main">
+						<div class="topbar">
+							<div class="crumbs"><svg class="ic" style="width:15px;height:15px;color:var(--fg-dim)"><use href="#ic-inbox"></use></svg><span class="cur">Inbox</span></div>
+							<div class="topbar__actions"><button class="btn btn--ghost btn--sm">Mark all read</button><button class="iconbtn"><svg class="ic"><use href="#ic-settings"></use></svg></button></div>
+						</div>
+						<div class="content"><div id="inbox"></div></div>
+					</div>
+				</div>
+			</div></div>
+		</section>
+	</div>
+	</main>
+</div>
+
+<script src="icons.js"></script>
+<script src="shell.js"></script>
+<script src="glyphs.js"></script>
+<script src="scale.js"></script>
+<script>
+document.getElementById('sb').innerHTML = SK_SIDEBAR('issues');
+document.getElementById('sb-full').innerHTML = SK_SIDEBAR('inbox');
+
+/* Inbox — attention items routed to the operator (shows the shell holding a
+   non-Issues surface; same chrome, no Tasks/Runs nav). */
+var INBOX = [
+	{ tone: 'needs', icon: 'alert', title: 'claude needs approval on SUP-128', sub: 'Destructive migration — awaiting your call', ts: '6m', av: 'av-2', who: 'MK', unread: true },
+	{ tone: 'review', icon: 'pr', title: 'Review swarm finished on SUP-145', sub: '3 reviewers · 1 blocking comment', ts: '18m', av: 'av-7', who: 'FK', unread: true },
+	{ tone: 'neutral', icon: 'comment', title: 'Maya K. mentioned you on SUP-141', sub: '“can you sanity-check the auth diff?”', ts: '32m', av: 'av-2', who: 'MK', unread: true },
+	{ tone: 'success', icon: 'check', title: 'PR #318 merged for SUP-119', sub: 'feature/sup-119 → main', ts: '1h', av: 'av-3', who: 'JD' },
+	{ tone: 'neutral', icon: 'branch', title: 'Run started on SUP-132', sub: 'full-auto · claude', ts: '2h', av: 'av-1', who: 'AT' }
+];
+function inboxRow(x) {
+	var toneColor = { needs: 'var(--status-needs)', review: 'var(--status-review)', success: 'var(--success)', neutral: 'var(--fg-dim)' }[x.tone];
+	return '<div class="row" style="grid-template-columns:18px 1fr auto;height:52px;align-items:center">' +
+		'<span style="color:' + toneColor + ';display:flex">' + (x.unread ? '<span style="width:7px;height:7px;border-radius:50%;background:' + toneColor + '"></span>' : '<span style="width:7px;height:7px"></span>') + '</span>' +
+		'<span class="row__main" style="flex-direction:column;align-items:flex-start;gap:2px">' +
+			'<span style="display:flex;align-items:center;gap:var(--space-3);color:var(--fg)"><svg class="ic" style="width:14px;height:14px;color:' + toneColor + '"><use href="#ic-' + x.icon + '"></use></svg>' + x.title + '</span>' +
+			'<span style="font-size:var(--text-12);color:var(--fg-dim)">' + x.sub + '</span>' +
+		'</span>' +
+		'<span class="row__meta"><span class="avatar avatar--sm ' + x.av + '">' + x.who + '</span><span class="row__updated">' + x.ts + '</span></span>' +
+	'</div>';
+}
+document.getElementById('inbox').innerHTML =
+	'<div class="group-head"><span class="group-head__name">Today</span><span class="group-head__count">' + INBOX.length + '</span></div>' +
+	INBOX.map(inboxRow).join('');
+</script>
+</body>
+</html>

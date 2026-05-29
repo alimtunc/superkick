@@ -1,0 +1,251 @@
+/* ============================================================================
+   Superkick — Design tokens (redesign 2026-05)
+   CANONICAL SOURCE OF TRUTH. Engineering wires these value-for-value into
+   ui/src/styles/tokens.css. Names are descriptive and 1:1 mappable.
+
+   Dark theme is PRIMARY (:root). Light theme is an optional 1:1 override
+   under [data-theme="light"] (stub at the bottom — fill if/when shipped).
+
+   ── ELEVATION MODEL (read first) ────────────────────────────────────────
+   Superkick is flat & border-delineated, like Linear. Most chrome lives on
+   the page FLOOR and is separated by hairline borders, NOT by raising it.
+   Elevation (a lighter fill + shadow) is spent ONLY on objects that truly
+   float: ExecutionLog, comment cards, kanban cards, popovers, the drawer,
+   dialogs, the hover preview. See --elev-* assignments below.
+
+     tier 0  --bg-app      page floor: app bg, sidebar, topbar, list rows,
+                           issue-detail body floor, properties rail
+                           (rail is separated by a BORDER, not elevation)
+     tier 1  --bg-surface  hover wash, sticky group headers
+     tier 2  --bg-raised   cards that float on the floor (exec log, comments,
+                           kanban cards, drawer body)
+     tier 3  --bg-overlay  popovers, dropdowns, dialogs, command bar,
+                           hover preview card
+     inset   --bg-code     ONLY thing darker than the floor (code blocks)
+     input   --bg-input    inputs sit ABOVE their floor so they never read
+                           as a hole. Never fill an input darker than its
+                           surrounding surface.
+   ============================================================================ */
+
+:root {
+	/* ── Elevation / surfaces ─────────────────────────────────────────── */
+	--bg-app: #0b0d0f;        /* tier 0 — page floor */
+	--bg-surface: #131619;    /* tier 1 — hover wash, sticky headers */
+	--bg-raised: #1a1e23;     /* tier 2 — floating cards */
+	--bg-overlay: #21262d;    /* tier 3 — popovers, dialogs, hover card */
+	--bg-input: #16191d;      /* inputs — one notch above tier 0 floor */
+	--bg-input-raised: #1f242a; /* inputs sitting ON a raised card (tier 2) */
+	--bg-code: #08090b;       /* inset — code blocks, terminals */
+	--bg-hover: rgba(255, 255, 255, 0.035); /* row/control hover tint */
+	--bg-active: rgba(255, 255, 255, 0.06);  /* pressed / selected tint */
+	--bg-scrim: rgba(5, 6, 8, 0.62);          /* drawer / dialog backdrop */
+
+	/* ── Borders ──────────────────────────────────────────────────────── */
+	--border-faint: #15181c;   /* internal hairlines on the floor */
+	--border: #20242a;         /* default hairline / dividers */
+	--border-strong: #2e343d;  /* stronger dividers, hover borders */
+	--border-focus: var(--accent); /* focused input ring border */
+
+	/* ── Foreground / text ────────────────────────────────────────────── */
+	--fg: #e7e9ec;        /* primary text, issue titles */
+	--fg-muted: #9aa0a8;  /* secondary: meta, labels, inactive nav */
+	--fg-dim: #6b727b;    /* tertiary: timestamps, counts, placeholders */
+	--fg-faint: #495059;  /* quaternary: disabled, faint icons */
+	--fg-on-accent: #ffffff;
+
+	/* ── Accent (brand / interactive / focus) ─────────────────────────── */
+	--accent: #5b6ef2;
+	--accent-hover: #6f7ff5;
+	--accent-press: #4d5fe0;
+	--accent-soft: rgba(91, 110, 242, 0.16); /* selected nav, soft fill */
+	--accent-line: rgba(91, 110, 242, 0.5);  /* focus ring, active border */
+
+	/* ── Status glyph palette (Linear vocabulary + Superkick needs_you) ── */
+	--status-backlog: #6b727b;   /* dashed ring */
+	--status-todo: #8a929c;      /* empty ring */
+	--status-progress: #e0b13f;  /* amber, partial pie */
+	--status-review: #9b8cf2;    /* violet, near-full pie */
+	--status-done: #54a36f;      /* green, filled + check */
+	--status-cancelled: #5a606a; /* muted, filled + x */
+	--status-needs: #eb6f57;     /* SUPERKICK needs_you — loudest, coral */
+
+	--status-backlog-soft: rgba(107, 114, 123, 0.14);
+	--status-progress-soft: rgba(224, 177, 63, 0.14);
+	--status-review-soft: rgba(155, 140, 242, 0.16);
+	--status-done-soft: rgba(84, 163, 111, 0.14);
+	--status-needs-soft: rgba(235, 111, 87, 0.15);
+
+	/* ── Priority palette ─────────────────────────────────────────────── */
+	--priority-none: #6b727b;    /* dashes */
+	--priority-bar: #8a929c;     /* low/medium/high bars (neutral) */
+	--priority-urgent: #eb6f57;  /* filled square + "!" */
+	--priority-urgent-soft: rgba(235, 111, 87, 0.16);
+
+	/* ── Agent-state dot (TaskBadgeKind: needs/running/review/shipped) ─── */
+	--agent-needs: var(--status-needs);
+	--agent-running: var(--accent);
+	--agent-review: var(--status-review);
+	--agent-shipped: var(--status-done);
+
+	/* ── Semantic feedback ────────────────────────────────────────────── */
+	--success: #54a36f;
+	--success-soft: rgba(84, 163, 111, 0.13);
+	--warn: #e0b13f;
+	--warn-soft: rgba(224, 177, 63, 0.14);
+	--danger: #cf5a55;
+	--danger-soft: rgba(207, 90, 85, 0.13);
+	--info: #5b8ec9;
+	--info-soft: rgba(91, 142, 201, 0.13);
+
+	/* ── Per-entity avatar palette — FIXED, NOT hash-derived ──────────────
+	   Assigned to entities explicitly so neighbours never look alike.
+	   Each = [bg tint, foreground initial]. Humans render as circles,
+	   agents (claude/codex) as rounded-squares with a bot mark. */
+	--avatar-1-bg: #3b4cc7; --avatar-1-fg: #c9d0ff;  /* indigo */
+	--avatar-2-bg: #2f7d6b; --avatar-2-fg: #b7eadd;  /* teal */
+	--avatar-3-bg: #9a6b1f; --avatar-3-fg: #f4d8a0;  /* amber */
+	--avatar-4-bg: #a23e62; --avatar-4-fg: #f6c2d4;  /* rose */
+	--avatar-5-bg: #6a4bb0; --avatar-5-fg: #d8caf6;  /* violet */
+	--avatar-6-bg: #3d7a45; --avatar-6-fg: #c2e8c6;  /* green */
+	--avatar-7-bg: #2a6f93; --avatar-7-fg: #bfe0f2;  /* cyan */
+	--avatar-8-bg: #b05a2a; --avatar-8-fg: #f6cfb0;  /* orange */
+	/* Agents get dedicated, brand-neutral identities */
+	--agent-claude-bg: #b3623f; --agent-claude-fg: #f3cdb8; /* clay */
+	--agent-codex-bg: #3a8b80;  --agent-codex-fg: #bfeae3;  /* sea */
+
+	/* ── Labels (Linear chip vocabulary) — token-mapped sample hues ────── */
+	--label-bug: #d36a64;
+	--label-feature: #5b8ec9;
+	--label-improvement: #54a36f;
+	--label-design: #9b8cf2;
+	--label-infra: #c79a4a;
+
+	/* ── Typography ───────────────────────────────────────────────────── */
+	--font-ui: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, Menlo, monospace;
+
+	/* Dense desktop UI scale (px). Rows live at 13px, like Linear. */
+	--text-11: 11px;  /* micro: counts, glyph badges, label chips */
+	--text-12: 12px;  /* meta: timestamps, secondary, rail labels */
+	--text-13: 13px;  /* DEFAULT — list rows, body, nav, controls */
+	--text-14: 14px;  /* emphasis: section headings, composer */
+	--text-16: 16px;  /* sub-titles */
+	--text-18: 18px;  /* card titles */
+	--text-21: 21px;  /* issue-detail H1 */
+	--text-24: 24px;  /* page heading (rare) */
+
+	--lh-tight: 1.2;
+	--lh-snug: 1.35;
+	--lh-normal: 1.55;  /* markdown body reading measure */
+
+	--fw-regular: 400;
+	--fw-medium: 500;
+	--fw-semibold: 600;
+
+	--tracking-tight: -0.012em; /* titles */
+	--tracking-wide: 0.02em;    /* mono identifiers, all-caps labels */
+
+	/* ── Spacing (4px base) ───────────────────────────────────────────── */
+	--space-0: 0;
+	--space-px: 1px;
+	--space-1: 2px;
+	--space-2: 4px;
+	--space-3: 6px;
+	--space-4: 8px;
+	--space-5: 12px;
+	--space-6: 16px;
+	--space-7: 20px;
+	--space-8: 24px;
+	--space-9: 32px;
+	--space-10: 40px;
+	--space-12: 48px;
+	--space-16: 64px;
+
+	/* ── Radii ────────────────────────────────────────────────────────── */
+	--radius-xs: 3px;   /* chips, glyph hit-areas */
+	--radius-sm: 5px;   /* rows, buttons, inputs */
+	--radius-md: 7px;   /* cards */
+	--radius-lg: 10px;  /* large cards, drawer */
+	--radius-xl: 14px;  /* dialogs */
+	--radius-full: 999px;
+
+	/* ── Shadows (elevation) ──────────────────────────────────────────── */
+	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);                        /* tier 2 cards */
+	--shadow-md: 0 4px 14px rgba(0, 0, 0, 0.42), 0 0 0 1px var(--border); /* popovers */
+	--shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--border); /* drawer/dialog/hover */
+	--ring-focus: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-soft); /* focus ring */
+	--focus-bar: inset 2px 0 0 0 var(--accent);        /* keyboard-focused list row */
+	--ring-focus-tight: 0 0 0 2px var(--bg-app), 0 0 0 3px var(--accent); /* icon buttons / chips on the floor */
+
+	/* ── Layout dimensions ────────────────────────────────────────────── */
+	--sidebar-w: 240px;
+	--rail-w: 268px;
+	--topbar-h: 44px;
+	--row-h: 36px;          /* issues list row */
+	--drawer-w: 560px;
+	--content-max: 720px;   /* issue-detail reading column */
+	--gutter-connector: 28px; /* activity-feed avatar/connector gutter */
+
+	/* ── Motion ───────────────────────────────────────────────────────── */
+	--ease-out: cubic-bezier(0.16, 1, 0.3, 1);  /* snappy enter */
+	--ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+	--dur-fast: 80ms;    /* hover, press feedback */
+	--dur-base: 140ms;   /* popover fade+scale, toggles */
+	--dur-slow: 220ms;   /* drawer slide-in */
+	/* component motion specs (documented in legend):
+	   row hover ............ background --dur-fast --ease-out
+	   popover .............. opacity + scale(.98→1) --dur-base --ease-out
+	   drawer ............... translateX(100%→0) --dur-slow --ease-out
+	   running dot .......... pulse 1.6s ease-in-out infinite
+	   phase tracker fill ... width --dur-base --ease-out */
+
+	/* ── Z-index (kept from current tokens.css — do not renumber) ─────── */
+	--z-sticky: 30;
+	--z-overlay: 40;
+	--z-popover: 60;
+	--z-drawer: 70;
+	--z-dialog: 80;
+	--z-command: 90;
+	--z-toast: 100;
+}
+
+/* ── Light theme — optional 1:1 override (dark is primary) ──────────────
+   Every surface reads the same token names, so this block flips the whole
+   app with zero component edits. Status / accent hues are kept; only the
+   neutral ramp, borders, scrims and shadows are re-tuned for a light floor. */
+[data-theme="light"] {
+	--bg-app: #f8f9fa;
+	--bg-surface: #eef0f2;
+	--bg-raised: #ffffff;
+	--bg-overlay: #ffffff;
+	--bg-input: #ffffff;
+	--bg-input-raised: #ffffff;
+	--bg-code: #f1f3f5;
+	--bg-hover: rgba(15, 18, 22, 0.045);
+	--bg-active: rgba(15, 18, 22, 0.07);
+	--bg-scrim: rgba(18, 22, 28, 0.34);
+
+	--border-faint: #eef0f2;
+	--border: #e1e4e8;
+	--border-strong: #cfd4da;
+
+	--fg: #15181c;
+	--fg-muted: #5b626b;
+	--fg-dim: #868e98;
+	--fg-faint: #aab0b8;
+
+	--accent-soft: rgba(91, 110, 242, 0.12);
+	--accent-line: rgba(91, 110, 242, 0.45);
+
+	/* status/priority/agent hues unchanged; soft tints stay as alpha and read
+	   as gentle washes on white. Code-on-done check fg stays dark. */
+	--status-backlog-soft: rgba(107, 114, 123, 0.12);
+	--status-progress-soft: rgba(224, 177, 63, 0.16);
+	--status-review-soft: rgba(155, 140, 242, 0.14);
+	--status-done-soft: rgba(84, 163, 111, 0.14);
+	--status-needs-soft: rgba(235, 111, 87, 0.13);
+
+	--shadow-sm: 0 1px 2px rgba(18, 22, 28, 0.08);
+	--shadow-md: 0 4px 14px rgba(18, 22, 28, 0.12), 0 0 0 1px var(--border);
+	--shadow-lg: 0 18px 48px rgba(18, 22, 28, 0.18), 0 0 0 1px var(--border);
+}

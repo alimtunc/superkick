@@ -1,35 +1,39 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
 import { ExecutionModeBadge } from '@/components/ExecutionModeBadge'
-import { PrStateBadge } from '@/components/PrStateBadge'
 import { pinClass, pinTitle } from '@/components/run-detail/pinHelpers'
 import { RunStatusBanner } from '@/components/run-detail/RunStatusBanner'
-import { RunInspectorFacts } from '@/components/run-inspector/RunInspectorFacts'
+import { StepTimeline } from '@/components/run-detail/StepTimeline'
+import { FailureBanner } from '@/components/run-inspector/FailureBanner'
 import { RunInspectorParentBanner } from '@/components/run-inspector/RunInspectorParentBanner'
-import {
-	RunInspectorTabs,
-	tabFromHash,
-	type RunInspectorTabId
-} from '@/components/run-inspector/RunInspectorTabs'
-import { RunMetaStrip } from '@/components/run-shared/RunMetaStrip'
-import { RunStateBadge } from '@/components/RunStateBadge'
+import { RunInspectorRail } from '@/components/run-inspector/RunInspectorRail'
+import { RunChip } from '@/components/run-shared/RunChip'
+import { RunStatGrid } from '@/components/run-shared/RunStatGrid'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import type { useEventStream } from '@/hooks/useEventStream'
 import type { LoadedRunDetail } from '@/hooks/useRunDetail'
-import { fmtElapsed, runNeedsHuman } from '@/lib/domain'
+import { fmtElapsed, providerLabel, runNeedsHuman } from '@/lib/domain'
 import { TopbarBackButton } from '@/shell/TopbarBackButton'
 import { usePageActions } from '@/shell/usePageActions'
 import { useWatchedSessionsStore } from '@/stores/watchedSessions'
-import { useLocation } from '@tanstack/react-router'
-import { ExternalLink, Pin, RefreshCw, Square } from 'lucide-react'
+import type { AgentSession } from '@/types'
+import { Btn } from '@/ui/Btn'
+import { Icon } from '@/ui/Icon'
 
 interface RunInspectorProps {
 	detail: LoadedRunDetail
-	events: ReturnType<typeof useEventStream>['events']
 	refTime: number
 }
 
-export function RunInspector({ detail, events, refTime }: RunInspectorProps) {
+function activeSession(sessions: AgentSession[]): AgentSession | null {
+	return (
+		sessions.find((s) => s.status === 'running') ??
+		sessions.find((s) => s.status === 'starting') ??
+		sessions[0] ??
+		null
+	)
+}
+
+export function RunInspector({ detail, refTime }: RunInspectorProps) {
 	const {
 		run,
 		pr,
@@ -45,23 +49,18 @@ export function RunInspector({ detail, events, refTime }: RunInspectorProps) {
 	} = detail
 
 	const needsHuman = runNeedsHuman(run, attentionRequests)
-
-	const { hash } = useLocation()
-	const [tab, setTab] = useState<RunInspectorTabId>(() => tabFromHash(hash) ?? 'activity')
-
-	useEffect(() => {
-		const fromHash = tabFromHash(hash)
-		if (fromHash) setTab(fromHash)
-	}, [hash])
-
 	const { isWatched, toggleWatch, maxReached } = useWatchedSessionsStore()
 	const watched = isWatched(run.id)
 	const elapsed = fmtElapsed(run.started_at, refTime)
 
+	const active = activeSession(sessions)
+	const provider = active ? (providerLabel[active.provider] ?? active.provider) : null
+	const isFailed = run.state === 'failed'
+
 	const sub = useMemo(
 		() => (
 			<>
-				<RunStateBadge state={run.state} />
+				<RunChip state={run.state} />
 				{run.execution_mode ? <ExecutionModeBadge mode={run.execution_mode} /> : null}
 				<span className="font-data text-[11px] text-fg-dim">· {elapsed}</span>
 			</>
@@ -79,46 +78,41 @@ export function RunInspector({ detail, events, refTime }: RunInspectorProps) {
 					aria-label={pinTitle(watched, maxReached)}
 					aria-pressed={watched}
 					title={pinTitle(watched, maxReached)}
-					className={`inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none ${pinClass(watched, maxReached)}`}
+					className={`iconbtn ${pinClass(watched, maxReached)}`}
 				>
-					<Pin
-						size={14}
-						strokeWidth={1.75}
-						aria-hidden="true"
-						className={watched ? 'fill-current' : undefined}
-					/>
+					<Icon name="pin" size={16} className="ic" />
 				</button>
 				<button
 					type="button"
 					onClick={() => refresh()}
 					aria-label="Refresh run data"
 					title="Refresh run data"
-					className="inline-flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+					className="iconbtn"
 				>
-					<RefreshCw size={14} strokeWidth={1.75} aria-hidden="true" />
+					<Icon name="loop" size={16} className="ic" />
 				</button>
 				{pr ? (
 					<a
 						href={pr.url}
 						target="_blank"
 						rel="noopener noreferrer"
-						className="inline-flex items-center gap-1 rounded-md border border-success/40 px-2 py-1 text-[12px] text-success hover:bg-success/10 focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:outline-none"
+						className="btn btn--sm"
 						aria-label={`Open PR #${pr.number}`}
 					>
-						<ExternalLink size={12} strokeWidth={1.75} aria-hidden="true" />#{pr.number}
-						<PrStateBadge state={pr.state} />
+						<Icon name="external" size={14} className="ic" />#{pr.number}
 					</a>
 				) : null}
 				{!isTerminal ? (
-					<button
-						type="button"
+					<Btn
+						kind="danger"
+						size="sm"
+						icon="stop"
 						onClick={() => setCancelConfirm(true)}
 						aria-label="Cancel run"
 						title="Cancel run"
-						className="inline-flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-danger-soft hover:text-danger focus-visible:ring-2 focus-visible:ring-danger/40 focus-visible:outline-none"
 					>
-						<Square size={12} strokeWidth={1.75} aria-hidden="true" className="fill-current" />
-					</button>
+						Cancel
+					</Btn>
 				) : null}
 			</>
 		),
@@ -134,28 +128,38 @@ export function RunInspector({ detail, events, refTime }: RunInspectorProps) {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<RunStatusBanner run={run} pr={pr} isTerminal={isTerminal} needsHuman={needsHuman} />
 			<RunInspectorParentBanner run={run} />
-			<RunMetaStrip run={run} sessions={sessions} density="comfortable" />
-			<div className="flex min-h-0 flex-1">
-				<RunInspectorTabs
-					tab={tab}
-					onChangeTab={setTab}
-					run={run}
-					pr={pr}
-					events={events}
-					sessions={sessions}
-					attentionRequests={attentionRequests}
-					isTerminal={isTerminal}
-				/>
-				<RunInspectorFacts
-					run={run}
-					pr={pr}
-					steps={steps}
-					sessions={sessions}
-					events={events}
-					refTime={refTime}
-				/>
+			{!isFailed ? (
+				<RunStatusBanner run={run} pr={pr} isTerminal={isTerminal} needsHuman={needsHuman} />
+			) : null}
+			<div className="inspector">
+				<div className="inspector__main">
+					{isFailed ? <FailureBanner message={run.error_message} /> : null}
+					<div className="mb-3 flex items-center gap-4">
+						<Icon name="terminal" size={18} className="ic text-fg-muted" />
+						<span className="mono text-[16px]">{run.id.slice(0, 8)}</span>
+						<RunChip state={run.state} />
+						{run.execution_mode ? <ExecutionModeBadge mode={run.execution_mode} /> : null}
+					</div>
+					<div className="mb-5 text-[13px] text-fg-dim">
+						<span className="mono">{run.issue_identifier}</span>
+						{provider ? (
+							<>
+								{' · '}
+								<span className="mono">{provider}</span>
+							</>
+						) : null}
+					</div>
+
+					<RunStatGrid run={run} steps={steps} refTime={refTime} />
+
+					<div className="section-head">
+						<span className="section-head__title">Step ledger</span>
+						<span className="section-head__line" />
+					</div>
+					<StepTimeline steps={steps} />
+				</div>
+				<RunInspectorRail run={run} />
 			</div>
 			<ConfirmDialog
 				open={cancelConfirm}

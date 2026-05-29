@@ -46,6 +46,10 @@ export function ReadyToLaunchSection() {
 					useWorktree={launch.dialog.useWorktree}
 					executionMode={launch.dialog.executionMode}
 					isPending={launch.isPending}
+					agents={launch.agents}
+					selection={launch.selection}
+					agentsLoading={launch.agentsLoading}
+					onAgentChange={launch.setAgent}
 					onInstructionsChange={launch.dialog.setInstructions}
 					onUseWorktreeChange={launch.dialog.setUseWorktree}
 					onExecutionModeChange={launch.dialog.setExecutionMode}

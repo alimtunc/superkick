@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Superkick — Issues list</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="detail.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<div class="doc">
+	<nav class="idx">
+		<div class="idx__brand"><div class="idx__logo">S</div><div class="idx__title">Superkick</div></div>
+		<div class="idx__sub">Redesign · 2026-05</div>
+		<div class="idx__group">Reference</div>
+		<a href="index.html">System Legend <span class="n">00</span></a>
+		<div class="idx__group">Surfaces</div>
+		<a class="cur" href="issues-list.html">Issues list <span class="n">01</span></a>
+		<a href="issue-detail.html">Issue detail <span class="n">02</span></a>
+		<a href="app-shell.html">App shell <span class="n">03</span></a>
+		<a href="run-drawer.html">Run drawer <span class="n">04</span></a>
+		<a href="run-inspector.html">Run inspector <span class="n">05</span></a>
+		<a href="launch.html">Launch flow <span class="n">06</span></a>
+		<a href="agents.html">Agents &amp; Settings <span class="n">07</span></a>
+		<a href="patterns.html">Patterns &amp; states <span class="n">08</span></a>
+	</nav>
+
+	<main class="canvas">
+	<div class="page">
+		<div class="page__kicker">Surface 01 · top priority</div>
+		<h1 class="page__title">Issues list</h1>
+		<p class="page__lede">The operator's home. Grouped by status with a pinned <strong>Needs&nbsp;you</strong> lane on top, view tabs, a filter bar, a hover preview, and a board view. Every row carries the full <code style="font-family:var(--font-mono)">LinearIssueListItem</code> shape — and the sparse rows below show exactly how omitted fields collapse.</p>
+
+		<!-- ════ A · ACTIVE ════ -->
+		<section class="sect">
+			<div class="board-label">
+				<span class="board-label__state state--active">Active</span>
+				<span class="board-label__title">Grouped by status · view “My issues”</span>
+				<span class="board-label__dim">1440 × 720 · shell</span>
+			</div>
+			<div class="scale-frame"><div class="scaled" style="width:1380px;height:760px">
+				<div class="shell">
+					<aside class="sidebar" id="sb-list"></aside>
+					<div class="main">
+						<div class="topbar">
+							<div class="crumbs"><svg class="ic" style="width:15px;height:15px;color:var(--fg-dim)"><use href="#ic-issue"></use></svg><span class="cur">Issues</span></div>
+							<div class="topbar__actions">
+								<div class="seg">
+									<button class="on"><svg class="ic"><use href="#ic-layers"></use></svg>List</button>
+									<button><svg class="ic"><use href="#ic-folder"></use></svg>Board</button>
+								</div>
+								<button class="iconbtn" title="Search"><svg class="ic"><use href="#ic-search"></use></svg></button>
+								<button class="btn btn--primary btn--sm"><svg class="ic"><use href="#ic-plus"></use></svg>New issue</button>
+							</div>
+						</div>
+						<div class="content">
+							<div class="view-tabs">
+								<div class="view-tab"><span>Inbox</span></div>
+								<div class="view-tab view-tab--active"><span>My issues</span><span class="view-tab__count">11</span></div>
+								<div class="view-tab"><span>All open</span><span class="view-tab__count">42</span></div>
+								<div class="view-tab"><span>Shipped</span><span class="view-tab__count">7</span></div>
+							</div>
+							<div class="filterbar">
+								<div class="filterbar__left">
+									<div class="fchip"><span class="k">Status</span><span class="v">In progress, +2</span><svg class="ic" style="width:12px;height:12px"><use href="#ic-x"></use></svg></div>
+									<div class="fchip fchip--not"><span class="k">Label</span><span class="v">not Design</span><svg class="ic" style="width:12px;height:12px"><use href="#ic-x"></use></svg></div>
+									<div class="fchip fchip--add"><svg class="ic" style="width:13px;height:13px"><use href="#ic-plus"></use></svg>Filter</div>
+								</div>
+								<div class="filterbar__right">
+									<button class="fchip"><svg class="ic" style="width:13px;height:13px"><use href="#ic-history"></use></svg><span class="v">Updated</span></button>
+									<button class="iconbtn" title="Group &amp; display"><svg class="ic"><use href="#ic-settings"></use></svg></button>
+								</div>
+							</div>
+							<div id="list"></div>
+						</div>
+					</div>
+				</div>
+			</div></div>
+		</section>
+
+		<!-- ════ B · Hover preview + C · Filter dropdown ════ -->
+		<section class="sect">
+			<div class="board-label">
+				<span class="board-label__state state--active">Overlays</span>
+				<span class="board-label__title">Hover preview card &amp; filter dropdown</span>
+				<span class="board-label__desc">tier 3 · shadow-lg / shadow-md</span>
+			</div>
+			<div class="specimen" style="gap:var(--space-9)">
+				<div id="preview"></div>
+				<div class="popover" style="width:280px;background:var(--bg-overlay);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-md);overflow:hidden">
+					<div style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-5);border-bottom:1px solid var(--border)">
+						<svg class="ic" style="width:14px;height:14px;color:var(--fg-dim)"><use href="#ic-search"></use></svg>
+						<input class="input" style="border:none;background:none;padding:0;height:22px" placeholder="Filter by status…" value="">
+					</div>
+					<div style="padding:var(--space-3)">
+						<div class="popline" style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-3) var(--space-4);border-radius:var(--radius-sm);background:var(--bg-active)"><span style="width:14px;display:flex;justify-content:center"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--status-progress)" stroke-width="1.5"/><circle cx="8" cy="8" r="3" stroke="var(--status-progress)" stroke-width="6" stroke-dasharray="11.3 18.85" transform="rotate(-90 8 8)"/></svg></span>In progress<span style="margin-left:auto;color:var(--accent)"><svg class="ic" style="width:14px;height:14px"><use href="#ic-check"></use></svg></span></div>
+						<div class="popline" style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-3) var(--space-4);border-radius:var(--radius-sm)"><span style="width:14px;display:flex;justify-content:center"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--status-review)" stroke-width="1.5"/><circle cx="8" cy="8" r="3" stroke="var(--status-review)" stroke-width="6" stroke-dasharray="15.4 18.85" transform="rotate(-90 8 8)"/></svg></span>In review<span style="margin-left:auto;color:var(--accent)"><svg class="ic" style="width:14px;height:14px"><use href="#ic-check"></use></svg></span></div>
+						<div class="popline" style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-3) var(--space-4);border-radius:var(--radius-sm);color:var(--fg-muted)"><span style="width:14px;display:flex;justify-content:center"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--status-todo)" stroke-width="1.5"/></svg></span>Todo</div>
+						<div class="popline" style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-3) var(--space-4);border-radius:var(--radius-sm);color:var(--fg-muted)"><span style="width:14px;display:flex;justify-content:center"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--status-backlog)" stroke-width="1.5" stroke-dasharray="1.6 2.2" stroke-linecap="round"/></svg></span>Backlog</div>
+						<div style="border-top:1px solid var(--border-faint);margin-top:var(--space-3);padding-top:var(--space-3)"><div class="popline" style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-3) var(--space-4);color:var(--fg-dim);font-size:var(--text-12)">Hold ⌥ to exclude</div></div>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- ════ D · BOARD ════ -->
+		<section class="sect">
+			<div class="board-label">
+				<span class="board-label__state state--active">Active</span>
+				<span class="board-label__title">Board view · grouped by operator lane</span>
+				<span class="board-label__desc">backlog · todo · launchable always visible</span>
+			</div>
+			<div class="scale-frame"><div class="scaled" style="width:1380px;height:760px">
+				<div class="shell">
+					<aside class="sidebar" id="sb-board"></aside>
+					<div class="main">
+						<div class="topbar">
+							<div class="crumbs"><svg class="ic" style="width:15px;height:15px;color:var(--fg-dim)"><use href="#ic-issue"></use></svg><span class="cur">Issues</span></div>
+							<div class="topbar__actions">
+								<div class="seg"><button><svg class="ic"><use href="#ic-layers"></use></svg>List</button><button class="on"><svg class="ic"><use href="#ic-folder"></use></svg>Board</button></div>
+								<button class="btn btn--primary btn--sm"><svg class="ic"><use href="#ic-plus"></use></svg>New issue</button>
+							</div>
+						</div>
+						<div class="content"><div class="board" id="board"></div></div>
+					</div>
+				</div>
+			</div></div>
+		</section>
+
+		<!-- ════ E · EMPTY + F · LOADING ════ -->
+		<section class="sect">
+			<div class="board-label">
+				<span class="board-label__state state--empty">Empty</span>
+				<span class="board-label__title">No matching issues</span>
+				<span class="board-label__state state--loading" style="margin-left:var(--space-6)">Loading</span>
+				<span class="board-label__title">Skeleton rows</span>
+			</div>
+			<div class="grid2">
+				<div class="artboard" style="height:340px">
+					<div class="empty-state" style="height:100%">
+						<div class="empty-state__icon"><svg class="ic" style="width:20px;height:20px"><use href="#ic-issue"></use></svg></div>
+						<div class="empty-state__title">No issues match these filters</div>
+						<div class="empty-state__sub">Clear a filter, or create the first issue in this view to launch an agent against it.</div>
+						<button class="btn btn--sm"><svg class="ic"><use href="#ic-plus"></use></svg>New issue</button>
+					</div>
+				</div>
+				<div class="artboard" style="height:340px">
+					<div class="group-head"><span class="skel" style="width:80px;height:11px"></span></div>
+					<div id="skel"></div>
+				</div>
+			</div>
+		</section>
+	</div>
+	</main>
+</div>
+
+<script src="icons.js"></script>
+<script src="shell.js"></script>
+<script src="glyphs.js"></script>
+<script src="scale.js"></script>
+<script>
+/* ── Entities — FIXED avatar colors (never hashed) ─────────────────────── */
+var E = {
+	alim:   { name: 'Alim Tunç',  initials: 'AT', av: 'av-1' },
+	maya:   { name: 'Maya K.',    initials: 'MK', av: 'av-2' },
+	jonas:  { name: 'Jonas D.',   initials: 'JD', av: 'av-3' },
+	rosa:   { name: 'Rosa P.',    initials: 'RP', av: 'av-4' },
+	sam:    { name: 'Sam L.',     initials: 'SL', av: 'av-5' },
+	noor:   { name: 'Noor A.',    initials: 'NA', av: 'av-6' },
+	felix:  { name: 'Felix K.',   initials: 'FK', av: 'av-7' }
+};
+var L = {
+	bug:         { name: 'bug',         color: 'var(--label-bug)' },
+	feature:     { name: 'feature',     color: 'var(--label-feature)' },
+	improvement: { name: 'improvement', color: 'var(--label-improvement)' },
+	design:      { name: 'design',      color: 'var(--label-design)' },
+	infra:       { name: 'infra',       color: 'var(--label-infra)' }
+};
+
+/* ── Issues — mirror LinearIssueListItem. `status`/`prio` are glyph kinds,
+   `agent` is the derived TaskBadgeKind (null when no run). Nullable fields
+   left out entirely to exercise the sparsity rule. ─────────────────────── */
+var GROUPS = [
+	{ kind: 'needs', label: 'Needs you', count: 2, pinned: true, issues: [
+		{ id: 'SUP-128', prio: 'high',   status: 'progress', title: 'Approve database migration before the agent proceeds', labels: [L.infra], sub: 2, project: 'Runner core', est: 5, assignee: E.maya,  agent: 'needs', updated: '12m' },
+		{ id: 'SUP-141', prio: 'urgent', status: 'review',   title: 'Reviewer flagged a risky auth change — needs your call', labels: [L.bug], assignee: E.alim, agent: 'needs', updated: '4m' }
+	]},
+	{ kind: 'progress', label: 'In progress', count: 3, issues: [
+		{ id: 'SUP-132', prio: 'medium', status: 'progress', title: 'Stream tool-call output into the run drawer', labels: [L.feature], project: 'Runner core', est: 3, assignee: E.alim, agent: 'running', updated: '2m' },
+		{ id: 'SUP-119', prio: 'high',   status: 'progress', title: 'Persist worktree path across daemon restarts', labels: [L.bug], est: 2, assignee: E.jonas, agent: 'running', updated: '26m' },
+		{ id: 'SUP-150', prio: 'low',    status: 'progress', title: 'Kanban: collapse empty columns when filtered', labels: [L.improvement, L.design], project: 'Issues UI', assignee: E.sam, updated: '1h' }
+	]},
+	{ kind: 'review', label: 'In review', count: 1, issues: [
+		{ id: 'SUP-145', prio: 'high', status: 'review', title: 'Review swarm: parallelize reviewer agents', labels: [L.feature], project: 'Runner core', est: 8, assignee: E.felix, agent: 'review', updated: '18m' }
+	]},
+	{ kind: 'todo', label: 'Todo', count: 3, issues: [
+		{ id: 'SUP-156', prio: 'medium', status: 'todo', title: 'Add a semi-auto execution mode toggle to the launcher', labels: [L.feature], project: 'Launcher', est: 5, sub: 4, updated: '3h' },
+		{ id: 'SUP-159', prio: 'high',   status: 'todo', title: 'Surface quota-exceeded as a needs-human state', updated: '5h', assignee: E.maya },
+		{ id: 'SUP-160', prio: 'none',   status: 'todo', title: 'Document the elevation token map', labels: [L.design], project: 'Design system', est: 1, assignee: E.alim, updated: '1d' }
+	]},
+	{ kind: 'backlog', label: 'Backlog', count: 2, issues: [
+		{ id: 'SUP-171', prio: 'medium', status: 'backlog', title: 'Multi-repo launch queue', labels: [L.feature, L.infra], sub: 6, updated: '2d' },
+		{ id: 'SUP-174', prio: 'low',    status: 'backlog', title: 'Investigate flaky terminal takeover on macOS', labels: [L.bug], updated: '4d' }
+	]},
+	{ kind: 'done', label: 'Done', count: 2, issues: [
+		{ id: 'SUP-122', prio: 'medium', status: 'done', title: 'Linear issue → worktree bootstrap', labels: [L.feature], project: 'Runner core', est: 5, assignee: E.jonas, agent: 'shipped', updated: '1d' },
+		{ id: 'SUP-118', prio: 'low',    status: 'done', title: 'Pin saved views in the sidebar', labels: [L.improvement], project: 'Issues UI', est: 2, assignee: E.sam, agent: 'shipped', updated: '2d' }
+	]}
+];
+
+function rowMeta(it) {
+	var m = '';
+	if (it.project) m += '<span class="row__project"><span class="dot"></span>' + it.project + '</span>';
+	if (it.est != null) m += '<span class="row__est mono">' + it.est + '</span>';
+	m += '<span class="row__updated">' + it.updated + '</span>';
+	m += '<span class="avatar-cell">' + SK.avatar(it.assignee, 'sm') + '</span>';
+	return m;
+}
+function rowHTML(it) {
+	var sub = it.sub ? '<span class="row__subcount"><svg class="ic" style="width:11px;height:11px"><use href="#ic-layers"></use></svg>' + it.sub + '</span>' : '';
+	var labels = (it.labels && it.labels.length) ? '<span class="row__labels">' + it.labels.map(SK.labelChip).join('') + '</span>' : '';
+	return '<div class="row">' +
+		'<span>' + SK.prioGlyph(it.prio) + '</span>' +
+		'<span>' + SK.statusGlyph(it.status) + '</span>' +
+		'<span class="row__id mono">' + it.id + '</span>' +
+		'<span class="row__main"><span class="row__title">' + it.title + '</span>' + sub + labels + '</span>' +
+		'<span class="row__meta">' + rowMeta(it) + '<span class="row__agent">' + SK.agentDot(it.agent) + '</span></span>' +
+	'</div>';
+}
+function groupHTML(g) {
+	var glyph = g.pinned ? SK.statusGlyph('needs') : SK.statusGlyph(g.kind);
+	var head = '<div class="group-head' + (g.pinned ? ' group-head--pinned' : '') + '">' +
+		glyph + '<span class="group-head__name">' + g.label + '</span>' +
+		'<span class="group-head__count">' + g.count + '</span>' +
+		'<span class="group-head__spacer"></span>' +
+		'<button class="iconbtn" style="width:22px;height:22px"><svg class="ic" style="width:14px;height:14px"><use href="#ic-plus"></use></svg></button>' +
+	'</div>';
+	return head + g.issues.map(rowHTML).join('');
+}
+
+/* ── Board / kanban ────────────────────────────────────────────────────── */
+var COLUMNS = [
+	{ kind: 'needs', label: 'Needs you', issues: GROUPS[0].issues },
+	{ kind: 'backlog', label: 'Backlog', issues: GROUPS[4].issues },
+	{ kind: 'todo', label: 'Todo', issues: GROUPS[3].issues },
+	{ kind: 'progress', label: 'In progress', issues: GROUPS[1].issues },
+	{ kind: 'review', label: 'In review', issues: GROUPS[2].issues },
+	{ kind: 'done', label: 'Done', issues: GROUPS[5].issues }
+];
+function kcardHTML(it) {
+	var labels = (it.labels || []).map(SK.labelChip).join('');
+	return '<div class="kcard">' +
+		'<div class="kcard__top">' + SK.prioGlyph(it.prio) + '<span class="kcard__id mono">' + it.id + '</span><span class="spacer"></span>' + SK.agentDot(it.agent) + '</div>' +
+		'<p class="kcard__title">' + it.title + '</p>' +
+		'<div class="kcard__foot">' + labels + '<span class="spacer"></span>' + (it.est != null ? '<span class="row__est mono" style="color:var(--fg-dim)">' + it.est + '</span>' : '') + SK.avatar(it.assignee, 'sm') + '</div>' +
+	'</div>';
+}
+function columnHTML(c) {
+	return '<div class="column"><div class="column__head">' + SK.statusGlyph(c.kind === 'needs' ? 'needs' : c.kind) +
+		'<span class="column__name">' + c.label + '</span><span class="column__count">' + c.issues.length + '</span>' +
+		'<button class="iconbtn column__add" style="width:22px;height:22px"><svg class="ic" style="width:14px;height:14px"><use href="#ic-plus"></use></svg></button></div>' +
+		'<div class="column__cards">' + c.issues.map(kcardHTML).join('') + '</div></div>';
+}
+
+/* ── Hover preview card ────────────────────────────────────────────────── */
+function previewHTML() {
+	return '<div class="preview-card">' +
+		'<div class="preview-card__head">' + SK.prioGlyph('high') + SK.statusGlyph('progress', true) +
+		'<span class="preview-card__id mono">SUP-128</span><span class="spacer" style="flex:1"></span>' + SK.agentDot('needs') + '</div>' +
+		'<h3 class="preview-card__title">Approve database migration before the agent proceeds</h3>' +
+		'<p class="preview-card__desc">The coding agent paused at the <code style="font-family:var(--font-mono);background:var(--bg-code);padding:1px 4px;border-radius:3px">migrate</code> step — it wants sign-off before applying an irreversible schema change to the shared dev database.</p>' +
+		'<div class="preview-card__foot">' + SK.labelChip(L.infra) + '<span class="row__project"><span class="dot" style="width:7px;height:7px;border-radius:2px;background:var(--avatar-7-bg);display:inline-block"></span> Runner core</span><span class="spacer" style="flex:1"></span>' + SK.avatar(E.maya, 'sm') + '<span>12m</span></div>' +
+	'</div>';
+}
+
+/* ── Mount ─────────────────────────────────────────────────────────────── */
+document.getElementById('sb-list').innerHTML = SK_SIDEBAR('issues');
+document.getElementById('sb-board').innerHTML = SK_SIDEBAR('issues');
+document.getElementById('list').innerHTML = GROUPS.map(groupHTML).join('');
+document.getElementById('board').innerHTML = COLUMNS.map(columnHTML).join('');
+document.getElementById('preview').innerHTML = previewHTML();
+document.getElementById('skel').innerHTML = Array.from({ length: 5 }).map(function () {
+	return '<div class="skel-row"><span class="skel" style="width:14px;height:14px;border-radius:50%"></span><span class="skel" style="width:14px;height:14px;border-radius:50%"></span><span class="skel" style="width:48px"></span><span class="skel" style="width:' + (40 + Math.random() * 45) + '%"></span></div>';
+}).join('');
+</script>
+</body>
+</html>

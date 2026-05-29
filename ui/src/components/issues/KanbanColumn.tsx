@@ -2,18 +2,22 @@ import { useState } from 'react'
 
 import { KanbanCard } from '@/components/issues/KanbanCard'
 import { EmptyState } from '@/components/ui/state-empty'
-import {
-	isDroppableIssueState,
-	issueStateAccent,
-	issueStateTone,
-	launchQueueItemIdentifier
-} from '@/lib/domain'
+import { isDroppableIssueState, issueStateAccent, launchQueueItemIdentifier } from '@/lib/domain'
 import { cn } from '@/lib/utils'
-import type { IssueState, LaunchQueueItem, RecentUnblocks } from '@/types'
-import { Dot } from '@/ui/Dot'
+import type { IssueState, LaunchQueueItem, RecentUnblocks, StatusIconKind } from '@/types'
+import { Btn, StatusIcon } from '@/ui'
 import { useDroppable } from '@dnd-kit/core'
 
 const DONE_COLLAPSED_COUNT = 2
+
+const STATE_STATUS_KIND: Record<IssueState, StatusIconKind> = {
+	needs_human: 'needs',
+	backlog: 'backlog',
+	todo: 'todo',
+	in_progress: 'progress',
+	in_review: 'review',
+	done: 'done'
+}
 
 interface KanbanColumnProps {
 	state: IssueState
@@ -48,7 +52,6 @@ export function KanbanColumn({
 	const accent = issueStateAccent[state]
 	const dispatchPositions = dispatchPositionsFor(items)
 	const droppable = isDroppableIssueState(state)
-	const pinned = state === 'needs_human'
 	const collapseDone = state === 'done' && !showAllDone && items.length > DONE_COLLAPSED_COUNT
 	const visibleItems = collapseDone ? items.slice(0, DONE_COLLAPSED_COUNT) : items
 	const hiddenDoneCount = items.length - visibleItems.length
@@ -67,27 +70,28 @@ export function KanbanColumn({
 			ref={setNodeRef}
 			data-issue-state={state}
 			className={cn(
-				'flex w-67 shrink-0 flex-col border-r border-border transition-colors duration-150 last:border-r-0 motion-reduce:transition-none',
-				pinned
-					? 'border-t border-t-[color-mix(in_srgb,var(--color-warn)_25%,var(--color-border))]'
-					: null,
+				'column transition-colors duration-150 motion-reduce:transition-none',
 				isOver && droppable ? 'bg-accent-soft' : null,
 				isOver && !droppable ? 'bg-danger-soft' : null
 			)}
 		>
-			<div className="flex items-center gap-2 px-3 pt-2.5 pb-2">
-				<Dot tone={issueStateTone[state]} size={8} />
-				<span className={cn('text-[12.5px] font-semibold', pinned ? 'text-warn' : 'text-fg')}>
-					{accent.label}
-				</span>
-				<span className="font-mono text-[11px] text-fg-dim">{items.length}</span>
+			<div className="column__head">
+				<StatusIcon kind={STATE_STATUS_KIND[state]} size={14} />
+				<span className="column__name">{accent.label}</span>
+				<span className="column__count">{items.length}</span>
+				<Btn
+					kind="ghost"
+					icon="plus"
+					className="column__add"
+					aria-label={`New ${accent.label} issue`}
+				/>
 			</div>
 			{items.length === 0 && !hasGhost ? (
-				<div className="px-3.5 pb-3.5">
+				<div className="column__cards">
 					<EmptyState density="compact" title="Empty" />
 				</div>
 			) : (
-				<div className="flex flex-1 flex-col gap-2 overflow-y-auto px-3.5 pb-3.5">
+				<div className="column__cards">
 					{hasGhost ? <DropGhost /> : null}
 					{visibleItems.map((item, index) => (
 						<KanbanCard

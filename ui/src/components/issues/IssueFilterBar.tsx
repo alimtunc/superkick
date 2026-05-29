@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { IssueFilterDropdown, type FilterOptionSet } from '@/components/issues/IssueFilterDropdown'
 import { PopoverPopup } from '@/components/ui/popover-shell'
 import { cn } from '@/lib/utils'
-import type { IssueFilterState, IssueGroupBy, IssueSort, IssueViewLayout } from '@/types'
+import type { IssueFilterState, IssueGroupBy, IssueSort } from '@/types'
 import { Icon } from '@/ui'
 import { Popover } from '@base-ui/react/popover'
 
@@ -11,14 +11,19 @@ interface IssueFilterBarProps {
 	filters: IssueFilterState
 	sort: IssueSort
 	group: IssueGroupBy
-	layout: IssueViewLayout
 	options: FilterOptionSet
 	onFiltersChange: (next: IssueFilterState) => void
 	onSortChange: (next: IssueSort) => void
 	onGroupChange: (next: IssueGroupBy) => void
-	onLayoutChange: (next: IssueViewLayout) => void
 	dropdownOpen: boolean
 	onDropdownOpenChange: (open: boolean) => void
+}
+
+const SORT_ICON: Record<IssueSort, 'history' | 'flag' | 'clock'> = {
+	updated: 'history',
+	created: 'clock',
+	priority: 'flag',
+	age: 'clock'
 }
 
 const SORT_LABELS: Record<IssueSort, string> = {
@@ -41,46 +46,43 @@ export function IssueFilterBar({
 	filters,
 	sort,
 	group,
-	layout,
 	options,
 	onFiltersChange,
 	onSortChange,
 	onGroupChange,
-	onLayoutChange,
 	dropdownOpen,
 	onDropdownOpenChange
 }: IssueFilterBarProps) {
 	const chips = useMemo(() => buildChips(filters, options), [filters, options])
 
 	return (
-		<div className="flex min-h-[41px] items-center gap-1.5 border-b border-border bg-surface px-4 py-[7px]">
-			<IssueFilterDropdown
-				filters={filters}
-				onChange={onFiltersChange}
-				options={options}
-				open={dropdownOpen}
-				onOpenChange={onDropdownOpenChange}
-				trigger={
-					<button
-						type="button"
-						className="inline-flex h-[26px] items-center gap-1.5 rounded-[5px] border border-dashed border-border bg-transparent px-[9px] text-[12px] text-fg-muted transition-colors hover:border-border-strong hover:text-fg focus-visible:ring-1 focus-visible:ring-accent-soft focus-visible:outline-none"
-					>
-						<Icon name="plus" size={11} />
-						<span>Filter</span>
-					</button>
-				}
-			/>
-
-			{chips.map((chip) => (
-				<FilterChip
-					key={chip.key}
-					chip={chip}
-					onRemove={() => onFiltersChange(removeChip(filters, chip))}
-					onToggleOperator={() => onFiltersChange(toggleChipOperator(filters, chip))}
+		<div className="filterbar">
+			<div className="filterbar__left">
+				<IssueFilterDropdown
+					filters={filters}
+					onChange={onFiltersChange}
+					options={options}
+					open={dropdownOpen}
+					onOpenChange={onDropdownOpenChange}
+					trigger={
+						<button type="button" className="fchip fchip--add">
+							<Icon name="plus" size={13} className="ic" />
+							Filter
+						</button>
+					}
 				/>
-			))}
 
-			<div className="ml-auto flex items-center gap-1.5">
+				{chips.map((chip) => (
+					<FilterChip
+						key={chip.key}
+						chip={chip}
+						onRemove={() => onFiltersChange(removeChip(filters, chip))}
+						onToggleOperator={() => onFiltersChange(toggleChipOperator(filters, chip))}
+					/>
+				))}
+			</div>
+
+			<div className="filterbar__right">
 				<SelectControl
 					label="Group"
 					value={group}
@@ -89,11 +91,11 @@ export function IssueFilterBar({
 				/>
 				<SelectControl
 					label="Sort"
+					icon={SORT_ICON[sort]}
 					value={sort}
 					options={Object.entries(SORT_LABELS) as [IssueSort, string][]}
 					onChange={onSortChange}
 				/>
-				<LayoutToggle layout={layout} onChange={onLayoutChange} />
 			</div>
 		</div>
 	)
@@ -312,44 +314,33 @@ function FilterChip({
 	onToggleOperator: () => void
 }) {
 	const label = `${chip.name} ${chip.op} ${chip.valueLabel}`
+	const negated = chip.op === '≠'
 	return (
-		<span className="inline-flex h-[26px] items-center gap-1.5 rounded-[5px] border border-border bg-raised pr-1 pl-[9px] text-[12px] whitespace-nowrap text-fg">
-			<span className="text-fg-muted">{chip.name}</span>
+		<span className={cn('fchip', negated ? 'fchip--not' : null)}>
+			<span className="k">{chip.name}</span>
 			{canToggleOperator(chip) ? (
 				<button
 					type="button"
 					onClick={onToggleOperator}
-					className="font-data text-fg-dim hover:text-fg focus-visible:outline-none"
+					className="mono text-fg-dim hover:text-fg focus-visible:outline-none"
 					aria-label={`Toggle operator for ${label}`}
 				>
 					{chip.op}
 				</button>
 			) : (
-				<span className="font-data text-fg-dim">{chip.op}</span>
+				<span className="mono text-fg-dim">{chip.op}</span>
 			)}
-			<span className={cn('font-medium', chipValueToneClass(chip.axis))}>{chip.valueLabel}</span>
+			<span className="v">{chip.valueLabel}</span>
 			<button
 				type="button"
 				onClick={onRemove}
-				className="inline-flex size-[18px] items-center justify-center rounded-[4px] text-fg-dim hover:bg-raised hover:text-fg focus-visible:outline-none"
+				className="x inline-flex items-center justify-center focus-visible:outline-none"
 				aria-label={`Remove filter ${label}`}
 			>
-				<Icon name="x" size={10} />
+				<Icon name="x" size={12} className="ic" />
 			</button>
 		</span>
 	)
-}
-
-function chipValueToneClass(axis: ChipDescriptor['axis']): string {
-	switch (axis) {
-		case 'status':
-		case 'status_not':
-			return 'text-info'
-		case 'task':
-			return 'text-accent'
-		default:
-			return 'text-fg'
-	}
 }
 
 function taskLabel(value: string): string {
@@ -397,12 +388,14 @@ function SelectControl<T extends string>({
 	label,
 	value,
 	options,
-	onChange
+	onChange,
+	icon
 }: {
 	label: string
 	value: T
 	options: [T, string][]
 	onChange: (next: T) => void
+	icon?: 'history' | 'flag' | 'clock'
 }) {
 	const [open, setOpen] = useState(false)
 	const current = options.find(([v]) => v === value)?.[1] ?? value
@@ -410,14 +403,10 @@ function SelectControl<T extends string>({
 		<Popover.Root open={open} onOpenChange={setOpen}>
 			<Popover.Trigger
 				render={(props) => (
-					<button
-						{...props}
-						type="button"
-						className="inline-flex h-[26px] items-center gap-1 rounded-[5px] px-2 text-[12px] text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-1 focus-visible:ring-accent-soft focus-visible:outline-none"
-					>
-						<span className="text-fg-dim">{label}</span>
-						<span className="font-medium text-fg">{current}</span>
-						<Icon name="chevDown" size={10} className="text-fg-dim" />
+					<button {...props} type="button" className="fchip" aria-label={label}>
+						{icon ? <Icon name={icon} size={13} className="ic" /> : null}
+						<span className="k">{label}</span>
+						<span className="v">{current}</span>
 					</button>
 				)}
 			/>
@@ -444,35 +433,5 @@ function SelectControl<T extends string>({
 				})}
 			</PopoverPopup>
 		</Popover.Root>
-	)
-}
-
-function LayoutToggle({
-	layout,
-	onChange
-}: {
-	layout: IssueViewLayout
-	onChange: (next: IssueViewLayout) => void
-}) {
-	return (
-		<div className="inline-flex h-[26px] items-center gap-px rounded-[5px] border border-border bg-raised p-px">
-			{(['list', 'board'] as const).map((value) => (
-				<button
-					key={value}
-					type="button"
-					onClick={() => onChange(value)}
-					aria-pressed={value === layout}
-					aria-label={value === 'list' ? 'List view' : 'Board view'}
-					className={cn(
-						'inline-flex h-5.5 items-center justify-center rounded-[3px] px-2 text-[11.5px] transition-colors',
-						value === layout
-							? 'bg-surface text-fg shadow-[inset_0_0_0_1px_var(--color-border)]'
-							: 'text-fg-dim hover:text-fg'
-					)}
-				>
-					<Icon name={value === 'list' ? 'doc' : 'layers'} size={12} className="shrink-0" />
-				</button>
-			))}
-		</div>
 	)
 }

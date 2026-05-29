@@ -1,39 +1,38 @@
 import { activityPayload, type ActivityPayload } from '@/components/run-tabs/structuredActivity'
 import { Pill } from '@/components/ui/pill'
 import { fmtDuration } from '@/lib/domain'
+import { cn } from '@/lib/utils'
 import type { RunEvent } from '@/types'
-import { Check, CircleDot, FileText, Search, TestTube2 } from 'lucide-react'
+import type { SKIconName } from '@/types/icons'
+import { Icon } from '@/ui/Icon'
 
-function toneFor(event: RunEvent, payload: ActivityPayload): string {
-	if (event.level === 'error' || payload.status === 'fail') return 'border-danger/50 text-danger'
-	if (payload.status === 'green') return 'border-success/50 text-success'
-	if (payload.status === 'running') return 'border-accent/50 text-accent'
-	return 'border-border text-fg-muted'
+function nodeToneClass(event: RunEvent, payload: ActivityPayload): string {
+	if (event.level === 'error' || payload.status === 'fail') return 'warn'
+	if (payload.status === 'green') return 'success'
+	if (payload.status === 'running') return 'accent'
+	return ''
 }
 
-function IconFor({ payload }: { payload: ActivityPayload }) {
-	const common = { size: 13, strokeWidth: 1.85, 'aria-hidden': true }
+function iconFor(payload: ActivityPayload): SKIconName {
 	switch (payload.activity_kind) {
 		case 'diff':
 		case 'write':
-			return <FileText {...common} />
+			return 'doc'
 		case 'search':
-			return <Search {...common} />
+			return 'search'
 		case 'summary':
-			return <Check {...common} />
+			return 'check'
 		case 'test':
-			return <TestTube2 {...common} />
-		case 'progress':
-		case 'spec':
+			return 'check'
 		default:
-			return <CircleDot {...common} />
+			return 'spark'
 	}
 }
 
-function diffLineClass(line: string): string | undefined {
-	if (line.startsWith('+')) return 'text-success'
-	if (line.startsWith('-')) return 'text-fg'
-	return undefined
+function diffLineClass(line: string): string {
+	if (line.startsWith('+')) return 'c-success'
+	if (line.startsWith('-')) return 'c-danger'
+	return 'c-fg'
 }
 
 function StatusBadge({ payload }: { payload: ActivityPayload }) {
@@ -72,10 +71,9 @@ function Delta({ changed }: { changed?: ActivityPayload['changed'] }) {
 	const added = changed.added ?? 0
 	const removed = changed.removed ?? 0
 	return (
-		<span className="font-data ml-auto shrink-0 text-[11px]">
-			<span className="text-success">+{added}</span>
-			<span className="px-1 text-fg-dim">-</span>
-			<span className={removed > 0 ? 'text-danger' : 'text-fg-dim'}>{removed}</span>
+		<span className="filerow__stat ml-auto shrink-0">
+			<span className="add">+{added}</span>
+			<span className="del">−{removed}</span>
 		</span>
 	)
 }
@@ -83,12 +81,12 @@ function Delta({ changed }: { changed?: ActivityPayload['changed'] }) {
 function TestOutput({ tests }: { tests?: ActivityPayload['tests'] }) {
 	if (!tests || tests.length === 0) return null
 	return (
-		<div className="bg-ink mt-2 rounded border border-border px-3 py-2 font-mono text-[11px] leading-relaxed">
+		<div className="terminal mt-2">
 			{tests.map((test) => (
-				<div key={test.name} className="grid grid-cols-[42px_1fr_auto] gap-3 text-fg-muted">
-					<span className="text-fg">RUN</span>
-					<span className="truncate">{test.name}</span>
-					<span className={test.result === 'fail' ? 'text-danger' : 'text-fg'}>{test.result}</span>
+				<div key={test.name} className="grid grid-cols-[42px_1fr_auto] gap-3">
+					<span className="c-accent">RUN</span>
+					<span className="c-fg truncate">{test.name}</span>
+					<span className={test.result === 'fail' ? 'c-danger' : 'c-success'}>{test.result}</span>
 				</div>
 			))}
 		</div>
@@ -98,13 +96,14 @@ function TestOutput({ tests }: { tests?: ActivityPayload['tests'] }) {
 function DiffBlock({ payload }: { payload: ActivityPayload }) {
 	if (!payload.snippet || payload.snippet.length === 0) return null
 	return (
-		<div className="bg-ink mt-2 overflow-hidden rounded border border-border">
+		<div className="toolcall mt-2">
 			{payload.file ? (
-				<div className="font-data flex items-center justify-between border-b border-border px-3 py-2 text-[11px] text-fg-dim">
-					<span className="truncate">{payload.file}</span>
+				<div className="toolcall__head">
+					<Icon name="doc" size={13} className="ic text-fg-dim" />
+					<span className="toolcall__name">{payload.file}</span>
 				</div>
 			) : null}
-			<pre className="px-3 py-2 font-mono text-[11px] leading-relaxed text-fg-muted">
+			<pre className="toolcall__body">
 				{payload.snippet.map((line) => (
 					<div key={line} className={diffLineClass(line)}>
 						{line}
@@ -127,25 +126,16 @@ export function StructuredActivityList({ events, className }: StructuredActivity
 	const baseTs = rows[0] ? new Date(rows[0].event.ts).getTime() : 0
 
 	return (
-		<ol className={className}>
-			{rows.map(({ event, payload }, index) => {
+		<ol className={cn('feed', className)}>
+			{rows.map(({ event, payload }) => {
 				const elapsedMs = Math.max(0, new Date(event.ts).getTime() - baseTs)
+				const tone = nodeToneClass(event, payload)
 				return (
-					<li key={event.id} className="relative pb-3 pl-7 last:pb-0">
-						{index < rows.length - 1 ? (
-							<span
-								className="absolute top-6 bottom-0 left-[9px] w-px bg-border"
-								aria-hidden="true"
-							/>
-						) : null}
-						<span
-							className={`absolute top-1 left-0 flex size-[18px] items-center justify-center rounded-full border bg-surface ${toneFor(
-								event,
-								payload
-							)}`}
-							aria-hidden="true"
-						>
-							<IconFor payload={payload} />
+					<li key={event.id} className="feeditem">
+						<span className="feeditem__node">
+							<span className={`node-glyph ${tone}`}>
+								<Icon name={iconFor(payload)} size={13} className="ic" />
+							</span>
 						</span>
 						<div className="flex min-w-0 items-center gap-2">
 							<span className="truncate text-[13px] font-medium text-fg">{event.message}</span>

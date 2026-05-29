@@ -2,7 +2,8 @@ import { useState } from 'react'
 
 import { PopoverPopup } from '@/components/ui/popover-shell'
 import type { ProjectOption } from '@/types'
-import { Icon } from '@/ui'
+
+import { PopBody, PopHeader, Popline } from './popoverParts'
 
 interface ProjectPickerProps {
 	projects: ProjectOption[]
@@ -19,48 +20,32 @@ export function ProjectPicker({ projects, currentId, onSelect }: ProjectPickerPr
 
 	return (
 		<PopoverPopup popupClassName="w-72 max-h-80 overflow-hidden flex flex-col p-0">
-			<div className="border-b border-border p-2">
-				<input
-					type="text"
-					value={query}
-					onChange={(event) => setQuery(event.target.value)}
-					placeholder="Search projects…"
-					autoFocus
-					className="w-full rounded border border-border bg-canvas px-2 py-1.5 text-[12.5px] text-fg placeholder:text-fg-dim focus:border-border-strong focus:outline-none"
-					aria-label="Filter projects"
-				/>
-			</div>
-			<div className="flex flex-col overflow-y-auto p-1" role="listbox" aria-label="Project">
-				<button
-					type="button"
-					role="option"
-					aria-selected={currentId === null}
-					onClick={() => onSelect(null)}
-					className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-[12.5px] text-fg-dim hover:bg-raised focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
-				>
+			<PopHeader
+				value={query}
+				onChange={setQuery}
+				placeholder="Set project…"
+				ariaLabel="Filter projects"
+			/>
+			<PopBody ariaLabel="Project">
+				{filtered.map((project) => (
+					<Popline
+						key={project.id}
+						selected={project.id === currentId}
+						onClick={() => onSelect(project)}
+					>
+						<span className="row__project" style={{ color: 'var(--fg)' }}>
+							<span
+								className="dot"
+								style={project.color ? { background: project.color } : undefined}
+							/>
+							<span className="truncate">{project.name}</span>
+						</span>
+					</Popline>
+				))}
+				<Popline dim selected={currentId === null} onClick={() => onSelect(null)}>
 					No project
-					{currentId === null ? <span>✓</span> : null}
-				</button>
-				{filtered.map((project) => {
-					const selected = project.id === currentId
-					return (
-						<button
-							key={project.id}
-							type="button"
-							role="option"
-							aria-selected={selected}
-							onClick={() => onSelect(project)}
-							className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-[12.5px] text-fg hover:bg-raised focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
-						>
-							<span className="inline-flex items-center gap-2">
-								<Icon name="folder" size={12} className="text-fg-dim" />
-								<span className="truncate">{project.name}</span>
-							</span>
-							{selected ? <span className="text-fg-dim">✓</span> : null}
-						</button>
-					)
-				})}
-			</div>
+				</Popline>
+			</PopBody>
 		</PopoverPopup>
 	)
 }

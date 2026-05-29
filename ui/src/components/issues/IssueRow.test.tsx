@@ -143,15 +143,15 @@ describe('IssueRow', () => {
 		expect(screen.getByText('+1')).toBeInTheDocument()
 	})
 
-	it('renders the sub-count chip with done/total when the issue has children', () => {
+	it('renders the sub-count with the total when the issue has children', () => {
 		const children = [makeChild('completed'), makeChild('started'), makeChild('backlog')]
 		render(<IssueRow wrapper={makeWrapper(makeIssue({ children }))} bucket="open" now={NOW} />)
-		expect(screen.getByText('1/3')).toBeInTheDocument()
+		expect(screen.getByText('3')).toBeInTheDocument()
 	})
 
-	it('renders no sub-count chip when the issue has no children', () => {
-		render(<IssueRow wrapper={makeWrapper(makeIssue())} bucket="open" now={NOW} />)
-		expect(screen.queryByText(/^\d+\/\d+$/)).not.toBeInTheDocument()
+	it('renders no sub-count when the issue has no children', () => {
+		const { container } = render(<IssueRow wrapper={makeWrapper(makeIssue())} bucket="open" now={NOW} />)
+		expect(container.querySelector('.row__subcount')).not.toBeInTheDocument()
 	})
 
 	it('renders the project tag when the issue has a project', () => {
@@ -168,7 +168,7 @@ describe('IssueRow', () => {
 	it('keeps the title at full emphasis (not dimmed) in the done bucket', () => {
 		render(<IssueRow wrapper={makeWrapper(makeIssue())} bucket="done" now={NOW} />)
 		const title = screen.getByText('Fix login bug')
-		expect(title).toHaveClass('text-fg')
+		expect(title).toHaveClass('row__title')
 		expect(title).not.toHaveClass('text-fg-muted')
 	})
 })

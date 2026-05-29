@@ -93,7 +93,7 @@ describe('LaunchTaskNeedsHumanCallout', () => {
 			)
 			const wrapper = container.querySelector('div')
 			expect(wrapper?.className).toMatch(/danger/)
-			expect(wrapper?.className).not.toMatch(/warn-soft/)
+			expect(wrapper?.className).not.toMatch(/needs/)
 			unmount()
 		}
 	})
@@ -113,11 +113,11 @@ describe('LaunchTaskNeedsHumanCallout', () => {
 			)
 		)
 		const wrapper = container.querySelector('div')
-		expect(wrapper?.className).toMatch(/warn/)
-		expect(wrapper?.className).not.toMatch(/danger-soft/)
+		expect(wrapper?.className).toMatch(/needs/)
+		expect(wrapper?.className).not.toMatch(/danger/)
 	})
 
-	it('falls back to warn tone when classification is null (legacy rows)', () => {
+	it('falls back to the needs tone when classification is null (legacy rows)', () => {
 		const { container } = render(
 			withQueryClient(
 				<LaunchTaskNeedsHumanCallout
@@ -132,7 +132,7 @@ describe('LaunchTaskNeedsHumanCallout', () => {
 			)
 		)
 		const wrapper = container.querySelector('div')
-		expect(wrapper?.className).toMatch(/warn/)
+		expect(wrapper?.className).toMatch(/needs/)
 	})
 
 	it('renders the chat CTA when no run is linked', () => {

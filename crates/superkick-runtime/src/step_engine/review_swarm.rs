@@ -276,16 +276,26 @@ where
     }
 
     /// Find the review swarm config from the workflow steps.
-    pub(super) fn find_review_swarm_config(&self) -> Result<(Vec<String>, u32)> {
-        for ws in &self.config.workflow.steps {
-            if let superkick_config::WorkflowStep::ReviewSwarm {
+    pub(super) fn find_review_swarm_config(
+        &self,
+        run: &superkick_core::Run,
+    ) -> Result<(Vec<String>, u32)> {
+        let workflow = self.config.workflow.steps.iter().find_map(|ws| match ws {
+            superkick_config::WorkflowStep::ReviewSwarm {
                 agents,
                 findings_threshold,
-            } = ws
-            {
-                return Ok((agents.clone(), *findings_threshold));
-            }
+            } => Some((agents.clone(), *findings_threshold)),
+            _ => None,
+        });
+        // A run-level reviewer override collapses the swarm to that single
+        // reviewer, keeping the workflow's findings threshold (default 1).
+        if let Some(reviewer) = run.agent_overrides.reviewer.as_deref() {
+            let threshold = workflow.map_or(1, |(_, t)| t);
+            return Ok((vec![reviewer.to_string()], threshold));
         }
-        bail!("no ReviewSwarm step found in workflow config")
+        match workflow {
+            Some(cfg) => Ok(cfg),
+            None => bail!("no ReviewSwarm step found in workflow config"),
+        }
     }
 }

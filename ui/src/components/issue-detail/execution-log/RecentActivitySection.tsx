@@ -1,5 +1,4 @@
 import { ExecRow } from '@/components/issue-detail/execution-log/ExecRow'
-import { ExecSection } from '@/components/issue-detail/execution-log/ExecSection'
 import { useRunDrawerStore } from '@/stores/runDrawer'
 import type { ExecActivityRow } from '@/types'
 import { Btn } from '@/ui'
@@ -14,11 +13,13 @@ export function RecentActivitySection({ rows, runId }: RecentActivitySectionProp
 	if (rows.length === 0) return null
 
 	return (
-		<ExecSection
-			title="Recent activity"
-			count={rows.length}
-			action={
-				runId ? (
+		<div className="execrows">
+			{rows.map((row) => (
+				<ExecRow key={row.id} row={row} />
+			))}
+			{runId ? (
+				<div className="execrow" style={{ paddingTop: 'var(--space-1)' }}>
+					<span className="execrow__icon" />
 					<Btn
 						kind="ghost"
 						size="sm"
@@ -27,14 +28,8 @@ export function RecentActivitySection({ rows, runId }: RecentActivitySectionProp
 					>
 						All in drawer
 					</Btn>
-				) : null
-			}
-		>
-			<div className="flex flex-col gap-2">
-				{rows.map((row) => (
-					<ExecRow key={row.id} row={row} />
-				))}
-			</div>
-		</ExecSection>
+				</div>
+			) : null}
+		</div>
 	)
 }

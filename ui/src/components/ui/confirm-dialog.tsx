@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { Icon } from '@/ui/Icon'
 import { AlertDialog } from '@base-ui/react/alert-dialog'
 
 interface ConfirmDialogProps {
@@ -29,38 +29,41 @@ export function ConfirmDialog({
 	return (
 		<AlertDialog.Root open={open} onOpenChange={onOpenChange}>
 			<AlertDialog.Portal>
-				<AlertDialog.Backdrop className="fixed inset-0 z-overlay bg-surface/70 backdrop-blur-sm transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
-				<AlertDialog.Popup className="fixed top-1/2 left-1/2 z-dialog w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-surface p-5 shadow-xl transition-all duration-150 outline-none data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
-					<AlertDialog.Title className="text-[14px] font-semibold text-fg">
-						{title}
-					</AlertDialog.Title>
-					{description ? (
-						<AlertDialog.Description className="font-data mt-2 text-[12px] leading-snug text-fg-muted/80">
-							{description}
-						</AlertDialog.Description>
-					) : null}
-					<div className="mt-5 flex justify-end gap-2">
+				<AlertDialog.Backdrop className="fixed inset-0 z-overlay bg-(--bg-scrim) transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
+				<AlertDialog.Popup className="dialog dialog--confirm fixed top-1/2 left-1/2 z-dialog -translate-x-1/2 -translate-y-1/2 transition-all duration-150 outline-none data-ending-style:scale-[0.98] data-ending-style:opacity-0 data-starting-style:scale-[0.98] data-starting-style:opacity-0">
+					<div className="dialog__body" style={{ gap: 'var(--space-4)' }}>
+						<div className="flex items-center gap-2">
+							<span style={{ color: destructive ? 'var(--danger)' : 'var(--accent)' }}>
+								<Icon name="alert" size={20} />
+							</span>
+							<AlertDialog.Title className="dialog__title">{title}</AlertDialog.Title>
+						</div>
+						{description ? (
+							<AlertDialog.Description
+								className="m-0 text-[13px] text-fg-muted"
+								style={{ lineHeight: 'var(--lh-normal)' }}
+							>
+								{description}
+							</AlertDialog.Description>
+						) : null}
+					</div>
+					<div className="dialog__foot">
+						<span className="spacer" />
 						<AlertDialog.Close
 							render={
-								<Button
-									variant="ghost"
-									size="xs"
-									disabled={busy}
-									className="font-data text-[11px] text-fg-dim hover:text-fg-muted"
-								>
+								<button type="button" className="btn btn--ghost btn--sm" disabled={busy}>
 									{cancelLabel}
-								</Button>
+								</button>
 							}
 						/>
-						<Button
-							variant={destructive ? 'destructive' : 'default'}
-							size="xs"
+						<button
+							type="button"
+							className={destructive ? 'btn btn--danger btn--sm' : 'btn btn--primary btn--sm'}
 							onClick={onConfirm}
 							disabled={busy}
-							className="font-data text-[11px]"
 						>
-							{busy ? '...' : confirmLabel}
-						</Button>
+							{busy ? '…' : confirmLabel}
+						</button>
 					</div>
 				</AlertDialog.Popup>
 			</AlertDialog.Portal>

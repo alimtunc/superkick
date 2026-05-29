@@ -1,4 +1,3 @@
-import { ExecSection } from '@/components/issue-detail/execution-log/ExecSection'
 import { WorktreeMini } from '@/components/issue-detail/execution-log/WorktreeMini'
 import type { WorktreeFacts } from '@/types'
 
@@ -10,8 +9,8 @@ export function WorktreeSection({ facts }: WorktreeSectionProps) {
 	if (!facts.branch && !facts.worktreePath && !facts.pr) return null
 
 	return (
-		<ExecSection title="Worktree · how to test">
+		<div className="worktree">
 			<WorktreeMini facts={facts} />
-		</ExecSection>
+		</div>
 	)
 }

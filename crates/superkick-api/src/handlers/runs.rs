@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
-    ArtifactKind, EventKind, EventLevel, ExecutionMode, LinkedPrSummary, PullRequest, Run, RunDiff,
-    RunEvent, RunId, TriggerSource, parse_pr_number,
+    ArtifactKind, EventKind, EventLevel, ExecutionMode, LinkedPrSummary, PullRequest, Run,
+    RunAgentOverrides, RunDiff, RunEvent, RunId, TriggerSource, parse_pr_number,
 };
 use superkick_runtime::{DiffError, collect_run_diff};
 use superkick_storage::SqliteRunRepo;
@@ -35,6 +35,14 @@ pub struct CreateRunRequest {
     #[serde(default)]
     pub execution_mode: ExecutionMode,
     pub operator_instructions: Option<String>,
+    /// Per-step agent overrides. Each absent field falls back to the workflow
+    /// default for that step. Names are validated against the agent catalog.
+    #[serde(default)]
+    pub planner_agent: Option<String>,
+    #[serde(default)]
+    pub coder_agent: Option<String>,
+    #[serde(default)]
+    pub reviewer_agent: Option<String>,
 }
 
 fn default_base_branch() -> String {
@@ -95,6 +103,25 @@ pub(crate) async fn spawn_run_from_request(
         .use_worktree
         .unwrap_or(state.launch_profile.use_worktree);
 
+    // Validate each per-step agent override against the project catalog and
+    // collect the trimmed, non-empty names. An unknown agent → 400.
+    let validate_agent = |raw: Option<String>, label: &str| -> Result<Option<String>, AppError> {
+        let Some(name) = raw.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()) else {
+            return Ok(None);
+        };
+        if state.agent_catalog.get(&name).is_none() {
+            return Err(AppError::BadRequest(format!(
+                "{label} agent '{name}' is not defined in the project catalog"
+            )));
+        }
+        Ok(Some(name))
+    };
+    let agent_overrides = RunAgentOverrides {
+        planner: validate_agent(body.planner_agent, "planner")?,
+        coder: validate_agent(body.coder_agent, "coder")?,
+        reviewer: validate_agent(body.reviewer_agent, "reviewer")?,
+    };
+
     let run = Run::new(
         issue_id,
         issue_identifier,
@@ -105,7 +132,8 @@ pub(crate) async fn spawn_run_from_request(
         use_worktree,
         operator_instructions,
     )
-    .with_budget(state.run_budget);
+    .with_budget(state.run_budget)
+    .with_agent_overrides(agent_overrides);
 
     if let Err(err) = state.run_repo.insert(&run).await {
         if is_unique_violation(&err) {

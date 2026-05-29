@@ -34,21 +34,21 @@ export function statusIconKindFor(status: { state_type: LinearStateType; name: s
 	return LINEAR_STATE_TO_KIND[status.state_type]
 }
 
-const TONE_CLASS: Record<StatusIconKind, string> = {
-	backlog: 'text-fg-dim',
-	todo: 'text-fg-muted',
-	progress: 'text-info',
-	needs: 'text-warn',
-	review: 'text-accent',
-	done: 'text-success',
-	cancelled: 'text-fg-dim'
+const STATUS_COLOR: Record<StatusIconKind, string> = {
+	backlog: 'var(--status-backlog)',
+	todo: 'var(--status-todo)',
+	progress: 'var(--status-progress)',
+	review: 'var(--status-review)',
+	done: 'var(--status-done)',
+	cancelled: 'var(--status-cancelled)',
+	needs: 'var(--status-needs)'
 }
 
 const LABEL: Record<StatusIconKind, string> = {
 	backlog: 'Backlog',
 	todo: 'Todo',
 	progress: 'In progress',
-	needs: 'Needs human',
+	needs: 'Needs you',
 	review: 'In review',
 	done: 'Done',
 	cancelled: 'Cancelled'
@@ -63,8 +63,8 @@ export function StatusIcon({ kind, size = 14, color, className }: StatusIconProp
 			fill="none"
 			role="img"
 			aria-label={LABEL[kind]}
-			style={color ? { color } : undefined}
-			className={cn('inline-block shrink-0', color ? null : TONE_CLASS[kind], className)}
+			style={{ color: color ?? STATUS_COLOR[kind] }}
+			className={cn('inline-block shrink-0 align-middle', className)}
 		>
 			<StatusIconShape kind={kind} />
 		</svg>
@@ -78,50 +78,53 @@ function StatusIconShape({ kind }: { kind: StatusIconKind }) {
 				<circle
 					cx="8"
 					cy="8"
-					r="6.25"
+					r="6"
 					stroke="currentColor"
 					strokeWidth="1.5"
-					strokeDasharray="2 2"
+					strokeDasharray="1.6 2.2"
+					strokeLinecap="round"
 				/>
 			)
 		case 'todo':
-			return <circle cx="8" cy="8" r="6.25" stroke="currentColor" strokeWidth="1.5" />
+			return <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" />
 		case 'progress':
 			return (
 				<>
-					<circle cx="8" cy="8" r="6.25" stroke="currentColor" strokeWidth="1.5" />
-					<path d="M8 8 V 1.75 A 6.25 6.25 0 0 1 14.25 8 Z" fill="currentColor" />
-				</>
-			)
-		case 'needs':
-			return (
-				<>
-					<circle cx="8" cy="8" r="6.25" stroke="currentColor" strokeWidth="1.5" />
-					<path d="M8 8 L8 1.75 A 6.25 6.25 0 0 1 12.42 12.42 L8 8 Z" fill="currentColor" />
+					<circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" />
+					<circle
+						cx="8"
+						cy="8"
+						r="3"
+						stroke="currentColor"
+						strokeWidth="6"
+						strokeDasharray="11.3 18.85"
+						transform="rotate(-90 8 8)"
+					/>
 				</>
 			)
 		case 'review':
 			return (
 				<>
-					<circle cx="8" cy="8" r="6.25" fill="currentColor" fillOpacity="0.18" />
-					<circle cx="8" cy="8" r="6.25" stroke="currentColor" strokeWidth="1.5" />
-					<path
-						d="M4.4 7.3 L6.2 9 L9.6 5.4"
+					<circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" />
+					<circle
+						cx="8"
+						cy="8"
+						r="3"
 						stroke="currentColor"
-						strokeWidth="1.5"
-						strokeLinecap="round"
-						strokeLinejoin="round"
+						strokeWidth="6"
+						strokeDasharray="15.4 18.85"
+						transform="rotate(-90 8 8)"
 					/>
 				</>
 			)
 		case 'done':
 			return (
 				<>
-					<circle cx="8" cy="8" r="6.25" fill="currentColor" />
+					<circle cx="8" cy="8" r="7" fill="currentColor" />
 					<path
-						d="m5 8 2 2 4-4"
-						stroke="var(--color-canvas)"
-						strokeWidth="1.5"
+						d="M5 8.2l2 2 4-4.2"
+						stroke="#07140d"
+						strokeWidth="1.6"
 						strokeLinecap="round"
 						strokeLinejoin="round"
 					/>
@@ -130,13 +133,21 @@ function StatusIconShape({ kind }: { kind: StatusIconKind }) {
 		case 'cancelled':
 			return (
 				<>
-					<circle cx="8" cy="8" r="6.25" fill="currentColor" />
+					<circle cx="8" cy="8" r="7" fill="currentColor" />
 					<path
-						d="m5.5 5.5 5 5 m0-5-5 5"
-						stroke="var(--color-canvas)"
-						strokeWidth="1.5"
+						d="M5.5 5.5l5 5M10.5 5.5l-5 5"
+						stroke="var(--bg-app)"
+						strokeWidth="1.6"
 						strokeLinecap="round"
 					/>
+				</>
+			)
+		case 'needs':
+			return (
+				<>
+					<circle cx="8" cy="8" r="7" fill="currentColor" />
+					<path d="M8 4.4v4.3" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" />
+					<circle cx="8" cy="11.3" r="0.95" fill="#fff" />
 				</>
 			)
 	}

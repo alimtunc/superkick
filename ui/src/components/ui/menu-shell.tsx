@@ -30,11 +30,11 @@ export function MenuPopup({
 				side={side}
 				collisionPadding={collisionPadding}
 				collisionAvoidance={{ side: 'flip', align: 'shift' }}
-				className={cn('z-popover', className)}
+				className={cn('z-popover-over-dialog', className)}
 			>
 				<Menu.Popup
 					className={cn(
-						'overflow-hidden rounded-[7px] border border-border bg-surface shadow-lg outline-none',
+						'max-h-[min(360px,var(--available-height))] overflow-x-hidden overflow-y-auto rounded-[7px] border border-border bg-surface shadow-lg outline-none',
 						popupClassName
 					)}
 				>

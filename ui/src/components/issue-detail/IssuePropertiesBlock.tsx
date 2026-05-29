@@ -7,6 +7,7 @@ import { ProjectRow } from '@/components/issue-detail/properties/ProjectRow'
 import { PropertyRow } from '@/components/issue-detail/properties/PropertyRow'
 import { StatusRow } from '@/components/issue-detail/properties/StatusRow'
 import type { IssueDetailResponse } from '@/types'
+import { StatusIcon, statusIconKindFor } from '@/ui'
 
 interface IssuePropertiesBlockProps {
 	issue: IssueDetailResponse
@@ -16,31 +17,45 @@ export function IssuePropertiesBlock({ issue }: IssuePropertiesBlockProps) {
 	const cycleLabel = issue.cycle?.name ?? null
 
 	return (
-		<section aria-label="Issue properties" className="flex flex-col">
-			<StatusRow issue={issue} />
-			<PriorityRow issue={issue} />
-			<AssigneeRow issue={issue} />
-			<LabelsRow issue={issue} />
-			<div className="my-2 border-t border-border" />
-			<ProjectRow issue={issue} />
-			<PropertyRow label="Cycle">
-				<span className={cycleLabel ? 'text-fg' : 'text-fg-dim'}>{cycleLabel ?? 'No cycle'}</span>
-			</PropertyRow>
-			<EstimateRow issue={issue} />
-			<DueDateRow issue={issue} />
+		<section aria-label="Issue properties">
+			<div className="rail__group">
+				<StatusRow issue={issue} />
+				<PriorityRow issue={issue} />
+				<AssigneeRow issue={issue} />
+			</div>
+			<div className="rail__group">
+				<LabelsRow issue={issue} />
+				<ProjectRow issue={issue} />
+				<PropertyRow label="Cycle">
+					{cycleLabel ? <span>{cycleLabel}</span> : <span className="prop__empty">No cycle</span>}
+				</PropertyRow>
+				<EstimateRow issue={issue} />
+				<DueDateRow issue={issue} />
+			</div>
 			{issue.blocked_by.length > 0 ? (
-				<>
-					<div className="my-2 border-t border-border" />
-					<PropertyRow label="Relations">
-						<div className="flex flex-col gap-1">
-							{issue.blocked_by.map((blocker) => (
-								<span key={blocker.id} className="text-fg">
-									Blocked by <span className="font-medium">{blocker.identifier}</span>
+				<div className="rail__group">
+					{issue.blocked_by.map((blocker) => (
+						<div key={blocker.id} className="prop">
+							<span className="prop__k">Blocked by</span>
+							<span className="prop__v">
+								<StatusIcon
+									kind={statusIconKindFor(blocker.status)}
+									size={14}
+									color={blocker.status.color}
+								/>
+								<span className="mono" style={{ color: 'var(--fg-muted)' }}>
+									{blocker.identifier}
 								</span>
-							))}
+								<span
+									className="truncate"
+									style={{ color: 'var(--fg-dim)', fontSize: 'var(--text-12)' }}
+								>
+									{blocker.title}
+								</span>
+							</span>
 						</div>
-					</PropertyRow>
-				</>
+					))}
+				</div>
 			) : null}
 		</section>
 	)

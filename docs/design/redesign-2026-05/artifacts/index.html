@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Superkick — System Legend</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="detail.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<div class="doc">
+
+	<!-- ── Persistent index ─────────────────────────────────────────── -->
+	<nav class="idx">
+		<div class="idx__brand">
+			<div class="idx__logo">S</div>
+			<div class="idx__title">Superkick</div>
+		</div>
+		<div class="idx__sub">Redesign · 2026-05</div>
+
+		<div class="idx__group">Reference</div>
+		<a class="cur" href="index.html">System Legend <span class="n">00</span></a>
+
+		<div class="idx__group">Surfaces</div>
+		<a href="issues-list.html">Issues list <span class="n">01</span></a>
+		<a href="issue-detail.html">Issue detail <span class="n">02</span></a>
+		<a href="app-shell.html">App shell <span class="n">03</span></a>
+		<a href="run-drawer.html">Run drawer <span class="n">04</span></a>
+		<a href="run-inspector.html">Run inspector <span class="n">05</span></a>
+		<a href="launch.html">Launch flow <span class="n">06</span></a>
+		<a href="agents.html">Agents &amp; Settings <span class="n">07</span></a>
+		<a href="patterns.html">Patterns &amp; states <span class="n">08</span></a>
+	</nav>
+
+	<!-- ── Canvas ───────────────────────────────────────────────────── -->
+	<main class="canvas">
+	<div class="page">
+		<div class="page__kicker">Coded reference · read values straight from tokens.css</div>
+		<h1 class="page__title">System Legend</h1>
+		<p class="page__lede">The single source of truth for the Superkick visual layer. Every token below is defined in <code style="font-family:var(--font-mono)">tokens.css</code> as a CSS custom property and consumed by every surface. Where the previous round left a value ambiguous, this page decides it once and shows it. North star: Linear — calm density, restrained color, glyph-led status.</p>
+
+		<div class="callout"><span class="callout__tag">Rule</span><div>If a color, tier, connector, or empty-state isn't made explicit here or on a surface page, it becomes an engineering guess. Everything that derailed the last round is pinned down on this page.</div></div>
+
+		<!-- ════ 1. ELEVATION & COLOR MAP ════ -->
+		<section class="sect" id="elevation">
+			<div class="sect__head"><span class="sect__num">01</span><h2 class="sect__title">Elevation &amp; color map</h2></div>
+			<p class="sect__note">Superkick is <strong>flat and border-delineated</strong>, like Linear. Most chrome lives on the page <strong>floor</strong> (tier&nbsp;0) and is separated by hairline borders — <em>not</em> by raising it. Elevation (lighter fill + shadow) is spent only on objects that genuinely float. This is the decision that was ambiguous last round: the issue-detail body floor is <strong>tier&nbsp;0</strong>, and the properties rail sits on tier&nbsp;0 too, separated by a border.</p>
+
+			<div class="grid2" style="align-items:start">
+				<div class="elev-stack">
+					<div class="elev-tier" style="background:var(--bg-code)"><span class="elev-tier__name">--bg-code</span><span class="elev-tier__role">inset · code blocks, terminals<br>(only thing darker than floor)</span></div>
+					<div class="elev-tier" style="background:var(--bg-app)"><span class="elev-tier__name">--bg-app · tier 0</span><span class="elev-tier__role">page floor · sidebar · topbar · rows<br>issue body · properties rail</span></div>
+					<div class="elev-tier" style="background:var(--bg-surface)"><span class="elev-tier__name">--bg-surface · tier 1</span><span class="elev-tier__role">hover wash · sticky group headers</span></div>
+					<div class="elev-tier" style="background:var(--bg-raised)"><span class="elev-tier__name">--bg-raised · tier 2</span><span class="elev-tier__role">floating cards · exec log · comments<br>kanban cards · drawer body</span></div>
+					<div class="elev-tier" style="background:var(--bg-overlay)"><span class="elev-tier__name">--bg-overlay · tier 3</span><span class="elev-tier__role">popovers · dropdowns · dialogs<br>hover preview · command bar</span></div>
+					<div class="elev-tier" style="background:var(--bg-input);border-color:var(--accent)"><span class="elev-tier__name">--bg-input</span><span class="elev-tier__role">inputs — always ABOVE their floor<br>so they never read as a hole</span></div>
+				</div>
+
+				<div class="card">
+					<table class="tbl">
+						<thead><tr><th>Surface</th><th>Tier</th><th>Separator</th></tr></thead>
+						<tbody>
+							<tr><td class="val">App floor / content</td><td class="mono">tier 0</td><td class="desc">—</td></tr>
+							<tr><td class="val">Sidebar</td><td class="mono">tier 0</td><td class="desc">right border</td></tr>
+							<tr><td class="val">Topbar</td><td class="mono">tier 0</td><td class="desc">bottom border</td></tr>
+							<tr><td class="val">Issue-detail body</td><td class="mono">tier 0</td><td class="desc">—</td></tr>
+							<tr><td class="val">Properties rail</td><td class="mono">tier 0</td><td class="desc">left border</td></tr>
+							<tr><td class="val">List rows</td><td class="mono">tier 0</td><td class="desc">hairline + hover wash</td></tr>
+							<tr><td class="val">Group header</td><td class="mono">tier 1</td><td class="desc">sticky, bottom border</td></tr>
+							<tr><td class="val">ExecutionLog</td><td class="mono">tier 2</td><td class="desc">border + shadow-sm</td></tr>
+							<tr><td class="val">Comment card</td><td class="mono">tier 2</td><td class="desc">border + shadow-sm</td></tr>
+							<tr><td class="val">System event</td><td class="mono">tier 0</td><td class="desc">inline on floor</td></tr>
+							<tr><td class="val">Kanban card</td><td class="mono">tier 2</td><td class="desc">border + shadow-sm</td></tr>
+							<tr><td class="val">Run drawer</td><td class="mono">tier 2</td><td class="desc">shadow-lg + scrim</td></tr>
+							<tr><td class="val">Popover / dropdown</td><td class="mono">tier 3</td><td class="desc">shadow-md</td></tr>
+							<tr><td class="val">Hover preview</td><td class="mono">tier 3</td><td class="desc">shadow-lg</td></tr>
+							<tr><td class="val">Inputs / composer</td><td class="mono">input</td><td class="desc">border, focus ring</td></tr>
+							<tr><td class="val">Code / terminal</td><td class="mono">inset</td><td class="desc">below floor</td></tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</section>
+
+		<!-- ════ 2. SURFACE & TEXT TOKENS ════ -->
+		<section class="sect" id="color">
+			<div class="sect__head"><span class="sect__num">02</span><h2 class="sect__title">Surfaces, borders &amp; text</h2></div>
+			<p class="sect__note">Cool-neutral greys, very low chroma. Foreground steps down through four weights so density never costs legibility.</p>
+			<div class="swatches">
+				<div class="swatch"><div class="swatch__chip" style="background:var(--bg-app)"></div><div class="swatch__meta"><div class="swatch__name">--bg-app</div><div class="swatch__hex">#0b0d0f</div><div class="swatch__role">tier 0 floor</div></div></div>
+				<div class="swatch"><div class="swatch__chip" style="background:var(--bg-surface)"></div><div class="swatch__meta"><div class="swatch__name">--bg-surface</div><div class="swatch__hex">#131619</div><div class="swatch__role">tier 1 wash</div></div></div>
+				<div class="swatch"><div class="swatch__chip" style="background:var(--bg-raised)"></div><div class="swatch__meta"><div class="swatch__name">--bg-raised</div><div class="swatch__hex">#1a1e23</div><div class="swatch__role">tier 2 cards</div></div></div>
+				<div class="swatch"><div class="swatch__chip" style="background:var(--bg-overlay)"></div><div class="swatch__meta"><div class="swatch__name">--bg-overlay</div><div class="swatch__hex">#21262d</div><div class="swatch__role">tier 3 overlay</div></div></div>
+				<div class="swatch"><div class="swatch__chip" style="background:var(--bg-input)"></div><div class="swatch__meta"><div class="swatch__name">--bg-input</div><div class="swatch__hex">#16191d</div><div class="swatch__role">inputs</div></div></div>
+				<div class="swatch"><div class="swatch__chip" style="background:var(--bg-code)"></div><div class="swatch__meta"><div class="swatch__name">--bg-code</div><div class="swatch__hex">#08090b</div><div class="swatch__role">inset code</div></div></div>
+				<div class="swatch"><div class="swatch__chip" style="background:var(--border)"></div><div class="swatch__meta"><div class="swatch__name">--border</div><div class="swatch__hex">#20242a</div><div class="swatch__role">hairline</div></div></div>
+				<div class="swatch"><div class="swatch__chip" style="background:var(--border-strong)"></div><div class="swatch__meta"><div class="swatch__name">--border-strong</div><div class="swatch__hex">#2e343d</div><div class="swatch__role">stronger</div></div></div>
+				<div class="swatch"><div class="swatch__chip" style="background:var(--fg)"></div><div class="swatch__meta"><div class="swatch__name">--fg</div><div class="swatch__hex">#e7e9ec</div><div class="swatch__role">primary text</div></div></div>
+				<div class="swatch"><div class="swatch__chip" style="background:var(--fg-muted)"></div><div class="swatch__meta"><div class="swatch__name">--fg-muted</div><div class="swatch__hex">#9aa0a8</div><div class="swatch__role">secondary</div></div></div>
+				<div class="swatch"><div class="swatch__chip" style="background:var(--fg-dim)"></div><div class="swatch__meta"><div class="swatch__name">--fg-dim</div><div class="swatch__hex">#6b727b</div><div class="swatch__role">tertiary / meta</div></div></div>
+				<div class="swatch"><div class="swatch__chip" style="background:var(--fg-faint)"></div><div class="swatch__meta"><div class="swatch__name">--fg-faint</div><div class="swatch__hex">#495059</div><div class="swatch__role">disabled</div></div></div>
+			</div>
+		</section>
+
+		<!-- ════ 3. ACCENT + SEMANTIC ════ -->
+		<section class="sect" id="accent">
+			<div class="sect__head"><span class="sect__num">03</span><h2 class="sect__title">Accent &amp; semantic feedback</h2></div>
+			<p class="sect__note">A single indigo accent carries brand, selection and focus. Semantic hues are reserved for feedback — never decoration.</p>
+			<div class="swatches">
+				<div class="swatch"><div class="swatch__chip" style="background:var(--accent)"></div><div class="swatch__meta"><div class="swatch__name">--accent</div><div class="swatch__hex">#5b6ef2</div><div class="swatch__role">brand / focus / select</div></div></div>
+				<div class="swatch"><div class="swatch__chip" style="background:var(--accent-soft)"></div><div class="swatch__meta"><div class="swatch__name">--accent-soft</div><div class="swatch__hex">16% indigo</div><div class="swatch__role">selected nav, soft fill</div></div></div>
+				<div class="swatch"><div class="swatch__chip" style="background:var(--success)"></div><div class="swatch__meta"><div class="swatch__name">--success</div><div class="swatch__hex">#54a36f</div><div class="swatch__role">done / shipped / adds</div></div></div>
+				<div class="swatch"><div class="swatch__chip" style="background:var(--warn)"></div><div class="swatch__meta"><div class="swatch__name">--warn</div><div class="swatch__hex">#e0b13f</div><div class="swatch__role">paused / budget</div></div></div>
+				<div class="swatch"><div class="swatch__chip" style="background:var(--danger)"></div><div class="swatch__meta"><div class="swatch__name">--danger</div><div class="swatch__hex">#cf5a55</div><div class="swatch__role">failed / dels</div></div></div>
+				<div class="swatch"><div class="swatch__chip" style="background:var(--info)"></div><div class="swatch__meta"><div class="swatch__name">--info</div><div class="swatch__hex">#5b8ec9</div><div class="swatch__role">neutral system</div></div></div>
+			</div>
+		</section>
+
+		<!-- ════ 4. STATUS GLYPHS ════ -->
+		<section class="sect" id="status">
+			<div class="sect__head"><span class="sect__num">04</span><h2 class="sect__title">Status glyphs</h2></div>
+			<p class="sect__note">Linear's workflow vocabulary plus Superkick's <strong>needs_you</strong>. Geometry is documented as SVG so it renders identically everywhere — ring dash for backlog, growing pie for progress/review, filled mark for terminal states. <code>needs_you</code> is the loudest: a coral filled disc with an exclamation.</p>
+			<div class="card" style="padding:var(--space-7)">
+				<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--space-6)">
+					<div style="display:flex;align-items:center;gap:var(--space-4)"><svg class="glyph glyph--lg" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--status-backlog)" stroke-width="1.5" stroke-dasharray="1.6 2.2" stroke-linecap="round"/></svg><div><div style="font-weight:500">Backlog</div><div class="swatch__hex">backlog</div></div></div>
+					<div style="display:flex;align-items:center;gap:var(--space-4)"><svg class="glyph glyph--lg" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--status-todo)" stroke-width="1.5"/></svg><div><div style="font-weight:500">Todo</div><div class="swatch__hex">unstarted</div></div></div>
+					<div style="display:flex;align-items:center;gap:var(--space-4)"><svg class="glyph glyph--lg" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--status-progress)" stroke-width="1.5"/><circle cx="8" cy="8" r="3" stroke="var(--status-progress)" stroke-width="6" stroke-dasharray="11.3 18.85" transform="rotate(-90 8 8)"/></svg><div><div style="font-weight:500">In progress</div><div class="swatch__hex">started</div></div></div>
+					<div style="display:flex;align-items:center;gap:var(--space-4)"><svg class="glyph glyph--lg" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--status-review)" stroke-width="1.5"/><circle cx="8" cy="8" r="3" stroke="var(--status-review)" stroke-width="6" stroke-dasharray="15.4 18.85" transform="rotate(-90 8 8)"/></svg><div><div style="font-weight:500">In review</div><div class="swatch__hex">started · derived</div></div></div>
+					<div style="display:flex;align-items:center;gap:var(--space-4)"><svg class="glyph glyph--lg" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="var(--status-done)"/><path d="M5 8.2l2 2 4-4.2" stroke="#07140d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><div><div style="font-weight:500">Done</div><div class="swatch__hex">completed</div></div></div>
+					<div style="display:flex;align-items:center;gap:var(--space-4)"><svg class="glyph glyph--lg" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="var(--status-cancelled)"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="var(--bg-app)" stroke-width="1.6" stroke-linecap="round"/></svg><div><div style="font-weight:500">Cancelled</div><div class="swatch__hex">canceled</div></div></div>
+					<div style="display:flex;align-items:center;gap:var(--space-4)"><svg class="glyph glyph--lg" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="var(--status-needs)"/><path d="M8 4.4v4.3" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><circle cx="8" cy="11.3" r="0.95" fill="#fff"/></svg><div><div style="font-weight:500;color:var(--status-needs)">Needs you</div><div class="swatch__hex">superkick</div></div></div>
+				</div>
+			</div>
+		</section>
+
+		<!-- ════ 5. PRIORITY + AGENT DOT ════ -->
+		<section class="sect" id="priority">
+			<div class="sect__head"><span class="sect__num">05</span><h2 class="sect__title">Priority &amp; agent-state</h2></div>
+			<div class="grid2" style="align-items:start">
+				<div class="card" style="padding:var(--space-7)">
+					<div style="font-size:var(--text-12);color:var(--fg-dim);margin-bottom:var(--space-5);text-transform:uppercase;letter-spacing:var(--tracking-wide);font-weight:600">Priority</div>
+					<div style="display:flex;flex-direction:column;gap:var(--space-5)">
+						<div class="legend-row" style="border:none;padding:0"><span class="prio none"><span class="bar b1"></span><span class="bar b2"></span><span class="bar b3"></span></span><span class="legend-row__name">none</span><span class="legend-row__desc">dimmed bars</span></div>
+						<div class="legend-row" style="border:none;padding:0"><span class="prio low"><span class="bar b1"></span><span class="bar b2"></span><span class="bar b3"></span></span><span class="legend-row__name">low</span><span class="legend-row__desc">1 bar</span></div>
+						<div class="legend-row" style="border:none;padding:0"><span class="prio medium"><span class="bar b1"></span><span class="bar b2"></span><span class="bar b3"></span></span><span class="legend-row__name">medium</span><span class="legend-row__desc">2 bars</span></div>
+						<div class="legend-row" style="border:none;padding:0"><span class="prio high"><span class="bar b1"></span><span class="bar b2"></span><span class="bar b3"></span></span><span class="legend-row__name">high</span><span class="legend-row__desc">3 bars</span></div>
+						<div class="legend-row" style="border:none;padding:0"><span class="prio urgent">!</span><span class="legend-row__name">urgent</span><span class="legend-row__desc">filled coral square</span></div>
+					</div>
+				</div>
+				<div class="card" style="padding:var(--space-7)">
+					<div style="font-size:var(--text-12);color:var(--fg-dim);margin-bottom:var(--space-5);text-transform:uppercase;letter-spacing:var(--tracking-wide);font-weight:600">Agent-state dot</div>
+					<p style="font-size:var(--text-12);color:var(--fg-muted);margin:0 0 var(--space-6);line-height:var(--lh-normal)">One Superkick signal per row/card. Omitted when an issue has no run (see sparsity).</p>
+					<div style="display:flex;flex-direction:column;gap:var(--space-5)">
+						<div class="legend-row" style="border:none;padding:0"><span class="legend-row__demo"><span class="agdot agdot--needs"></span><span style="color:var(--status-needs)">needs</span></span><span class="legend-row__desc">agent is blocked on a human</span></div>
+						<div class="legend-row" style="border:none;padding:0"><span class="legend-row__demo"><span class="agdot agdot--running"></span><span style="color:var(--accent)">running</span></span><span class="legend-row__desc">live · pulses 1.6s</span></div>
+						<div class="legend-row" style="border:none;padding:0"><span class="legend-row__demo"><span class="agdot agdot--review"></span><span style="color:var(--status-review)">review</span></span><span class="legend-row__desc">review swarm / awaiting PR</span></div>
+						<div class="legend-row" style="border:none;padding:0"><span class="legend-row__demo"><span class="agdot agdot--shipped"></span><span style="color:var(--success)">shipped</span></span><span class="legend-row__desc">PR opened / merged</span></div>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- ════ 6. AVATARS ════ -->
+		<section class="sect" id="avatars">
+			<div class="sect__head"><span class="sect__num">06</span><h2 class="sect__title">Per-entity avatars — fixed, not hashed</h2></div>
+			<p class="sect__note">Hashing produces look-alike neighbours. Instead each entity gets an assigned color from a curated, equal-chroma palette. <strong>Humans render as circles; agents as rounded-squares</strong> with a state dot in the corner. Agents (<code>claude</code>, <code>codex</code>) own dedicated, brand-neutral identities.</p>
+			<div class="card specimen" style="padding:var(--space-8);gap:var(--space-7)">
+				<div style="display:flex;flex-direction:column;align-items:center;gap:var(--space-3)"><span class="avatar av-1">AT</span><span class="swatch__hex">av-1</span></div>
+				<div style="display:flex;flex-direction:column;align-items:center;gap:var(--space-3)"><span class="avatar av-2">MK</span><span class="swatch__hex">av-2</span></div>
+				<div style="display:flex;flex-direction:column;align-items:center;gap:var(--space-3)"><span class="avatar av-3">JD</span><span class="swatch__hex">av-3</span></div>
+				<div style="display:flex;flex-direction:column;align-items:center;gap:var(--space-3)"><span class="avatar av-4">RP</span><span class="swatch__hex">av-4</span></div>
+				<div style="display:flex;flex-direction:column;align-items:center;gap:var(--space-3)"><span class="avatar av-5">SL</span><span class="swatch__hex">av-5</span></div>
+				<div style="display:flex;flex-direction:column;align-items:center;gap:var(--space-3)"><span class="avatar av-6">Nø</span><span class="swatch__hex">av-6</span></div>
+				<div style="display:flex;flex-direction:column;align-items:center;gap:var(--space-3)"><span class="avatar av-7">FK</span><span class="swatch__hex">av-7</span></div>
+				<div style="display:flex;flex-direction:column;align-items:center;gap:var(--space-3)"><span class="avatar av-8">DV</span><span class="swatch__hex">av-8</span></div>
+				<div style="width:1px;background:var(--border);align-self:stretch"></div>
+				<div style="display:flex;flex-direction:column;align-items:center;gap:var(--space-3)"><span class="avatar avatar--agent av-claude">C</span><span class="swatch__hex">claude</span></div>
+				<div style="display:flex;flex-direction:column;align-items:center;gap:var(--space-3)"><span class="avatar avatar--agent av-codex">Cx</span><span class="swatch__hex">codex</span></div>
+				<div style="display:flex;flex-direction:column;align-items:center;gap:var(--space-3)"><span class="avatar avatar--empty">?</span><span class="swatch__hex">unassigned</span></div>
+			</div>
+		</section>
+
+		<!-- ════ 7. TYPOGRAPHY ════ -->
+		<section class="sect" id="type">
+			<div class="sect__head"><span class="sect__num">07</span><h2 class="sect__title">Typography</h2></div>
+			<p class="sect__note"><strong>Geist</strong> for UI (neutral grotesque, excellent at dense small sizes), <strong>Geist Mono</strong> for identifiers, metrics, paths and code. Rows live at 13px — the workhorse size. <code>--font-mono</code> maps cleanly to JetBrains Mono if engineering prefers the existing stack.</p>
+			<div class="card" style="padding:var(--space-6) var(--space-8)">
+				<div class="type-spec"><div class="type-spec__sample" style="font-size:var(--text-24);font-weight:600;letter-spacing:var(--tracking-tight)">Page heading rarely used</div><div class="type-spec__meta">--text-24 · 600 · tight</div></div>
+				<div class="type-spec"><div class="type-spec__sample" style="font-size:var(--text-21);font-weight:600;letter-spacing:var(--tracking-tight)">Issue detail title</div><div class="type-spec__meta">--text-21 · 600 · tight</div></div>
+				<div class="type-spec"><div class="type-spec__sample" style="font-size:var(--text-16);font-weight:600">Card &amp; sub-title</div><div class="type-spec__meta">--text-16 · 600</div></div>
+				<div class="type-spec"><div class="type-spec__sample" style="font-size:var(--text-14)">Section heading &amp; composer</div><div class="type-spec__meta">--text-14 · 400/500</div></div>
+				<div class="type-spec"><div class="type-spec__sample" style="font-size:var(--text-13)">Default — list rows, body, nav, controls</div><div class="type-spec__meta">--text-13 · 400</div></div>
+				<div class="type-spec"><div class="type-spec__sample" style="font-size:var(--text-12);color:var(--fg-muted)">Meta — timestamps, secondary, rail labels</div><div class="type-spec__meta">--text-12 · 400</div></div>
+				<div class="type-spec"><div class="type-spec__sample" style="font-size:var(--text-11);color:var(--fg-dim);text-transform:uppercase;letter-spacing:var(--tracking-wide);font-weight:600">Micro · counts &amp; uppercase labels</div><div class="type-spec__meta">--text-11 · 600 · wide</div></div>
+				<div class="type-spec"><div class="type-spec__sample mono" style="font-size:var(--text-13)">SUP-128 · feature/sup-128 · +142 −37</div><div class="type-spec__meta">--font-mono · identifiers</div></div>
+			</div>
+		</section>
+
+		<!-- ════ 8. SPACING / RADII / SHADOW ════ -->
+		<section class="sect" id="scale">
+			<div class="sect__head"><span class="sect__num">08</span><h2 class="sect__title">Spacing, radii &amp; elevation shadows</h2></div>
+			<div class="grid3" style="align-items:start">
+				<div class="card" style="padding:var(--space-7)">
+					<div style="font-size:var(--text-12);color:var(--fg-dim);margin-bottom:var(--space-5);text-transform:uppercase;letter-spacing:var(--tracking-wide);font-weight:600">Spacing · 4px base</div>
+					<div style="display:flex;flex-direction:column;gap:var(--space-4)">
+						<div style="display:flex;align-items:center;gap:var(--space-5)"><span class="mono swatch__hex" style="width:64px">--space-2</span><span style="height:8px;width:4px;background:var(--accent)"></span><span class="swatch__hex">4</span></div>
+						<div style="display:flex;align-items:center;gap:var(--space-5)"><span class="mono swatch__hex" style="width:64px">--space-4</span><span style="height:8px;width:8px;background:var(--accent)"></span><span class="swatch__hex">8</span></div>
+						<div style="display:flex;align-items:center;gap:var(--space-5)"><span class="mono swatch__hex" style="width:64px">--space-5</span><span style="height:8px;width:12px;background:var(--accent)"></span><span class="swatch__hex">12</span></div>
+						<div style="display:flex;align-items:center;gap:var(--space-5)"><span class="mono swatch__hex" style="width:64px">--space-6</span><span style="height:8px;width:16px;background:var(--accent)"></span><span class="swatch__hex">16</span></div>
+						<div style="display:flex;align-items:center;gap:var(--space-5)"><span class="mono swatch__hex" style="width:64px">--space-8</span><span style="height:8px;width:24px;background:var(--accent)"></span><span class="swatch__hex">24</span></div>
+						<div style="display:flex;align-items:center;gap:var(--space-5)"><span class="mono swatch__hex" style="width:64px">--space-9</span><span style="height:8px;width:32px;background:var(--accent)"></span><span class="swatch__hex">32</span></div>
+					</div>
+				</div>
+				<div class="card" style="padding:var(--space-7)">
+					<div style="font-size:var(--text-12);color:var(--fg-dim);margin-bottom:var(--space-5);text-transform:uppercase;letter-spacing:var(--tracking-wide);font-weight:600">Radii</div>
+					<div style="display:flex;flex-direction:column;gap:var(--space-5)">
+						<div style="display:flex;align-items:center;gap:var(--space-5)"><span style="width:40px;height:28px;background:var(--bg-overlay);border:1px solid var(--border-strong);border-radius:var(--radius-xs)"></span><span class="mono swatch__hex">--radius-xs · 3</span></div>
+						<div style="display:flex;align-items:center;gap:var(--space-5)"><span style="width:40px;height:28px;background:var(--bg-overlay);border:1px solid var(--border-strong);border-radius:var(--radius-sm)"></span><span class="mono swatch__hex">--radius-sm · 5</span></div>
+						<div style="display:flex;align-items:center;gap:var(--space-5)"><span style="width:40px;height:28px;background:var(--bg-overlay);border:1px solid var(--border-strong);border-radius:var(--radius-md)"></span><span class="mono swatch__hex">--radius-md · 7</span></div>
+						<div style="display:flex;align-items:center;gap:var(--space-5)"><span style="width:40px;height:28px;background:var(--bg-overlay);border:1px solid var(--border-strong);border-radius:var(--radius-lg)"></span><span class="mono swatch__hex">--radius-lg · 10</span></div>
+						<div style="display:flex;align-items:center;gap:var(--space-5)"><span style="width:40px;height:28px;background:var(--bg-overlay);border:1px solid var(--border-strong);border-radius:var(--radius-xl)"></span><span class="mono swatch__hex">--radius-xl · 14</span></div>
+					</div>
+				</div>
+				<div class="card" style="padding:var(--space-7)">
+					<div style="font-size:var(--text-12);color:var(--fg-dim);margin-bottom:var(--space-6);text-transform:uppercase;letter-spacing:var(--tracking-wide);font-weight:600">Elevation shadows</div>
+					<div style="display:flex;flex-direction:column;gap:var(--space-7)">
+						<div style="display:flex;align-items:center;gap:var(--space-5)"><span style="width:44px;height:32px;background:var(--bg-raised);border-radius:var(--radius-md);box-shadow:var(--shadow-sm)"></span><span class="mono swatch__hex">--shadow-sm · cards</span></div>
+						<div style="display:flex;align-items:center;gap:var(--space-5)"><span style="width:44px;height:32px;background:var(--bg-overlay);border-radius:var(--radius-md);box-shadow:var(--shadow-md)"></span><span class="mono swatch__hex">--shadow-md · popover</span></div>
+						<div style="display:flex;align-items:center;gap:var(--space-5)"><span style="width:44px;height:32px;background:var(--bg-overlay);border-radius:var(--radius-md);box-shadow:var(--shadow-lg)"></span><span class="mono swatch__hex">--shadow-lg · drawer</span></div>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- ════ 9. MOTION + Z ════ -->
+		<section class="sect" id="motion">
+			<div class="sect__head"><span class="sect__num">09</span><h2 class="sect__title">Motion &amp; z-index</h2></div>
+			<div class="grid2" style="align-items:start">
+				<div class="card">
+					<table class="tbl">
+						<thead><tr><th>Interaction</th><th>Duration</th><th>Easing</th></tr></thead>
+						<tbody>
+							<tr><td class="val">Row / control hover</td><td class="mono">--dur-fast · 80ms</td><td class="mono">ease-out</td></tr>
+							<tr><td class="val">Popover (opacity + scale .98→1)</td><td class="mono">--dur-base · 140ms</td><td class="mono">ease-out</td></tr>
+							<tr><td class="val">Toggle / segmented</td><td class="mono">--dur-base · 140ms</td><td class="mono">ease-in-out</td></tr>
+							<tr><td class="val">Drawer (translateX)</td><td class="mono">--dur-slow · 220ms</td><td class="mono">ease-out</td></tr>
+							<tr><td class="val">Phase-tracker fill (width)</td><td class="mono">--dur-base · 140ms</td><td class="mono">ease-out</td></tr>
+							<tr><td class="val">Running dot pulse</td><td class="mono">1.6s · infinite</td><td class="mono">ease-in-out</td></tr>
+						</tbody>
+					</table>
+					<div style="padding:var(--space-5) var(--space-5);font-size:var(--text-12);color:var(--fg-dim)">All motion collapses to ~0ms under <code style="font-family:var(--font-mono)">prefers-reduced-motion</code>.</div>
+				</div>
+				<div class="card">
+					<table class="tbl">
+						<thead><tr><th>Layer</th><th>Token</th></tr></thead>
+						<tbody>
+							<tr><td class="val">Sticky group header</td><td class="mono">--z-sticky · 30</td></tr>
+							<tr><td class="val">Overlay scrim</td><td class="mono">--z-overlay · 40</td></tr>
+							<tr><td class="val">Popover / dropdown</td><td class="mono">--z-popover · 60</td></tr>
+							<tr><td class="val">Run drawer</td><td class="mono">--z-drawer · 70</td></tr>
+							<tr><td class="val">Dialog</td><td class="mono">--z-dialog · 80</td></tr>
+							<tr><td class="val">Command bar</td><td class="mono">--z-command · 90</td></tr>
+							<tr><td class="val">Toast</td><td class="mono">--z-toast · 100</td></tr>
+						</tbody>
+					</table>
+					<div style="padding:var(--space-5) var(--space-5);font-size:var(--text-12);color:var(--fg-dim)">Kept verbatim from the current <code style="font-family:var(--font-mono)">tokens.css</code> — do not renumber.</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- ════ 10. SPARSITY RULE ════ -->
+		<section class="sect" id="sparsity">
+			<div class="sect__head"><span class="sect__num">10</span><h2 class="sect__title">Real-data sparsity rule</h2></div>
+			<p class="sect__note">The app's data is sparse: <code>assignee</code>, <code>project</code>, <code>cycle</code>, <code>estimate</code>, <code>completed_at</code>, linked run and <code>description</code> are all nullable. The omitted-field treatment is decided once, by context:</p>
+			<div class="grid2">
+				<div class="card" style="padding:var(--space-7)">
+					<div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-4)"><span class="pill pill--neutral">List row / card</span></div>
+					<div style="font-size:var(--text-14);font-weight:500;margin-bottom:var(--space-3)">Hidden — collapse the cell</div>
+					<p style="font-size:var(--text-13);color:var(--fg-muted);margin:0;line-height:var(--lh-normal)">No estimate → no estimate cell. No project → no project chip. No agent run → no state dot. Rows stay compact; absence reads as absence, never as a gap to interpret.</p>
+				</div>
+				<div class="card" style="padding:var(--space-7)">
+					<div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-4)"><span class="pill pill--accent">Properties rail / detail</span></div>
+					<div style="font-size:var(--text-14);font-weight:500;margin-bottom:var(--space-3)">Shown — dim actionable placeholder</div>
+					<p style="font-size:var(--text-13);color:var(--fg-muted);margin:0;line-height:var(--lh-normal)">Every property row is always present with a <span style="color:var(--fg-faint)">"Add estimate…"</span> placeholder, so the operator can set it in place. Empty <code>description</code> → italic "No description" prompt.</p>
+				</div>
+			</div>
+		</section>
+
+		<!-- ════ 11. FOCUS & KEYBOARD ════ -->
+		<section class="sect" id="focus">
+			<div class="sect__head"><span class="sect__num">11</span><h2 class="sect__title">Focus &amp; keyboard</h2></div>
+			<p class="sect__note">Keyboard-first. List focus is a roving caret — a left accent bar + surface wash, no layout shift; controls use a <code>:focus-visible</code> ring (mouse clicks never ring). Full spec + the shortcut table live on <a href="patterns.html" style="color:var(--accent);text-decoration:none">Patterns &amp; states</a>.</p>
+			<div class="card" style="overflow:hidden;max-width:560px">
+				<div class="row row--kbd"><span><span class="prio high"><span class="bar b1"></span><span class="bar b2"></span><span class="bar b3"></span></span></span><span class="row__id mono">SUP-132</span><span class="row__main"><span class="row__title">Keyboard focus · <span class="mono" style="color:var(--fg-dim)">--focus-bar</span></span></span></div>
+				<div class="row row--selected"><span><span class="prio medium"><span class="bar b1"></span><span class="bar b2"></span><span class="bar b3"></span></span></span><span class="row__id mono">SUP-119</span><span class="row__main"><span class="row__title">Selected · <span class="mono" style="color:var(--fg-dim)">--accent-soft</span></span></span></div>
+				<div style="padding:var(--space-5) var(--space-6);display:flex;gap:var(--space-4);border-top:1px solid var(--border-faint)"><button class="btn focus-demo">Tab to ring me ⇥</button><span class="fchip focus-demo" tabindex="0"><span class="v">--ring-focus</span></span></div>
+			</div>
+		</section>
+
+		<!-- ════ 12. TOKEN CROSSWALK ════ -->
+		<section class="sect" id="crosswalk">
+			<div class="sect__head"><span class="sect__num">12</span><h2 class="sect__title">Token crosswalk → current <code style="font-family:var(--font-mono);font-size:0.7em">@theme</code></h2></div>
+			<p class="sect__note">How these names wire into the existing <code>ui/src/styles/tokens.css</code> (Tailwind <code>@theme</code>). Most map 1:1; the rest are <strong>new</strong> tokens to add. Z-index is kept verbatim.</p>
+			<div class="grid2" style="align-items:start">
+				<div class="card"><table class="tbl">
+					<thead><tr><th>Reference token</th><th>Existing <code style="font-family:var(--font-mono)">@theme</code></th></tr></thead>
+					<tbody>
+						<tr><td class="mono val">--bg-app</td><td class="mono">--color-void / --color-canvas</td></tr>
+						<tr><td class="mono val">--bg-surface</td><td class="mono">--color-surface</td></tr>
+						<tr><td class="mono val">--bg-raised</td><td class="mono">--color-raised</td></tr>
+						<tr><td class="mono val">--bg-overlay</td><td class="mono">--color-overlay</td></tr>
+						<tr><td class="mono val">--bg-code</td><td class="mono">--color-code</td></tr>
+						<tr><td class="mono val">--border / -strong</td><td class="mono">--color-border / -strong</td></tr>
+						<tr><td class="mono val">--fg / -muted / -dim</td><td class="mono">--color-fg / -muted / -dim</td></tr>
+						<tr><td class="mono val">--accent / -soft / -line</td><td class="mono">--color-accent / -soft / -line</td></tr>
+						<tr><td class="mono val">--success/warn/danger/info</td><td class="mono">--color-* (+ -soft)</td></tr>
+						<tr><td class="mono val">--font-mono</td><td class="mono">--font-mono</td></tr>
+					</tbody>
+				</table></div>
+				<div class="card"><table class="tbl">
+					<thead><tr><th>New token</th><th>Why it's needed</th></tr></thead>
+					<tbody>
+						<tr><td class="mono val">--bg-input / -raised</td><td class="desc">inputs must sit above their floor</td></tr>
+						<tr><td class="mono val">--fg-faint</td><td class="desc">4th text weight (placeholders)</td></tr>
+						<tr><td class="mono val">--status-*</td><td class="desc">glyph palette + needs_you</td></tr>
+						<tr><td class="mono val">--priority-*</td><td class="desc">priority glyph colors</td></tr>
+						<tr><td class="mono val">--avatar-1…8, --agent-*</td><td class="desc">fixed per-entity avatars</td></tr>
+						<tr><td class="mono val">--font-ui</td><td class="desc">Geist (UI typeface)</td></tr>
+						<tr><td class="mono val">--text-* / --space-* / --radius-*</td><td class="desc">type, spacing, radii scales</td></tr>
+						<tr><td class="mono val">--shadow-* / --ring-* / --focus-bar</td><td class="desc">elevation + focus</td></tr>
+						<tr><td class="mono val">--ease-* / --dur-*</td><td class="desc">motion specs</td></tr>
+						<tr><td class="mono val">--z-* </td><td class="desc">unchanged — kept verbatim</td></tr>
+					</tbody>
+				</table></div>
+			</div>
+		</section>
+
+	</div>
+	</main>
+</div>
+</body>
+</html>

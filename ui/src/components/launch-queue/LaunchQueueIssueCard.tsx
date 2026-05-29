@@ -1,12 +1,9 @@
-import { SeverityPill } from '@/components/issues/SeverityPill'
 import { LaunchQueueBlockerList } from '@/components/launch-queue/LaunchQueueBlockerList'
 import { LaunchQueueUnblockBadge } from '@/components/launch-queue/LaunchQueueUnblockBadge'
-import { Button } from '@/components/ui/button'
-import { Pill } from '@/components/ui/pill'
 import type { LaunchQueueItem } from '@/types'
-import { StatusIcon, statusIconKindFromLinear } from '@/ui'
+import { PriorityIcon, priorityIconKindFromValue, StatusIcon, statusIconKindFromLinear } from '@/ui'
+import { Btn } from '@/ui/Btn'
 import { Link } from '@tanstack/react-router'
-import { Rocket } from 'lucide-react'
 
 interface LaunchQueueIssueCardProps {
 	item: Extract<LaunchQueueItem, { kind: 'issue' }>
@@ -34,58 +31,57 @@ export function LaunchQueueIssueCard({
 	const showBlockers = item.bucket === 'blocked' && item.issue.blocked_by.length > 0
 
 	return (
-		<div className="flex flex-col gap-2.5 rounded-lg border border-border bg-raised p-3 transition-colors hover:border-border-strong">
+		<div className="kcard">
 			<Link
 				to="/issues/$issueId"
 				params={{ issueId: item.issue.id }}
-				className="flex flex-col gap-2 rounded focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+				className="block rounded focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
 			>
-				<div className="flex items-center gap-2">
-					<span className="font-mono text-[11px] text-fg-dim">{item.issue.identifier}</span>
-					<span className="flex-1" />
-					{dispatchPosition !== undefined ? (
-						<Pill
-							tone="success"
-							size="xs"
-							mono
-							leading={<Rocket size={10} aria-hidden="true" />}
-							aria-label={`Position ${dispatchPosition} in dispatch order`}
-						>
-							#{dispatchPosition}
-						</Pill>
-					) : null}
-					<SeverityPill value={item.issue.priority.value} />
-				</div>
-
-				<p className="line-clamp-2 text-[12.5px] leading-snug font-medium text-fg">
-					{item.issue.title}
-				</p>
-
-				<p className="line-clamp-2 text-[10.5px] text-fg-muted">{item.reason}</p>
-			</Link>
-
-			<div className="flex flex-wrap items-center gap-1.5">
-				<span className="flex w-4 shrink-0 items-center justify-center">
+				<div className="kcard__top">
 					<StatusIcon
 						kind={statusIconKindFromLinear(item.issue.status.state_type)}
 						color={item.issue.status.color}
 					/>
-				</span>
-				{showBlockers ? <LaunchQueueBlockerList blockers={item.issue.blocked_by} /> : null}
-				{unblockedAt ? <LaunchQueueUnblockBadge resolvedAt={unblockedAt} refTime={refTime} /> : null}
-			</div>
+					<span className="kcard__id">{item.issue.identifier}</span>
+					<span className="spacer" />
+					{dispatchPosition !== undefined ? (
+						<span
+							className="pill pill--success mono"
+							aria-label={`Position ${dispatchPosition} in dispatch order`}
+						>
+							#{dispatchPosition}
+						</span>
+					) : null}
+					<PriorityIcon kind={priorityIconKindFromValue(item.issue.priority.value)} size={14} />
+				</div>
+
+				<p className="kcard__title line-clamp-2">{item.issue.title}</p>
+
+				<p className="line-clamp-2 text-[10.5px] text-fg-muted">{item.reason}</p>
+			</Link>
+
+			{showBlockers || unblockedAt ? (
+				<div className="kcard__foot flex-wrap">
+					{showBlockers ? <LaunchQueueBlockerList blockers={item.issue.blocked_by} /> : null}
+					{unblockedAt ? (
+						<LaunchQueueUnblockBadge resolvedAt={unblockedAt} refTime={refTime} />
+					) : null}
+				</div>
+			) : null}
 
 			{canDispatch ? (
-				<Button
-					variant="secondary"
-					size="xs"
-					disabled={dispatchPending}
-					onClick={() => onDispatch(item.issue.identifier)}
-					className="self-start font-mono text-[11px]"
-					aria-label={`Dispatch ${item.issue.identifier}`}
-				>
-					{dispatchLabel}
-				</Button>
+				<div className="kcard__foot">
+					<Btn
+						kind="secondary"
+						size="sm"
+						icon="play"
+						disabled={dispatchPending}
+						onClick={() => onDispatch(item.issue.identifier)}
+						aria-label={`Dispatch ${item.issue.identifier}`}
+					>
+						{dispatchLabel}
+					</Btn>
+				</div>
 			) : null}
 		</div>
 	)
