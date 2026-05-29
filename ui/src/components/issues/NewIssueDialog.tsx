@@ -105,12 +105,13 @@ export function NewIssueDialog({ open, onOpenChange, defaultTeamId }: NewIssueDi
 		})
 	}, [open, options, defaultTeamId])
 
+	const resetCreate = mutation.reset
 	useEffect(() => {
 		if (open) return
 		setDraft(INITIAL_DRAFT)
 		setActivePicker(null)
-		mutation.reset()
-	}, [open, mutation])
+		resetCreate()
+	}, [open, resetCreate])
 
 	const team: TeamOption | null = useMemo(
 		() => options?.teams.find((t) => t.id === draft.teamId) ?? null,
