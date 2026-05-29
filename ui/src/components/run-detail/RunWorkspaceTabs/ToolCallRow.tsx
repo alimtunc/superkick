@@ -17,7 +17,7 @@ export function ToolCallRow({ call }: ToolCallRowProps) {
 	const pending = call.output === null
 	const Caret = expanded ? ChevronDown : ChevronRight
 
-	const dotClass = call.is_error ? 'bg-oxide' : pending ? 'bg-gold' : 'bg-cyan'
+	const dotClass = call.is_error ? 'bg-danger' : pending ? 'bg-warn' : 'bg-info'
 
 	return (
 		<li>
@@ -37,7 +37,7 @@ export function ToolCallRow({ call }: ToolCallRowProps) {
 				</span>
 				<span className="font-data shrink-0 text-[11px] text-fg-dim">{fmtRelativeTime(call.at)}</span>
 				{call.is_error ? (
-					<span className="font-data shrink-0 text-[11px] text-oxide">error</span>
+					<span className="font-data shrink-0 text-[11px] text-danger">error</span>
 				) : null}
 				{pending ? (
 					<span className="font-data shrink-0 text-[11px] text-fg-muted">running…</span>

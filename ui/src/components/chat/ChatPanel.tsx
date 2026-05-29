@@ -45,7 +45,7 @@ export function ChatPanel({ subject }: ChatPanelProps) {
 	const consumePendingFirstMessage = useCallback(() => setPendingFirstMessage(null), [])
 
 	return (
-		<section className="bg-carbon-dim/40 flex h-full min-h-0 flex-1 overflow-hidden rounded-md border border-edge">
+		<section className="flex h-full min-h-0 flex-1 overflow-hidden rounded-md border border-border bg-surface/40">
 			<ChatSidebar
 				conversations={list.conversations}
 				selectedId={selectedId}

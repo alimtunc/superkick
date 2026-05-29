@@ -11,13 +11,13 @@ export function RunBadges({ run }: RunBadgesProps) {
 	return (
 		<div className="flex items-center gap-1">
 			{slots.attention ? (
-				<Badge tone="oxide" label={`${slots.attention.count}!`} title="Pending attention" />
+				<Badge tone="danger" label={`${slots.attention.count}!`} title="Pending attention" />
 			) : null}
 			{slots.interrupt ? (
-				<Badge tone="gold" label={`${slots.interrupt.count}?`} title="Pending interrupts" />
+				<Badge tone="warn" label={`${slots.interrupt.count}?`} title="Pending interrupts" />
 			) : null}
 			{slots.pr ? (
-				<Badge tone="violet" label={`#${slots.pr.number}`} title={`PR ${slots.pr.state}`} />
+				<Badge tone="accent" label={`#${slots.pr.number}`} title={`PR ${slots.pr.state}`} />
 			) : null}
 		</div>
 	)

@@ -2,8 +2,8 @@ import { Pill, type PillTone } from '@/components/ui/pill'
 import type { ExecutionMode } from '@/types'
 
 const modeTone: Record<ExecutionMode, PillTone> = {
-	full_auto: 'mineral',
-	semi_auto: 'gold'
+	full_auto: 'success',
+	semi_auto: 'warn'
 }
 
 const modeLabel: Record<ExecutionMode, string> = {

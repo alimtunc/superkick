@@ -30,12 +30,12 @@ export const NEEDS_HUMAN_REASON_LABEL: Record<NeedsHumanReasonKind, string> = {
 }
 
 export const NEEDS_HUMAN_REASON_PILL_TONE: Record<NeedsHumanReasonKind, PillTone> = {
-	awaiting_approval: 'gold',
-	stalled: 'gold',
-	interrupt_pending: 'gold',
-	attention_pending: 'oxide',
-	budget_paused: 'gold',
-	recently_failed: 'oxide'
+	awaiting_approval: 'warn',
+	stalled: 'warn',
+	interrupt_pending: 'warn',
+	attention_pending: 'danger',
+	budget_paused: 'warn',
+	recently_failed: 'danger'
 }
 
 export const NEEDS_HUMAN_REASON_TONE: Record<NeedsHumanReasonKind, SKTone> = {

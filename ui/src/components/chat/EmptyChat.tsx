@@ -18,7 +18,7 @@ export function EmptyChat({ launcher }: EmptyChatProps) {
 					className="border-0"
 				/>
 			</div>
-			{launcher ? <div className="border-t border-edge p-3">{launcher}</div> : null}
+			{launcher ? <div className="border-t border-border p-3">{launcher}</div> : null}
 		</div>
 	)
 }

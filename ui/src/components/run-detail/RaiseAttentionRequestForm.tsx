@@ -15,7 +15,7 @@ export function RaiseAttentionRequestForm({ runId, onCreated }: { runId: string;
 				variant="outline"
 				size="xs"
 				onClick={() => setOpen(true)}
-				className="font-data border-edge bg-carbon text-[11px] text-dim hover:text-fog"
+				className="font-data border-border bg-surface text-[11px] text-fg-dim hover:text-fg"
 			>
 				+ raise request
 			</Button>
@@ -27,7 +27,7 @@ export function RaiseAttentionRequestForm({ runId, onCreated }: { runId: string;
 			action={() => {
 				void form.handleSubmit()
 			}}
-			className="panel border border-edge p-3"
+			className="panel border border-border p-3"
 		>
 			<div className="space-y-2">
 				<form.Field name="kind">
@@ -42,8 +42,8 @@ export function RaiseAttentionRequestForm({ runId, onCreated }: { runId: string;
 									onClick={() => field.handleChange(k)}
 									className={`font-data text-[10px] tracking-wider uppercase ${
 										field.state.value === k
-											? 'border-gold/60 bg-gold/15 text-gold'
-											: 'border-edge bg-carbon text-dim'
+											? 'border-warn/60 bg-warn/15 text-warn'
+											: 'border-border bg-surface text-fg-dim'
 									}`}
 								>
 									{k}
@@ -60,7 +60,7 @@ export function RaiseAttentionRequestForm({ runId, onCreated }: { runId: string;
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
 							placeholder="Title"
-							className="font-data border-edge bg-carbon text-[12px] text-fog"
+							className="font-data border-border bg-surface text-[12px] text-fg"
 						/>
 					)}
 				</form.Field>
@@ -72,7 +72,7 @@ export function RaiseAttentionRequestForm({ runId, onCreated }: { runId: string;
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
 							placeholder="Details"
-							className="font-data border-edge bg-carbon text-[12px] text-fog"
+							className="font-data border-border bg-surface text-[12px] text-fg"
 						/>
 					)}
 				</form.Field>
@@ -87,7 +87,7 @@ export function RaiseAttentionRequestForm({ runId, onCreated }: { runId: string;
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
 										placeholder="Options, comma-separated"
-										className="font-data border-edge bg-carbon text-[12px] text-fog"
+										className="font-data border-border bg-surface text-[12px] text-fg"
 									/>
 								)}
 							</form.Field>
@@ -99,7 +99,7 @@ export function RaiseAttentionRequestForm({ runId, onCreated }: { runId: string;
 					{(onSubmitError) => {
 						const message = extractFormError(onSubmitError)
 						return message ? (
-							<p className="font-data rounded bg-oxide-dim p-2 text-[12px] text-oxide">
+							<p className="font-data rounded bg-danger-soft p-2 text-[12px] text-danger">
 								{message}
 							</p>
 						) : null
@@ -114,7 +114,7 @@ export function RaiseAttentionRequestForm({ runId, onCreated }: { runId: string;
 								variant="outline"
 								size="xs"
 								disabled={isSubmitting || title.trim().length === 0}
-								className="font-data border-mineral/30 bg-mineral-dim text-[11px] text-mineral"
+								className="font-data border-success/30 bg-success-soft text-[11px] text-success"
 							>
 								RAISE
 							</Button>
@@ -123,7 +123,7 @@ export function RaiseAttentionRequestForm({ runId, onCreated }: { runId: string;
 								variant="ghost"
 								size="xs"
 								onClick={close}
-								className="font-data text-[11px] text-dim"
+								className="font-data text-[11px] text-fg-dim"
 							>
 								cancel
 							</Button>

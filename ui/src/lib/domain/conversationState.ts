@@ -1,3 +1,4 @@
+import type { PillTone } from '@/components/ui/pill'
 import type {
 	ActiveTakeover,
 	AttentionSummary,
@@ -79,17 +80,13 @@ export function deriveConversationUxState(input: ConversationUxStateInput): Conv
 	return 'draft'
 }
 
-// `running` uses `cyan` (the convention's "in-flight" tone) rather than
-// `live`/neon-green so the badge can't be confused with `completed`/mineral
-// — both green tones live too close together at sidebar size.
-export const conversationStateTone: Record<
-	ConversationUxState,
-	'neutral' | 'cyan' | 'gold' | 'mineral' | 'oxide' | 'violet'
-> = {
+// `running` uses `info` (in-flight) rather than a green so the badge can't be
+// confused with `completed`/success — both green at sidebar size.
+export const conversationStateTone: Record<ConversationUxState, PillTone> = {
 	draft: 'neutral',
-	running: 'cyan',
-	needs_human: 'gold',
-	completed: 'mineral',
-	failed: 'oxide',
-	taken_over: 'violet'
+	running: 'info',
+	needs_human: 'warn',
+	completed: 'success',
+	failed: 'danger',
+	taken_over: 'accent'
 }

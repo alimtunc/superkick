@@ -65,9 +65,10 @@ export interface IssueGroup {
  * share the same tab/filter/showDone/viewer-scoped view-model.
  */
 export type IssueBoardColumns = {
-	open: IssueWithState[]
-	in_progress: IssueWithState[]
 	needs_human: IssueWithState[]
+	backlog: IssueWithState[]
+	todo: IssueWithState[]
+	in_progress: IssueWithState[]
 	in_review: IssueWithState[]
 	done: IssueWithState[]
 }

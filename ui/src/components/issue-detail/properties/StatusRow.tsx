@@ -1,11 +1,11 @@
 import { useState } from 'react'
 
 import { PROPERTY_ROW_TRIGGER, PropertyRow } from '@/components/issue-detail/properties/PropertyRow'
-import { StatusChip } from '@/components/issue-detail/StatusChip'
 import { StatusPicker } from '@/components/issues/pickers/StatusPicker'
 import { useLinearOptions } from '@/hooks/useLinearOptions'
 import { useUpdateIssue } from '@/hooks/useUpdateIssue'
 import type { IssueDetailResponse, WorkflowStateOption } from '@/types'
+import { StatusIcon, statusIconKindFor } from '@/ui'
 import { Popover } from '@base-ui/react/popover'
 
 interface StatusRowProps {
@@ -41,7 +41,8 @@ export function StatusRow({ issue }: StatusRowProps) {
 		<PropertyRow label="Status">
 			<Popover.Root open={open} onOpenChange={setOpen}>
 				<Popover.Trigger className={PROPERTY_ROW_TRIGGER} aria-label="Change status">
-					<StatusChip status={issue.status} />
+					<StatusIcon kind={statusIconKindFor(issue.status)} size={13} color={issue.status.color} />
+					<span className="text-[12.5px] text-fg">{issue.status.name}</span>
 				</Popover.Trigger>
 				<StatusPicker states={states} currentId={currentId} onSelect={onSelect} />
 			</Popover.Root>

@@ -38,28 +38,59 @@ export interface FilterOptionSet {
 	repos: string[]
 }
 
+/** Facets the list query cannot apply yet — shown disabled per §10.3
+ *  ("don't drop any of these even if the data isn't wired up"). */
+type UnwiredAxisKey = 'creator' | 'milestone' | 'cycle' | 'estimate'
+
 interface AxisDef {
 	key: AxisKey
 	label: string
 	icon: SKIconName
 	meta?: string
+	/** Superkick-specific facet — flagged with the SK provenance tag. */
+	sk?: boolean
 }
 
-// Cycle / Milestone / Creator / Estimate intentionally absent: the list
-// query does not expose them today, so they cannot be applied honestly.
-const AXES: AxisDef[] = [
-	{ key: 'assignee', label: 'Assignee', icon: 'user' },
-	{ key: 'status', label: 'Status', icon: 'spark' },
-	{ key: 'priority', label: 'Priority', icon: 'alert' },
-	{ key: 'label', label: 'Label', icon: 'pin' },
-	{ key: 'project', label: 'Project', icon: 'folder' },
-	{ key: 'repo', label: 'Repo', icon: 'branch' },
-	{ key: 'task', label: 'Task state', icon: 'loop', meta: 'running · needs · review · shipped' },
-	{ key: 'created', label: 'Created', icon: 'clock', meta: 'date…' },
-	{ key: 'updated', label: 'Updated', icon: 'clock', meta: 'date…' },
-	{ key: 'completed', label: 'Completed', icon: 'check', meta: 'date…' },
-	{ key: 'has_sub_issues', label: 'Has sub-issues', icon: 'layers', meta: 'yes · no' }
+interface UnwiredAxisDef {
+	key: UnwiredAxisKey
+	label: string
+	icon: SKIconName
+}
+
+const UNWIRED_AXES: Record<UnwiredAxisKey, UnwiredAxisDef> = {
+	creator: { key: 'creator', label: 'Creator', icon: 'user' },
+	milestone: { key: 'milestone', label: 'Milestone', icon: 'flag' },
+	cycle: { key: 'cycle', label: 'Cycle', icon: 'history' },
+	estimate: { key: 'estimate', label: 'Estimate', icon: 'spark' }
+}
+
+type DropdownRow = { kind: 'axis'; axis: AxisDef } | { kind: 'unwired'; axis: UnwiredAxisDef }
+
+// §10.3 mandatory ordering: Assignee · Creator · Priority · Status · Label ·
+// Project · Repo · Milestone · Cycle · Estimate · Created · Updated ·
+// Completed · Has sub-issues · Task state (SK).
+const ROWS: DropdownRow[] = [
+	{ kind: 'axis', axis: { key: 'assignee', label: 'Assignee', icon: 'user' } },
+	{ kind: 'unwired', axis: UNWIRED_AXES.creator },
+	{ kind: 'axis', axis: { key: 'priority', label: 'Priority', icon: 'alert' } },
+	{ kind: 'axis', axis: { key: 'status', label: 'Status', icon: 'spark' } },
+	{ kind: 'axis', axis: { key: 'label', label: 'Label', icon: 'pin' } },
+	{ kind: 'axis', axis: { key: 'project', label: 'Project', icon: 'folder' } },
+	{ kind: 'axis', axis: { key: 'repo', label: 'Repo', icon: 'branch' } },
+	{ kind: 'unwired', axis: UNWIRED_AXES.milestone },
+	{ kind: 'unwired', axis: UNWIRED_AXES.cycle },
+	{ kind: 'unwired', axis: UNWIRED_AXES.estimate },
+	{ kind: 'axis', axis: { key: 'created', label: 'Created', icon: 'clock', meta: 'date…' } },
+	{ kind: 'axis', axis: { key: 'updated', label: 'Updated', icon: 'clock', meta: 'date…' } },
+	{ kind: 'axis', axis: { key: 'completed', label: 'Completed', icon: 'check', meta: 'date…' } },
+	{
+		kind: 'axis',
+		axis: { key: 'has_sub_issues', label: 'Has sub-issues', icon: 'layers', meta: 'yes · no' }
+	},
+	{ kind: 'axis', axis: { key: 'task', label: 'Task state', icon: 'loop', sk: true } }
 ]
+
+const AXES: AxisDef[] = ROWS.flatMap((row) => (row.kind === 'axis' ? [row.axis] : []))
 
 const TASK_OPTIONS: { value: TaskBadgeKind; label: string }[] = [
 	{ value: 'running', label: 'Running' },
@@ -98,10 +129,10 @@ export function IssueFilterDropdown({
 	const [activeAxis, setActiveAxis] = useState<AxisKey | null>(null)
 	const [query, setQuery] = useState('')
 
-	const matchedAxes = useMemo(() => {
+	const matchedRows = useMemo(() => {
 		const q = query.trim().toLowerCase()
-		if (q === '') return AXES
-		return AXES.filter((axis) => axis.label.toLowerCase().includes(q))
+		if (q === '') return ROWS
+		return ROWS.filter((row) => row.axis.label.toLowerCase().includes(q))
 	}, [query])
 
 	function close() {
@@ -129,7 +160,7 @@ export function IssueFilterDropdown({
 			<PopoverPopup
 				align="start"
 				sideOffset={6}
-				popupClassName="w-66 border border-border bg-overlay shadow-xl"
+				popupClassName="w-[240px] rounded-[8px] border border-border bg-overlay shadow-[0_18px_40px_rgba(0,0,0,0.5)]"
 			>
 				{activeAxis === null ? (
 					<div className="flex flex-col">
@@ -144,38 +175,63 @@ export function IssueFilterDropdown({
 								className="flex-1 bg-transparent text-[12.5px] text-fg placeholder:text-fg-dim focus-visible:outline-none"
 							/>
 						</div>
-						<div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold tracking-[0.08em] text-fg-dim uppercase">
+						<div className="px-2.5 pt-1.5 pb-1 text-[10.5px] font-semibold tracking-[0.08em] text-fg-dim uppercase">
 							Filter by
 						</div>
 						<ul className="max-h-72 overflow-y-auto pb-1">
-							{matchedAxes.length === 0 ? (
+							{matchedRows.length === 0 ? (
 								<li className="px-3 py-2 text-[11.5px] text-fg-dim">No matching filters.</li>
 							) : (
-								matchedAxes.map((axis) => (
-									<li key={axis.key}>
-										<button
-											type="button"
-											onClick={() => setActiveAxis(axis.key)}
-											className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-fg hover:bg-raised focus-visible:bg-raised focus-visible:outline-none"
-										>
-											<Icon
-												name={axis.icon}
-												size={12}
-												className="shrink-0 text-fg-muted"
-											/>
-											<span className="flex-1 truncate">{axis.label}</span>
-											{axis.meta ? (
-												<span className="ml-auto text-[11px] text-fg-dim">
-													{axis.meta}
-												</span>
-											) : (
-												<Icon name="chev" size={11} className="text-fg-dim" />
-											)}
-										</button>
-									</li>
-								))
+								matchedRows.map((row) =>
+									row.kind === 'unwired' ? (
+										<li key={row.axis.key}>
+											<div
+												aria-disabled
+												title="Not wired yet"
+												className="flex w-full cursor-default items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-fg-dim"
+											>
+												<Icon
+													name={row.axis.icon}
+													size={13}
+													className="shrink-0 text-fg-dim"
+												/>
+												<span className="flex-1 truncate">{row.axis.label}</span>
+												<span className="ml-auto text-[11px] text-fg-dim">Soon</span>
+											</div>
+										</li>
+									) : (
+										<li key={row.axis.key}>
+											<button
+												type="button"
+												onClick={() => setActiveAxis(row.axis.key)}
+												className={cn(
+													'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-fg hover:bg-raised focus-visible:bg-raised focus-visible:outline-none',
+													row.axis.sk ? 'bg-raised' : null
+												)}
+											>
+												<Icon
+													name={row.axis.icon}
+													size={13}
+													className="shrink-0 text-fg-muted"
+												/>
+												<span className="flex-1 truncate">{row.axis.label}</span>
+												<AxisTrailing axis={row.axis} />
+											</button>
+										</li>
+									)
+								)
 							)}
 						</ul>
+						<div className="mx-1 my-1 h-px bg-border" />
+						<button
+							type="button"
+							disabled
+							title="Saved views — coming soon"
+							className="flex w-full cursor-default items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-fg-muted"
+						>
+							<Icon name="filter" size={13} className="shrink-0 text-fg-dim" />
+							<span>Save current as view…</span>
+						</button>
 					</div>
 				) : (
 					<AxisPicker
@@ -190,6 +246,20 @@ export function IssueFilterDropdown({
 			</PopoverPopup>
 		</Popover.Root>
 	)
+}
+
+function AxisTrailing({ axis }: { axis: AxisDef }) {
+	if (axis.sk) {
+		return (
+			<span className="rounded-[3px] border border-accent-line px-1 text-[9.5px] font-semibold tracking-[0.03em] text-accent uppercase">
+				SK
+			</span>
+		)
+	}
+	if (axis.meta) {
+		return <span className="ml-auto text-[11px] text-fg-dim">{axis.meta}</span>
+	}
+	return <Icon name="chev" size={11} className="text-fg-dim" />
 }
 
 function AxisPicker({

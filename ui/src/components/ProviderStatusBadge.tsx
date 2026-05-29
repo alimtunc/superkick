@@ -2,8 +2,8 @@ import type { ProviderStatus } from '@/types'
 
 const styles: Record<ProviderStatus, string> = {
 	available: 'bg-emerald-500/15 text-emerald-300',
-	unavailable: 'bg-oxide-dim text-oxide',
-	stale: 'bg-gold-dim text-gold'
+	unavailable: 'bg-danger-soft text-danger',
+	stale: 'bg-warn-soft text-warn'
 }
 
 interface ProviderStatusBadgeProps {

@@ -6,7 +6,7 @@ interface PullRequestHeaderProps {
 
 export function PullRequestHeader({ pr }: PullRequestHeaderProps) {
 	return (
-		<div className="border-b border-edge px-4 py-3">
+		<div className="border-b border-border px-4 py-3">
 			<div className="flex items-center justify-between gap-2">
 				<a
 					href={pr.url}

@@ -79,7 +79,7 @@ export const CAPTURE_STATES = [
 		fixture: 'issues-default',
 		viewport: VIEWPORT_1280_800,
 		mockup: { file: ISSUE_ARTIFACT, artboardId: 'kanban-dark' },
-		waitFor: '[data-issue-state="open"]'
+		waitFor: '[data-issue-state]'
 	},
 	{
 		id: 'issues-kanban-drag',
@@ -88,7 +88,7 @@ export const CAPTURE_STATES = [
 		fixture: 'issues-default',
 		viewport: VIEWPORT_1280_800,
 		mockup: { file: ISSUE_ARTIFACT, artboardId: 'kanban-drag' },
-		waitFor: '[data-issue-state="open"]',
+		waitFor: '[data-issue-state]',
 		actions: [{ type: 'dragIssueToState', identifier: 'ISS-217', state: 'in_progress' }]
 	},
 	{
@@ -106,7 +106,7 @@ export const CAPTURE_STATES = [
 		route: '/issues/SUP-169',
 		fixture: 'issue-running',
 		viewport: VIEWPORT_1280_920,
-		mockup: { file: ISSUE_DETAIL_ARTIFACT, artboardId: 'detail-running' },
+		mockup: { file: ISSUE_DETAIL_ARTIFACT, artboardId: 'issue-running' },
 		waitForText: ISSUE_DETAIL_TITLE
 	},
 	{

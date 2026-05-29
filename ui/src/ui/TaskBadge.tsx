@@ -49,7 +49,7 @@ function TaskBadgeDot({ kind }: { kind: 'needs' | 'running' }) {
 			className={cn(
 				'inline-block size-1.5 shrink-0 rounded-full',
 				TASK_KIND_BG[kind],
-				kind === 'running' ? 'live-pulse motion-reduce:animate-none' : null
+				kind === 'running' ? 'sk-pulse motion-reduce:animate-none' : null
 			)}
 		/>
 	)

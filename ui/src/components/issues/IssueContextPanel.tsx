@@ -14,8 +14,8 @@ const INTRO_COPY =
 export function IssueContextPanel({ issueId, variant }: IssueContextPanelProps) {
 	const wrapperClass =
 		variant === 'rail'
-			? 'flex h-full min-h-0 w-80 shrink-0 flex-col border-l border-edge bg-carbon-dim/40'
-			: 'rounded-md border border-edge bg-graphite/40'
+			? 'flex h-full min-h-0 w-80 shrink-0 flex-col border-l border-border bg-surface/40'
+			: 'rounded-md border border-border bg-surface/40'
 
 	const bodyClass = cn(
 		'flex flex-col gap-4',
@@ -25,8 +25,8 @@ export function IssueContextPanel({ issueId, variant }: IssueContextPanelProps) 
 	return (
 		<aside aria-label="Workspace context" className={wrapperClass}>
 			{variant === 'rail' ? (
-				<header className="flex h-9 shrink-0 items-center border-b border-edge px-4">
-					<h2 className="font-data text-[11px] font-medium tracking-widest text-silver uppercase">
+				<header className="flex h-9 shrink-0 items-center border-b border-border px-4">
+					<h2 className="font-data text-[11px] font-medium tracking-widest text-fg-muted uppercase">
 						Context
 					</h2>
 				</header>

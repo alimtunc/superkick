@@ -4,7 +4,7 @@ import { CopyValue } from '@/components/run-detail/CopyValue'
 import { Tooltip } from '@/components/ui/tooltip'
 
 const chipBase =
-	'font-data inline-flex items-center gap-1.5 rounded-md bg-white/5 px-2 py-1 text-[11px] leading-none text-silver'
+	'font-data inline-flex items-center gap-1.5 rounded-md bg-white/5 px-2 py-1 text-[11px] leading-none text-fg-muted'
 
 export { chipBase }
 
@@ -20,7 +20,7 @@ export function Chip({ icon, label, copyValue }: { icon: ReactNode; label: strin
 
 	const display = (
 		<>
-			<span className="shrink-0 text-dim">{icon}</span>
+			<span className="shrink-0 text-fg-dim">{icon}</span>
 			<span>{clampLabel(label)}</span>
 		</>
 	)

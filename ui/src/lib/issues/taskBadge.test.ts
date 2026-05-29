@@ -57,7 +57,7 @@ function makeIssue(overrides: IssueOverrides = {}): IssueWithState {
 	}
 	return {
 		issue,
-		state: 'open',
+		state: 'todo',
 		bucket: undefined,
 		reason: undefined,
 		linkedRun: overrides.runState

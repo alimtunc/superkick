@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { IssueRow } from '@/components/issues/IssueRow'
-import type { IssueWithState, LinearIssueListItem, RunState } from '@/types'
+import type { IssueChildRef, IssueWithState, LinearIssueListItem, LinearStateType, RunState } from '@/types'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -46,10 +46,23 @@ function makeIssue(overrides: Partial<LinearIssueListItem> = {}): LinearIssueLis
 	}
 }
 
+function makeChild(stateType: LinearStateType): IssueChildRef {
+	return {
+		id: `c-${stateType}`,
+		identifier: 'SUP-2',
+		title: 'Child',
+		status: { state_type: stateType, name: stateType, color: '#fff' },
+		priority: { value: 0, label: 'None' },
+		labels: [],
+		assignee: null,
+		updated_at: NOW.toISOString()
+	}
+}
+
 function makeWrapper(issue: LinearIssueListItem, runState?: RunState): IssueWithState {
 	return {
 		issue,
-		state: 'open',
+		state: 'todo',
 		bucket: undefined,
 		reason: undefined,
 		linkedRun: runState
@@ -128,5 +141,34 @@ describe('IssueRow', () => {
 		expect(screen.getByText('ui')).toBeInTheDocument()
 		expect(screen.queryByText('extra')).not.toBeInTheDocument()
 		expect(screen.getByText('+1')).toBeInTheDocument()
+	})
+
+	it('renders the sub-count chip with done/total when the issue has children', () => {
+		const children = [makeChild('completed'), makeChild('started'), makeChild('backlog')]
+		render(<IssueRow wrapper={makeWrapper(makeIssue({ children }))} bucket="open" now={NOW} />)
+		expect(screen.getByText('1/3')).toBeInTheDocument()
+	})
+
+	it('renders no sub-count chip when the issue has no children', () => {
+		render(<IssueRow wrapper={makeWrapper(makeIssue())} bucket="open" now={NOW} />)
+		expect(screen.queryByText(/^\d+\/\d+$/)).not.toBeInTheDocument()
+	})
+
+	it('renders the project tag when the issue has a project', () => {
+		render(
+			<IssueRow
+				wrapper={makeWrapper(makeIssue({ project: { name: 'Platform' } }))}
+				bucket="open"
+				now={NOW}
+			/>
+		)
+		expect(screen.getByText('Platform')).toBeInTheDocument()
+	})
+
+	it('keeps the title at full emphasis (not dimmed) in the done bucket', () => {
+		render(<IssueRow wrapper={makeWrapper(makeIssue())} bucket="done" now={NOW} />)
+		const title = screen.getByText('Fix login bug')
+		expect(title).toHaveClass('text-fg')
+		expect(title).not.toHaveClass('text-fg-muted')
 	})
 })

@@ -7,6 +7,34 @@ export type PhaseStatus = 'pending' | 'active' | 'done' | 'failed' | 'paused'
 export interface Phase {
 	kind: LaunchStepKind
 	status: PhaseStatus
+	meta: string | null
+}
+
+export type ExecActivityKind =
+	| 'plan'
+	| 'search'
+	| 'tool'
+	| 'edit'
+	| 'test'
+	| 'pr'
+	| 'ask'
+	| 'stuck'
+	| 'note'
+	| 'done'
+
+export interface ExecActivityRow {
+	id: string
+	kind: ExecActivityKind
+	title: string
+	meta: string | null
+	active: boolean
+}
+
+export interface ExecFileChange {
+	path: string
+	adds: number | null
+	dels: number | null
+	active: boolean
 }
 
 export interface WorktreeFacts {

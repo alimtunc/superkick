@@ -24,20 +24,20 @@ export function TerminalStatusBar({ status, capabilities }: TerminalStatusBarPro
 	const dotColor = (() => {
 		switch (status) {
 			case 'live':
-				return 'bg-mineral'
+				return 'bg-success'
 			case 'readonly':
-				return 'bg-gold'
+				return 'bg-warn'
 			case 'connecting':
-				return 'bg-cyan animate-pulse'
+				return 'bg-info animate-pulse'
 			default:
-				return 'bg-dim'
+				return 'bg-fg-dim'
 		}
 	})()
 
 	return (
-		<div className="flex items-center gap-2 border-b border-edge bg-carbon px-3 py-1.5">
+		<div className="flex items-center gap-2 border-b border-border bg-surface px-3 py-1.5">
 			<span className={`inline-block size-2 rounded-full ${dotColor}`} aria-hidden="true" />
-			<span className="font-data text-[11px] text-silver">{label}</span>
+			<span className="font-data text-[11px] text-fg-muted">{label}</span>
 		</div>
 	)
 }

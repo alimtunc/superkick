@@ -19,29 +19,29 @@ export function BoardCard({ run, refTime }: { run: Run; refTime: number }) {
 	const watched = isWatched(run.id)
 
 	return (
-		<div className="group flex items-start gap-2.5 px-3 py-2.5 transition-colors hover:bg-slate-deep/50">
+		<div className="group flex items-start gap-2.5 px-3 py-2.5 transition-colors hover:bg-raised/50">
 			<span className={`status-bar mt-0.5 h-8 ${healthSignalBg[sig]}`} />
 			<Link to="/runs/$runId" params={{ runId: run.id }} className="min-w-0 flex-1">
 				<div className="flex items-center justify-between">
-					<span className="font-data text-[12px] font-medium text-fog transition-colors group-hover:text-neon-green">
+					<span className="font-data text-[12px] font-medium text-fg transition-colors group-hover:text-success">
 						{run.issue_identifier}
 					</span>
-					<span className="font-data text-[10px] text-dim">{stateIcon[run.state] ?? '--'}</span>
+					<span className="font-data text-[10px] text-fg-dim">{stateIcon[run.state] ?? '--'}</span>
 				</div>
 				<div className="mt-0.5 flex items-center gap-2">
-					<span className="font-data truncate text-[10px] text-dim">{run.repo_slug}</span>
+					<span className="font-data truncate text-[10px] text-fg-dim">{run.repo_slug}</span>
 					{run.current_step_key ? (
-						<span className="font-data text-[10px] text-ash">
+						<span className="font-data text-[10px] text-fg-dim">
 							{stepLabel[run.current_step_key] ?? run.current_step_key}
 						</span>
 					) : null}
 				</div>
 				<div className="mt-1 flex items-center justify-between">
-					<span className="font-data text-[10px] text-dim">
+					<span className="font-data text-[10px] text-fg-dim">
 						{fmtElapsed(run.started_at, refTime)}
 					</span>
 					{run.branch_name ? (
-						<span className="font-data max-w-28 truncate text-[10px] text-dim">
+						<span className="font-data max-w-28 truncate text-[10px] text-fg-dim">
 							{run.branch_name}
 						</span>
 					) : null}

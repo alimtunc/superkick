@@ -5,10 +5,10 @@ import type { RunEvent } from '@/types'
 import { Check, CircleDot, FileText, Search, TestTube2 } from 'lucide-react'
 
 function toneFor(event: RunEvent, payload: ActivityPayload): string {
-	if (event.level === 'error' || payload.status === 'fail') return 'border-oxide/50 text-oxide'
+	if (event.level === 'error' || payload.status === 'fail') return 'border-danger/50 text-danger'
 	if (payload.status === 'green') return 'border-success/50 text-success'
 	if (payload.status === 'running') return 'border-accent/50 text-accent'
-	return 'border-edge text-fg-muted'
+	return 'border-border text-fg-muted'
 }
 
 function IconFor({ payload }: { payload: ActivityPayload }) {
@@ -75,7 +75,7 @@ function Delta({ changed }: { changed?: ActivityPayload['changed'] }) {
 		<span className="font-data ml-auto shrink-0 text-[11px]">
 			<span className="text-success">+{added}</span>
 			<span className="px-1 text-fg-dim">-</span>
-			<span className={removed > 0 ? 'text-oxide' : 'text-fg-dim'}>{removed}</span>
+			<span className={removed > 0 ? 'text-danger' : 'text-fg-dim'}>{removed}</span>
 		</span>
 	)
 }
@@ -83,12 +83,12 @@ function Delta({ changed }: { changed?: ActivityPayload['changed'] }) {
 function TestOutput({ tests }: { tests?: ActivityPayload['tests'] }) {
 	if (!tests || tests.length === 0) return null
 	return (
-		<div className="bg-ink mt-2 rounded border border-edge px-3 py-2 font-mono text-[11px] leading-relaxed">
+		<div className="bg-ink mt-2 rounded border border-border px-3 py-2 font-mono text-[11px] leading-relaxed">
 			{tests.map((test) => (
 				<div key={test.name} className="grid grid-cols-[42px_1fr_auto] gap-3 text-fg-muted">
 					<span className="text-fg">RUN</span>
 					<span className="truncate">{test.name}</span>
-					<span className={test.result === 'fail' ? 'text-oxide' : 'text-fg'}>{test.result}</span>
+					<span className={test.result === 'fail' ? 'text-danger' : 'text-fg'}>{test.result}</span>
 				</div>
 			))}
 		</div>
@@ -98,9 +98,9 @@ function TestOutput({ tests }: { tests?: ActivityPayload['tests'] }) {
 function DiffBlock({ payload }: { payload: ActivityPayload }) {
 	if (!payload.snippet || payload.snippet.length === 0) return null
 	return (
-		<div className="bg-ink mt-2 overflow-hidden rounded border border-edge">
+		<div className="bg-ink mt-2 overflow-hidden rounded border border-border">
 			{payload.file ? (
-				<div className="font-data flex items-center justify-between border-b border-edge px-3 py-2 text-[11px] text-fg-dim">
+				<div className="font-data flex items-center justify-between border-b border-border px-3 py-2 text-[11px] text-fg-dim">
 					<span className="truncate">{payload.file}</span>
 				</div>
 			) : null}
@@ -134,12 +134,12 @@ export function StructuredActivityList({ events, className }: StructuredActivity
 					<li key={event.id} className="relative pb-3 pl-7 last:pb-0">
 						{index < rows.length - 1 ? (
 							<span
-								className="absolute top-6 bottom-0 left-[9px] w-px bg-edge"
+								className="absolute top-6 bottom-0 left-[9px] w-px bg-border"
 								aria-hidden="true"
 							/>
 						) : null}
 						<span
-							className={`absolute top-1 left-0 flex size-[18px] items-center justify-center rounded-full border bg-carbon ${toneFor(
+							className={`absolute top-1 left-0 flex size-[18px] items-center justify-center rounded-full border bg-surface ${toneFor(
 								event,
 								payload
 							)}`}

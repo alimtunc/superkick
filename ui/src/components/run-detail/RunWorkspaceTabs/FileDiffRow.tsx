@@ -15,7 +15,7 @@ const STATUS_LABEL: Record<FileDiffStatus, string> = {
 const STATUS_TONE: Record<FileDiffStatus, string> = {
 	added: 'text-success',
 	modified: 'text-warn',
-	deleted: 'text-oxide',
+	deleted: 'text-danger',
 	renamed: 'text-info',
 	type_change: 'text-fg-muted',
 	untracked: 'text-fg-muted'
@@ -58,14 +58,14 @@ export function FileDiffRow({ file }: FileDiffRowProps) {
 					{file.status === 'renamed' && file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
 				</span>
 				<span className="font-data shrink-0 text-[11px] text-success">+{file.additions}</span>
-				<span className="font-data shrink-0 text-[11px] text-oxide">−{file.deletions}</span>
+				<span className="font-data shrink-0 text-[11px] text-danger">−{file.deletions}</span>
 			</button>
 			{file.binary ? <p className="px-7 pb-3 text-[11px] text-fg-muted">binary file</p> : null}
 			{file.truncated && !file.binary ? (
 				<p className="px-7 pb-3 text-[11px] text-fg-muted">patch truncated</p>
 			) : null}
 			{expanded && canExpand && file.patch ? (
-				<pre className="bg-ink mx-4 mb-3 overflow-x-auto rounded border border-edge px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre">
+				<pre className="bg-ink mx-4 mb-3 overflow-x-auto rounded border border-border px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre">
 					{file.patch}
 				</pre>
 			) : null}

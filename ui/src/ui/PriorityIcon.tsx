@@ -2,7 +2,7 @@ import { PRIORITY_META } from '@/lib/domain'
 import { cn } from '@/lib/utils'
 import type { PriorityIconKind } from '@/types'
 
-type PriorityIconSize = 12 | 13 | 14 | 16
+type PriorityIconSize = 11 | 12 | 13 | 14 | 16
 
 interface PriorityIconProps {
 	kind: PriorityIconKind
@@ -17,6 +17,9 @@ const TONE_CLASS: Record<PriorityIconKind, string> = {
 	high: 'text-fg-dim',
 	urgent: 'text-danger'
 }
+
+const BAR_ON = 'var(--color-fg)'
+const BAR_OFF = 'var(--color-border-strong)'
 
 const LABEL: Record<PriorityIconKind, string> = {
 	none: 'No priority',
@@ -67,25 +70,25 @@ function PriorityIconShape({ kind }: { kind: PriorityIconKind }) {
 		case 'high':
 			return (
 				<>
-					<rect x="2" y="9" width="3" height="5" rx="1" fill="currentColor" />
-					<rect x="6.5" y="6" width="3" height="8" rx="1" fill="currentColor" />
-					<rect x="11" y="3" width="3" height="11" rx="1" fill="currentColor" />
+					<rect x="2" y="9" width="3" height="5" rx="1" fill={BAR_ON} />
+					<rect x="6.5" y="6" width="3" height="8" rx="1" fill={BAR_ON} />
+					<rect x="11" y="3" width="3" height="11" rx="1" fill={BAR_ON} />
 				</>
 			)
 		case 'medium':
 			return (
 				<>
-					<rect x="2" y="9" width="3" height="5" rx="1" fill="currentColor" />
-					<rect x="6.5" y="6" width="3" height="8" rx="1" fill="currentColor" />
-					<rect x="11" y="3" width="3" height="11" rx="1" fill="currentColor" fillOpacity="0.25" />
+					<rect x="2" y="9" width="3" height="5" rx="1" fill={BAR_ON} />
+					<rect x="6.5" y="6" width="3" height="8" rx="1" fill={BAR_ON} />
+					<rect x="11" y="3" width="3" height="11" rx="1" fill={BAR_OFF} />
 				</>
 			)
 		case 'low':
 			return (
 				<>
-					<rect x="2" y="9" width="3" height="5" rx="1" fill="currentColor" />
-					<rect x="6.5" y="6" width="3" height="8" rx="1" fill="currentColor" fillOpacity="0.25" />
-					<rect x="11" y="3" width="3" height="11" rx="1" fill="currentColor" fillOpacity="0.25" />
+					<rect x="2" y="9" width="3" height="5" rx="1" fill={BAR_ON} />
+					<rect x="6.5" y="6" width="3" height="8" rx="1" fill={BAR_OFF} />
+					<rect x="11" y="3" width="3" height="11" rx="1" fill={BAR_OFF} />
 				</>
 			)
 	}

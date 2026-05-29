@@ -7,12 +7,12 @@ interface PropertyRowProps {
 
 export function PropertyRow({ label, children }: PropertyRowProps) {
 	return (
-		<div className="flex min-h-7 items-start gap-3 py-1.25">
-			<span className="w-23 shrink-0 pt-0.5 text-[12px] text-fg-dim">{label}</span>
-			<div className="min-w-0 flex-1 text-[12.5px] leading-5 text-fg">{children}</div>
+		<div className="grid min-h-7 cursor-pointer grid-cols-[92px_1fr] items-center gap-2 rounded-[5px] px-2 py-1.25 transition-colors hover:bg-raised">
+			<span className="text-[12px] text-fg-dim">{label}</span>
+			<div className="min-w-0 text-[12.5px] leading-5 text-fg">{children}</div>
 		</div>
 	)
 }
 
 export const PROPERTY_ROW_TRIGGER =
-	'inline-flex items-center gap-1.5 rounded-[7px] border border-transparent px-1.5 py-0.5 -mx-1.5 text-left transition-colors hover:bg-raised hover:border-border focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none data-[popup-open]:bg-raised data-[popup-open]:border-border'
+	'inline-flex w-full flex-wrap items-center gap-[7px] rounded-[5px] text-left focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none'

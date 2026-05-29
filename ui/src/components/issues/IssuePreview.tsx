@@ -1,12 +1,26 @@
 import { useEffect } from 'react'
 
 import { LabelChip } from '@/components/issue-detail/LabelChip'
+import { AssigneeAvatar } from '@/components/issues/AssigneeAvatar'
+import { ProjectTag } from '@/components/issues/ProjectTag'
+import { agentColor } from '@/lib/domain/agentColor'
+import { runStateLabel } from '@/lib/domain/displayLabels'
 import { fmtRelativeShort, fmtRelativeTime } from '@/lib/domain/formatters'
+import { subIssueCount } from '@/lib/issues/subIssues'
 import { stripMarkdown } from '@/lib/markdown'
 import { issueDetailQuery } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 import type { IssueWithState, LifecycleBucket } from '@/types'
-import { Icon, PriorityIcon, priorityIconKindFromValue, StatusIcon, statusIconKindFor } from '@/ui'
+import {
+	Dot,
+	EstimateChip,
+	Icon,
+	PriorityIcon,
+	priorityIconKindFromValue,
+	StatusIcon,
+	statusIconKindFor,
+	SubCountChip
+} from '@/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 
@@ -37,16 +51,11 @@ export function IssuePreview({ wrapper, bucket }: IssuePreviewProps) {
 	const lastComment = pickLastComment(detail?.comments)
 	const linkedRun = wrapper.linkedRun
 	const assignee = issue.assignee
-	const subCount = issue.children.length
-	const hasMetaRow = assignee !== null || subCount > 0
+	const subCount = subIssueCount(issue.children)
+	const estimate = detail?.estimate ?? null
+	const hasMetaRow = assignee !== null || subCount.total > 0 || estimate !== null
 	const hasLabelsRow = issue.labels.length > 0 || issue.project !== null
 	const description = detail?.description ? stripMarkdown(detail.description) : ''
-
-	function onLaunch(event: React.MouseEvent) {
-		event.preventDefault()
-		event.stopPropagation()
-		navigate({ to: '/tasks/new', search: { issue: issue.identifier } })
-	}
 
 	function onOpen(event: React.MouseEvent) {
 		event.preventDefault()
@@ -55,93 +64,91 @@ export function IssuePreview({ wrapper, bucket }: IssuePreviewProps) {
 	}
 
 	return (
-		<div className="z-popover w-120 overflow-hidden rounded-lg border border-border bg-overlay shadow-xl">
-			<div className="px-5 pt-4 pb-4">
-				<div className="flex items-center justify-between gap-2">
-					<div className="flex items-center gap-2">
-						<PriorityIcon kind={priorityIconKindFromValue(issue.priority.value)} size={13} />
-						<StatusIcon kind={statusIconKindFor(issue.status)} size={13} />
-						<span className="font-data text-[11px] text-fg-dim">{issue.identifier}</span>
-					</div>
-					<span className="text-[11px] text-fg-dim">
-						updated {fmtRelativeTime(issue.updated_at)}
-					</span>
+		<div className="z-popover w-[480px] overflow-hidden rounded-[10px] border border-border bg-overlay shadow-[0_24px_56px_rgba(0,0,0,0.55)]">
+			<div className="flex items-center justify-between gap-2 px-[14px] pt-[12px] pb-[6px]">
+				<div className="flex items-center gap-2">
+					<PriorityIcon kind={priorityIconKindFromValue(issue.priority.value)} size={13} />
+					<StatusIcon kind={statusIconKindFor(issue.status)} size={13} />
+					<span className="font-data text-[11.5px] text-fg-dim">{issue.identifier}</span>
 				</div>
-
-				<h3 className="mt-2 text-[14px] font-medium text-fg">{issue.title}</h3>
-
-				{description ? (
-					<p className={cn('mt-2.5 text-[13px] leading-snug text-fg-muted', BODY_CLAMP)}>
-						{description}
-					</p>
-				) : null}
-
-				{hasLabelsRow ? (
-					<div className="mt-3 flex flex-wrap items-center gap-1.5">
-						{issue.labels.map((label) => (
-							<LabelChip key={label.name} label={label} />
-						))}
-						{issue.project ? (
-							<span className="font-data inline-flex items-center gap-1 text-[11px] text-fg-dim">
-								<Icon name="folder" size={11} />
-								{issue.project.name}
-							</span>
-						) : null}
-					</div>
-				) : null}
-
-				{hasMetaRow ? (
-					<div className="mt-2.5 flex items-center gap-3 text-[11px] text-fg-dim">
-						{assignee ? (
-							<span className="inline-flex items-center gap-1.5">
-								<Icon name="user" size={11} />
-								<span className="text-fg-muted">Assigned to</span>
-								<AssigneeAvatar name={assignee.name} avatarUrl={assignee.avatar_url} />
-								<span className="text-fg">{assignee.name}</span>
-							</span>
-						) : null}
-						{subCount > 0 ? (
-							<span className="font-data inline-flex items-center gap-1">
-								<Icon name="branch" size={11} />
-								<span>
-									{subCount} sub-issue{subCount === 1 ? '' : 's'}
-								</span>
-							</span>
-						) : null}
-					</div>
-				) : null}
+				<span className="text-[11px] text-fg-dim">updated {fmtRelativeTime(issue.updated_at)}</span>
 			</div>
 
+			<h3 className="px-[14px] pb-[10px] text-[14px] leading-[1.35] font-medium text-fg">
+				{issue.title}
+			</h3>
+
+			{description ? (
+				<p
+					className={cn(
+						'px-[14px] pb-[12px] text-[12.5px] leading-[1.55] text-fg-muted',
+						BODY_CLAMP
+					)}
+				>
+					{description}
+				</p>
+			) : null}
+
+			{hasLabelsRow ? (
+				<div className="flex flex-wrap items-center gap-[5px] px-[14px] pb-[12px]">
+					{issue.labels.map((label) => (
+						<LabelChip key={label.name} label={label} />
+					))}
+					{issue.project ? <ProjectTag name={issue.project.name} /> : null}
+				</div>
+			) : null}
+
+			{hasMetaRow ? (
+				<div className="flex items-center gap-3 border-t border-border px-[14px] py-[10px] text-[11.5px] text-fg-muted">
+					{assignee ? (
+						<span className="inline-flex items-center gap-1.5">
+							<Icon name="user" size={11} className="text-fg-dim" />
+							<span>Assigned to</span>
+							<AssigneeAvatar name={assignee.name} avatarUrl={assignee.avatar_url} size={18} />
+							<span className="text-fg">{assignee.name}</span>
+						</span>
+					) : null}
+					{subCount.total > 0 ? <SubCountChip done={subCount.done} total={subCount.total} /> : null}
+					{estimate !== null ? <EstimateChip n={estimate} /> : null}
+				</div>
+			) : null}
+
 			{lastComment ? (
-				<div className="flex items-start gap-2.5 border-t border-border px-5 py-3">
+				<div className="flex items-start gap-[9px] border-t border-border bg-surface px-[14px] py-[10px]">
 					<AssigneeAvatar
-						name={lastComment.author?.name ?? '?'}
+						name={lastComment.author?.name ?? null}
 						avatarUrl={lastComment.author?.avatar_url ?? null}
+						size={20}
+						tint={agentColor(lastComment.author?.name)}
 					/>
 					<div className="min-w-0 flex-1">
-						<div className="flex items-center gap-1 text-[11px] text-fg-dim">
+						<div className="flex items-center gap-1 text-[12.5px] text-fg-dim">
 							<span className="text-fg-muted">{lastComment.author?.name ?? 'Unknown'}</span>
 							<span>·</span>
 							<span>last comment</span>
 							<span>·</span>
 							<span>{fmtRelativeTime(lastComment.created_at)}</span>
 						</div>
-						<p className={cn('mt-1 text-[12px] leading-snug text-fg-muted', COMMENT_CLAMP)}>
+						<p className={cn('mt-0.5 text-[12px] leading-[1.45] text-fg-muted', COMMENT_CLAMP)}>
 							{stripMarkdown(lastComment.body)}
 						</p>
 					</div>
 				</div>
-			) : null}
+			) : (
+				<div className="border-t border-border bg-surface px-[14px] py-[10px] text-[12px] text-fg-muted">
+					No comments yet · Be the first.
+				</div>
+			)}
 
 			{linkedRun ? (
-				<div className="flex items-center justify-between gap-2 border-t border-border bg-canvas px-5 py-2.5">
+				<div className="flex items-center justify-between gap-[7px] border-t border-border bg-void px-[14px] py-[9px]">
 					<div className="flex items-center gap-1.5 text-[11px] text-fg-dim">
-						<span className="live-pulse inline-block size-1.5 rounded-full bg-info motion-reduce:animate-none" />
+						<Dot tone="info" pulse size={6} />
 						<span className="font-data text-[11px] text-fg">
 							run-{shortRunId(linkedRun.run.id)}
 						</span>
 						<span>·</span>
-						<span>{linkedRun.run.state}</span>
+						<span>{runStateLabel[linkedRun.run.state]}</span>
 						{linkedRun.run.started_at ? (
 							<>
 								<span>·</span>
@@ -158,45 +165,8 @@ export function IssuePreview({ wrapper, bucket }: IssuePreviewProps) {
 						<Icon name="external" size={10} />
 					</button>
 				</div>
-			) : (
-				<div className="flex items-center justify-end gap-2 border-t border-border px-4 py-2.5">
-					<button
-						type="button"
-						onClick={onOpen}
-						className="inline-flex h-7 items-center rounded px-2 text-[12px] text-fg-muted hover:bg-raised hover:text-fg focus-visible:ring-1 focus-visible:ring-accent-soft focus-visible:outline-none"
-					>
-						Open
-					</button>
-					<button
-						type="button"
-						onClick={onLaunch}
-						className="inline-flex h-7 items-center gap-1 rounded bg-accent px-2 text-[12px] font-medium text-canvas hover:opacity-90 focus-visible:ring-1 focus-visible:ring-accent-soft focus-visible:outline-none"
-					>
-						<Icon name="zap" size={11} />
-						<span>Launch task</span>
-					</button>
-				</div>
-			)}
+			) : null}
 		</div>
-	)
-}
-
-function AssigneeAvatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
-	if (avatarUrl) {
-		return (
-			<img
-				src={avatarUrl}
-				alt=""
-				className="size-4 rounded-full object-cover"
-				loading="lazy"
-				decoding="async"
-			/>
-		)
-	}
-	return (
-		<span className="inline-flex size-4 items-center justify-center rounded-full bg-raised text-[9px] font-medium text-fg-muted">
-			{name.slice(0, 1).toUpperCase()}
-		</span>
 	)
 }
 

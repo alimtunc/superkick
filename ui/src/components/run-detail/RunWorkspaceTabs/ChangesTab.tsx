@@ -76,7 +76,7 @@ export function ChangesTab({ run, pr }: ChangesTabProps) {
 				{diff.fileCount} file{diff.fileCount === 1 ? '' : 's'}
 				{diff.overflow ? ' · capped' : null}
 			</div>
-			<ul className="divide-y divide-edge">
+			<ul className="divide-y divide-border">
 				{diff.files.map((file) => (
 					<FileDiffRow key={file.path} file={file} />
 				))}

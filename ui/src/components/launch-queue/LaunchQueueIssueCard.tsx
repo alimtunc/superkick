@@ -45,7 +45,7 @@ export function LaunchQueueIssueCard({
 					<span className="flex-1" />
 					{dispatchPosition !== undefined ? (
 						<Pill
-							tone="live"
+							tone="success"
 							size="xs"
 							mono
 							leading={<Rocket size={10} aria-hidden="true" />}

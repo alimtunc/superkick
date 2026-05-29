@@ -26,10 +26,10 @@ export function CopyValue({
 			type="button"
 			onClick={handleCopy}
 			title={value}
-			className={`inline-flex items-center transition-colors hover:text-fog ${!hideIcon ? 'gap-1' : ''} ${className}`}
+			className={`inline-flex items-center transition-colors hover:text-fg ${!hideIcon ? 'gap-1' : ''} ${className}`}
 		>
 			<span className="inline-flex min-w-0 items-center gap-1.5">{display ?? value}</span>
-			{!hideIcon ? <Copy size={10} className="shrink-0 text-dim" /> : null}
+			{!hideIcon ? <Copy size={10} className="shrink-0 text-fg-dim" /> : null}
 		</button>
 	)
 }

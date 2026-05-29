@@ -4,7 +4,7 @@ import { PopoverPopup } from '@/components/ui/popover-shell'
 import { Popover } from '@base-ui/react/popover'
 
 const OPEN_DELAY = 400
-const CLOSE_DELAY = 150
+const CLOSE_DELAY = 0
 
 interface HoverCardProps {
 	content: ReactNode

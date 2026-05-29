@@ -63,7 +63,7 @@ function renderBlock(block: MarkdownBlock, index: number, compact: boolean): Rea
 	}
 
 	return (
-		<p key={index} className={cn('text-fg-muted', compact ? 'text-[13px] leading-6' : undefined)}>
+		<p key={index} className={cn(compact ? 'text-[13px] leading-6 text-fg-muted' : 'text-fg')}>
 			{renderInline(block.text)}
 		</p>
 	)

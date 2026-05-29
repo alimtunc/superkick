@@ -38,7 +38,7 @@ export function RunDetailsGrid({ run, pr }: RunDetailsGridProps) {
 						href={pr.url}
 						target="_blank"
 						rel="noopener noreferrer"
-						className={`${chipBase} gap-2 text-neon-green transition-colors hover:bg-neon-green/10`}
+						className={`${chipBase} gap-2 text-success transition-colors hover:bg-success/10`}
 					>
 						<ExternalLink size={14} />
 						<span>#{pr.number}</span>

@@ -484,9 +484,10 @@ function keyForGroup(wrapper: IssueWithState, group: IssueGroupBy): string {
 
 function groupBoardItems(issues: readonly IssueWithState[]): IssueBoardColumns {
 	const groups: IssueBoardColumns = {
-		open: [],
-		in_progress: [],
 		needs_human: [],
+		backlog: [],
+		todo: [],
+		in_progress: [],
 		in_review: [],
 		done: []
 	}

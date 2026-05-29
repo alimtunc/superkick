@@ -36,22 +36,15 @@ export function IssueGroupHeader({
 			aria-expanded={!collapsed}
 			data-pinned={pinned ? '1' : '0'}
 			className={cn(
-				'sticky top-0 z-30 flex h-9 w-full items-center gap-2 border-b pr-6 pl-5 text-left transition-colors hover:bg-raised',
+				'sticky top-0 z-[2] flex h-8 w-full items-center gap-[9px] border-b pr-6 pl-5 text-left transition-colors hover:bg-raised',
 				pinned
-					? 'border-t border-t-warn/25 border-b-warn/30 bg-warn-soft'
+					? 'border-t border-t-[color-mix(in_srgb,var(--color-warn)_25%,var(--color-border))] border-b-[color-mix(in_srgb,var(--color-warn)_25%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-warn)_8%,var(--color-surface))]'
 					: 'border-border bg-surface'
 			)}
 		>
-			<Icon
-				name="chev"
-				size={11}
-				className={cn(
-					'shrink-0 text-fg-dim transition-transform',
-					collapsed ? 'rotate-0' : 'rotate-90'
-				)}
-			/>
+			<Icon name={collapsed ? 'chev' : 'chevDown'} size={11} className="shrink-0 text-fg-dim" />
 			{statusKind ? (
-				<StatusIcon kind={statusKind} size={13} />
+				<StatusIcon kind={statusKind} size={14} />
 			) : (
 				<span
 					aria-hidden="true"
@@ -64,17 +57,22 @@ export function IssueGroupHeader({
 			<span
 				className={cn(
 					'text-[12.5px] font-semibold',
-					pinned ? 'tracking-[0.01em] text-warn' : 'text-fg'
+					pinned ? 'tracking-[0.2px] text-warn' : 'text-fg'
 				)}
 			>
 				{label}
 			</span>
 			<span className="font-data text-[11px] text-fg-dim">{count}</span>
 			{pinned ? (
-				<span className="ml-0.5 inline-flex items-center rounded border border-warn/30 bg-warn-soft/60 px-1 text-[9.5px] font-semibold tracking-[0.04em] text-warn uppercase">
+				<span className="ml-0.5 inline-flex items-center rounded border border-[color-mix(in_srgb,var(--color-warn)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-warn)_8%,transparent)] px-1.5 py-px text-[10.5px] font-medium tracking-[0.4px] text-warn uppercase">
 					Pinned
 				</span>
 			) : null}
+			<span className="flex-1" />
+			<span aria-hidden="true" className="flex items-center gap-1 text-fg-dim">
+				<Icon name="plus" size={12} />
+				<Icon name="more" size={13} />
+			</span>
 		</button>
 	)
 }

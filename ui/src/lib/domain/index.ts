@@ -11,6 +11,7 @@ export {
 } from './formatters'
 export { providerLabel, resolveProviderLabel, stepLabel, stateIcon, stateTone } from './displayLabels'
 export { agentStatusColor, agentStatusColorPulsing } from './agentStatus'
+export { agentColor, isAgentName } from './agentColor'
 export { healthSignal, healthSignalBg, shouldShowInterrupts } from './health'
 export { extractFormError, parseAnswer } from './parsers'
 export { watchButtonClass, watchButtonTitle } from './watch'
@@ -29,7 +30,8 @@ export {
 	isDroppableIssueState,
 	issueStateFor,
 	issueStateFromLinear,
-	mapLaunchQueueToIssueState
+	mapLaunchQueueToIssueState,
+	toMutableIssueState
 } from './issueState'
 export { issueStateAccent, issueStateTone } from './issueStateAccent'
 export { launchQueueItemIdentifier } from './launchQueueItem'
@@ -42,7 +44,13 @@ export {
 	pickTerminalKind
 } from './launchTaskBlocking'
 export { pickLinkedRunId, pickRunForTask } from './launchTaskRuns'
-export { PHASE_ORDER, derivePhases, pickRepresentativeStep } from './executionLog'
+export {
+	PHASE_ORDER,
+	derivePhases,
+	deriveActivityRows,
+	deriveChangedFiles,
+	pickRepresentativeStep
+} from './executionLog'
 export { runNeedsHuman } from './runNeedsHuman'
 export { getDisposition, getFailureCopy } from './failureClassification'
 export type { FailureCopy } from './failureClassification'

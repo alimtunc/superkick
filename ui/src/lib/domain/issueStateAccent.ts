@@ -7,17 +7,19 @@ interface IssueStateAccent {
 }
 
 export const issueStateTone: Record<IssueState, SKTone> = {
-	open: 'neutral',
-	in_progress: 'info',
 	needs_human: 'warn',
+	backlog: 'neutral',
+	todo: 'neutral',
+	in_progress: 'info',
 	in_review: 'accent',
 	done: 'success'
 }
 
 export const issueStateAccent: Record<IssueState, IssueStateAccent> = {
-	open: { label: 'Open', description: 'Ready to start — Linear Backlog or Todo.' },
+	needs_human: { label: 'Needs you', description: 'Attention, interrupt, or failure.' },
+	backlog: { label: 'Backlog', description: 'Not yet scheduled — Linear Backlog.' },
+	todo: { label: 'Todo', description: 'Ready to start — Linear Todo.' },
 	in_progress: { label: 'In Progress', description: 'Run in flight.' },
-	needs_human: { label: 'Needs Human', description: 'Attention, interrupt, or failure.' },
 	in_review: { label: 'In Review', description: 'Pull request open or draft.' },
 	done: { label: 'Done', description: 'Recently shipped.' }
 }

@@ -2,8 +2,8 @@ import type { RuntimeStatus } from '@/types'
 
 const styles: Record<RuntimeStatus, string> = {
 	online: 'bg-emerald-500/15 text-emerald-300',
-	offline: 'bg-dim/30 text-dim',
-	degraded: 'bg-gold-dim text-gold'
+	offline: 'bg-fg-dim/30 text-fg-dim',
+	degraded: 'bg-warn-soft text-warn'
 }
 
 interface RuntimeStatusBadgeProps {

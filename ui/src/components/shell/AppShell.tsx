@@ -1,6 +1,7 @@
 import { CommandBar } from '@/components/command/CommandBar'
 import { SessionWatchRail } from '@/components/dashboard/SessionWatchRail'
 import { useDashboardRuns } from '@/hooks/useDashboardRuns'
+import { FEATURES } from '@/lib/features'
 import { pathnameToTitle } from '@/shell/pathnameToTitle'
 import { Sidebar } from '@/shell/Sidebar'
 import { Topbar } from '@/shell/Topbar'
@@ -33,11 +34,13 @@ export function AppShell() {
 					right={pageRight ?? <TopbarStatus />}
 					back={pageBack ?? undefined}
 				/>
-				<SessionWatchRail refTime={dashboard.refTime} mode="overview" />
+				{FEATURES.sessionWatchRail ? (
+					<SessionWatchRail refTime={dashboard.refTime} mode="overview" />
+				) : null}
 				<main className="min-h-0 flex-1 overflow-y-auto">
 					<Outlet />
 				</main>
-				<RunDock />
+				{FEATURES.globalRunDock ? <RunDock /> : null}
 			</div>
 			<CommandBar />
 			<Toaster

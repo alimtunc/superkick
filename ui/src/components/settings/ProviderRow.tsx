@@ -12,14 +12,14 @@ export function ProviderRow({ provider }: ProviderRowProps) {
 	return (
 		<div className="flex flex-col gap-1.5 px-4 py-3">
 			<div className="flex items-center gap-3">
-				<span className="font-data text-[12px] font-medium text-fog uppercase">{provider.kind}</span>
+				<span className="font-data text-[12px] font-medium text-fg uppercase">{provider.kind}</span>
 				<ProviderStatusBadge status={provider.status} />
 				{provider.version ? (
-					<span className="font-data text-[10px] text-silver">v{provider.version}</span>
+					<span className="font-data text-[10px] text-fg-muted">v{provider.version}</span>
 				) : null}
 				{showPath ? (
 					<span
-						className="font-data ml-auto truncate text-[10px] text-dim"
+						className="font-data ml-auto truncate text-[10px] text-fg-dim"
 						title={provider.executable_path ?? undefined}
 					>
 						{provider.executable_path}

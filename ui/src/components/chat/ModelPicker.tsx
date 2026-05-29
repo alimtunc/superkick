@@ -25,12 +25,12 @@ export function ModelPicker({ provider, value, onChange, disabled }: ModelPicker
 				disabled={disabled}
 				title={triggerLabel}
 				aria-label={triggerLabel}
-				className="font-data hover:bg-carbon-dim inline-flex h-7 items-center gap-1 rounded-md border border-edge bg-carbon px-2 text-[11px] text-fog focus:border-edge-bright focus:outline-none disabled:opacity-60"
+				className="font-data inline-flex h-7 items-center gap-1 rounded-md border border-border bg-surface px-2 text-[11px] text-fg hover:bg-surface focus:border-border-strong focus:outline-none disabled:opacity-60"
 			>
-				<Cpu size={14} strokeWidth={1.75} aria-hidden="true" className="text-fog" />
-				<ChevronDown size={12} strokeWidth={1.75} aria-hidden="true" className="text-dim" />
+				<Cpu size={14} strokeWidth={1.75} aria-hidden="true" className="text-fg" />
+				<ChevronDown size={12} strokeWidth={1.75} aria-hidden="true" className="text-fg-dim" />
 			</Menu.Trigger>
-			<MenuPopup align="start" popupClassName="font-data w-44 border-edge bg-carbon">
+			<MenuPopup align="start" popupClassName="font-data w-44 border-border bg-surface">
 				<Menu.RadioGroup
 					value={value ?? SENTINEL_DEFAULT}
 					onValueChange={(next) =>
@@ -43,11 +43,11 @@ export function ModelPicker({ provider, value, onChange, disabled }: ModelPicker
 							value={opt.value ?? SENTINEL_DEFAULT}
 							className={cn(
 								'flex cursor-pointer items-center justify-between gap-2 px-3 py-1.5 outline-none',
-								'data-highlighted:bg-carbon-dim data-checked:bg-carbon-dim'
+								'data-highlighted:bg-surface data-checked:bg-surface'
 							)}
 						>
-							<span className="text-[12px] text-fog">{opt.label}</span>
-							<Menu.RadioItemIndicator className="text-fog">
+							<span className="text-[12px] text-fg">{opt.label}</span>
+							<Menu.RadioItemIndicator className="text-fg">
 								<Check size={12} strokeWidth={2} aria-hidden="true" />
 							</Menu.RadioItemIndicator>
 						</Menu.RadioItem>

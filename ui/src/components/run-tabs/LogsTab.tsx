@@ -12,7 +12,7 @@ interface LogsTabProps {
 
 function TerminalTranscriptLink({ onOpenTerminal }: { onOpenTerminal: () => void }) {
 	return (
-		<div className="bg-carbon-dim/40 flex items-center justify-between gap-3 border-b border-edge px-4 py-2">
+		<div className="flex items-center justify-between gap-3 border-b border-border bg-surface/40 px-4 py-2">
 			<span className="font-data text-[11px] text-fg-dim">
 				These rows are agent and shell event messages — not the raw PTY transcript.
 			</span>
@@ -50,12 +50,12 @@ export function LogsTab({ events, onOpenTerminal }: LogsTabProps) {
 			<div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
 				<pre className="font-data text-[11.5px] leading-relaxed whitespace-pre-wrap text-fg-muted">
 					{logs.map((event) => (
-						<div key={event.id} className="border-b border-edge/40 py-1.5 last:border-b-0">
+						<div key={event.id} className="border-b border-border/40 py-1.5 last:border-b-0">
 							<span className="text-fg-dim">[{fmtRelativeTime(event.ts)}] </span>
 							<span className="font-data text-[10.5px] tracking-wider text-fg-dim uppercase">
 								{event.kind === 'agent_output' ? 'agent' : 'shell'}
 							</span>{' '}
-							<span className={event.level === 'error' ? 'text-oxide' : 'text-fg-muted'}>
+							<span className={event.level === 'error' ? 'text-danger' : 'text-fg-muted'}>
 								{event.message}
 							</span>
 						</div>

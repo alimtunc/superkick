@@ -111,26 +111,26 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 	const errorMessage = openMutation.error?.message ?? null
 
 	return (
-		<section ref={sectionRef} id="terminal" className="mb-6 rounded-md border border-edge bg-carbon">
+		<section ref={sectionRef} id="terminal" className="mb-6 rounded-md border border-border bg-surface">
 			<button
 				type="button"
 				onClick={() => setOpen((v) => !v)}
-				className="group flex w-full items-center gap-2 rounded-md px-3 py-2 text-left transition-colors hover:bg-graphite/40 focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
+				className="group flex w-full items-center gap-2 rounded-md px-3 py-2 text-left transition-colors hover:bg-surface/40 focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:outline-none"
 				aria-expanded={open}
 			>
 				<TerminalSquare
 					size={12}
 					strokeWidth={1.75}
 					aria-hidden="true"
-					className="text-ash group-hover:text-silver"
+					className="text-fg-dim group-hover:text-fg-muted"
 				/>
-				<span className="font-data text-[11px] tracking-wider text-silver uppercase">
+				<span className="font-data text-[11px] tracking-wider text-fg-muted uppercase">
 					Direct terminal access
 				</span>
-				<span className="font-data text-[11px] text-ash">
+				<span className="font-data text-[11px] text-fg-dim">
 					· {isTerminal ? 'history + takeover' : 'primary + takeover'}
 				</span>
-				<span className="font-data ml-auto flex items-center gap-1 text-[10px] tracking-wider text-ash uppercase group-hover:text-silver">
+				<span className="font-data ml-auto flex items-center gap-1 text-[10px] tracking-wider text-fg-dim uppercase group-hover:text-fg-muted">
 					{open ? 'Hide' : 'Open'}
 					{open ? (
 						<ChevronDown size={12} strokeWidth={1.75} aria-hidden="true" />
@@ -141,8 +141,8 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 			</button>
 
 			{open ? (
-				<div className="space-y-3 border-t border-edge p-3">
-					<p className="font-data text-[11px] text-ash">
+				<div className="space-y-3 border-t border-border p-3">
+					<p className="font-data text-[11px] text-fg-dim">
 						Pick how you want to take the terminal. Force takeover cancels the active protocol
 						turn. Use it sparingly and prefer attention requests for product decisions.
 					</p>
@@ -150,17 +150,17 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 					{activeTakeover && wsUrl ? (
 						<div className="space-y-2">
 							<div className="flex items-center gap-2">
-								<span className="font-data text-[10px] tracking-wider text-silver uppercase">
+								<span className="font-data text-[10px] tracking-wider text-fg-muted uppercase">
 									Active takeover
 								</span>
-								<span className="font-data text-[10px] text-ash">
+								<span className="font-data text-[10px] text-fg-dim">
 									· {modeLabel(activeTakeover.mode)}
 								</span>
 								<button
 									type="button"
 									onClick={handleClose}
 									disabled={closing}
-									className="font-data hover:border-rust/40 hover:text-rust focus-visible:ring-rust/40 ml-auto inline-flex items-center gap-1 rounded-sm border border-edge bg-graphite/40 px-2 py-1 text-[10px] tracking-wider text-silver uppercase transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+									className="font-data hover:border-rust/40 hover:text-rust focus-visible:ring-rust/40 ml-auto inline-flex items-center gap-1 rounded-sm border border-border bg-surface/40 px-2 py-1 text-[10px] tracking-wider text-fg-muted uppercase transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
 								>
 									Close takeover
 								</button>
@@ -195,18 +195,18 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 							<p className="font-data text-rust text-[11px] tracking-wider uppercase">
 								Confirm force takeover
 							</p>
-							<p className="font-data text-[11px] text-silver">
+							<p className="font-data text-[11px] text-fg-muted">
 								This cancels the current agent turn (the in-flight protocol response is
 								discarded) and writes a TerminalTakeoverOpened event to the run ledger.
 							</p>
-							<label className="font-data flex flex-col gap-1 text-[10px] tracking-wider text-ash uppercase">
+							<label className="font-data flex flex-col gap-1 text-[10px] tracking-wider text-fg-dim uppercase">
 								Sub-mode
 								<select
 									value={pendingForceSubMode}
 									onChange={(e) =>
 										setPendingForceSubMode(e.target.value as ForceTakeoverSubMode)
 									}
-									className="font-data rounded-sm border border-edge bg-carbon px-2 py-1 text-[11px] text-silver normal-case focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
+									className="font-data rounded-sm border border-border bg-surface px-2 py-1 text-[11px] text-fg-muted normal-case focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:outline-none"
 								>
 									<option value="inspect">Inspect (read-only shell)</option>
 									<option value="interactive_continuation">
@@ -226,7 +226,7 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 								<button
 									type="button"
 									onClick={() => setPendingForceSubMode(null)}
-									className="font-data inline-flex items-center gap-1 rounded-sm border border-edge bg-graphite/40 px-2 py-1 text-[10px] tracking-wider text-silver uppercase transition-colors hover:border-mineral/40 focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
+									className="font-data inline-flex items-center gap-1 rounded-sm border border-border bg-surface/40 px-2 py-1 text-[10px] tracking-wider text-fg-muted uppercase transition-colors hover:border-success/40 focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:outline-none"
 								>
 									Back
 								</button>
@@ -237,7 +237,7 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 					{errorMessage ? <p className="font-data text-rust text-[11px]">{errorMessage}</p> : null}
 
 					<div className="space-y-2">
-						<p className="font-data text-[10px] tracking-wider text-ash uppercase">
+						<p className="font-data text-[10px] tracking-wider text-fg-dim uppercase">
 							Run-primary PTY
 						</p>
 						<PtyTerminal runId={runId} isTerminal={isTerminal} />

@@ -35,7 +35,7 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			{hasLinearIssue ? (
-				<div className="border-b border-edge px-6 py-4">
+				<div className="border-b border-border px-6 py-4">
 					<IssueContextPanel issueId={task.linear_issue_id} variant="inline" />
 				</div>
 			) : null}
@@ -104,7 +104,7 @@ function InterventionList({ label, rows, variant }: InterventionListProps) {
 	const spacing = variant === 'above' ? 'mb-4' : 'mt-4'
 	return (
 		<div className={spacing}>
-			<div className="font-data mb-2 text-[11px] tracking-wide text-dim uppercase">{label}</div>
+			<div className="font-data mb-2 text-[11px] tracking-wide text-fg-dim uppercase">{label}</div>
 			{rows.map((i) => (
 				<InterventionRow key={i.id} intervention={i} />
 			))}

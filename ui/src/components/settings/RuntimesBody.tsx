@@ -10,14 +10,14 @@ interface RuntimesBodyProps {
 
 export function RuntimesBody({ runtimes, isLoading, error }: RuntimesBodyProps) {
 	if (isLoading) {
-		return <p className="font-data text-[11px] text-dim">Loading runtimes…</p>
+		return <p className="font-data text-[11px] text-fg-dim">Loading runtimes…</p>
 	}
 	if (error !== null) {
-		return <p className="font-data text-[11px] text-oxide">{error}</p>
+		return <p className="font-data text-[11px] text-danger">{error}</p>
 	}
 	if (runtimes.length === 0) {
 		return (
-			<p className="font-data text-[11px] text-dim">
+			<p className="font-data text-[11px] text-fg-dim">
 				No runtimes registered yet. Click Refresh to detect local CLIs.
 			</p>
 		)

@@ -1,35 +1,36 @@
 import { useMemo, type ReactNode } from 'react'
 
-import { ActivityNode } from '@/components/issue-detail/ActivityNode'
-import { AuthorAvatar } from '@/components/issue-detail/AuthorAvatar'
 import { HistoryEntryBody } from '@/components/issue-detail/HistoryEntryBody'
 import { HistoryTruncatedFooter } from '@/components/issue-detail/HistoryTruncatedFooter'
-import { IssueMarkdown } from '@/components/issue-detail/IssueMarkdown'
+import { IssueCommentCard } from '@/components/issue-detail/IssueCommentCard'
+import { IssueTimelineEvent } from '@/components/issue-detail/IssueTimelineEvent'
 import { OpenRunButton } from '@/components/issue-detail/OpenRunButton'
 import { RunPrBadge } from '@/components/issue-detail/RunPrBadge'
-import { buildIssueActivity, fmtRelativeTime, runNarrative } from '@/lib/domain'
+import { buildIssueActivity, fmtRelativeTime, isAgentName, runNarrative } from '@/lib/domain'
 import type {
 	ActivityNodeKind,
 	ActivityNodeRole,
-	CommentNode,
 	IssueActivityItem,
 	IssueDetailResponse,
 	LinkedRunSummary,
 	NarrativeTone,
 	RunState
 } from '@/types'
-import { MessageCircle } from 'lucide-react'
+import { ChevronDown, MessageCircle } from 'lucide-react'
 
-interface FeedNode {
+interface EventNode {
 	key: string
 	kind: ActivityNodeKind
 	role: ActivityNodeRole
-	variant: 'comment' | 'event'
 	who: ReactNode
 	time?: ReactNode
-	disc?: ReactNode
+	isAgent: boolean
 	body: ReactNode
 }
+
+type FeedNode =
+	| { key: string; variant: 'comment'; comment: IssueActivityItem & { kind: 'comment' } }
+	| ({ variant: 'event' } & EventNode)
 
 const NARRATIVE_ROLE: Record<NarrativeTone, ActivityNodeRole> = {
 	idle: 'neutral',
@@ -52,81 +53,37 @@ function completionPhrase(state: RunState): string {
 	}
 }
 
-function CommentReply({ node }: { node: CommentNode }) {
-	const name = node.comment.author?.name ?? 'Unknown'
-	return (
-		<div className="flex gap-2.5">
-			<AuthorAvatar name={name} avatarUrl={node.comment.author?.avatar_url ?? null} />
-			<div className="min-w-0 flex-1">
-				<div className="flex items-baseline gap-2 text-[12px]">
-					<span className="font-medium text-fg">{name}</span>
-					<span className="font-data text-[11px] text-fg-dim">
-						{fmtRelativeTime(node.comment.created_at)}
-					</span>
-				</div>
-				<IssueMarkdown text={node.comment.body} compact className="mt-1 text-[13px]" />
-			</div>
-		</div>
-	)
-}
-
-function CommentBody({ node }: { node: CommentNode }) {
-	return (
-		<div className="rounded-md border border-border bg-surface px-3 py-2.5">
-			<IssueMarkdown text={node.comment.body} compact className="text-[13px]" />
-			{node.children.length > 0 ? (
-				<div className="mt-3 space-y-3 border-l border-border pl-3.5">
-					{node.children.map((child) => (
-						<CommentReply key={child.comment.id} node={child} />
-					))}
-				</div>
-			) : null}
-		</div>
-	)
-}
-
 function RunLaunchedBody({ runId }: { runId: string }) {
 	return (
-		<>
-			<span className="text-fg-muted">launched</span>
+		<span className="inline-flex items-center gap-x-2 align-middle text-fg-muted">
+			launched
 			<OpenRunButton runId={runId} />
-		</>
+		</span>
 	)
 }
 
 function RunCompletedBody({ run }: { run: LinkedRunSummary }) {
 	return (
-		<>
-			<span className="text-fg-muted">{completionPhrase(run.state)}</span>
+		<span className="inline-flex items-center gap-x-2 align-middle text-fg-muted">
+			{completionPhrase(run.state)}
 			{run.state === 'completed' && run.pr ? <RunPrBadge pr={run.pr} /> : null}
 			<OpenRunButton runId={run.id} />
-		</>
+		</span>
 	)
 }
 
-function buildNode(item: IssueActivityItem): FeedNode {
+function buildEvent(item: IssueActivityItem): EventNode | null {
 	switch (item.kind) {
-		case 'comment': {
-			const name = item.node.comment.author?.name ?? 'Unknown'
-			return {
-				key: item.key,
-				kind: 'user',
-				role: 'neutral',
-				variant: 'comment',
-				who: name,
-				time: fmtRelativeTime(item.node.comment.created_at),
-				disc: <AuthorAvatar name={name} avatarUrl={item.node.comment.author?.avatar_url ?? null} />,
-				body: <CommentBody node={item.node} />
-			}
-		}
+		case 'comment':
+			return null
 		case 'run_launched':
 			return {
 				key: item.key,
 				kind: 'system',
 				role: 'info',
-				variant: 'event',
 				who: 'Run',
 				time: fmtRelativeTime(item.run.started_at),
+				isAgent: false,
 				body: <RunLaunchedBody runId={item.run.id} />
 			}
 		case 'run_completed': {
@@ -135,9 +92,9 @@ function buildNode(item: IssueActivityItem): FeedNode {
 				key: item.key,
 				kind: item.run.state === 'completed' ? 'check' : 'flag',
 				role: NARRATIVE_ROLE[tone],
-				variant: 'event',
 				who: 'Run',
 				time: item.run.finished_at ? fmtRelativeTime(item.run.finished_at) : undefined,
+				isAgent: false,
 				body: <RunCompletedBody run={item.run} />
 			}
 		}
@@ -147,14 +104,20 @@ function buildNode(item: IssueActivityItem): FeedNode {
 				key: item.key,
 				kind: 'system',
 				role: 'neutral',
-				variant: 'event',
 				who: actor?.name ?? 'Linear',
 				time: fmtRelativeTime(item.entry.created_at),
-				disc: actor ? <AuthorAvatar name={actor.name} avatarUrl={actor.avatar_url} /> : null,
+				isAgent: isAgentName(actor?.name),
 				body: <HistoryEntryBody entry={item.entry} />
 			}
 		}
 	}
+}
+
+function buildNode(item: IssueActivityItem): FeedNode {
+	if (item.kind === 'comment') {
+		return { key: item.key, variant: 'comment', comment: item }
+	}
+	return { variant: 'event', ...buildEvent(item)! }
 }
 
 export function IssueFeed({ issue }: { issue: IssueDetailResponse }) {
@@ -162,41 +125,44 @@ export function IssueFeed({ issue }: { issue: IssueDetailResponse }) {
 		const items = buildIssueActivity(issue.comments, issue.linked_runs, issue.history ?? [])
 		return items.map(buildNode)
 	}, [issue.comments, issue.linked_runs, issue.history])
-	const lastIndex = nodes.length - 1
 	const isEmpty = nodes.length === 0
 	const showFooter = issue.history_has_more === true
 	return (
 		<section aria-label="Activity">
-			<header className="mb-3 flex items-center gap-1.5">
+			<header className="mb-3 flex items-center gap-1.5 text-[12.5px] text-fg-muted">
 				<MessageCircle size={13} strokeWidth={1.8} className="text-fg-dim" aria-hidden="true" />
-				<span className="text-[13px] font-semibold text-fg">Activity</span>
-				{isEmpty ? null : (
-					<>
-						<span className="font-data text-[11px] text-fg-dim" aria-hidden="true">
-							·
-						</span>
-						<span className="font-data text-[11px] text-fg-dim">{nodes.length}</span>
-					</>
-				)}
+				<span className="font-medium text-fg">Activity</span>
+				{isEmpty ? null : <span className="font-data text-[11px] text-fg-dim">· {nodes.length}</span>}
+				<button
+					type="button"
+					className="ml-auto inline-flex items-center gap-1 text-[12.5px] text-fg-muted transition-colors hover:text-fg focus-visible:outline-none"
+				>
+					Newest first
+					<ChevronDown size={10} strokeWidth={2} aria-hidden="true" />
+				</button>
 			</header>
 			{isEmpty ? (
 				<p className="text-[12px] text-fg-dim">No activity yet.</p>
 			) : (
-				<div className="pl-1">
-					{nodes.map((node, index) => (
-						<ActivityNode
-							key={node.key}
-							kind={node.kind}
-							role={node.role}
-							variant={node.variant}
-							who={node.who}
-							time={node.time}
-							disc={node.disc}
-							connect={index < lastIndex}
-						>
-							{node.body}
-						</ActivityNode>
-					))}
+				<div>
+					{nodes.map((node, index) => {
+						const isLast = index === nodes.length - 1
+						return node.variant === 'comment' ? (
+							<IssueCommentCard key={node.key} node={node.comment.node} isLast={isLast} />
+						) : (
+							<IssueTimelineEvent
+								key={node.key}
+								kind={node.kind}
+								role={node.role}
+								who={node.who}
+								time={node.time}
+								isAgent={node.isAgent}
+								isLast={isLast}
+							>
+								{node.body}
+							</IssueTimelineEvent>
+						)
+					})}
 				</div>
 			)}
 			{showFooter ? <HistoryTruncatedFooter /> : null}

@@ -95,7 +95,7 @@ function buildStep(overrides: Partial<LaunchTaskStep>): LaunchTaskStep {
 		linked_conversation_id: null,
 		linked_orchestrator_session_id: null,
 		summary: overrides.summary ?? null,
-		structured_result: null,
+		structured_result: overrides.structured_result ?? null,
 		failure_classification: overrides.failure_classification ?? null,
 		created_at: '2026-05-26T09:00:00.000Z',
 		updated_at: '2026-05-26T10:00:00.000Z'
@@ -177,7 +177,9 @@ describe('ExecutionLog — state branches', () => {
 		}
 		render(wrap(<ExecutionLog issue={buildIssue({ linked_runs: [linkedRun] })} />))
 
-		expect(screen.getByText('running')).toBeInTheDocument()
+		const header = screen.getByText('Execution').closest('header')
+		expect(header).not.toBeNull()
+		expect(within(header as HTMLElement).getByText('running')).toBeInTheDocument()
 		const phases = screen.getByRole('list', { name: /execution phases/i })
 		expect(within(phases).getByRole('group', { name: /plan done/i })).toBeInTheDocument()
 		expect(within(phases).getByRole('group', { name: /implement in progress/i })).toBeInTheDocument()
@@ -333,7 +335,7 @@ describe('ExecutionLog — state branches', () => {
 		expect(screen.getByText('shipped')).toBeInTheDocument()
 		expect(screen.getByText('sup-181-inline-execution-log')).toBeInTheDocument()
 
-		const toggle = screen.getByRole('button', { name: /\d+ past runs?/i })
+		const toggle = screen.getByRole('button', { name: /past runs/i })
 		expect(toggle).toHaveAttribute('aria-expanded', 'false')
 		const user = userEvent.setup()
 		await user.click(toggle)
@@ -341,5 +343,64 @@ describe('ExecutionLog — state branches', () => {
 		expect(
 			screen.getByRole('button', { name: /open run drawer for task task-older/i })
 		).toBeInTheDocument()
+	})
+
+	it('running: renders Recent activity + Files changed sections from step data and opens the drawer', async () => {
+		const taskWithSteps: LaunchTaskWithSteps = {
+			task: buildTask({ status: 'running' satisfies LaunchTaskStatus }),
+			steps: [
+				buildStep({
+					id: 'step-plan',
+					sequence: 1,
+					step_kind: 'plan',
+					status: 'completed',
+					summary: 'Mapped the migration plan'
+				}),
+				buildStep({
+					id: 'step-implement',
+					sequence: 2,
+					step_kind: 'implement',
+					status: 'running',
+					linked_run_id: 'run-running',
+					summary: 'Editing the storage layer',
+					structured_result: {
+						status: 'completed',
+						summary: '',
+						changed_files: ['ui/src/a.tsx', 'ui/src/b.tsx'],
+						questions: []
+					}
+				}),
+				buildStep({ id: 'step-review', sequence: 3, step_kind: 'review', status: 'pending' })
+			]
+		}
+		setTasks(taskWithSteps)
+		render(
+			wrap(
+				<ExecutionLog
+					issue={buildIssue({
+						linked_runs: [
+							{
+								id: 'run-running',
+								state: 'coding',
+								started_at: '2026-05-26T09:30:00.000Z',
+								finished_at: null
+							}
+						]
+					})}
+				/>
+			)
+		)
+
+		expect(screen.getByText('Editing the storage layer')).toBeInTheDocument()
+		expect(screen.getByText('Mapped the migration plan')).toBeInTheDocument()
+		expect(screen.getByText('ui/src/a.tsx')).toBeInTheDocument()
+		expect(screen.getByText('ui/src/b.tsx')).toBeInTheDocument()
+
+		const user = userEvent.setup()
+		await user.click(screen.getByRole('button', { name: /all in drawer/i }))
+		expect(mocks.openDrawer).toHaveBeenCalledWith('run-running', 'activity')
+
+		await user.click(screen.getByRole('button', { name: /^diff$/i }))
+		expect(mocks.openDrawer).toHaveBeenCalledWith('run-running', 'files')
 	})
 })

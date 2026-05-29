@@ -1,6 +1,15 @@
-export function AuthorAvatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
+import { agentColor } from '@/lib/domain'
+
+interface AuthorAvatarProps {
+	name: string
+	avatarUrl: string | null
+	size?: number
+}
+
+export function AuthorAvatar({ name, avatarUrl, size = 26 }: AuthorAvatarProps) {
+	const dimension = { width: size, height: size }
 	if (avatarUrl) {
-		return <img src={avatarUrl} alt="" className="mt-0.5 size-5 shrink-0 rounded-full" />
+		return <img src={avatarUrl} alt="" className="shrink-0 rounded-full object-cover" style={dimension} />
 	}
 
 	const initials = name
@@ -10,8 +19,12 @@ export function AuthorAvatar({ name, avatarUrl }: { name: string; avatarUrl: str
 		.join('')
 		.toUpperCase()
 
+	const hue = agentColor(name)
 	return (
-		<span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-edge text-[9px] font-medium text-dim">
+		<span
+			className="flex shrink-0 items-center justify-center rounded-full font-semibold tracking-[0.2px] text-white"
+			style={{ ...dimension, fontSize: Math.round(size * 0.42), background: hue }}
+		>
 			{initials}
 		</span>
 	)

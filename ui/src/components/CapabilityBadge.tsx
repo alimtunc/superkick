@@ -8,8 +8,8 @@ interface CapabilityBadgeProps {
 
 export function CapabilityBadge({ label, title, enabled }: CapabilityBadgeProps) {
 	const tone = enabled
-		? 'border-edge-bright/40 bg-edge/30 text-fog'
-		: 'border-edge/40 bg-transparent text-dim'
+		? 'border-border-strong/40 bg-border/30 text-fg'
+		: 'border-border/40 bg-transparent text-fg-dim'
 	const fullLabel = enabled ? title : `${title} (not supported)`
 	return (
 		<Tooltip label={fullLabel}>

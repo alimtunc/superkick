@@ -9,7 +9,7 @@ interface RunInspectorParentBannerProps {
 
 export function RunInspectorParentBanner({ run }: RunInspectorParentBannerProps) {
 	return (
-		<div className="bg-carbon-dim/40 flex items-center gap-3 border-b border-edge px-6 py-2.5">
+		<div className="flex items-center gap-3 border-b border-border bg-surface/40 px-6 py-2.5">
 			<MessagesSquare
 				size={13}
 				strokeWidth={1.75}

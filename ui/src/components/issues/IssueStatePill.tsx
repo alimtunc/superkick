@@ -11,7 +11,7 @@ export function IssueStatePill({ state, size = 'xs' }: IssueStatePillProps) {
 	const accent = issueStateAccent[state]
 
 	return (
-		<Pill tone={issueStateTone[state]} size={size} shape="round" dot title={accent.description}>
+		<Pill tone={issueStateTone[state]} size={size} dot title={accent.description}>
 			{accent.label}
 		</Pill>
 	)

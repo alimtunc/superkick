@@ -166,11 +166,11 @@ export interface IssueDetailResponse {
 // Superkick derivations — NOT Linear states. Linear remains the source of truth;
 // buckets exist to make the Issues surface actionable for launch and inspection.
 
-/** Operator-facing issue state (SUP-157). `needs_human` / `in_review` are derived from runtime signals — read-only. */
-export type IssueState = 'open' | 'in_progress' | 'needs_human' | 'in_review' | 'done'
+/** Operator-facing issue state (SUP-157). `needs_human` / `in_review` are derived from runtime signals — read-only. `backlog` / `todo` are the two Linear unstarted lanes (display-only; both persist as the mutable `open`). */
+export type IssueState = 'needs_human' | 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done'
 
-/** Subset of `IssueState` the kanban can persist via `PATCH /issues/{id}`. Mirrors the backend `IssueStateMutable`. */
-export type IssueStateMutable = Extract<IssueState, 'open' | 'in_progress' | 'done'>
+/** Subset of `IssueState` the kanban can persist via `PATCH /issues/{id}`. Mirrors the backend `IssueStateMutable` (backlog/todo both write back as the unstarted `open`). */
+export type IssueStateMutable = Extract<IssueState, 'in_progress' | 'done'> | 'open'
 
 export type IssueStateFilter = IssueState | 'all'
 

@@ -12,14 +12,15 @@ export function IssueDetailRail({ issue }: IssueDetailRailProps) {
 	return (
 		<aside
 			aria-label="Issue rail"
-			className="flex h-full min-h-0 w-[320px] shrink-0 flex-col border-l border-border bg-canvas"
+			className="flex h-full min-h-0 w-[308px] shrink-0 flex-col border-l border-border bg-surface"
 		>
-			<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pt-4 pb-5">
-				<h2 className="font-data mb-1 text-[10.5px] font-medium tracking-[0.16em] text-fg-dim uppercase">
+			<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-3.5">
+				<h2 className="px-2 pt-0.5 pb-1.5 text-[10.5px] font-semibold tracking-[0.8px] text-fg-dim uppercase">
 					Properties
 				</h2>
 				<IssuePropertiesBlock issue={issue} />
-				<div className="mt-5 border-t border-border pt-3 text-[11.5px] leading-5 text-fg-dim">
+				<div className="my-2 border-t border-border" />
+				<div className="px-2 py-1 text-[11px] leading-[1.6] text-fg-dim">
 					<div>Created {createdLabel}</div>
 					<div>Updated {fmtRelativeTime(issue.updated_at)}</div>
 				</div>

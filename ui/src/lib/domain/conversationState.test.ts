@@ -260,10 +260,10 @@ describe('deriveConversationUxState — precedence', () => {
 describe('conversationStateTone', () => {
 	it('maps every UX state to a Pill tone', () => {
 		expect(conversationStateTone.draft).toBe('neutral')
-		expect(conversationStateTone.running).toBe('cyan')
-		expect(conversationStateTone.needs_human).toBe('gold')
-		expect(conversationStateTone.completed).toBe('mineral')
-		expect(conversationStateTone.failed).toBe('oxide')
-		expect(conversationStateTone.taken_over).toBe('violet')
+		expect(conversationStateTone.running).toBe('info')
+		expect(conversationStateTone.needs_human).toBe('warn')
+		expect(conversationStateTone.completed).toBe('success')
+		expect(conversationStateTone.failed).toBe('danger')
+		expect(conversationStateTone.taken_over).toBe('accent')
 	})
 })

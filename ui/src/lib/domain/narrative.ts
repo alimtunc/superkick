@@ -100,25 +100,25 @@ export function summarizeAttention(
 }
 
 export const toneTextClass: Record<NarrativeTone, string> = {
-	active: 'text-cyan',
-	attention: 'text-gold',
-	success: 'text-mineral',
-	failure: 'text-oxide',
-	idle: 'text-dim'
+	active: 'text-info',
+	attention: 'text-warn',
+	success: 'text-success',
+	failure: 'text-danger',
+	idle: 'text-fg-dim'
 }
 
 export const toneAccentClass: Record<NarrativeTone, string> = {
-	active: 'border-cyan/30 bg-cyan/5',
-	attention: 'border-gold/40 bg-gold/8',
-	success: 'border-mineral/30 bg-mineral/5',
-	failure: 'border-oxide/40 bg-oxide/8',
-	idle: 'border-edge bg-graphite/40'
+	active: 'border-info/30 bg-info/5',
+	attention: 'border-warn/40 bg-warn/8',
+	success: 'border-success/30 bg-success/5',
+	failure: 'border-danger/40 bg-danger/8',
+	idle: 'border-border bg-surface/40'
 }
 
 export const toneDotClass: Record<NarrativeTone, string> = {
-	active: 'bg-cyan live-pulse',
-	attention: 'bg-gold live-pulse',
-	success: 'bg-mineral',
-	failure: 'bg-oxide',
-	idle: 'bg-dim'
+	active: 'bg-info live-pulse',
+	attention: 'bg-warn live-pulse',
+	success: 'bg-success',
+	failure: 'bg-danger',
+	idle: 'bg-fg-dim'
 }

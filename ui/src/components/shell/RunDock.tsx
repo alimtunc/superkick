@@ -23,26 +23,26 @@ export function RunDock() {
 		: run.state.replace(/_/g, ' ')
 
 	return (
-		<div className="shrink-0 border-t border-edge bg-carbon/90 backdrop-blur-md">
+		<div className="shrink-0 border-t border-border bg-surface/90 backdrop-blur-md">
 			<div className="mx-auto flex max-w-360 items-center gap-3 px-5 py-2">
-				<span className="font-data shrink-0 text-[9px] tracking-widest text-ash uppercase">
+				<span className="font-data shrink-0 text-[9px] tracking-widest text-fg-dim uppercase">
 					Focused
 				</span>
 				<Link
 					to="/runs/$runId"
 					params={{ runId: run.id }}
-					className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden rounded-md focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
+					className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden rounded-md focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:outline-none"
 				>
-					<span className="font-data shrink-0 text-[12px] font-medium text-fog hover:text-mineral">
+					<span className="font-data shrink-0 text-[12px] font-medium text-fg hover:text-success">
 						{run.issue_identifier}
 					</span>
 					<RunStateBadge state={run.state} />
-					<span className="font-data truncate text-[11px] text-silver">{step}</span>
-					<span className="font-data shrink-0 text-[10px] text-ash">
+					<span className="font-data truncate text-[11px] text-fg-muted">{step}</span>
+					<span className="font-data shrink-0 text-[10px] text-fg-dim">
 						{fmtElapsed(run.started_at, refTime)}
 					</span>
 					{run.branch_name ? (
-						<span className="font-data hidden shrink-0 text-[10px] text-ash md:inline">
+						<span className="font-data hidden shrink-0 text-[10px] text-fg-dim md:inline">
 							{run.branch_name}
 						</span>
 					) : null}
@@ -52,7 +52,7 @@ export function RunDock() {
 						to="/runs/$runId"
 						params={{ runId: run.id }}
 						hash="terminal"
-						className="font-data flex h-7 items-center gap-1.5 rounded-md border border-edge bg-graphite px-2 text-[11px] text-silver transition-colors hover:border-edge-bright hover:bg-slate-deep/60 hover:text-fog focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
+						className="font-data flex h-7 items-center gap-1.5 rounded-md border border-border bg-surface px-2 text-[11px] text-fg-muted transition-colors hover:border-border-strong hover:bg-raised/60 hover:text-fg focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:outline-none"
 						title="Open terminal takeover"
 					>
 						<TerminalSquare size={12} strokeWidth={1.75} aria-hidden="true" />
@@ -61,7 +61,7 @@ export function RunDock() {
 					<Link
 						to="/runs/$runId"
 						params={{ runId: run.id }}
-						className="font-data flex h-7 items-center rounded-md border border-edge bg-graphite px-2 text-[11px] text-silver transition-colors hover:border-edge-bright hover:bg-slate-deep/60 hover:text-fog focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
+						className="font-data flex h-7 items-center rounded-md border border-border bg-surface px-2 text-[11px] text-fg-muted transition-colors hover:border-border-strong hover:bg-raised/60 hover:text-fg focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:outline-none"
 					>
 						Detail
 					</Link>
@@ -69,7 +69,7 @@ export function RunDock() {
 						variant="ghost"
 						size="icon-xs"
 						onClick={clearFocus}
-						className="text-ash hover:text-silver"
+						className="text-fg-dim hover:text-fg-muted"
 						title="Unfocus"
 						aria-label="Unfocus"
 					>

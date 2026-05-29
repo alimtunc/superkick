@@ -8,11 +8,11 @@ interface StatusVisual {
 }
 
 const statusVisual: Record<StepStatus, StatusVisual> = {
-	pending: { color: 'text-dim', label: 'Queued' },
-	running: { color: 'text-cyan live-pulse', label: 'In progress' },
-	succeeded: { color: 'text-mineral', label: 'Done' },
-	failed: { color: 'text-oxide', label: 'Failed' },
-	skipped: { color: 'text-dim', label: 'Skipped' }
+	pending: { color: 'text-fg-dim', label: 'Queued' },
+	running: { color: 'text-info live-pulse', label: 'In progress' },
+	succeeded: { color: 'text-success', label: 'Done' },
+	failed: { color: 'text-danger', label: 'Failed' },
+	skipped: { color: 'text-fg-dim', label: 'Skipped' }
 }
 
 function statusIcon(status: StepStatus) {
@@ -38,7 +38,7 @@ function formatDuration(start: string | null, end: string | null): string {
 }
 
 export function StepTimeline({ steps }: { steps: RunStep[] }) {
-	if (steps.length === 0) return <p className="font-data text-sm text-dim">No progress yet.</p>
+	if (steps.length === 0) return <p className="font-data text-sm text-fg-dim">No progress yet.</p>
 
 	return (
 		<ol className="space-y-0.5">
@@ -49,23 +49,23 @@ export function StepTimeline({ steps }: { steps: RunStep[] }) {
 					<li
 						key={step.id}
 						className={`flex items-center gap-3 rounded border px-3 py-2 text-sm transition-colors ${
-							isActive ? 'border-cyan/30 bg-cyan/5' : 'border-edge/50 bg-graphite/50'
+							isActive ? 'border-info/30 bg-info/5' : 'border-border/50 bg-surface/50'
 						}`}
 					>
 						<span className={`inline-flex ${visual.color}`}>{statusIcon(step.status)}</span>
-						<span className="font-data w-28 text-[12px] text-fog">
+						<span className="font-data w-28 text-[12px] text-fg">
 							{stepLabel[step.step_key] ?? step.step_key}
 						</span>
 						<span className={`font-data text-[11px] ${visual.color}`}>
 							{visual.label}
 							{step.attempt > 1 ? ` · attempt ${step.attempt}` : ''}
 						</span>
-						<span className="font-data ml-auto text-[11px] text-dim">
+						<span className="font-data ml-auto text-[11px] text-fg-dim">
 							{formatDuration(step.started_at, step.finished_at)}
 						</span>
 						{step.error_message ? (
 							<span
-								className="max-w-64 truncate text-[11px] text-oxide"
+								className="max-w-64 truncate text-[11px] text-danger"
 								title={step.error_message}
 							>
 								{step.error_message}

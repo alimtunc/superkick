@@ -1,5 +1,7 @@
-import { cn } from '@/lib/utils'
-import { Link } from '@tanstack/react-router'
+import { LaunchDialog } from '@/components/launch/LaunchDialog'
+import { useConfig } from '@/hooks/useConfig'
+import { useLaunchFromInbox } from '@/hooks/useLaunchFromInbox'
+import { Btn } from '@/ui'
 import { Zap } from 'lucide-react'
 
 interface ExecutionLogIdleProps {
@@ -7,23 +9,42 @@ interface ExecutionLogIdleProps {
 }
 
 export function ExecutionLogIdle({ issueIdentifier }: ExecutionLogIdleProps) {
+	const { config } = useConfig()
+	const launchProfile = config?.launch_profile
+	const launch = useLaunchFromInbox({ launchProfile })
+
 	return (
 		<section
 			aria-label="No execution yet"
-			className="flex items-center gap-3 rounded-md border border-border bg-surface px-3 py-2.5"
+			className="flex items-center gap-2.5 rounded-[10px] border border-border bg-surface px-4.5 py-4"
 		>
-			<Zap size={14} strokeWidth={1.85} className="text-accent" aria-hidden="true" />
-			<span className="text-[13px] text-fg-muted">No execution yet on this issue.</span>
-			<Link
-				to="/tasks/new"
-				search={{ issue: issueIdentifier }}
-				className={cn(
-					'font-data ml-auto inline-flex h-7 items-center gap-1 rounded-md bg-accent px-2.5 text-[12px] font-medium text-white transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none'
-				)}
+			<Zap size={13} strokeWidth={1.85} className="text-fg-dim" aria-hidden="true" />
+			<span className="text-[12.5px] text-fg-muted">No execution yet on this issue.</span>
+			<Btn
+				kind="primary"
+				size="sm"
+				icon="zap"
+				className="ml-auto"
+				disabled={!launchProfile}
+				onClick={() => launch.openFor(issueIdentifier)}
 			>
-				<Zap size={12} strokeWidth={1.9} aria-hidden="true" />
 				Launch task
-			</Link>
+			</Btn>
+			{launchProfile ? (
+				<LaunchDialog
+					open={launch.dialog.open}
+					profile={launchProfile}
+					instructions={launch.dialog.instructions}
+					useWorktree={launch.dialog.useWorktree}
+					executionMode={launch.dialog.executionMode}
+					isPending={launch.isPending}
+					onInstructionsChange={launch.dialog.setInstructions}
+					onUseWorktreeChange={launch.dialog.setUseWorktree}
+					onExecutionModeChange={launch.dialog.setExecutionMode}
+					onLaunch={launch.confirm}
+					onClose={launch.close}
+				/>
+			) : null}
 		</section>
 	)
 }

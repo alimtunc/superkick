@@ -14,33 +14,33 @@ interface AlertRowProps {
 }
 
 export function AlertRow({ run, refTime, reason, isLast }: AlertRowProps) {
-	const borderClass = isLast ? '' : 'border-b border-edge/50'
+	const borderClass = isLast ? '' : 'border-b border-border/50'
 	const isBlocked = run.state === 'waiting_human' || run.state === 'failed'
 	const { isWatched, toggleWatch, maxReached } = useWatchedSessionsStore()
 	const watched = isWatched(run.id)
 
 	return (
 		<div
-			className={`flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-oxide-dim/40 ${borderClass} group`}
+			className={`flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-danger-soft/40 ${borderClass} group`}
 		>
-			<span className={`status-bar h-6 ${isBlocked ? 'live-pulse bg-oxide' : 'bg-gold'}`} />
+			<span className={`status-bar h-6 ${isBlocked ? 'sk-pulse bg-danger' : 'bg-warn'}`} />
 			<Link
 				to="/runs/$runId"
 				params={{ runId: run.id }}
 				className="flex min-w-0 flex-1 items-center gap-3"
 			>
-				<span className="font-data w-20 shrink-0 text-[12px] font-medium text-fog transition-colors group-hover:text-oxide">
+				<span className="font-data w-20 shrink-0 text-[12px] font-medium text-fg transition-colors group-hover:text-danger">
 					{run.issue_identifier}
 				</span>
-				<span className="font-data hidden w-24 truncate text-[11px] text-dim sm:block">
+				<span className="font-data hidden w-24 truncate text-[11px] text-fg-dim sm:block">
 					{run.repo_slug}
 				</span>
 				<RunStateBadge state={run.state} />
-				<span className="font-data hidden text-[11px] text-dim md:block">
+				<span className="font-data hidden text-[11px] text-fg-dim md:block">
 					{run.current_step_key ?? '--'}
 				</span>
-				<span className="ml-auto hidden text-[11px] text-ash md:block">{reason}</span>
-				<span className="font-data shrink-0 text-[11px] text-dim">
+				<span className="ml-auto hidden text-[11px] text-fg-dim md:block">{reason}</span>
+				<span className="font-data shrink-0 text-[11px] text-fg-dim">
 					{fmtElapsed(run.started_at, refTime)}
 				</span>
 			</Link>

@@ -49,7 +49,7 @@ function makeIssue(overrides: MakeIssueOverrides): IssueWithState {
 	}
 	return {
 		issue,
-		state: 'open',
+		state: 'todo',
 		bucket: undefined,
 		reason: undefined,
 		linkedRun: overrides.runState
