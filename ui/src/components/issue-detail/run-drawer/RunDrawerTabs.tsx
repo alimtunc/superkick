@@ -1,13 +1,16 @@
-import { TabBar, type TabBarItem } from '@/components/ui/tab-bar'
 import { useRunDrawerStore, type RunDrawerTab } from '@/stores/runDrawer'
-import { Activity, FileDiff, ScrollText, Terminal, Wrench } from 'lucide-react'
 
-const TABS: readonly TabBarItem<RunDrawerTab>[] = [
-	{ id: 'activity', label: 'Activity', icon: Activity },
-	{ id: 'tools', label: 'Tools', icon: Wrench },
-	{ id: 'files', label: 'Files', icon: FileDiff },
-	{ id: 'logs', label: 'Logs', icon: ScrollText },
-	{ id: 'terminal', label: 'Terminal', icon: Terminal }
+interface DrawerTabDescriptor {
+	id: RunDrawerTab
+	label: string
+}
+
+const TABS: readonly DrawerTabDescriptor[] = [
+	{ id: 'activity', label: 'Activity' },
+	{ id: 'tools', label: 'Tool calls' },
+	{ id: 'files', label: 'Files' },
+	{ id: 'logs', label: 'Logs' },
+	{ id: 'terminal', label: 'Terminal' }
 ]
 
 export function RunDrawerTabs() {
@@ -15,12 +18,22 @@ export function RunDrawerTabs() {
 	const setTab = useRunDrawerStore((s) => s.setTab)
 
 	return (
-		<TabBar
-			tabs={TABS}
-			activeId={tab}
-			onChange={setTab}
-			ariaLabel="Run drawer"
-			className="border-border bg-surface"
-		/>
+		<div className="drawer__tabs" role="tablist" aria-label="Run drawer">
+			{TABS.map((descriptor) => {
+				const active = descriptor.id === tab
+				return (
+					<button
+						key={descriptor.id}
+						type="button"
+						role="tab"
+						aria-selected={active}
+						onClick={() => setTab(descriptor.id)}
+						className={`dtab${active ? ' dtab--active' : ''}`}
+					>
+						{descriptor.label}
+					</button>
+				)
+			})}
+		</div>
 	)
 }

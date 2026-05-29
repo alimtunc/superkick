@@ -113,8 +113,8 @@ pub use role_router::{
     RoleRouter, RouterError, RunPolicy,
 };
 pub use run::{
-    ExecutionMode, LinkedRunSummary, PauseKind, Run, RunBudget, RunBudgetGrant, RunState,
-    TriggerSource,
+    ExecutionMode, LinkedRunSummary, PauseKind, Run, RunAgentOverrides, RunBudget, RunBudgetGrant,
+    RunState, TriggerSource,
 };
 pub use run_diff::{FileDiff, FileDiffStatus, RunDiff};
 pub use runner_mode::{BillingProfile, RunnerMode, RunnerModeError};

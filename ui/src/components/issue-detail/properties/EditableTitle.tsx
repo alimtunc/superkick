@@ -55,20 +55,29 @@ export function EditableTitle({ issue }: EditableTitleProps) {
 				onChange={(event) => setDraft(event.target.value)}
 				onKeyDown={onKeyDown}
 				onBlur={commit}
-				className="w-full rounded border border-border-strong bg-canvas px-2 py-1 text-[18px] leading-tight font-semibold text-fg focus:outline-none"
+				className="issue-title input"
+				style={{ width: '100%' }}
 				aria-label="Issue title"
 			/>
 		)
 	}
 
 	return (
-		<button
-			type="button"
+		<h1
+			className="issue-title"
+			role="button"
+			tabIndex={0}
 			onClick={() => setEditing(true)}
-			className="-mx-2 w-full rounded border border-transparent px-2 py-1 text-left text-[18px] leading-tight font-semibold text-fg transition-colors hover:border-border hover:bg-raised focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+			onKeyDown={(event) => {
+				if (event.key === 'Enter' || event.key === ' ') {
+					event.preventDefault()
+					setEditing(true)
+				}
+			}}
 			aria-label="Edit title"
+			style={{ cursor: 'text' }}
 		>
 			{issue.title}
-		</button>
+		</h1>
 	)
 }

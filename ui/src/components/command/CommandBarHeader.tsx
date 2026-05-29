@@ -3,7 +3,6 @@ import type { Ref } from 'react'
 import { Pill } from '@/components/ui/pill'
 import type { SearchScope } from '@/types'
 import { Icon } from '@/ui/Icon'
-import { Kbd } from '@/ui/Kbd'
 
 interface CommandBarHeaderProps {
 	value: string
@@ -34,8 +33,8 @@ export function CommandBarHeader({
 	inputRef
 }: CommandBarHeaderProps) {
 	return (
-		<div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
-			<Icon name="search" size={15} className="text-fg-dim" aria-hidden="true" />
+		<div className="flex items-center gap-2 border-b border-border px-4 py-3">
+			<Icon name="search" size={18} className="text-fg-dim" aria-hidden="true" />
 			{scopePinned ? (
 				<Pill tone="accent" size="xs">
 					<button
@@ -53,11 +52,13 @@ export function CommandBarHeader({
 				value={value}
 				onChange={(e) => onChange(e.target.value)}
 				onKeyDown={onKeyDown}
-				placeholder="Search issues, files, runs…"
+				placeholder="Search issues or run a command…"
 				aria-label="Search"
-				className="flex-1 bg-transparent text-[14px] text-fg outline-none placeholder:text-fg-dim"
+				className="flex-1 bg-transparent text-[16px] text-fg outline-none placeholder:text-fg-dim"
 			/>
-			<Kbd>Esc</Kbd>
+			<Pill tone="neutral" size="xs">
+				esc
+			</Pill>
 		</div>
 	)
 }

@@ -63,19 +63,16 @@ export function IssueChipPicker({ value, onChange, disabled }: IssueChipPickerPr
 		>
 			<Combobox.Trigger
 				aria-label="Select issue"
-				className={cn(
-					'inline-flex items-center gap-1.75 rounded-[7px] border border-transparent bg-raised px-2.5 py-1.25 text-[12.5px] transition-colors',
-					'focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none',
-					'hover:border-border-strong',
-					disabled ? 'opacity-50' : null
-				)}
+				className={cn('select', disabled ? 'opacity-50' : null)}
 			>
-				<Icon name="issue" size={13} className="text-fg-muted" />
+				<Icon name="issue" size={14} className="ic text-fg-muted" />
 				<span className="text-fg-dim">issue</span>
 				<span className={cn('font-medium', value === null ? 'text-fg-dim' : 'text-fg')}>
 					{triggerLabel}
 				</span>
-				<Icon name="chevDown" size={11} className="text-fg-dim" />
+				<span className="chev">
+					<Icon name="chevDown" size={14} className="ic" />
+				</span>
 			</Combobox.Trigger>
 			<Combobox.Portal>
 				<Combobox.Positioner

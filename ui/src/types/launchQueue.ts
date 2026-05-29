@@ -90,4 +90,8 @@ export interface DispatchFromQueueRequest {
 	use_worktree?: boolean
 	execution_mode?: ExecutionMode
 	operator_instructions?: string
+	/** Per-step agent overrides chosen in the launch modal; absent = workflow default. */
+	planner_agent?: string
+	coder_agent?: string
+	reviewer_agent?: string
 }

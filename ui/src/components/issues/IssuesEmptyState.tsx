@@ -11,17 +11,12 @@ interface IssuesEmptyStateProps {
 
 export function IssuesEmptyState({ icon: Icon, title, description, action }: IssuesEmptyStateProps) {
 	return (
-		<div className="flex flex-1 flex-col items-center justify-center gap-3.5 px-6 py-16 text-center">
-			<span
-				aria-hidden="true"
-				className="flex size-14 items-center justify-center rounded-full bg-raised text-fg-muted"
-			>
-				<Icon size={22} strokeWidth={1.6} />
-			</span>
-			<p className="text-[15px] font-medium text-fg">{title}</p>
-			{description ? (
-				<p className="max-w-sm text-[13px] leading-relaxed text-fg-muted">{description}</p>
-			) : null}
+		<div className="empty-state h-full">
+			<div className="empty-state__icon">
+				<Icon size={20} strokeWidth={1.6} aria-hidden="true" />
+			</div>
+			<div className="empty-state__title">{title}</div>
+			{description ? <div className="empty-state__sub">{description}</div> : null}
 			{action ? <div className="mt-1 flex items-center gap-2">{action}</div> : null}
 		</div>
 	)

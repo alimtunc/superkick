@@ -41,7 +41,7 @@ export function IssuesListView({
 
 	if (groups.length === 0) {
 		return (
-			<section className="flex flex-1 flex-col">
+			<section className="content flex flex-1 flex-col">
 				<IssuesEmptyState
 					icon={CheckCircle2}
 					title={emptyTitle(tab)}
@@ -57,7 +57,7 @@ export function IssuesListView({
 
 	return (
 		<section className="flex flex-1 flex-col">
-			<div className="flex-1 overflow-y-auto">
+			<div className="content flex-1">
 				{groups.map((group) => (
 					<div key={group.key}>
 						<IssueGroupHeader
@@ -151,22 +151,14 @@ function emptyAction(
 ): React.ReactNode {
 	if (tab === 'mine' && handlers.onBrowseAllOpen) {
 		return (
-			<button
-				type="button"
-				onClick={handlers.onBrowseAllOpen}
-				className="inline-flex h-7 items-center rounded border border-border bg-raised px-2.5 text-[12px] font-medium text-fg hover:bg-overlay focus-visible:ring-1 focus-visible:ring-accent-soft focus-visible:outline-none"
-			>
+			<button type="button" onClick={handlers.onBrowseAllOpen} className="btn btn--sm">
 				Browse all open
 			</button>
 		)
 	}
 	if (tab !== 'shipped' && handlers.onClearFilters) {
 		return (
-			<button
-				type="button"
-				onClick={handlers.onClearFilters}
-				className="inline-flex h-7 items-center rounded border border-border bg-raised px-2.5 text-[12px] font-medium text-fg hover:bg-overlay focus-visible:ring-1 focus-visible:ring-accent-soft focus-visible:outline-none"
-			>
+			<button type="button" onClick={handlers.onClearFilters} className="btn btn--sm">
 				Clear filters
 			</button>
 		)

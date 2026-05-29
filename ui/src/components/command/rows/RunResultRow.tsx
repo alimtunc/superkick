@@ -30,7 +30,7 @@ export function RunResultRow({ run, selected, onSelect, onActivate }: RunResultR
 			selected={selected}
 			onSelect={onSelect}
 			onActivate={onActivate}
-			leading={<Icon name="loop" size={13} className="text-info" />}
+			leading={<Icon name="loop" size={16} className="text-info" />}
 			primary={
 				<span>
 					<span className="font-mono text-fg">run-{shortId}</span>

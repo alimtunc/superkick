@@ -171,264 +171,269 @@ export function NewIssueDialog({ open, onOpenChange, defaultTeamId }: NewIssueDi
 				if (!next) onOpenChange(false)
 			}}
 		>
-			<DialogPopup popupClassName="panel w-full max-w-xl p-5" align="top">
-				<div className="mb-4 flex items-center justify-between">
-					<Dialog.Title className="text-[14px] font-semibold text-fg">New issue</Dialog.Title>
-					<Dialog.Close
-						className="inline-flex size-6 items-center justify-center rounded-md text-fg-dim transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
-						aria-label="Close"
-					>
-						<X size={14} strokeWidth={1.75} aria-hidden="true" />
+			<DialogPopup popupClassName="dialog on-raised" align="top">
+				<div className="dialog__head">
+					<Dialog.Title className="dialog__title">New issue</Dialog.Title>
+					<span className="spacer" />
+					<Dialog.Close className="iconbtn" aria-label="Close">
+						<X size={14} strokeWidth={1.75} aria-hidden="true" className="ic" />
 					</Dialog.Close>
 				</div>
 
-				<input
-					type="text"
-					value={draft.title}
-					onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))}
-					placeholder="Issue title"
-					autoFocus
-					className="block w-full rounded-md border border-border bg-canvas px-3 py-2 text-[14px] font-semibold text-fg placeholder:text-fg-dim focus:border-border-strong focus:outline-none"
-					aria-label="Issue title"
-				/>
+				<div className="dialog__body">
+					<input
+						type="text"
+						value={draft.title}
+						onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))}
+						placeholder="Issue title"
+						autoFocus
+						className="input text-[14px] font-semibold"
+						aria-label="Issue title"
+					/>
 
-				<textarea
-					value={draft.description}
-					onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))}
-					rows={6}
-					placeholder="Add description…"
-					className="mt-3 block w-full resize-y rounded-md border border-border bg-canvas px-3 py-2 text-[13px] leading-relaxed text-fg placeholder:text-fg-dim focus:border-border-strong focus:outline-none"
-					aria-label="Description"
-				/>
-
-				<div className="mt-4 flex flex-wrap gap-1.5">
-					<FieldPopover
-						open={activePicker === 'team'}
-						onOpenChange={(next) => setActivePicker(next ? 'team' : null)}
-						ariaLabel="Change team"
-						trigger={
-							<>
-								<Icon name="branch" size={11} className="text-fg-dim" />
-								<span>{team ? `${team.key} · ${team.name}` : 'Select team'}</span>
-							</>
+					<textarea
+						value={draft.description}
+						onChange={(event) =>
+							setDraft((prev) => ({ ...prev, description: event.target.value }))
 						}
-					>
-						<TeamPicker
-							teams={options?.teams ?? []}
-							currentId={draft.teamId}
-							onSelect={(next) => {
-								setActivePicker(null)
-								setDraft((prev) => ({
-									...prev,
-									teamId: next.id,
-									stateId: null,
-									labelIds: []
-								}))
-							}}
-						/>
-					</FieldPopover>
+						rows={6}
+						placeholder="Add description…"
+						className="textarea resize-y leading-relaxed"
+						aria-label="Description"
+					/>
 
-					<FieldPopover
-						open={activePicker === 'status'}
-						onOpenChange={(next) => setActivePicker(next ? 'status' : null)}
-						ariaLabel="Change status"
-						trigger={
-							currentState ? (
-								<StatusChip
-									status={{
-										state_type: currentState.state_type,
-										name: currentState.name,
-										color: currentState.color
-									}}
-								/>
-							) : (
+					<div className="flex flex-wrap gap-1.5">
+						<FieldPopover
+							open={activePicker === 'team'}
+							onOpenChange={(next) => setActivePicker(next ? 'team' : null)}
+							ariaLabel="Change team"
+							trigger={
 								<>
-									<Icon name="flag" size={11} className="text-fg-dim" />
-									<span>Status</span>
+									<Icon name="branch" size={11} className="text-fg-dim" />
+									<span>{team ? `${team.key} · ${team.name}` : 'Select team'}</span>
 								</>
-							)
-						}
-					>
-						<StatusPicker
-							states={states}
-							currentId={draft.stateId}
-							onSelect={(next) => {
-								setActivePicker(null)
-								setDraft((prev) => ({ ...prev, stateId: next.id }))
-							}}
-						/>
-					</FieldPopover>
+							}
+						>
+							<TeamPicker
+								teams={options?.teams ?? []}
+								currentId={draft.teamId}
+								onSelect={(next) => {
+									setActivePicker(null)
+									setDraft((prev) => ({
+										...prev,
+										teamId: next.id,
+										stateId: null,
+										labelIds: []
+									}))
+								}}
+							/>
+						</FieldPopover>
 
-					<FieldPopover
-						open={activePicker === 'assignee'}
-						onOpenChange={(next) => setActivePicker(next ? 'assignee' : null)}
-						ariaLabel="Change assignee"
-						trigger={
-							draft.assignee ? (
-								<>
-									<AuthorAvatar
-										name={draft.assignee.name}
-										avatarUrl={draft.assignee.avatar_url}
+						<FieldPopover
+							open={activePicker === 'status'}
+							onOpenChange={(next) => setActivePicker(next ? 'status' : null)}
+							ariaLabel="Change status"
+							trigger={
+								currentState ? (
+									<StatusChip
+										status={{
+											state_type: currentState.state_type,
+											name: currentState.name,
+											color: currentState.color
+										}}
 									/>
-									<span>{draft.assignee.name}</span>
-								</>
-							) : (
-								<>
-									<Icon name="user" size={11} className="text-fg-dim" />
-									<span>Assignee</span>
-								</>
-							)
-						}
-					>
-						<AssigneePicker
-							users={options?.users ?? []}
-							currentId={draft.assignee?.id ?? null}
-							onSelect={(next) => {
-								setActivePicker(null)
-								setDraft((prev) => ({ ...prev, assignee: next }))
-							}}
-						/>
-					</FieldPopover>
+								) : (
+									<>
+										<Icon name="flag" size={11} className="text-fg-dim" />
+										<span>Status</span>
+									</>
+								)
+							}
+						>
+							<StatusPicker
+								states={states}
+								currentId={draft.stateId}
+								onSelect={(next) => {
+									setActivePicker(null)
+									setDraft((prev) => ({ ...prev, stateId: next.id }))
+								}}
+							/>
+						</FieldPopover>
 
-					<FieldPopover
-						open={activePicker === 'priority'}
-						onOpenChange={(next) => setActivePicker(next ? 'priority' : null)}
-						ariaLabel="Change priority"
-						trigger={
-							priorityMeta ? (
-								<>
-									<PriorityIcon
-										kind={priorityIconKindFromValue(draft.priority ?? 0)}
-										size={12}
-									/>
-									<span>{priorityMeta.label}</span>
-								</>
-							) : (
-								<>
-									<PriorityIcon kind="none" size={12} />
-									<span>Priority</span>
-								</>
-							)
-						}
-					>
-						<PriorityPicker
-							currentValue={draft.priority ?? 0}
-							onSelect={(next) => {
-								setActivePicker(null)
-								setDraft((prev) => ({ ...prev, priority: next }))
-							}}
-						/>
-					</FieldPopover>
-
-					<FieldPopover
-						open={activePicker === 'labels'}
-						onOpenChange={(next) => setActivePicker(next ? 'labels' : null)}
-						ariaLabel="Change labels"
-						trigger={
-							selectedLabels.length > 0 ? (
-								<span className="flex flex-wrap gap-1">
-									{selectedLabels.map((label) => (
-										<LabelChip
-											key={label.id}
-											label={{ name: label.name, color: label.color }}
+						<FieldPopover
+							open={activePicker === 'assignee'}
+							onOpenChange={(next) => setActivePicker(next ? 'assignee' : null)}
+							ariaLabel="Change assignee"
+							trigger={
+								draft.assignee ? (
+									<>
+										<AuthorAvatar
+											name={draft.assignee.name}
+											avatarUrl={draft.assignee.avatar_url}
 										/>
-									))}
-								</span>
-							) : (
-								<>
-									<Icon name="pin" size={11} className="text-fg-dim" />
-									<span>Labels</span>
-								</>
-							)
-						}
-					>
-						<LabelsPicker
-							labels={visibleLabels}
-							selectedIds={draft.labelIds}
-							onApply={(nextIds) => {
-								setActivePicker(null)
-								setDraft((prev) => ({ ...prev, labelIds: nextIds }))
-							}}
-						/>
-					</FieldPopover>
+										<span>{draft.assignee.name}</span>
+									</>
+								) : (
+									<>
+										<Icon name="user" size={11} className="text-fg-dim" />
+										<span>Assignee</span>
+									</>
+								)
+							}
+						>
+							<AssigneePicker
+								users={options?.users ?? []}
+								currentId={draft.assignee?.id ?? null}
+								onSelect={(next) => {
+									setActivePicker(null)
+									setDraft((prev) => ({ ...prev, assignee: next }))
+								}}
+							/>
+						</FieldPopover>
 
-					<FieldPopover
-						open={activePicker === 'project'}
-						onOpenChange={(next) => setActivePicker(next ? 'project' : null)}
-						ariaLabel="Change project"
-						trigger={
-							draft.project ? (
-								<>
-									<Icon name="folder" size={11} className="text-fg-dim" />
-									<span>{draft.project.name}</span>
-								</>
-							) : (
-								<>
-									<Icon name="folder" size={11} className="text-fg-dim" />
-									<span>Project</span>
-								</>
-							)
-						}
-					>
-						<ProjectPicker
-							projects={options?.projects ?? []}
-							currentId={draft.project?.id ?? null}
-							onSelect={(next) => {
-								setActivePicker(null)
-								setDraft((prev) => ({ ...prev, project: next }))
-							}}
-						/>
-					</FieldPopover>
+						<FieldPopover
+							open={activePicker === 'priority'}
+							onOpenChange={(next) => setActivePicker(next ? 'priority' : null)}
+							ariaLabel="Change priority"
+							trigger={
+								priorityMeta ? (
+									<>
+										<PriorityIcon
+											kind={priorityIconKindFromValue(draft.priority ?? 0)}
+											size={12}
+										/>
+										<span>{priorityMeta.label}</span>
+									</>
+								) : (
+									<>
+										<PriorityIcon kind="none" size={12} />
+										<span>Priority</span>
+									</>
+								)
+							}
+						>
+							<PriorityPicker
+								currentValue={draft.priority ?? 0}
+								onSelect={(next) => {
+									setActivePicker(null)
+									setDraft((prev) => ({ ...prev, priority: next }))
+								}}
+							/>
+						</FieldPopover>
 
-					<FieldPopover
-						open={activePicker === 'dueDate'}
-						onOpenChange={(next) => setActivePicker(next ? 'dueDate' : null)}
-						ariaLabel="Change due date"
-						trigger={
-							draft.dueDate ? (
-								<>
-									<Icon name="clock" size={11} className="text-fg-dim" />
-									<span>{formatShortDate(draft.dueDate)}</span>
-								</>
-							) : (
-								<>
-									<Icon name="clock" size={11} className="text-fg-dim" />
-									<span>Due date</span>
-								</>
-							)
-						}
-					>
-						<DueDatePicker
-							current={draft.dueDate}
-							onApply={(next) => {
-								setActivePicker(null)
-								setDraft((prev) => ({ ...prev, dueDate: next }))
-							}}
-						/>
-					</FieldPopover>
+						<FieldPopover
+							open={activePicker === 'labels'}
+							onOpenChange={(next) => setActivePicker(next ? 'labels' : null)}
+							ariaLabel="Change labels"
+							trigger={
+								selectedLabels.length > 0 ? (
+									<span className="flex flex-wrap gap-1">
+										{selectedLabels.map((label) => (
+											<LabelChip
+												key={label.id}
+												label={{ name: label.name, color: label.color }}
+											/>
+										))}
+									</span>
+								) : (
+									<>
+										<Icon name="pin" size={11} className="text-fg-dim" />
+										<span>Labels</span>
+									</>
+								)
+							}
+						>
+							<LabelsPicker
+								labels={visibleLabels}
+								selectedIds={draft.labelIds}
+								onApply={(nextIds) => {
+									setActivePicker(null)
+									setDraft((prev) => ({ ...prev, labelIds: nextIds }))
+								}}
+							/>
+						</FieldPopover>
 
-					<FieldPopover
-						open={activePicker === 'estimate'}
-						onOpenChange={(next) => setActivePicker(next ? 'estimate' : null)}
-						ariaLabel="Change estimate"
-						trigger={
-							<>
-								<Icon name="spark" size={11} className="text-fg-dim" />
-								<span>{draft.estimate !== null ? `${draft.estimate} pts` : 'Estimate'}</span>
-							</>
-						}
-					>
-						<EstimateInput
-							current={draft.estimate}
-							onApply={(next) => {
-								setActivePicker(null)
-								setDraft((prev) => ({ ...prev, estimate: next }))
-							}}
-						/>
-					</FieldPopover>
+						<FieldPopover
+							open={activePicker === 'project'}
+							onOpenChange={(next) => setActivePicker(next ? 'project' : null)}
+							ariaLabel="Change project"
+							trigger={
+								draft.project ? (
+									<>
+										<Icon name="folder" size={11} className="text-fg-dim" />
+										<span>{draft.project.name}</span>
+									</>
+								) : (
+									<>
+										<Icon name="folder" size={11} className="text-fg-dim" />
+										<span>Project</span>
+									</>
+								)
+							}
+						>
+							<ProjectPicker
+								projects={options?.projects ?? []}
+								currentId={draft.project?.id ?? null}
+								onSelect={(next) => {
+									setActivePicker(null)
+									setDraft((prev) => ({ ...prev, project: next }))
+								}}
+							/>
+						</FieldPopover>
+
+						<FieldPopover
+							open={activePicker === 'dueDate'}
+							onOpenChange={(next) => setActivePicker(next ? 'dueDate' : null)}
+							ariaLabel="Change due date"
+							trigger={
+								draft.dueDate ? (
+									<>
+										<Icon name="clock" size={11} className="text-fg-dim" />
+										<span>{formatShortDate(draft.dueDate)}</span>
+									</>
+								) : (
+									<>
+										<Icon name="clock" size={11} className="text-fg-dim" />
+										<span>Due date</span>
+									</>
+								)
+							}
+						>
+							<DueDatePicker
+								current={draft.dueDate}
+								onApply={(next) => {
+									setActivePicker(null)
+									setDraft((prev) => ({ ...prev, dueDate: next }))
+								}}
+							/>
+						</FieldPopover>
+
+						<FieldPopover
+							open={activePicker === 'estimate'}
+							onOpenChange={(next) => setActivePicker(next ? 'estimate' : null)}
+							ariaLabel="Change estimate"
+							trigger={
+								<>
+									<Icon name="spark" size={11} className="text-fg-dim" />
+									<span>
+										{draft.estimate !== null ? `${draft.estimate} pts` : 'Estimate'}
+									</span>
+								</>
+							}
+						>
+							<EstimateInput
+								current={draft.estimate}
+								onApply={(next) => {
+									setActivePicker(null)
+									setDraft((prev) => ({ ...prev, estimate: next }))
+								}}
+							/>
+						</FieldPopover>
+					</div>
 				</div>
 
-				<div className="mt-5 flex items-center justify-end gap-2">
+				<div className="dialog__foot">
+					<span className="spacer" />
 					<Btn kind="ghost" size="sm" onClick={() => onOpenChange(false)}>
 						Cancel
 					</Btn>

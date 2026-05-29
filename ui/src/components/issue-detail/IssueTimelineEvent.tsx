@@ -2,8 +2,8 @@ import type { ReactNode } from 'react'
 
 import { AgentPill } from '@/components/issue-detail/AgentPill'
 import type { ActivityNodeKind, ActivityNodeRole } from '@/types'
-import { Bot, Check, FileText, Flag, GitCommit, GitPullRequest, User, Zap } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import type { SKIconName } from '@/types/icons'
+import { Icon } from '@/ui'
 
 interface IssueTimelineEventProps {
 	kind: ActivityNodeKind
@@ -15,23 +15,23 @@ interface IssueTimelineEventProps {
 	children?: ReactNode
 }
 
-const ICON: Record<ActivityNodeKind, LucideIcon> = {
-	agent: Bot,
-	user: User,
-	commit: GitCommit,
-	check: Check,
-	flag: Flag,
-	system: Zap,
-	pr: GitPullRequest
+const ICON: Record<ActivityNodeKind, SKIconName> = {
+	agent: 'bot',
+	user: 'user',
+	commit: 'branch',
+	check: 'check',
+	flag: 'flag',
+	system: 'zap',
+	pr: 'pr'
 }
 
-const ROLE_TEXT: Record<ActivityNodeRole, string> = {
-	neutral: 'text-fg-dim',
-	accent: 'text-accent',
-	success: 'text-success',
-	warn: 'text-warn',
-	danger: 'text-danger',
-	info: 'text-info'
+const NODE_TONE: Record<ActivityNodeRole, string> = {
+	neutral: '',
+	accent: 'accent',
+	success: 'success',
+	warn: 'warn',
+	danger: 'warn',
+	info: 'accent'
 }
 
 export function IssueTimelineEvent({
@@ -40,32 +40,30 @@ export function IssueTimelineEvent({
 	who,
 	time,
 	isAgent = false,
-	isLast = false,
 	children
 }: IssueTimelineEventProps) {
-	const Cmp = ICON[kind] ?? FileText
+	const tone = NODE_TONE[role]
 	return (
-		<div className="flex gap-2.5">
-			<div className="flex flex-col items-center">
-				<span
-					className="inline-flex size-6.5 shrink-0 items-center justify-center rounded-full border border-border bg-surface"
-					aria-hidden="true"
-				>
-					<Cmp size={12} strokeWidth={1.9} className={ROLE_TEXT[role]} />
+		<div className="feeditem">
+			<div className="feeditem__node">
+				<span className={`node-glyph${tone ? ` ${tone}` : ''}`}>
+					<Icon name={ICON[kind] ?? 'doc'} size={13} className="ic" />
 				</span>
-				{isLast ? null : <span className="mt-1 w-px grow bg-border" aria-hidden="true" />}
 			</div>
-			<div
-				className={`min-w-0 flex-1 pt-1 text-[12.5px] leading-[1.55] text-fg-muted ${isLast ? '' : 'pb-4'}`}
-			>
-				<span className="mr-1 font-medium text-fg">{who}</span>
-				{isAgent ? (
-					<>
-						<AgentPill />{' '}
-					</>
-				) : null}
-				{children}
-				{time ? <span className="ml-1 text-[11px] text-fg-dim">· {time}</span> : null}
+			<div className="sysevent">
+				<span>
+					<strong>{who}</strong>
+					{isAgent ? (
+						<>
+							{' '}
+							<AgentPill />{' '}
+						</>
+					) : (
+						' '
+					)}
+					{children}
+				</span>
+				{time ? <span className="ts">· {time}</span> : null}
 			</div>
 		</div>
 	)

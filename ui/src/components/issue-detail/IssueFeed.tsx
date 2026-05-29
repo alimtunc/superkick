@@ -16,7 +16,7 @@ import type {
 	NarrativeTone,
 	RunState
 } from '@/types'
-import { ChevronDown, MessageCircle } from 'lucide-react'
+import { Icon } from '@/ui'
 
 interface EventNode {
 	key: string
@@ -129,26 +129,22 @@ export function IssueFeed({ issue }: { issue: IssueDetailResponse }) {
 	const showFooter = issue.history_has_more === true
 	return (
 		<section aria-label="Activity">
-			<header className="mb-3 flex items-center gap-1.5 text-[12.5px] text-fg-muted">
-				<MessageCircle size={13} strokeWidth={1.8} className="text-fg-dim" aria-hidden="true" />
-				<span className="font-medium text-fg">Activity</span>
-				{isEmpty ? null : <span className="font-data text-[11px] text-fg-dim">· {nodes.length}</span>}
+			<header className="mb-3 flex items-center gap-1.5 text-[12px] text-fg-dim">
 				<button
 					type="button"
-					className="ml-auto inline-flex items-center gap-1 text-[12.5px] text-fg-muted transition-colors hover:text-fg focus-visible:outline-none"
+					className="ml-auto inline-flex items-center gap-1 text-[12px] text-fg-muted transition-colors hover:text-fg focus-visible:outline-none"
 				>
 					Newest first
-					<ChevronDown size={10} strokeWidth={2} aria-hidden="true" />
+					<Icon name="chevDown" size={10} strokeWidth={2} />
 				</button>
 			</header>
 			{isEmpty ? (
-				<p className="text-[12px] text-fg-dim">No activity yet.</p>
+				<p className="md md--empty">No activity yet.</p>
 			) : (
-				<div>
-					{nodes.map((node, index) => {
-						const isLast = index === nodes.length - 1
-						return node.variant === 'comment' ? (
-							<IssueCommentCard key={node.key} node={node.comment.node} isLast={isLast} />
+				<div className="feed">
+					{nodes.map((node) =>
+						node.variant === 'comment' ? (
+							<IssueCommentCard key={node.key} node={node.comment.node} />
 						) : (
 							<IssueTimelineEvent
 								key={node.key}
@@ -157,12 +153,11 @@ export function IssueFeed({ issue }: { issue: IssueDetailResponse }) {
 								who={node.who}
 								time={node.time}
 								isAgent={node.isAgent}
-								isLast={isLast}
 							>
 								{node.body}
 							</IssueTimelineEvent>
 						)
-					})}
+					)}
 				</div>
 			)}
 			{showFooter ? <HistoryTruncatedFooter /> : null}

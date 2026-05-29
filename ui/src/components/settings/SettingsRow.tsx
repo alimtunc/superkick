@@ -11,12 +11,12 @@ interface SettingsRowProps {
 
 export function SettingsRow({ label, hint, last, children }: SettingsRowProps) {
 	return (
-		<div className={cn('flex items-start gap-6 py-4', last ? null : 'border-b border-border')}>
-			<div className="flex w-[260px] flex-none flex-col gap-[3px]">
-				<span className="text-[13.5px] font-medium text-fg">{label}</span>
-				{hint ? <span className="text-[12px] leading-[1.5] text-fg-muted">{hint}</span> : null}
+		<div className={cn('flex items-center gap-5 py-3', last ? null : 'border-b border-(--border-faint)')}>
+			<div className="flex min-w-0 flex-1 flex-col gap-0.5">
+				<span className="text-[13px] text-fg">{label}</span>
+				{hint ? <span className="text-[12px] text-fg-dim">{hint}</span> : null}
 			</div>
-			<div className="flex-1">{children}</div>
+			{children}
 		</div>
 	)
 }

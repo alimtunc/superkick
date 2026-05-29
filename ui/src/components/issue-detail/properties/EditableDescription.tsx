@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { IssueMarkdown } from '@/components/issue-detail/IssueMarkdown'
 import { useUpdateIssue } from '@/hooks/useUpdateIssue'
 import type { IssueDetailResponse } from '@/types'
+import { Icon } from '@/ui'
 import { Btn } from '@/ui/Btn'
 
 interface EditableDescriptionProps {
@@ -41,13 +42,13 @@ export function EditableDescription({ issue }: EditableDescriptionProps) {
 
 	if (editing) {
 		return (
-			<div className="rounded-md border border-border bg-surface p-3">
+			<div className="on-raised rounded-md border border-border bg-raised p-3">
 				<textarea
 					value={draft}
 					onChange={(event) => setDraft(event.target.value)}
 					rows={10}
 					autoFocus
-					className="block w-full resize-y rounded border border-border bg-canvas px-2.5 py-2 text-[13px] leading-relaxed text-fg focus:border-border-strong focus:outline-none"
+					className="textarea resize-y"
 					aria-label="Description"
 				/>
 				<div className="mt-2 flex items-center justify-end gap-2">
@@ -63,19 +64,21 @@ export function EditableDescription({ issue }: EditableDescriptionProps) {
 	}
 
 	return (
-		<div className="group relative max-w-180">
+		<div className="group relative">
 			{hasDescription ? (
-				<IssueMarkdown text={issue.description} className="text-[13.5px] leading-[1.65] text-fg" />
+				<div className="md">
+					<IssueMarkdown text={issue.description} bare />
+				</div>
 			) : (
-				<p className="text-[13px] text-fg-dim">No description.</p>
+				<div className="md md--empty">No description.</div>
 			)}
 			<button
 				type="button"
 				onClick={open}
-				className="absolute top-0 right-0 rounded border border-border bg-surface px-2 py-0.5 text-[11.5px] text-fg-dim opacity-0 transition-opacity group-hover:opacity-100 hover:text-fg focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+				className="iconbtn absolute top-0 right-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
 				aria-label="Edit description"
 			>
-				Edit
+				<Icon name="doc" size={14} className="ic" />
 			</button>
 		</div>
 	)

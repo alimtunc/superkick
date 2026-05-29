@@ -177,9 +177,9 @@ describe('ExecutionLog — state branches', () => {
 		}
 		render(wrap(<ExecutionLog issue={buildIssue({ linked_runs: [linkedRun] })} />))
 
-		const header = screen.getByText('Execution').closest('header')
+		const header = screen.getByText('Coding').closest('header')
 		expect(header).not.toBeNull()
-		expect(within(header as HTMLElement).getByText('running')).toBeInTheDocument()
+		expect(within(header as HTMLElement).getByText('Coding')).toBeInTheDocument()
 		const phases = screen.getByRole('list', { name: /execution phases/i })
 		expect(within(phases).getByRole('group', { name: /plan done/i })).toBeInTheDocument()
 		expect(within(phases).getByRole('group', { name: /implement in progress/i })).toBeInTheDocument()
@@ -332,7 +332,7 @@ describe('ExecutionLog — state branches', () => {
 			)
 		)
 
-		expect(screen.getByText('shipped')).toBeInTheDocument()
+		expect(screen.getByText('Completed')).toBeInTheDocument()
 		expect(screen.getByText('sup-181-inline-execution-log')).toBeInTheDocument()
 
 		const toggle = screen.getByRole('button', { name: /past runs/i })
@@ -393,8 +393,10 @@ describe('ExecutionLog — state branches', () => {
 
 		expect(screen.getByText('Editing the storage layer')).toBeInTheDocument()
 		expect(screen.getByText('Mapped the migration plan')).toBeInTheDocument()
-		expect(screen.getByText('ui/src/a.tsx')).toBeInTheDocument()
-		expect(screen.getByText('ui/src/b.tsx')).toBeInTheDocument()
+		const filePath = (path: string) => (_content: string, element: Element | null) =>
+			element?.classList.contains('filerow__path') === true && element.textContent === path
+		expect(screen.getByText(filePath('ui/src/a.tsx'))).toBeInTheDocument()
+		expect(screen.getByText(filePath('ui/src/b.tsx'))).toBeInTheDocument()
 
 		const user = userEvent.setup()
 		await user.click(screen.getByRole('button', { name: /all in drawer/i }))

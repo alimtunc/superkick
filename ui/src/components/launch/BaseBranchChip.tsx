@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 
 import { PopoverPopup } from '@/components/ui/popover-shell'
-import { cn } from '@/lib/utils'
 import { Btn } from '@/ui/Btn'
 import { Icon } from '@/ui/Icon'
 import { Popover } from '@base-ui/react/popover'
@@ -50,18 +49,13 @@ export function BaseBranchChip({ value, configDefault, onChange }: BaseBranchChi
 
 	return (
 		<Popover.Root open={open} onOpenChange={setOpen}>
-			<Popover.Trigger
-				aria-label={`Base branch: ${value}`}
-				className={cn(
-					'inline-flex items-center gap-[7px] rounded-[7px] border border-transparent bg-raised px-2.5 py-[5px] text-[12.5px] transition-colors',
-					'focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none',
-					'hover:border-border-strong'
-				)}
-			>
-				<Icon name="branch" size={13} className="text-fg-muted" />
+			<Popover.Trigger aria-label={`Base branch: ${value}`} className="select">
+				<Icon name="branch" size={14} className="ic text-fg-muted" />
 				<span className="text-fg-dim">base</span>
 				<span className="font-medium text-fg">{value}</span>
-				<Icon name="chevDown" size={11} className="text-fg-dim" />
+				<span className="chev">
+					<Icon name="chevDown" size={14} className="ic" />
+				</span>
 			</Popover.Trigger>
 			<PopoverPopup align="start" popupClassName="w-64 p-3" initialFocus={false}>
 				<label htmlFor={inputId} className="block text-[11px] font-medium text-fg-dim">

@@ -5,7 +5,7 @@ interface SettingsPaneComingSoonProps {
 export function SettingsPaneComingSoon({ label }: SettingsPaneComingSoonProps) {
 	return (
 		<section>
-			<h2 className="mb-1.5 text-[18px] font-semibold text-fg">{label}</h2>
+			<h2 className="mb-1.5 text-[21px] font-semibold tracking-tight text-fg">{label}</h2>
 			<p className="mb-[22px] text-[13px] leading-[1.55] text-fg-muted">
 				Configuration for {label.toLowerCase()} is not yet available in this build.
 			</p>

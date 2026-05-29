@@ -1,12 +1,11 @@
-import { Pill } from '@/components/ui/pill'
-import type { PillTone } from '@/components/ui/pill'
-import type { BillingProfile, RunnerMode } from '@/types/agents'
 import type { SKTone } from '@/types/icons'
+import type { AgentIdentity } from '@/ui/Avatar'
 import { Avatar } from '@/ui/Avatar'
-import { Btn } from '@/ui/Btn'
+import { Icon } from '@/ui/Icon'
 import { Sparkline } from '@/ui/Sparkline'
 
 interface AgentCardProps {
+	id?: string
 	name: string
 	role: string
 	model: string
@@ -15,23 +14,16 @@ interface AgentCardProps {
 	sparkline: number[]
 	tags: string[]
 	tone: SKTone
-	runner_mode: RunnerMode
-	billing_profile: BillingProfile
+	status: 'active' | 'paused'
 }
 
-function billingTone(profile: BillingProfile): PillTone {
-	switch (profile) {
-		case 'subscription':
-			return 'success'
-		case 'agent_sdk_credits':
-		case 'api_credits':
-			return 'warn'
-		case 'unknown':
-			return 'neutral'
-	}
+function agentIdentityOf(model: string): AgentIdentity {
+	const m = model.toLowerCase()
+	return m.includes('codex') || m.includes('gpt') ? 'codex' : 'claude'
 }
 
 export function AgentCard({
+	id,
 	name,
 	role,
 	model,
@@ -40,50 +32,60 @@ export function AgentCard({
 	sparkline,
 	tags,
 	tone,
-	runner_mode,
-	billing_profile
+	status
 }: AgentCardProps) {
+	const isActive = status === 'active'
+	const successOk = success >= 85
+
 	return (
-		<article className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
+		<article className="flex flex-col gap-3 rounded-[7px] border border-border bg-raised p-4 shadow-(--shadow-sm)">
 			<header className="flex items-center gap-3">
-				<Avatar tone={tone} icon="bot" size={36} />
-				<div className="flex flex-1 flex-col gap-0.5">
+				<Avatar
+					id={id ?? name}
+					name={name}
+					agent={agentIdentityOf(model)}
+					state={isActive ? 'running' : undefined}
+					size={36}
+				/>
+				<div className="flex min-w-0 flex-1 flex-col gap-1">
 					<div className="flex items-center gap-2">
-						<span className="text-[14.5px] font-semibold text-fg">{name}</span>
-						<Pill tone="info" size="xs">
-							{role}
-						</Pill>
+						<span className="text-[14px] font-semibold text-fg">{name}</span>
+						<span className="pill pill--neutral">{role}</span>
 					</div>
-					<span className="font-mono text-[11.5px] text-fg-dim">{model}</span>
+					<span className="mono text-[12px] text-fg-dim">{model}</span>
 				</div>
-				<Btn kind="ghost" size="sm" icon="more" aria-label="Agent actions" />
+				<span className={`pill ${isActive ? 'pill--success' : 'pill--warn'}`}>
+					{isActive ? (
+						<span className="agdot agdot--running" />
+					) : (
+						<Icon name="pause" size={11} className="ic" />
+					)}
+					{status}
+				</span>
 			</header>
 
-			<div className="flex items-center gap-3.5 border-y border-border py-2.5 text-[12px]">
-				<div className="flex flex-1 flex-col gap-px">
-					<span className="text-[11px] text-fg-dim">RUNS · 30d</span>
-					<span className="font-mono text-[14px] font-semibold text-fg">{runs}</span>
+			<Sparkline tone={tone} data={sparkline} width={260} height={28} />
+
+			<div className="flex gap-8 border-t border-(--border-faint) pt-3">
+				<div className="flex flex-col gap-1">
+					<span className="stat__k">Runs</span>
+					<span className="mono text-[16px] font-semibold text-fg tabular-nums">{runs}</span>
 				</div>
-				<div className="flex flex-1 flex-col gap-px">
-					<span className="text-[11px] text-fg-dim">SUCCESS</span>
-					<div className="flex items-center gap-1.5">
-						<span className="font-mono text-[14px] font-semibold text-fg">{success}%</span>
-						<Sparkline tone="success" data={sparkline} width={48} height={16} />
-					</div>
+				<div className="flex flex-col gap-1">
+					<span className="stat__k">Success</span>
+					<span
+						className={`mono text-[16px] font-semibold tabular-nums ${successOk ? 'text-success' : 'text-warn'}`}
+					>
+						{success}%
+					</span>
 				</div>
 			</div>
 
-			<div className="flex flex-wrap items-center gap-1.5">
-				<Pill tone={billingTone(billing_profile)} size="xs">
-					{billing_profile}
-				</Pill>
-				<Pill tone="neutral" mono size="xs">
-					{runner_mode}
-				</Pill>
+			<div className="flex flex-wrap gap-1.5">
 				{tags.map((tag) => (
-					<Pill key={tag} tone="neutral" size="xs">
+					<span key={tag} className="pill pill--neutral">
 						{tag}
-					</Pill>
+					</span>
 				))}
 			</div>
 		</article>

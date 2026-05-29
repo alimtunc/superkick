@@ -111,6 +111,12 @@ pub struct DispatchRequest {
     pub use_worktree: Option<bool>,
     pub execution_mode: Option<superkick_core::ExecutionMode>,
     pub operator_instructions: Option<String>,
+    /// Per-step agent overrides chosen by the operator in the launch modal.
+    /// Each absent field falls back to the workflow default; validated against
+    /// the agent catalog by `spawn_run_from_request`.
+    pub planner_agent: Option<String>,
+    pub coder_agent: Option<String>,
+    pub reviewer_agent: Option<String>,
 }
 
 pub async fn dispatch_from_queue(
@@ -154,6 +160,9 @@ pub async fn dispatch_from_queue(
         use_worktree: body.use_worktree,
         execution_mode: body.execution_mode.unwrap_or_default(),
         operator_instructions: body.operator_instructions,
+        planner_agent: body.planner_agent,
+        coder_agent: body.coder_agent,
+        reviewer_agent: body.reviewer_agent,
     };
 
     let run = spawn_run_from_request(&state, req).await?;

@@ -4,7 +4,6 @@ import { PROPERTY_ROW_TRIGGER, PropertyRow } from '@/components/issue-detail/pro
 import { EstimateInput } from '@/components/issues/pickers/EstimateInput'
 import { useUpdateIssue } from '@/hooks/useUpdateIssue'
 import type { IssueDetailResponse } from '@/types'
-import { EstimateChip } from '@/ui'
 import { Popover } from '@base-ui/react/popover'
 
 interface EstimateRowProps {
@@ -32,12 +31,9 @@ export function EstimateRow({ issue }: EstimateRowProps) {
 			<Popover.Root open={open} onOpenChange={setOpen}>
 				<Popover.Trigger className={PROPERTY_ROW_TRIGGER} aria-label="Change estimate">
 					{issue.estimate !== null ? (
-						<>
-							<EstimateChip n={issue.estimate} />
-							<span className="text-[11.5px] text-fg-dim">points</span>
-						</>
+						<span className="mono">{issue.estimate} pts</span>
 					) : (
-						<span className="text-fg-dim">No estimate</span>
+						<span className="prop__empty">Add estimate…</span>
 					)}
 				</Popover.Trigger>
 				<EstimateInput current={issue.estimate} onApply={onApply} />

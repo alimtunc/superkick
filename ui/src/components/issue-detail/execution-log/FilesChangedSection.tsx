@@ -1,5 +1,4 @@
 import { ExecFileRow } from '@/components/issue-detail/execution-log/ExecFileRow'
-import { ExecSection } from '@/components/issue-detail/execution-log/ExecSection'
 import { useRunDrawerStore } from '@/stores/runDrawer'
 import type { ExecFileChange } from '@/types'
 import { Btn } from '@/ui'
@@ -14,22 +13,36 @@ export function FilesChangedSection({ files, runId }: FilesChangedSectionProps) 
 	if (files.length === 0) return null
 
 	return (
-		<ExecSection
-			title="Files changed"
-			count={files.length}
-			action={
-				runId ? (
-					<Btn kind="ghost" size="sm" icon="external" onClick={() => openDrawer(runId, 'files')}>
-						Diff
-					</Btn>
-				) : null
-			}
-		>
-			<div className="flex flex-col gap-[7px]">
-				{files.map((file) => (
-					<ExecFileRow key={file.path} file={file} />
-				))}
+		<div className="execfiles">
+			<div
+				style={{
+					display: 'flex',
+					alignItems: 'center',
+					fontSize: 'var(--text-11)',
+					textTransform: 'uppercase',
+					letterSpacing: 'var(--tracking-wide)',
+					color: 'var(--fg-dim)',
+					padding: 'var(--space-2) var(--space-4) var(--space-3)',
+					fontWeight: 600
+				}}
+			>
+				<span>{files.length} files changed</span>
+				{runId ? (
+					<span style={{ marginLeft: 'auto' }}>
+						<Btn
+							kind="ghost"
+							size="sm"
+							icon="external"
+							onClick={() => openDrawer(runId, 'files')}
+						>
+							Diff
+						</Btn>
+					</span>
+				) : null}
 			</div>
-		</ExecSection>
+			{files.map((file) => (
+				<ExecFileRow key={file.path} file={file} />
+			))}
+		</div>
 	)
 }

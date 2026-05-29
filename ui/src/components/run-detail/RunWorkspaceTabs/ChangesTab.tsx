@@ -68,19 +68,21 @@ export function ChangesTab({ run, pr }: ChangesTabProps) {
 
 	return (
 		<ChangesTabShell header={header}>
-			<div className="font-data px-4 py-2 text-[11px] text-fg-dim">
-				<span className="font-mono">{diff.baseRef.slice(0, 7)}</span>
-				{' → '}
-				<span className="font-mono">{diff.headRef.slice(0, 7)}</span>
-				{' · '}
-				{diff.fileCount} file{diff.fileCount === 1 ? '' : 's'}
-				{diff.overflow ? ' · capped' : null}
+			<div className="flex items-center gap-4 px-4 py-3 text-[12px] text-fg-dim">
+				<span className="mono">{diff.baseRef.slice(0, 7)}</span>
+				<span aria-hidden="true">→</span>
+				<span className="mono">{diff.headRef.slice(0, 7)}</span>
+				<span aria-hidden="true">·</span>
+				<span>
+					{diff.fileCount} file{diff.fileCount === 1 ? '' : 's'}
+				</span>
+				{diff.overflow ? <span>· capped</span> : null}
 			</div>
-			<ul className="divide-y divide-border">
+			<div>
 				{diff.files.map((file) => (
 					<FileDiffRow key={file.path} file={file} />
 				))}
-			</ul>
+			</div>
 		</ChangesTabShell>
 	)
 }

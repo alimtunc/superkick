@@ -31,19 +31,13 @@ export function ResultRowShell({
 			aria-selected={selected}
 			onMouseEnter={onSelect}
 			onClick={onActivate}
+			style={selected ? { background: 'var(--bg-active)' } : undefined}
 			className={cn(
-				'relative flex min-h-[32px] w-full items-center gap-2.5 px-4 py-[7px] text-left transition-colors',
-				'focus-visible:outline-none',
-				selected ? 'bg-raised' : 'hover:bg-raised/40'
+				'popline flex min-h-8 w-full items-center gap-2 rounded-[5px] px-2 py-2 text-left',
+				'focus-visible:outline-none'
 			)}
 		>
-			{selected ? (
-				<span
-					aria-hidden="true"
-					className="absolute top-1.5 bottom-1.5 left-0 w-[2px] rounded-r-[2px] bg-accent"
-				/>
-			) : null}
-			{leading ? <span className="flex shrink-0 items-center gap-1">{leading}</span> : null}
+			{leading ? <span className="flex shrink-0 items-center gap-1.5">{leading}</span> : null}
 			<span className="flex min-w-0 flex-1 flex-col gap-px">
 				<span className="truncate text-[13px] text-fg">{primary}</span>
 				{secondary ? <span className="truncate text-[11.5px] text-fg-dim">{secondary}</span> : null}

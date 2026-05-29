@@ -1,7 +1,8 @@
 import { useState } from 'react'
 
+import { splitPath } from '@/lib/path'
 import type { FileDiff, FileDiffStatus } from '@/types'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { Icon } from '@/ui/Icon'
 
 const STATUS_LABEL: Record<FileDiffStatus, string> = {
 	added: 'A',
@@ -12,13 +13,13 @@ const STATUS_LABEL: Record<FileDiffStatus, string> = {
 	untracked: 'U'
 }
 
-const STATUS_TONE: Record<FileDiffStatus, string> = {
-	added: 'text-success',
-	modified: 'text-warn',
-	deleted: 'text-danger',
-	renamed: 'text-info',
-	type_change: 'text-fg-muted',
-	untracked: 'text-fg-muted'
+const STATUS_COLOR: Record<FileDiffStatus, string> = {
+	added: 'var(--success)',
+	modified: 'var(--warn)',
+	deleted: 'var(--danger)',
+	renamed: 'var(--accent)',
+	type_change: 'var(--fg-muted)',
+	untracked: 'var(--fg-muted)'
 }
 
 interface FileDiffRowProps {
@@ -28,47 +29,51 @@ interface FileDiffRowProps {
 export function FileDiffRow({ file }: FileDiffRowProps) {
 	const [expanded, setExpanded] = useState(false)
 	const canExpand = !file.binary && !file.truncated && typeof file.patch === 'string'
-	const Caret = expanded ? ChevronDown : ChevronRight
+	const renderedPath =
+		file.status === 'renamed' && file.oldPath ? `${file.oldPath} → ${file.path}` : file.path
+	const { dir, name } = splitPath(renderedPath)
 
 	const onToggle = () => {
 		if (canExpand) setExpanded((v) => !v)
 	}
 
 	return (
-		<li>
+		<div className="border-b border-(--border-faint)">
 			<button
 				type="button"
 				onClick={onToggle}
 				disabled={!canExpand}
-				className="flex w-full items-center gap-2 px-4 py-2 text-left hover:bg-raised focus-visible:bg-raised focus-visible:outline-none disabled:cursor-default disabled:hover:bg-transparent"
+				className="filerow w-full text-left hover:bg-surface focus-visible:bg-surface focus-visible:outline-none disabled:cursor-default disabled:hover:bg-transparent"
 				aria-expanded={canExpand ? expanded : undefined}
 			>
 				{canExpand ? (
-					<Caret size={12} strokeWidth={1.85} className="shrink-0 text-fg-dim" aria-hidden="true" />
+					<Icon name={expanded ? 'chevDown' : 'chev'} size={12} className="shrink-0 text-fg-dim" />
 				) : (
 					<span className="inline-block w-3 shrink-0" aria-hidden="true" />
 				)}
 				<span
-					className={`font-data inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] ${STATUS_TONE[file.status]}`}
+					className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] border border-border bg-canvas text-[10px]"
+					style={{ color: STATUS_COLOR[file.status] }}
 					title={file.status}
 				>
 					{STATUS_LABEL[file.status]}
 				</span>
-				<span className="min-w-0 flex-1 truncate font-mono text-[12px] text-fg" title={file.path}>
-					{file.status === 'renamed' && file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
+				<span className="filerow__path" title={renderedPath}>
+					<span className="dir">{dir}</span>
+					{name}
 				</span>
-				<span className="font-data shrink-0 text-[11px] text-success">+{file.additions}</span>
-				<span className="font-data shrink-0 text-[11px] text-danger">−{file.deletions}</span>
+				<span className="filerow__stat">
+					<span className="add">+{file.additions}</span>
+					<span className="del">−{file.deletions}</span>
+				</span>
 			</button>
 			{file.binary ? <p className="px-7 pb-3 text-[11px] text-fg-muted">binary file</p> : null}
 			{file.truncated && !file.binary ? (
 				<p className="px-7 pb-3 text-[11px] text-fg-muted">patch truncated</p>
 			) : null}
 			{expanded && canExpand && file.patch ? (
-				<pre className="bg-ink mx-4 mb-3 overflow-x-auto rounded border border-border px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre">
-					{file.patch}
-				</pre>
+				<pre className="terminal mx-4 mb-3 overflow-x-auto whitespace-pre">{file.patch}</pre>
 			) : null}
-		</li>
+		</div>
 	)
 }

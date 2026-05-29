@@ -18,7 +18,7 @@ const TAB_ORDER: readonly IssueViewTab[] = ['mine', 'all-open', 'shipped']
 
 export function IssueViewTabs({ tab, counts, onChange }: IssueViewTabsProps) {
 	return (
-		<div className="flex h-[38px] items-center gap-0 border-b border-border bg-surface px-4">
+		<div className="view-tabs">
 			{TAB_ORDER.map((value) => {
 				const active = value === tab
 				return (
@@ -27,17 +27,10 @@ export function IssueViewTabs({ tab, counts, onChange }: IssueViewTabsProps) {
 						type="button"
 						onClick={() => onChange(value)}
 						aria-pressed={active}
-						className={cn(
-							'relative inline-flex h-[38px] items-center gap-[7px] px-3 text-[13px] transition-colors',
-							active
-								? 'font-medium text-fg after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:rounded-[2px] after:bg-fg'
-								: 'text-fg-muted hover:text-fg'
-						)}
+						className={cn('view-tab', active ? 'view-tab--active' : null)}
 					>
 						<span>{TAB_LABELS[value]}</span>
-						<span className="font-data inline-flex min-w-4 justify-center rounded-[4px] bg-raised px-[5px] text-center text-[11px] leading-4 text-fg-dim">
-							{counts[value]}
-						</span>
+						<span className="view-tab__count">{counts[value]}</span>
 					</button>
 				)
 			})}
@@ -45,9 +38,9 @@ export function IssueViewTabs({ tab, counts, onChange }: IssueViewTabsProps) {
 				type="button"
 				disabled
 				title="Saved views — coming soon"
-				className="ml-1 inline-flex h-[38px] cursor-default items-center gap-1.5 px-3 text-[12.5px] text-fg-dim hover:text-fg"
+				className="view-tab cursor-default text-fg-dim"
 			>
-				<Icon name="plus" size={12} />
+				<Icon name="plus" size={12} className="ic" />
 				<span>New view</span>
 			</button>
 		</div>

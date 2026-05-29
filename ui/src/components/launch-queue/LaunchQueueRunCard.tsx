@@ -1,5 +1,4 @@
 import { LaunchRunBadges } from '@/components/launch-queue/LaunchRunBadges'
-import { Pill } from '@/components/ui/pill'
 import { fmtElapsed, stepLabel } from '@/lib/domain'
 import type { LaunchQueueItem } from '@/types'
 import { Link } from '@tanstack/react-router'
@@ -19,23 +18,21 @@ export function LaunchQueueRunCard({ item, refTime }: LaunchQueueRunCardProps) {
 		<Link
 			to="/runs/$runId"
 			params={{ runId: run.id }}
-			className="flex flex-col gap-2.5 rounded-lg border border-border bg-raised p-3 transition-colors hover:border-border-strong focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+			className="kcard block focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
 			title={item.reason}
 		>
-			<div className="flex items-center gap-2">
-				<span className="font-mono text-[11px] text-fg-dim">{run.issue_identifier}</span>
-				<span className="flex-1" />
+			<div className="kcard__top">
+				<span className="kcard__id">{run.issue_identifier}</span>
+				<span className="spacer" />
 				<LaunchRunBadges item={item} />
-				<Pill tone="info" size="xs" mono>
-					Run
-				</Pill>
+				<span className="pill pill--accent mono">Run</span>
 			</div>
 
-			<p className="line-clamp-2 text-[12.5px] leading-snug font-medium text-fg">{title}</p>
+			<p className="kcard__title line-clamp-2">{title}</p>
 
-			<div className="flex items-center gap-2">
+			<div className="kcard__foot">
 				<span className="truncate font-mono text-[10.5px] text-fg-muted">{run.repo_slug}</span>
-				<span className="flex-1" />
+				<span className="spacer" />
 				<span className="font-mono text-[10.5px] text-fg-dim">
 					{fmtElapsed(run.started_at, refTime)}
 				</span>
@@ -46,7 +43,9 @@ export function LaunchQueueRunCard({ item, refTime }: LaunchQueueRunCardProps) {
 				) : null}
 			</div>
 
-			{showReason ? <p className="line-clamp-1 text-[10.5px] text-fg-muted">{item.reason}</p> : null}
+			{showReason ? (
+				<p className="mt-1 line-clamp-1 text-[10.5px] text-fg-muted">{item.reason}</p>
+			) : null}
 		</Link>
 	)
 }

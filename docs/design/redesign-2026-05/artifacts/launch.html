@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Superkick — Launch flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="detail.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<div class="doc">
+	<nav class="idx">
+		<div class="idx__brand"><div class="idx__logo">S</div><div class="idx__title">Superkick</div></div>
+		<div class="idx__sub">Redesign · 2026-05</div>
+		<div class="idx__group">Reference</div>
+		<a href="index.html">System Legend <span class="n">00</span></a>
+		<div class="idx__group">Surfaces</div>
+		<a href="issues-list.html">Issues list <span class="n">01</span></a>
+		<a href="issue-detail.html">Issue detail <span class="n">02</span></a>
+		<a href="app-shell.html">App shell <span class="n">03</span></a>
+		<a href="run-drawer.html">Run drawer <span class="n">04</span></a>
+		<a href="run-inspector.html">Run inspector <span class="n">05</span></a>
+		<a class="cur" href="launch.html">Launch flow <span class="n">06</span></a>
+		<a href="agents.html">Agents &amp; Settings <span class="n">07</span></a>
+		<a href="patterns.html">Patterns &amp; states <span class="n">08</span></a>
+	</nav>
+
+	<main class="canvas">
+	<div class="page">
+		<div class="page__kicker">Surface 06 · the core flow</div>
+		<h1 class="page__title">Launch flow</h1>
+		<p class="page__lede">Turning an issue into a run. The <strong>LaunchComposer</strong> dialog (tier&nbsp;3) configures the <code style="font-family:var(--font-mono)">plan → implement → review</code> recipe: a per-step agent picker, execution mode, worktree strategy, base branch and operator instructions. Mirrors <code style="font-family:var(--font-mono)">CreateLaunchTaskRequest</code> / <code style="font-family:var(--font-mono)">LaunchParams</code>.</p>
+
+		<!-- ════ A · Configuring ════ -->
+		<section class="sect">
+			<div class="board-label"><span class="board-label__state state--active">Configuring</span><span class="board-label__title">LaunchComposer dialog</span><span class="board-label__dim">580px · tier 3 · z-dialog</span></div>
+			<div class="artboard" style="height:620px;display:flex;align-items:center;justify-content:center;background:var(--bg-scrim)">
+				<div id="dialog-config"></div>
+			</div>
+		</section>
+
+		<!-- ════ B · Semi-auto + Launching ════ -->
+		<section class="sect">
+			<div class="board-label"><span class="board-label__state state--needs">Semi-auto</span><span class="board-label__title">Approval gates between steps</span><span class="board-label__state state--loading" style="margin-left:var(--space-6)">Launching</span><span class="board-label__title">Queued for a slot</span></div>
+			<div class="specimen" style="gap:var(--space-7);align-items:flex-start">
+				<div id="dialog-semi"></div>
+				<div style="width:300px;display:flex;flex-direction:column;gap:var(--space-5)">
+					<div class="toast toast--accent"><span class="toast__icon"><svg class="ic" style="width:18px;height:18px"><use href="#ic-zap"></use></svg></span><div class="toast__body"><div class="toast__title">Launching claude on SUP-128…</div><div class="toast__sub">Preparing worktree</div></div></div>
+					<div class="card" style="padding:var(--space-6)">
+						<div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-4)"><span class="agdot agdot--running"></span><span style="font-size:var(--text-13);font-weight:var(--fw-medium)">Queued</span><span class="pill pill--neutral" style="margin-left:auto">2 / 4 slots</span></div>
+						<div style="font-size:var(--text-12);color:var(--fg-dim);line-height:var(--lh-normal)">All run slots are busy. This launch starts automatically when one frees up — or run it now to queue ahead.</div>
+						<button class="btn btn--sm" style="margin-top:var(--space-5)"><svg class="ic"><use href="#ic-play"></use></svg>Force start</button>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- ════ C · Launch queue ════ -->
+		<section class="sect">
+			<div class="board-label"><span class="board-label__state state--active">Capacity</span><span class="board-label__title">Launch queue · waiting for a slot</span><span class="board-label__dim">LaunchQueueResponse</span></div>
+			<div class="artboard" style="height:auto;padding:var(--space-7)">
+				<div style="display:flex;align-items:center;gap:var(--space-4);margin-bottom:var(--space-6)">
+					<span style="font-size:var(--text-14);font-weight:var(--fw-semibold)">Active capacity</span>
+					<div style="flex:1;max-width:200px;height:6px;border-radius:var(--radius-full);background:var(--bg-input);overflow:hidden"><div style="width:50%;height:100%;background:var(--accent)"></div></div>
+					<span class="mono" style="font-size:var(--text-12);color:var(--fg-muted)">2 / 4 running</span>
+				</div>
+				<div id="queue"></div>
+			</div>
+		</section>
+	</div>
+	</main>
+</div>
+
+<script src="icons.js"></script>
+<script src="shell.js"></script>
+<script src="glyphs.js"></script>
+<script src="scale.js"></script>
+<script>
+function ic(n, w) { w = w || 16; return '<svg class="ic" style="width:' + w + 'px;height:' + w + 'px"><use href="#ic-' + n + '"></use></svg>'; }
+
+/* ── LaunchComposer dialog ─────────────────────────────────────────────── */
+function stepPick(n, kind, agentAv, agentName, model) {
+	return '<div class="step-pick"><span class="step-pick__kind"><span class="n">' + n + '</span>' + kind + '</span>' +
+		'<button class="select"><span class="avatar avatar--agent ' + agentAv + ' avatar--sm">' + (agentAv === 'av-codex' ? 'Cx' : 'C') + '</span>' + agentName + '<span class="step-pick__model">' + model + '</span><span class="chev">' + ic('chevDown', 14) + '</span></button></div>';
+}
+function dialog(opts) {
+	var modeSeg = '<div class="seg">' +
+		'<button class="' + (opts.mode === 'full' ? 'on' : '') + '">Full-auto</button>' +
+		'<button class="' + (opts.mode === 'semi' ? 'on' : '') + '">Semi-auto</button></div>';
+	var gates = opts.mode === 'semi' ? '<div style="font-size:var(--text-12);color:var(--status-needs);display:flex;align-items:center;gap:var(--space-3);margin-top:var(--space-2)">' + ic('alert', 13) + 'Pauses for your approval after each step</div>' : '';
+	return '<div class="dialog">' +
+		'<div class="dialog__head">' + ic('zap', 18) + '<span class="dialog__title">Launch agent</span><span class="spacer"></span>' +
+			'<button class="select" style="height:26px"><span class="prio high" style="transform:scale(0.85)"><span class="bar b1"></span><span class="bar b2"></span><span class="bar b3"></span></span><span class="mono" style="font-size:var(--text-12)">SUP-128</span></button>' +
+			'<button class="iconbtn">' + ic('x', 16) + '</button></div>' +
+		'<div class="dialog__body">' +
+			'<div class="field"><span class="field__label">Recipe · plan → implement → review</span>' +
+				'<div style="background:var(--bg-app);border:1px solid var(--border);border-radius:var(--radius-md);padding:0 var(--space-5)">' +
+					stepPick('1', 'Plan', 'av-claude', 'claude', 'opus-4.6') +
+					stepPick('2', 'Implement', 'av-claude', 'claude', 'sonnet-4.6') +
+					stepPick('3', 'Review', 'av-codex', 'codex', 'gpt-5-codex') +
+				'</div></div>' +
+			'<div class="fieldset-grid">' +
+				'<div class="field"><span class="field__label">Execution mode</span>' + modeSeg + gates + '</div>' +
+				'<div class="field"><span class="field__label">Base branch</span><button class="select select--full">' + ic('branch', 14) + 'main<span class="chev">' + ic('chevDown', 14) + '</span></button></div>' +
+			'</div>' +
+			'<div class="field"><div class="toggle ' + (opts.worktree ? 'toggle--on' : '') + '"><span class="toggle__track"></span><span class="toggle__label">Run in an isolated worktree <span style="color:var(--fg-dim)">· ~/.superkick/wt/sup-128</span></span></div></div>' +
+			'<div class="field"><span class="field__label">Operator instructions <span style="color:var(--fg-dim);font-weight:400">· optional</span></span>' +
+				'<textarea class="textarea" rows="2" placeholder="e.g. keep the migration reversible; don\'t touch the public API.">' + (opts.instructions || '') + '</textarea></div>' +
+		'</div>' +
+		'<div class="dialog__foot"><span class="hint">⌘↵ to launch</span><span class="spacer"></span>' +
+			'<button class="btn btn--ghost btn--sm">Cancel</button>' +
+			'<button class="btn btn--primary btn--sm">' + ic('play', 13) + 'Launch</button></div>' +
+	'</div>';
+}
+
+document.getElementById('dialog-config').innerHTML = dialog({ mode: 'full', worktree: true, instructions: '' });
+
+/* compact semi-auto variant (no fieldset grid expansion needed) */
+document.getElementById('dialog-semi').innerHTML = (function () {
+	var html = dialog({ mode: 'semi', worktree: true, instructions: 'Keep the migration reversible.' });
+	return '<div style="width:520px">' + html.replace('class="dialog"', 'class="dialog" style="width:520px"') + '</div>';
+})();
+
+/* ── Launch queue (LaunchQueueItem) ────────────────────────────────────── */
+var Q = [
+	{ id: 'SUP-159', title: 'Surface quota-exceeded as a needs-human state', reason: 'waiting · no free slot', prio: 'high' },
+	{ id: 'SUP-156', title: 'Add a semi-auto execution mode toggle', reason: 'waiting · no free slot', prio: 'medium' },
+	{ id: 'SUP-171', title: 'Multi-repo launch queue', reason: 'blocked · SUP-100 not done', prio: 'medium', blocked: true }
+];
+document.getElementById('queue').innerHTML = Q.map(function (q) {
+	return '<div class="row" style="grid-template-columns:16px 64px 1fr auto;cursor:default">' +
+		'<span>' + SK.prioGlyph(q.prio) + '</span>' +
+		'<span class="row__id mono">' + q.id + '</span>' +
+		'<span class="row__main"><span class="row__title">' + q.title + '</span></span>' +
+		'<span class="row__meta"><span class="pill ' + (q.blocked ? 'pill--danger' : 'pill--neutral') + '">' + q.reason + '</span>' +
+		'<button class="btn btn--sm"' + (q.blocked ? ' disabled style="opacity:.5"' : '') + '>' + ic('play', 13) + 'Run now</button></span>' +
+	'</div>';
+}).join('');
+</script>
+</body>
+</html>

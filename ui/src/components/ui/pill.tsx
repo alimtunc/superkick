@@ -13,7 +13,9 @@ const pillVariants = cva(
 				success: 'border-transparent bg-success-soft text-success',
 				warn: 'border-transparent bg-warn-soft text-warn',
 				danger: 'border-transparent bg-danger-soft text-danger',
-				info: 'border-transparent bg-info-soft text-info'
+				info: 'border-transparent bg-info-soft text-info',
+				needs: 'border-transparent bg-[var(--status-needs-soft)] text-[var(--status-needs)]',
+				review: 'border-transparent bg-[var(--status-review-soft)] text-[var(--status-review)]'
 			},
 			size: {
 				xs: 'h-[18px] gap-1.5 px-2 py-px text-[11.5px]',
@@ -47,7 +49,9 @@ const DOT_BG: Record<PillTone, string> = {
 	success: 'bg-success',
 	warn: 'bg-warn',
 	danger: 'bg-danger',
-	info: 'bg-info'
+	info: 'bg-info',
+	needs: 'bg-[var(--status-needs)]',
+	review: 'bg-[var(--status-review)]'
 }
 
 interface PillProps extends Omit<ComponentProps<'span'>, 'children'>, VariantProps<typeof pillVariants> {

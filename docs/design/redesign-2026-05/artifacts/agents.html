@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Superkick — Agents &amp; Settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="detail.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<div class="doc">
+	<nav class="idx">
+		<div class="idx__brand"><div class="idx__logo">S</div><div class="idx__title">Superkick</div></div>
+		<div class="idx__sub">Redesign · 2026-05</div>
+		<div class="idx__group">Reference</div>
+		<a href="index.html">System Legend <span class="n">00</span></a>
+		<div class="idx__group">Surfaces</div>
+		<a href="issues-list.html">Issues list <span class="n">01</span></a>
+		<a href="issue-detail.html">Issue detail <span class="n">02</span></a>
+		<a href="app-shell.html">App shell <span class="n">03</span></a>
+		<a href="run-drawer.html">Run drawer <span class="n">04</span></a>
+		<a href="run-inspector.html">Run inspector <span class="n">05</span></a>
+		<a href="launch.html">Launch flow <span class="n">06</span></a>
+		<a class="cur" href="agents.html">Agents &amp; Settings <span class="n">07</span></a>
+		<a href="patterns.html">Patterns &amp; states <span class="n">08</span></a>
+	</nav>
+
+	<main class="canvas">
+	<div class="page">
+		<div class="page__kicker">Surface 07</div>
+		<h1 class="page__title">Agents &amp; Settings</h1>
+		<p class="page__lede">The two remaining nav destinations. <strong>Agents</strong> lists the configured agent definitions with health (<code style="font-family:var(--font-mono)">AgentSummary</code> — runs, success, sparkline, tone). <strong>Settings</strong> holds the daemon, Linear link and the default launch profile. The appearance control below is live — try it.</p>
+
+		<!-- ════ Agents ════ -->
+		<section class="sect">
+			<div class="board-label"><span class="board-label__state state--active">Agents</span><span class="board-label__title">Configured agents &amp; health</span><span class="board-label__dim">1380 × 660</span></div>
+			<div class="scale-frame"><div class="scaled" style="width:1380px;height:660px">
+				<div class="shell">
+					<aside class="sidebar" id="sb-a"></aside>
+					<div class="main">
+						<div class="topbar">
+							<div class="crumbs"><svg class="ic" style="width:15px;height:15px;color:var(--fg-dim)"><use href="#ic-agent"></use></svg><span class="cur">Agents</span></div>
+							<div class="topbar__actions"><span class="pill pill--accent"><span class="agdot agdot--running"></span>2 / 4 running</span><button class="btn btn--primary btn--sm"><svg class="ic"><use href="#ic-plus"></use></svg>New agent</button></div>
+						</div>
+						<div class="content" style="padding:var(--space-7)"><div class="grid3" id="agents"></div></div>
+					</div>
+				</div>
+			</div></div>
+		</section>
+
+		<!-- ════ Settings ════ -->
+		<section class="sect">
+			<div class="board-label"><span class="board-label__state state--active">Settings</span><span class="board-label__title">Daemon · Linear · launch profile · appearance</span><span class="board-label__dim">1380 × 720</span></div>
+			<div class="scale-frame"><div class="scaled" style="width:1380px;height:720px">
+				<div class="shell">
+					<aside class="sidebar" id="sb-s"></aside>
+					<div class="main">
+						<div class="topbar"><div class="crumbs"><svg class="ic" style="width:15px;height:15px;color:var(--fg-dim)"><use href="#ic-settings"></use></svg><span class="cur">Settings</span></div></div>
+						<div class="content"><div style="max-width:680px;margin:0 auto;padding:var(--space-9) var(--space-8)" id="settings"></div></div>
+					</div>
+				</div>
+			</div></div>
+		</section>
+	</div>
+	</main>
+</div>
+
+<script src="icons.js"></script>
+<script src="shell.js"></script>
+<script src="glyphs.js"></script>
+<script src="scale.js"></script>
+<script>
+function ic(n, w) { w = w || 16; return '<svg class="ic" style="width:' + w + 'px;height:' + w + 'px"><use href="#ic-' + n + '"></use></svg>'; }
+['sb-a', 'sb-s'].forEach(function (id) { document.getElementById(id).innerHTML = SK_SIDEBAR('agents'); });
+
+/* ── Agent cards (AgentSummary) ────────────────────────────────────────── */
+function spark(data, tone) {
+	var max = Math.max.apply(null, data);
+	return '<div style="display:flex;align-items:flex-end;gap:2px;height:28px">' + data.map(function (v) {
+		return '<span style="flex:1;height:' + Math.max(8, (v / max) * 100) + '%;background:' + tone + ';opacity:' + (0.4 + 0.6 * (v / max)) + ';border-radius:1px"></span>';
+	}).join('') + '</div>';
+}
+var AGENTS = [
+	{ name: 'planner', av: 'av-claude', i: 'C', role: 'Planner', provider: 'claude', model: 'opus-4.6', runs: 128, success: 0.94, status: 'active', tone: 'var(--accent)', spark: [4,6,5,8,7,9,8,10,9,11], tags: ['plan', 'reasoning'] },
+	{ name: 'coder', av: 'av-claude', i: 'C', role: 'Coder', provider: 'claude', model: 'sonnet-4.6', runs: 342, success: 0.89, status: 'active', tone: 'var(--success)', spark: [12,10,14,11,15,13,16,12,17,15], tags: ['code', 'edit', 'test'] },
+	{ name: 'reviewer', av: 'av-codex', i: 'Cx', role: 'Reviewer', provider: 'codex', model: 'gpt-5-codex', runs: 96, success: 0.97, status: 'active', tone: 'var(--status-review)', spark: [6,7,6,8,7,9,8,9,10,9], tags: ['review', 'swarm'] },
+	{ name: 'fixer', av: 'av-claude', i: 'C', role: 'Fixer', provider: 'claude', model: 'sonnet-4.6', runs: 44, success: 0.77, status: 'paused', tone: 'var(--warn)', spark: [3,5,2,6,3,4,2,5,3,4], tags: ['retry'] }
+];
+document.getElementById('agents').innerHTML = AGENTS.map(function (a) {
+	return '<div class="card" style="padding:var(--space-6)">' +
+		'<div style="display:flex;align-items:center;gap:var(--space-4);margin-bottom:var(--space-5)">' +
+			'<span class="avatar avatar--agent ' + a.av + ' avatar--lg">' + a.i + '</span>' +
+			'<div style="flex:1;min-width:0"><div style="font-weight:var(--fw-semibold);font-size:var(--text-14)">' + a.name + '</div>' +
+			'<div style="font-size:var(--text-12);color:var(--fg-dim)">' + a.role + ' · <span class="mono">' + a.model + '</span></div></div>' +
+			'<span class="pill ' + (a.status === 'active' ? 'pill--success' : 'pill--warn') + '">' + (a.status === 'active' ? '<span class="agdot agdot--running"></span>' : ic('pause', 11)) + a.status + '</span>' +
+		'</div>' +
+		spark(a.spark, a.tone) +
+		'<div style="display:flex;gap:var(--space-7);margin:var(--space-5) 0;padding-top:var(--space-5);border-top:1px solid var(--border-faint)">' +
+			'<div><div class="stat__k">Runs</div><div style="font-size:var(--text-16);font-weight:var(--fw-semibold);font-variant-numeric:tabular-nums">' + a.runs + '</div></div>' +
+			'<div><div class="stat__k">Success</div><div style="font-size:var(--text-16);font-weight:var(--fw-semibold);font-variant-numeric:tabular-nums;color:' + (a.success >= 0.85 ? 'var(--success)' : 'var(--warn)') + '">' + Math.round(a.success * 100) + '%</div></div>' +
+		'</div>' +
+		'<div style="display:flex;gap:var(--space-2);flex-wrap:wrap">' + a.tags.map(function (t) { return '<span class="pill pill--neutral">' + t + '</span>'; }).join('') + '</div>' +
+	'</div>';
+}).join('');
+
+/* ── Settings ──────────────────────────────────────────────────────────── */
+function sgroup(title, rows) {
+	return '<div style="margin-bottom:var(--space-9)">' +
+		'<div class="section-head" style="margin-top:0"><span class="section-head__title">' + title + '</span><span class="section-head__line"></span></div>' +
+		'<div class="card" style="padding:var(--space-2) var(--space-6)">' + rows + '</div></div>';
+}
+function srow(label, sub, control) {
+	return '<div style="display:flex;align-items:center;gap:var(--space-5);padding:var(--space-5) 0;border-bottom:1px solid var(--border-faint)">' +
+		'<div style="flex:1;min-width:0"><div style="font-size:var(--text-13)">' + label + '</div>' + (sub ? '<div style="font-size:var(--text-12);color:var(--fg-dim);margin-top:2px">' + sub + '</div>' : '') + '</div>' + control + '</div>';
+}
+document.getElementById('settings').innerHTML =
+	'<h2 style="font-size:var(--text-21);font-weight:var(--fw-semibold);letter-spacing:var(--tracking-tight);margin:0 0 var(--space-7)">Settings</h2>' +
+	sgroup('Daemon', 
+		srow('Status', 'superkickd · port 7878', '<span class="pill pill--success"><span class="agdot agdot--shipped"></span>running</span>') +
+		srow('Auto-start on login', '', '<div class="toggle toggle--on"><span class="toggle__track"></span></div>')
+	) +
+	sgroup('Linear',
+		srow('Workspace', 'Connected · superkick.linear.app', '<button class="btn btn--sm">Re-sync</button>') +
+		srow('Default team', '', '<button class="select">Superkick<span class="chev">' + ic('chevDown', 14) + '</span></button>')
+	) +
+	sgroup('Default launch profile',
+		srow('Run in worktree', 'Isolate each run under ~/.superkick/wt', '<div class="toggle toggle--on"><span class="toggle__track"></span></div>') +
+		srow('Live mode', 'Stream tool calls as they happen', '<div class="toggle toggle--on"><span class="toggle__track"></span></div>') +
+		srow('Default skills', '', '<div style="display:flex;gap:var(--space-2)"><span class="pill pill--neutral">ticket</span><span class="pill pill--neutral">review</span><span class="pill pill--neutral">ship</span></div>')
+	) +
+	sgroup('Appearance',
+		srow('Theme', 'Live preview — flips the whole reference', '<div class="seg" id="theme-seg"><button data-t="dark" class="on">Dark</button><button data-t="light">Light</button></div>')
+	);
+
+/* live theme toggle — demonstrates the 1:1 light override */
+document.getElementById('theme-seg').addEventListener('click', function (e) {
+	var b = e.target.closest('button[data-t]'); if (!b) return;
+	document.documentElement.setAttribute('data-theme', b.dataset.t);
+	this.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+});
+</script>
+</body>
+</html>

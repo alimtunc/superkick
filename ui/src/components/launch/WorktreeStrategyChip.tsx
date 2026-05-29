@@ -32,18 +32,13 @@ export function WorktreeStrategyChip({ value, onChange }: WorktreeStrategyChipPr
 	const current = OPTIONS.find((o) => o.value === value)?.label ?? value
 	return (
 		<Menu.Root>
-			<Menu.Trigger
-				aria-label={`Worktree strategy: ${current}`}
-				className={cn(
-					'inline-flex items-center gap-[7px] rounded-[7px] border border-transparent bg-raised px-2.5 py-[5px] text-[12.5px] transition-colors',
-					'focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none',
-					'hover:border-border-strong'
-				)}
-			>
-				<Icon name="folder" size={13} className="text-fg-muted" />
+			<Menu.Trigger aria-label={`Worktree strategy: ${current}`} className="select">
+				<Icon name="folder" size={14} className="ic text-fg-muted" />
 				<span className="text-fg-dim">worktree</span>
 				<span className="font-medium text-fg">{current}</span>
-				<Icon name="chevDown" size={11} className="text-fg-dim" />
+				<span className="chev">
+					<Icon name="chevDown" size={14} className="ic" />
+				</span>
 			</Menu.Trigger>
 			<MenuPopup align="start" popupClassName="w-72">
 				<Menu.RadioGroup

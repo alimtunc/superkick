@@ -3,14 +3,10 @@ import { useCallback, useState, type KeyboardEvent } from 'react'
 import { AuthorAvatar } from '@/components/issue-detail/AuthorAvatar'
 import { useCreateIssueComment } from '@/hooks/useCreateIssueComment'
 import { useViewer } from '@/hooks/useViewer'
-import { Icon } from '@/ui'
-import { Btn } from '@/ui/Btn'
+import { Btn, Icon } from '@/ui'
 import { Kbd } from '@/ui/Kbd'
 
 export const ISSUE_REPLY_COMPOSER_ID = 'issue-reply-composer'
-
-const TOOLBAR_BTN =
-	'inline-flex size-6.5 items-center justify-center rounded-md text-fg-dim transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-fg-dim'
 
 interface IssueReplyComposerProps {
 	issueId: string
@@ -42,45 +38,60 @@ export function IssueReplyComposer({ issueId }: IssueReplyComposerProps) {
 	)
 
 	return (
-		<div className="rounded-[10px] border border-border bg-surface">
-			<div id={ISSUE_REPLY_COMPOSER_ID} className="flex items-start gap-2.5 px-3 py-2.5">
-				{viewer ? (
-					<AuthorAvatar name={viewer.name} avatarUrl={viewer.avatar_url} size={20} />
-				) : (
-					<span
-						aria-hidden="true"
-						className="mt-0.5 size-5 shrink-0 rounded-full border border-border bg-raised"
+		<div className="composer">
+			<div className="composer__box on-raised">
+				<div id={ISSUE_REPLY_COMPOSER_ID} className="flex items-start gap-2.5 px-3 pt-2.5">
+					{viewer ? (
+						<AuthorAvatar name={viewer.name} avatarUrl={viewer.avatar_url} size={20} />
+					) : (
+						<span aria-hidden="true" className="avatar avatar--empty mt-0.5" />
+					)}
+					<textarea
+						value={value}
+						onChange={(event) => setValue(event.target.value)}
+						onKeyDown={onKeyDown}
+						disabled={mutation.isPending}
+						placeholder="Leave a comment…"
+						rows={2}
+						className="composer__field"
+						style={{ padding: 0 }}
+						aria-label="Leave a comment"
 					/>
-				)}
-				<textarea
-					value={value}
-					onChange={(event) => setValue(event.target.value)}
-					onKeyDown={onKeyDown}
-					disabled={mutation.isPending}
-					placeholder="Leave a comment…"
-					rows={2}
-					className="block w-full resize-none bg-transparent text-[13px] leading-5 text-fg placeholder:text-fg-dim focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-					aria-label="Leave a comment"
-				/>
-			</div>
-			<div className="flex items-center justify-between gap-2 border-t border-border px-2 py-1.5">
-				<div className="flex items-center gap-0.5">
-					<button type="button" disabled className={TOOLBAR_BTN} aria-label="Attach link">
-						<Icon name="link" size={14} />
-					</button>
-					<button type="button" disabled className={TOOLBAR_BTN} aria-label="Attach file">
-						<Icon name="doc" size={14} />
-					</button>
-					<button type="button" disabled className={TOOLBAR_BTN} aria-label="Insert code block">
-						<Icon name="terminal" size={14} />
-					</button>
 				</div>
-				<div className="flex items-center gap-2 text-[11px] text-fg-dim">
-					<span className="inline-flex items-center gap-1">
+				<div className="composer__bar">
+					<button
+						type="button"
+						disabled
+						className="iconbtn"
+						style={{ width: 26, height: 26 }}
+						aria-label="Attach link"
+					>
+						<Icon name="link" size={15} className="ic" />
+					</button>
+					<button
+						type="button"
+						disabled
+						className="iconbtn"
+						style={{ width: 26, height: 26 }}
+						aria-label="Attach file"
+					>
+						<Icon name="doc" size={15} className="ic" />
+					</button>
+					<button
+						type="button"
+						disabled
+						className="iconbtn"
+						style={{ width: 26, height: 26 }}
+						aria-label="Insert code block"
+					>
+						<Icon name="terminal" size={15} className="ic" />
+					</button>
+					<span className="spacer" />
+					<span className="inline-flex items-center gap-1 text-[11px] text-fg-dim">
 						<Kbd>⌘</Kbd>
 						<Kbd>↵</Kbd>
 					</span>
-					<Btn kind="primary" size="sm" disabled={!canSubmit} onClick={submit}>
+					<Btn kind="primary" size="sm" icon="send" disabled={!canSubmit} onClick={submit}>
 						{mutation.isPending ? 'Posting…' : 'Comment'}
 					</Btn>
 				</div>

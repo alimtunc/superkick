@@ -14,8 +14,9 @@ export function RunDrawer() {
 			title="Run"
 			closeAriaLabel="Close run drawer"
 			width="compact"
+			bare
 		>
-			<div className="min-h-0 flex-1">{runId ? <RunDrawerContent runId={runId} /> : null}</div>
+			{runId ? <RunDrawerContent runId={runId} /> : null}
 		</SideDrawer>
 	)
 }

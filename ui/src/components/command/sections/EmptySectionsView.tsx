@@ -5,7 +5,6 @@ import { JUMP_TO_TARGETS, QUICK_ACTIONS } from '@/lib/commandActions'
 import { formatShortDate } from '@/lib/format'
 import type { Run } from '@/types'
 import { Icon } from '@/ui/Icon'
-import { Kbd } from '@/ui/Kbd'
 
 interface EmptySectionsViewProps {
 	needsYou: Run[]
@@ -48,7 +47,7 @@ export function EmptySectionsView({ needsYou, selectedIdx, onSelect, onActivate 
 								selected={myIdx === selectedIdx}
 								onSelect={() => onSelect(myIdx)}
 								onActivate={() => onActivate(`/runs/${run.id}`)}
-								leading={<Icon name="alert" size={13} className="text-warn" />}
+								leading={<Icon name="alert" size={16} className="text-warn" />}
 								primary={
 									<span>
 										<span className="font-mono text-fg">{run.issue_identifier}</span> ·{' '}
@@ -76,15 +75,13 @@ export function EmptySectionsView({ needsYou, selectedIdx, onSelect, onActivate 
 						selected={myIdx === selectedIdx}
 						onSelect={() => onSelect(myIdx)}
 						onActivate={() => onActivate(action.target ?? '')}
-						leading={<Icon name={action.icon} size={13} className="text-accent" />}
+						leading={<Icon name={action.icon} size={16} className="text-accent" />}
 						primary={action.label}
 						secondary={action.hint ?? null}
 						trailing={
 							action.kbdHints ? (
-								<span className="flex items-center gap-1">
-									{action.kbdHints.map((hint) => (
-										<Kbd key={`${action.id}-${hint}`}>{hint}</Kbd>
-									))}
+								<span className="font-mono text-[11px] text-fg-dim">
+									{action.kbdHints.join(' ')}
 								</span>
 							) : null
 						}
@@ -101,7 +98,7 @@ export function EmptySectionsView({ needsYou, selectedIdx, onSelect, onActivate 
 						selected={myIdx === selectedIdx}
 						onSelect={() => onSelect(myIdx)}
 						onActivate={() => onActivate(jump.target)}
-						leading={<Icon name={jump.icon} size={13} className="text-fg-muted" />}
+						leading={<Icon name={jump.icon} size={16} className="text-fg-muted" />}
 						primary={jump.label}
 					/>
 				)

@@ -18,25 +18,23 @@ export function KanbanRunCard({ item, refTime }: KanbanRunCardProps) {
 		<Link
 			to="/runs/$runId"
 			params={{ runId: run.id }}
-			className="flex flex-col gap-2.5 rounded-lg border border-border bg-raised p-3 transition-colors hover:border-border-strong focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+			className="kcard block focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
 			title={item.reason}
 		>
-			<div className="flex items-center gap-2">
-				<span className="font-mono text-[11px] text-fg-dim">{linkedIdentifier}</span>
-				<span className="flex-1" />
+			<div className="kcard__top">
+				<span className="kcard__id mono">{linkedIdentifier}</span>
+				<span className="spacer" />
 				<Pill tone="info" size="xs" mono>
 					Run
 				</Pill>
 			</div>
 
-			<p className="line-clamp-2 text-[12.5px] leading-snug font-medium text-fg">
-				{stepText ?? item.reason}
-			</p>
+			<p className="kcard__title line-clamp-2">{stepText ?? item.reason}</p>
 
-			<div className="flex items-center gap-2">
+			<div className="kcard__foot">
 				<span className="truncate font-mono text-[10.5px] text-fg-muted">{run.repo_slug}</span>
 				<LaunchRunBadges item={item} />
-				<span className="flex-1" />
+				<span className="spacer" />
 				<span className="font-mono text-[10.5px] text-fg-dim">
 					{fmtElapsed(run.started_at, refTime)}
 				</span>

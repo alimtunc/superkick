@@ -48,7 +48,7 @@ export function IssuesKanbanView({ boardColumns, recentUnblocks }: IssuesKanbanV
 			onDragEnd={onDragEnd}
 			onDragCancel={onDragCancel}
 		>
-			<div className="flex min-h-0 flex-1 items-stretch overflow-x-auto">
+			<div className="board min-h-0 flex-1">
 				{ISSUE_STATE_ORDER.map((state) => (
 					<KanbanColumn
 						key={state}

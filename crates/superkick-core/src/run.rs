@@ -197,6 +197,31 @@ impl std::fmt::Display for PauseKind {
     }
 }
 
+/// Per-step agent overrides supplied at launch time (e.g. the operator picked
+/// agents in the launch modal). Each `None` falls back to the workflow config's
+/// default agent for that step. Snapshotted onto the run so a later config edit
+/// can't retroactively rewrite an in-flight run's agents.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunAgentOverrides {
+    /// Overrides `WorkflowStep::Plan { agent }`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub planner: Option<String>,
+    /// Overrides `WorkflowStep::Code { agent }`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coder: Option<String>,
+    /// Overrides the review-swarm agent set with a single reviewer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reviewer: Option<String>,
+}
+
+impl RunAgentOverrides {
+    /// True when no override is set — the run uses the workflow defaults.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.planner.is_none() && self.coder.is_none() && self.reviewer.is_none()
+    }
+}
+
 /// A single run of the Superkick pipeline for one issue.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Run {
@@ -239,6 +264,9 @@ pub struct Run {
     /// created but never produced a session lifecycle event).
     #[serde(default)]
     pub last_heartbeat_at: Option<DateTime<Utc>>,
+    /// Per-step agent overrides chosen at launch. Empty = use workflow defaults.
+    #[serde(default)]
+    pub agent_overrides: RunAgentOverrides,
 }
 
 /// Lightweight run reference for embedding in issue detail payloads.
@@ -332,6 +360,7 @@ impl Run {
             pause_kind: PauseKind::None,
             pause_reason: None,
             last_heartbeat_at: None,
+            agent_overrides: RunAgentOverrides::default(),
         }
     }
 
@@ -340,6 +369,14 @@ impl Run {
     #[must_use]
     pub fn with_budget(mut self, budget: RunBudget) -> Self {
         self.budget = budget;
+        self
+    }
+
+    /// Attach per-step agent overrides chosen at launch time. Empty overrides
+    /// leave the run on the workflow defaults.
+    #[must_use]
+    pub fn with_agent_overrides(mut self, overrides: RunAgentOverrides) -> Self {
+        self.agent_overrides = overrides;
         self
     }
 

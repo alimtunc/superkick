@@ -2,18 +2,17 @@ import { RunDrawerTabs } from '@/components/issue-detail/run-drawer/RunDrawerTab
 import { ChangesTab } from '@/components/run-detail/RunWorkspaceTabs/ChangesTab'
 import { ShellTab } from '@/components/run-detail/RunWorkspaceTabs/ShellTab'
 import { ToolsTab } from '@/components/run-detail/RunWorkspaceTabs/ToolsTab'
+import { RunChip } from '@/components/run-shared/RunChip'
 import { RunMetaStrip } from '@/components/run-shared/RunMetaStrip'
 import { ActivityTab } from '@/components/run-tabs/ActivityTab'
 import { LogsTab } from '@/components/run-tabs/LogsTab'
-import { RunStateBadge } from '@/components/RunStateBadge'
-import { Pill } from '@/components/ui/pill'
 import { ErrorState } from '@/components/ui/state-error'
 import { LoadingState } from '@/components/ui/state-loading'
 import { useEventStream } from '@/hooks/useEventStream'
 import { useRunDetail } from '@/hooks/useRunDetail'
 import { useRunDrawerStore } from '@/stores/runDrawer'
+import { Icon } from '@/ui/Icon'
 import { Link } from '@tanstack/react-router'
-import { ExternalLink } from 'lucide-react'
 
 interface RunDrawerContentProps {
 	runId: string
@@ -22,6 +21,7 @@ interface RunDrawerContentProps {
 export function RunDrawerContent({ runId }: RunDrawerContentProps) {
 	const tab = useRunDrawerStore((s) => s.tab)
 	const setTab = useRunDrawerStore((s) => s.setTab)
+	const closeDrawer = useRunDrawerStore((s) => s.closeDrawer)
 	const detail = useRunDetail(runId)
 	const stream = useEventStream(runId, detail.syncRun)
 
@@ -56,34 +56,42 @@ export function RunDrawerContent({ runId }: RunDrawerContentProps) {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2">
+			<div className="drawer__head">
+				<Icon name="terminal" size={16} className="ic text-fg-muted" />
+				<span className="drawer__id mono">{run.id.slice(0, 8)}</span>
+				<RunChip state={run.state} />
+				<span className="spacer" />
 				<Link
 					to="/issues/$issueId"
 					params={{ issueId: run.issue_identifier }}
 					aria-label={`Open issue ${run.issue_identifier}`}
 					title={`Open issue ${run.issue_identifier}`}
-					className="rounded-md focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+					className="iconbtn"
 				>
-					<Pill mono size="xs" interactive>
-						{run.issue_identifier}
-					</Pill>
+					<Icon name="issue" size={16} className="ic" />
 				</Link>
-				<RunStateBadge state={run.state} />
-				<span className="font-data ml-auto text-[11px] text-fg-dim">{run.id.slice(0, 8)}</span>
 				<Link
 					to="/runs/$runId"
 					params={{ runId: run.id }}
-					className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11.5px] text-fg-muted hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
+					className="iconbtn"
 					aria-label="Open run detail"
 					title="Open run detail"
 				>
-					<ExternalLink size={11} strokeWidth={1.85} aria-hidden="true" />
-					Detail
+					<Icon name="external" size={16} className="ic" />
 				</Link>
+				<button
+					type="button"
+					className="iconbtn"
+					onClick={closeDrawer}
+					aria-label="Close run drawer"
+					title="Close run drawer"
+				>
+					<Icon name="x" size={16} className="ic" />
+				</button>
 			</div>
 			<RunMetaStrip run={run} sessions={sessions} density="compact" />
 			<RunDrawerTabs />
-			<div className="min-h-0 flex-1 overflow-y-auto">
+			<div className="drawer__body">
 				{tab === 'activity' ? (
 					<ActivityTab
 						events={stream.events}

@@ -30,7 +30,6 @@ describe('LedgerRow — terminal takeover events', () => {
 				event={buildEvent({ kind: 'terminal_takeover_opened' })}
 				sessionById={new Map()}
 				attentionById={new Map()}
-				connect={false}
 			/>
 		)
 
@@ -47,7 +46,6 @@ describe('LedgerRow — terminal takeover events', () => {
 				})}
 				sessionById={new Map()}
 				attentionById={new Map()}
-				connect={false}
 			/>
 		)
 

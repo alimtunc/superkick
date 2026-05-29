@@ -4,8 +4,7 @@ import { ISSUE_REPLY_COMPOSER_ID } from '@/components/issue-detail/IssueReplyCom
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useCancelLaunchTask, useRetryLaunchTask } from '@/hooks/useLaunchTaskActions'
 import type { BlockingContext } from '@/types'
-import { Btn } from '@/ui'
-import { AlertTriangle } from 'lucide-react'
+import { Btn, Icon } from '@/ui'
 
 interface NeedsBannerProps {
 	linearIssueId: string
@@ -34,40 +33,36 @@ export function NeedsBanner({ linearIssueId, taskId, linkedRunId, blocking }: Ne
 	const [confirmReject, setConfirmReject] = useState(false)
 
 	return (
-		<section
-			aria-label="Needs your decision"
-			className="flex flex-col gap-1.5 border-b border-[color-mix(in_srgb,var(--color-warn)_30%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-warn)_10%,var(--color-surface))] px-3.5 py-2.5"
-		>
-			<div className="flex flex-wrap items-center gap-2.5">
-				<span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-warn">
-					<AlertTriangle size={13} strokeWidth={1.9} aria-hidden="true" />
-					{blocking.headline}
-				</span>
-				<span className="min-w-0 truncate text-[12px] text-fg-muted">{blocking.hint}</span>
-			</div>
-			<div className="flex flex-wrap items-center gap-1.5">
-				<Btn
-					kind="primary"
-					size="sm"
-					icon="check"
-					onClick={() => retry.mutate()}
-					disabled={retry.isPending}
-				>
-					Approve
-				</Btn>
-				<Btn
-					kind="secondary"
-					size="sm"
-					icon="x"
-					onClick={() => setConfirmReject(true)}
-					disabled={cancel.isPending}
-				>
-					Reject
-				</Btn>
-				<Btn kind="ghost" size="sm" icon="comment" onClick={focusReplyComposer}>
-					Comment
-				</Btn>
-				<span className="ml-auto text-[11px] text-fg-dim">Decision logs to the run.</span>
+		<section aria-label="Needs your decision" className="opbanner">
+			<span className="opbanner__icon">
+				<Icon name="alert" size={18} className="ic" />
+			</span>
+			<div className="opbanner__body">
+				<p className="opbanner__title">{blocking.headline}</p>
+				<p className="opbanner__q">{blocking.hint}</p>
+				<div className="opbanner__actions">
+					<Btn
+						kind="success"
+						size="sm"
+						icon="check"
+						onClick={() => retry.mutate()}
+						disabled={retry.isPending}
+					>
+						Approve
+					</Btn>
+					<Btn
+						kind="danger"
+						size="sm"
+						icon="x"
+						onClick={() => setConfirmReject(true)}
+						disabled={cancel.isPending}
+					>
+						Reject
+					</Btn>
+					<Btn kind="ghost" size="sm" icon="comment" onClick={focusReplyComposer}>
+						Comment
+					</Btn>
+				</div>
 			</div>
 			<ConfirmDialog
 				open={confirmReject}

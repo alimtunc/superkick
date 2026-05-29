@@ -2,8 +2,8 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use sqlx::SqlitePool;
 use superkick_core::{
-    ExecutionMode, PauseKind, Run, RunBudget, RunBudgetGrant, RunId, RunState, StepKey,
-    TriggerSource,
+    ExecutionMode, PauseKind, Run, RunAgentOverrides, RunBudget, RunBudgetGrant, RunId, RunState,
+    StepKey, TriggerSource,
 };
 
 use super::codec::{deserialize_enum, serialize_enum};
@@ -25,9 +25,11 @@ impl RunRepo for SqliteRunRepo {
         let budget_json = serde_json::to_string(&run.budget).context("serialize run budget")?;
         let budget_grant_json =
             serde_json::to_string(&run.budget_grant).context("serialize run budget_grant")?;
+        let agent_overrides_json =
+            serde_json::to_string(&run.agent_overrides).context("serialize run agent_overrides")?;
         sqlx::query(
-            "INSERT INTO runs (id, issue_id, issue_identifier, repo_slug, state, trigger_source, execution_mode, current_step_key, base_branch, use_worktree, worktree_path, branch_name, operator_instructions, started_at, updated_at, finished_at, error_message, budget_json, pause_kind, pause_reason, budget_grant_json, last_heartbeat_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
+            "INSERT INTO runs (id, issue_id, issue_identifier, repo_slug, state, trigger_source, execution_mode, current_step_key, base_branch, use_worktree, worktree_path, branch_name, operator_instructions, started_at, updated_at, finished_at, error_message, budget_json, pause_kind, pause_reason, budget_grant_json, last_heartbeat_at, agent_overrides_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
         )
         .bind(run.id.0.to_string())
         .bind(&run.issue_id)
@@ -51,6 +53,7 @@ impl RunRepo for SqliteRunRepo {
         .bind(&run.pause_reason)
         .bind(budget_grant_json)
         .bind(run.last_heartbeat_at.map(|t| t.to_rfc3339()))
+        .bind(agent_overrides_json)
         .execute(&self.pool)
         .await
         .with_context(|| format!("insert run {}", run.id.0))?;
@@ -174,6 +177,7 @@ struct RunRow {
     pause_reason: Option<String>,
     budget_grant_json: String,
     last_heartbeat_at: Option<String>,
+    agent_overrides_json: String,
 }
 
 impl RunRow {
@@ -188,6 +192,12 @@ impl RunRow {
         } else {
             serde_json::from_str(&self.budget_grant_json)
                 .context("deserialize run budget_grant_json")?
+        };
+        let agent_overrides: RunAgentOverrides = if self.agent_overrides_json.trim().is_empty() {
+            RunAgentOverrides::default()
+        } else {
+            serde_json::from_str(&self.agent_overrides_json)
+                .context("deserialize run agent_overrides_json")?
         };
         Ok(Run {
             id: RunId(uuid::Uuid::parse_str(&self.id)?),
@@ -224,6 +234,7 @@ impl RunRow {
                 .as_deref()
                 .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
                 .transpose()?,
+            agent_overrides,
         })
     }
 }

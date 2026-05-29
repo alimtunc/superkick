@@ -23,24 +23,30 @@ export function IssueDetail({ issueId }: { issueId: string }) {
 
 	if (loading)
 		return (
-			<div className="p-6">
-				<LoadingState rows={4} />
+			<div className="detail__body">
+				<div className="detail__inner">
+					<LoadingState rows={4} />
+				</div>
 			</div>
 		)
 	if (error)
 		return (
-			<div className="p-6">
-				<ErrorState title="Issue load failed" message={error} onRetry={refresh} />
+			<div className="detail__body">
+				<div className="detail__inner">
+					<ErrorState title="Issue load failed" message={error} onRetry={refresh} />
+				</div>
 			</div>
 		)
 	if (!issue)
 		return (
-			<div className="p-6">
-				<EmptyState
-					icon={FileSearch}
-					title="Issue not found"
-					description="It may have been deleted in Linear or the identifier is wrong."
-				/>
+			<div className="detail__body">
+				<div className="detail__inner">
+					<EmptyState
+						icon={FileSearch}
+						title="Issue not found"
+						description="It may have been deleted in Linear or the identifier is wrong."
+					/>
+				</div>
 			</div>
 		)
 
@@ -91,11 +97,19 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 
 	return (
 		<>
-			<div className="flex h-full min-h-0 bg-surface">
-				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-					<div className="mx-auto flex w-full max-w-180 flex-col gap-5.5 px-7 pt-5 pb-8">
+			<div className="detail">
+				<div className="detail__body">
+					<div className="detail__inner">
 						<IssueIntro issue={issue} />
+						<div className="section-head">
+							<span className="section-head__title">Execution</span>
+							<span className="section-head__line" />
+						</div>
 						<ExecutionLog issue={issue} />
+						<div className="section-head">
+							<span className="section-head__title">Activity</span>
+							<span className="section-head__line" />
+						</div>
 						<IssueFeed issue={issue} />
 						<IssueReplyComposer issueId={issue.id} />
 					</div>

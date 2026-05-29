@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Superkick — Patterns &amp; states</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="detail.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<div class="doc">
+	<nav class="idx">
+		<div class="idx__brand"><div class="idx__logo">S</div><div class="idx__title">Superkick</div></div>
+		<div class="idx__sub">Redesign · 2026-05</div>
+		<div class="idx__group">Reference</div>
+		<a href="index.html">System Legend <span class="n">00</span></a>
+		<div class="idx__group">Surfaces</div>
+		<a href="issues-list.html">Issues list <span class="n">01</span></a>
+		<a href="issue-detail.html">Issue detail <span class="n">02</span></a>
+		<a href="app-shell.html">App shell <span class="n">03</span></a>
+		<a href="run-drawer.html">Run drawer <span class="n">04</span></a>
+		<a href="run-inspector.html">Run inspector <span class="n">05</span></a>
+		<a href="launch.html">Launch flow <span class="n">06</span></a>
+		<a href="agents.html">Agents &amp; Settings <span class="n">07</span></a>
+		<a class="cur" href="patterns.html">Patterns &amp; states <span class="n">08</span></a>
+	</nav>
+
+	<main class="canvas">
+	<div class="page">
+		<div class="page__kicker">Surface 08 · cross-cutting</div>
+		<h1 class="page__title">Patterns &amp; states</h1>
+		<p class="page__lede">The shared behaviours every surface inherits — so none of them get re-invented per screen: keyboard focus, the rail edit pickers, connection states, toasts, destructive confirms, and the full activity / history event vocabulary.</p>
+
+		<!-- ════ 1 · FOCUS & KEYBOARD ════ -->
+		<section class="sect">
+			<div class="sect__head"><span class="sect__num">01</span><h2 class="sect__title">Focus &amp; keyboard</h2></div>
+			<p class="sect__note">Keyboard-first. Focus is a roving caret: the list uses a left accent bar + surface wash (no layout shift); controls show a <code style="font-family:var(--font-mono)">:focus-visible</code> ring. Mouse clicks never ring.</p>
+			<div class="grid2" style="align-items:start">
+				<div class="card" style="overflow:hidden">
+					<div class="row row--kbd"><span><span class="prio high"><span class="bar b1"></span><span class="bar b2"></span><span class="bar b3"></span></span></span><span class="row__id mono">SUP-132</span><span class="row__main"><span class="row__title">Keyboard-focused row · accent bar + wash</span></span></div>
+					<div class="row row--selected"><span><span class="prio medium"><span class="bar b1"></span><span class="bar b2"></span><span class="bar b3"></span></span></span><span class="row__id mono">SUP-119</span><span class="row__main"><span class="row__title">Selected row (x) · accent-soft</span></span></div>
+					<div class="row"><span><span class="prio low"><span class="bar b1"></span><span class="bar b2"></span><span class="bar b3"></span></span></span><span class="row__id mono">SUP-150</span><span class="row__main"><span class="row__title">Resting row</span></span></div>
+					<div style="padding:var(--space-6);display:flex;gap:var(--space-4);align-items:center;border-top:1px solid var(--border-faint)">
+						<button class="btn focus-demo">Tab to me</button>
+						<button class="iconbtn focus-demo"><svg class="ic"><use href="#ic-plus"></use></svg></button>
+						<span class="fchip focus-demo" tabindex="0"><span class="k">Status</span><span class="v">In progress</span></span>
+						<span style="font-size:var(--text-12);color:var(--fg-dim)">use Tab ⇥</span>
+					</div>
+				</div>
+				<div class="card"><table class="tbl">
+					<thead><tr><th>Key</th><th>Action</th></tr></thead>
+					<tbody>
+						<tr><td class="mono val">↑ ↓ / j k</td><td class="desc">Move focus between rows</td></tr>
+						<tr><td class="mono val">↵</td><td class="desc">Open focused issue</td></tr>
+						<tr><td class="mono val">x</td><td class="desc">Select / multi-select</td></tr>
+						<tr><td class="mono val">c</td><td class="desc">New issue</td></tr>
+						<tr><td class="mono val">l</td><td class="desc">Launch agent on issue</td></tr>
+						<tr><td class="mono val">⌘K</td><td class="desc">Command bar</td></tr>
+						<tr><td class="mono val">esc</td><td class="desc">Close drawer / dialog / popover</td></tr>
+					</tbody>
+				</table></div>
+			</div>
+		</section>
+
+		<!-- ════ 2 · EDIT PICKERS ════ -->
+		<section class="sect">
+			<div class="sect__head"><span class="sect__num">02</span><h2 class="sect__title">Rail edit pickers</h2></div>
+			<p class="sect__note">Every mutable property (<code style="font-family:var(--font-mono)">IssueUpdateRequest</code>) opens the same popover pattern (tier 3, search + list, ⌥ to clear). Shown: assignee, label (multi), project, priority, estimate.</p>
+			<div class="specimen" style="gap:var(--space-6);align-items:flex-start" id="pickers"></div>
+		</section>
+
+		<!-- ════ 3 · CONNECTION STATES ════ -->
+		<section class="sect">
+			<div class="sect__head"><span class="sect__num">03</span><h2 class="sect__title">Connection / daemon states</h2></div>
+			<p class="sect__note">Local-first: the UI talks to a local daemon. When it drops, a global bar pins under the topbar — inputs disable, live dots freeze, but cached data stays readable.</p>
+			<div class="card" style="overflow:hidden;margin-bottom:var(--space-6)">
+				<div class="connbar connbar--down"><span class="dot"></span><strong>Daemon disconnected</strong><span>— superkickd isn't responding on port 7878.</span><span class="spacer"></span><button class="btn btn--sm btn--danger">Restart daemon</button></div>
+				<div class="connbar connbar--reconnect"><span class="dot"></span>Reconnecting… <span style="opacity:.7">retry 2 of 5</span></div>
+			</div>
+			<div class="artboard" style="height:240px">
+				<div class="empty-state" style="height:100%">
+					<div class="empty-state__icon" style="color:var(--danger)"><svg class="ic" style="width:20px;height:20px"><use href="#ic-alert"></use></svg></div>
+					<div class="empty-state__title">Can't reach the daemon</div>
+					<div class="empty-state__sub">Start it with <code style="font-family:var(--font-mono);background:var(--bg-code);padding:1px 5px;border-radius:3px">superkickd</code>, then this view reconnects automatically.</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- ════ 4 · TOASTS ════ -->
+		<section class="sect">
+			<div class="sect__head"><span class="sect__num">04</span><h2 class="sect__title">Toasts</h2></div>
+			<p class="sect__note">Transient, bottom-right, <code style="font-family:var(--font-mono)">z-toast</code>. Auto-dismiss except when they carry an action (Undo / View).</p>
+			<div class="toast-stack" id="toasts"></div>
+		</section>
+
+		<!-- ════ 5 · CONFIRM DIALOG ════ -->
+		<section class="sect">
+			<div class="sect__head"><span class="sect__num">05</span><h2 class="sect__title">Destructive confirm</h2></div>
+			<p class="sect__note">Irreversible actions (cancel run, delete) use a compact confirm — the destructive verb is the primary, tinted danger.</p>
+			<div class="artboard" style="height:300px;display:flex;align-items:center;justify-content:center;background:var(--bg-scrim)">
+				<div class="dialog dialog--confirm">
+					<div class="dialog__body" style="gap:var(--space-4)">
+						<div style="display:flex;align-items:center;gap:var(--space-4)"><span style="color:var(--danger)"><svg class="ic" style="width:20px;height:20px"><use href="#ic-alert"></use></svg></span><span class="dialog__title">Cancel run?</span></div>
+						<p style="font-size:var(--text-13);color:var(--fg-muted);margin:0;line-height:var(--lh-normal)">This stops <span class="mono">run_a7c0e2</span> and discards the worktree. The issue stays in progress.</p>
+					</div>
+					<div class="dialog__foot"><span class="spacer"></span><button class="btn btn--ghost btn--sm">Keep running</button><button class="btn btn--danger btn--sm"><svg class="ic"><use href="#ic-stop"></use></svg>Cancel run</button></div>
+				</div>
+			</div>
+		</section>
+
+		<!-- ════ 6 · ACTIVITY & HISTORY VOCABULARY ════ -->
+		<section class="sect">
+			<div class="sect__head"><span class="sect__num">06</span><h2 class="sect__title">Activity &amp; history vocabulary</h2></div>
+			<p class="sect__note">Every <code style="font-family:var(--font-mono)">IssueHistoryEvent</code> kind rendered on the gutter connector, plus a threaded comment (<code style="font-family:var(--font-mono)">parent_id</code> / <code style="font-family:var(--font-mono)">CommentNode.children</code>). System events are inline; comments are tier-2 cards.</p>
+			<div class="card" style="padding:var(--space-7) var(--space-8)"><div id="feed"></div></div>
+		</section>
+	</div>
+	</main>
+</div>
+
+<script src="icons.js"></script>
+<script src="shell.js"></script>
+<script src="glyphs.js"></script>
+<script src="detail.js"></script>
+<script src="scale.js"></script>
+<script>
+function ic(n, w) { w = w || 14; return '<svg class="ic" style="width:' + w + 'px;height:' + w + 'px"><use href="#ic-' + n + '"></use></svg>'; }
+var E = {
+	alim: { name: 'Alim Tunç', initials: 'AT', av: 'av-1' }, maya: { name: 'Maya K.', initials: 'MK', av: 'av-2' },
+	jonas: { name: 'Jonas D.', initials: 'JD', av: 'av-3' }, felix: { name: 'Felix K.', initials: 'FK', av: 'av-7' },
+	claude: { name: 'claude', initials: 'C', av: 'av-claude', agent: true }
+};
+
+/* ── Edit pickers ──────────────────────────────────────────────────────── */
+function popover(title, inner, w) {
+	return '<div style="width:' + (w || 240) + 'px;background:var(--bg-overlay);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-md);overflow:hidden">' +
+		'<div style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-5);border-bottom:1px solid var(--border)">' + ic('search', 14) + '<span style="font-size:var(--text-12);color:var(--fg-dim)">' + title + '</span></div>' +
+		'<div style="padding:var(--space-3)">' + inner + '</div></div>';
+}
+function pline(content, on) {
+	return '<div class="popline" style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-3) var(--space-4);border-radius:var(--radius-sm)' + (on ? ';background:var(--bg-active)' : '') + '">' + content + (on ? '<span style="margin-left:auto;color:var(--accent)">' + ic('check', 14) + '</span>' : '') + '</div>';
+}
+document.getElementById('pickers').innerHTML =
+	popover('Assign to…',
+		pline('<span class="avatar avatar--sm av-2">MK</span>Maya K.', true) +
+		pline('<span class="avatar avatar--sm av-1">AT</span>Alim Tunç') +
+		pline('<span class="avatar avatar--sm av-3">JD</span>Jonas D.') +
+		pline('<span class="avatar avatar--agent avatar--sm av-claude">C</span>claude') +
+		pline('<span class="avatar avatar--empty avatar--sm">?</span>No assignee')) +
+	popover('Add labels…',
+		pline('<span class="label-chip" style="border:none;padding:0;background:none"><span class="dot" style="background:var(--label-infra)"></span>infra</span>', true) +
+		pline('<span class="label-chip" style="border:none;padding:0;background:none"><span class="dot" style="background:var(--label-bug)"></span>bug</span>') +
+		pline('<span class="label-chip" style="border:none;padding:0;background:none"><span class="dot" style="background:var(--label-feature)"></span>feature</span>') +
+		pline('<span class="label-chip" style="border:none;padding:0;background:none"><span class="dot" style="background:var(--label-design)"></span>design</span>')) +
+	popover('Set project…',
+		pline('<span class="row__project" style="color:var(--fg)"><span class="dot"></span>Runner core</span>', true) +
+		pline('<span class="row__project" style="color:var(--fg)"><span class="dot" style="background:var(--avatar-5-bg)"></span>Issues UI</span>') +
+		pline('<span class="row__project" style="color:var(--fg)"><span class="dot" style="background:var(--avatar-3-bg)"></span>Launcher</span>') +
+		pline('<span style="color:var(--fg-dim)">No project</span>')) +
+	popover('Priority',
+		pline('<span class="prio urgent">!</span>Urgent') +
+		pline('<span class="prio high"><span class="bar b1"></span><span class="bar b2"></span><span class="bar b3"></span></span>High', true) +
+		pline('<span class="prio medium"><span class="bar b1"></span><span class="bar b2"></span><span class="bar b3"></span></span>Medium') +
+		pline('<span class="prio low"><span class="bar b1"></span><span class="bar b2"></span><span class="bar b3"></span></span>Low') +
+		pline('<span class="prio none"><span class="bar b1"></span><span class="bar b2"></span><span class="bar b3"></span></span>No priority'), 200) +
+	popover('Estimate',
+		['0', '1', '2', '3', '5', '8'].map(function (n) { return pline('<span class="mono">' + n + ' pts</span>', n === '5'); }).join(''), 180);
+
+/* ── Toasts ────────────────────────────────────────────────────────────── */
+document.getElementById('toasts').innerHTML =
+	'<div class="toast toast--success"><span class="toast__icon">' + ic('check', 18) + '</span><div class="toast__body"><div class="toast__title">PR #318 opened</div><div class="toast__sub">feature/sup-119 → main</div></div><span class="toast__action">View</span></div>' +
+	'<div class="toast toast--accent"><span class="toast__icon">' + ic('zap', 18) + '</span><div class="toast__body"><div class="toast__title">Run launched on SUP-132</div><div class="toast__sub">claude · full-auto</div></div></div>' +
+	'<div class="toast toast--danger"><span class="toast__icon">' + ic('alert', 18) + '</span><div class="toast__body"><div class="toast__title">Run failed — tests_failed</div><div class="toast__sub">SUP-119 · 3 failing</div></div><span class="toast__action">Retry</span></div>' +
+	'<div class="toast"><span class="toast__icon" style="color:var(--fg-dim)">' + ic('history', 18) + '</span><div class="toast__body"><div class="toast__title">Status set to In review</div></div><span class="toast__action">Undo</span></div>';
+
+/* ── Full history + threaded comment ───────────────────────────────────── */
+document.getElementById('feed').innerHTML = SK.feed([
+	{ kind: 'system', icon: 'dot', text: '<strong>Maya K.</strong> created the issue', ts: 'May 26' },
+	{ kind: 'system', icon: 'history', text: '<strong>Maya K.</strong> changed status ' + SK.statusGlyph('todo') + ' Todo → ' + SK.statusGlyph('progress') + ' In progress', ts: 'May 27' },
+	{ kind: 'system', icon: 'user', text: '<strong>Alim Tunç</strong> assigned <span class="avatar avatar--sm av-2" style="display:inline-flex;vertical-align:middle">MK</span> Maya K.', ts: 'May 27' },
+	{ kind: 'system', icon: 'flag', tone: 'warn', text: '<strong>Maya K.</strong> set priority to High', ts: 'May 27' },
+	{ kind: 'system', icon: 'star', text: '<strong>Alim Tunç</strong> added <span class="label-chip"><span class="dot" style="background:var(--label-infra)"></span>infra</span>, removed <span class="label-chip"><span class="dot" style="background:var(--label-design)"></span>design</span>', ts: 'May 27' },
+	{ kind: 'system', icon: 'layers', text: '<strong>Alim Tunç</strong> set project <span class="row__project" style="color:var(--fg-muted)"><span class="dot" style="display:inline-block"></span>Runner core</span> · estimate 5 pts · Cycle 24', ts: 'May 27' },
+	{ kind: 'system', icon: 'branch', tone: 'accent', text: '<strong>claude</strong> started run <span class="accent mono">run_9f2a13</span>', ts: '34m ago' },
+	{ kind: 'comment', author: E.maya, ts: '12m ago', body: '<p>Go ahead and drop v1 — we migrated the last consumer last week.</p>', replies: [
+		{ author: E.claude, ts: '10m ago', body: '<p>Understood. I\'ll keep the backfill log and pause before the drop for a final confirm.</p>' },
+		{ author: E.alim, ts: '8m ago', body: '<p>+1 — thanks both.</p>' }
+	] },
+	{ kind: 'system', icon: 'alert', tone: 'warn', text: '<strong>claude</strong> requested approval to run a destructive migration', ts: '6m ago' },
+	{ kind: 'system', icon: 'pr', tone: 'success', text: '<strong>claude</strong> opened <span style="color:var(--success)">PR #318</span> and marked the run done', ts: 'just now' }
+]);
+</script>
+</body>
+</html>

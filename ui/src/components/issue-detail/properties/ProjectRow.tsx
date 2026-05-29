@@ -5,7 +5,6 @@ import { ProjectPicker } from '@/components/issues/pickers/ProjectPicker'
 import { useLinearOptions } from '@/hooks/useLinearOptions'
 import { useUpdateIssue } from '@/hooks/useUpdateIssue'
 import type { IssueDetailResponse, ProjectOption } from '@/types'
-import { Icon } from '@/ui'
 import { Popover } from '@base-ui/react/popover'
 
 interface ProjectRowProps {
@@ -38,12 +37,12 @@ export function ProjectRow({ issue }: ProjectRowProps) {
 			<Popover.Root open={open} onOpenChange={setOpen}>
 				<Popover.Trigger className={PROPERTY_ROW_TRIGGER} aria-label="Change project">
 					{issue.project ? (
-						<>
-							<Icon name="folder" size={11} className="text-fg-muted" />
-							<span className="truncate text-fg">{issue.project.name}</span>
-						</>
+						<span className="row__project">
+							<span className="dot" aria-hidden="true" />
+							<span className="truncate">{issue.project.name}</span>
+						</span>
 					) : (
-						<span className="text-fg-dim">No project</span>
+						<span className="prop__empty">No project</span>
 					)}
 				</Popover.Trigger>
 				<ProjectPicker projects={projects} currentId={currentId} onSelect={onSelect} />

@@ -12,12 +12,12 @@ interface IssueGroupHeaderProps {
 	onToggle: () => void
 }
 
-const DOT_CLASS: Record<LifecycleBucket, string> = {
-	needs: 'bg-warn',
-	active: 'bg-info',
-	launchable: 'bg-accent',
-	open: 'bg-fg-dim',
-	done: 'bg-fg-dim'
+const DOT_TONE: Record<LifecycleBucket, string> = {
+	needs: 'var(--status-needs)',
+	active: 'var(--status-progress)',
+	launchable: 'var(--accent)',
+	open: 'var(--fg-dim)',
+	done: 'var(--fg-dim)'
 }
 
 export function IssueGroupHeader({
@@ -35,43 +35,23 @@ export function IssueGroupHeader({
 			onClick={onToggle}
 			aria-expanded={!collapsed}
 			data-pinned={pinned ? '1' : '0'}
-			className={cn(
-				'sticky top-0 z-[2] flex h-8 w-full items-center gap-[9px] border-b pr-6 pl-5 text-left transition-colors hover:bg-raised',
-				pinned
-					? 'border-t border-t-[color-mix(in_srgb,var(--color-warn)_25%,var(--color-border))] border-b-[color-mix(in_srgb,var(--color-warn)_25%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-warn)_8%,var(--color-surface))]'
-					: 'border-border bg-surface'
-			)}
+			className={cn('group-head sticky w-full text-left', pinned ? 'group-head--pinned' : null)}
 		>
 			<Icon name={collapsed ? 'chev' : 'chevDown'} size={11} className="shrink-0 text-fg-dim" />
 			{statusKind ? (
-				<StatusIcon kind={statusKind} size={14} />
+				<StatusIcon kind={pinned ? 'needs' : statusKind} size={14} />
 			) : (
 				<span
 					aria-hidden="true"
-					className={cn(
-						'inline-block size-2 shrink-0 rounded-full',
-						bucket ? DOT_CLASS[bucket] : 'bg-fg-dim'
-					)}
+					className="inline-block size-2 shrink-0 rounded-full"
+					style={{ background: bucket ? DOT_TONE[bucket] : 'var(--fg-dim)' }}
 				/>
 			)}
-			<span
-				className={cn(
-					'text-[12.5px] font-semibold',
-					pinned ? 'tracking-[0.2px] text-warn' : 'text-fg'
-				)}
-			>
-				{label}
-			</span>
-			<span className="font-data text-[11px] text-fg-dim">{count}</span>
-			{pinned ? (
-				<span className="ml-0.5 inline-flex items-center rounded border border-[color-mix(in_srgb,var(--color-warn)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-warn)_8%,transparent)] px-1.5 py-px text-[10.5px] font-medium tracking-[0.4px] text-warn uppercase">
-					Pinned
-				</span>
-			) : null}
-			<span className="flex-1" />
-			<span aria-hidden="true" className="flex items-center gap-1 text-fg-dim">
-				<Icon name="plus" size={12} />
-				<Icon name="more" size={13} />
+			<span className="group-head__name">{label}</span>
+			<span className="group-head__count">{count}</span>
+			<span className="group-head__spacer" />
+			<span aria-hidden="true" className="iconbtn" style={{ width: 22, height: 22 }}>
+				<Icon name="plus" size={14} className="ic" />
 			</span>
 		</button>
 	)

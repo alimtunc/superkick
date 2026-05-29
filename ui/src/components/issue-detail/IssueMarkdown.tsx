@@ -7,17 +7,49 @@ interface IssueMarkdownProps {
 	text: string
 	className?: string
 	compact?: boolean
+	/** Emit plain semantic elements so an ancestor `.md` / `.comment-card__body` styles them. */
+	bare?: boolean
 }
 
-export function IssueMarkdown({ text, className, compact = false }: IssueMarkdownProps) {
+export function IssueMarkdown({ text, className, compact = false, bare = false }: IssueMarkdownProps) {
 	const blocks = parseMarkdownBlocks(text)
 	if (blocks.length === 0) return null
+
+	if (bare) {
+		return <>{blocks.map((block, index) => renderBareBlock(block, index))}</>
+	}
 
 	return (
 		<div className={cn(compact ? 'space-y-2' : 'space-y-5', 'text-fg', className)}>
 			{blocks.map((block, index) => renderBlock(block, index, compact))}
 		</div>
 	)
+}
+
+function renderBareBlock(block: MarkdownBlock, index: number): ReactNode {
+	if (block.type === 'heading') {
+		if (block.level === 2) {
+			return <h2 key={index}>{renderInline(block.text, true)}</h2>
+		}
+		return <h3 key={index}>{renderInline(block.text, true)}</h3>
+	}
+	if (block.type === 'list') {
+		return (
+			<ul key={index}>
+				{block.items.map((item) => (
+					<li key={item}>{renderInline(item, true)}</li>
+				))}
+			</ul>
+		)
+	}
+	if (block.type === 'code') {
+		return (
+			<pre key={index}>
+				<code>{block.text}</code>
+			</pre>
+		)
+	}
+	return <p key={index}>{renderInline(block.text, true)}</p>
 }
 
 function renderBlock(block: MarkdownBlock, index: number, compact: boolean): ReactNode {
@@ -72,7 +104,7 @@ function renderBlock(block: MarkdownBlock, index: number, compact: boolean): Rea
 const INLINE_RE = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g
 const LINK_RE = /^\[([^\]]+)\]\(([^)]+)\)$/
 
-function renderInline(text: string): ReactNode[] {
+function renderInline(text: string, bare = false): ReactNode[] {
 	const nodes: ReactNode[] = []
 	let lastIndex = 0
 
@@ -86,7 +118,7 @@ function renderInline(text: string): ReactNode[] {
 		const key = `${start}:${token}`
 		if (token.startsWith('**') && token.endsWith('**')) {
 			nodes.push(
-				<strong key={key} className="font-semibold text-fg">
+				<strong key={key} className={bare ? undefined : 'font-semibold text-fg'}>
 					{token.slice(2, -2)}
 				</strong>
 			)
@@ -94,7 +126,11 @@ function renderInline(text: string): ReactNode[] {
 			nodes.push(
 				<code
 					key={key}
-					className="font-data rounded border border-border bg-surface px-1 py-0.5 text-[0.92em] text-fg"
+					className={
+						bare
+							? undefined
+							: 'font-data rounded border border-border bg-surface px-1 py-0.5 text-[0.92em] text-fg'
+					}
 				>
 					{token.slice(1, -1)}
 				</code>
@@ -108,7 +144,7 @@ function renderInline(text: string): ReactNode[] {
 						href={link[2]}
 						target="_blank"
 						rel="noreferrer"
-						className="text-accent hover:underline"
+						className={bare ? undefined : 'text-accent hover:underline'}
 					>
 						{link[1]}
 					</a>

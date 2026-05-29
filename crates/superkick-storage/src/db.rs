@@ -177,6 +177,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "031_launch_tasks_execution_target",
             include_str!("../migrations/031_launch_tasks_execution_target.sql"),
         ),
+        (
+            "032_run_agent_overrides",
+            include_str!("../migrations/032_run_agent_overrides.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

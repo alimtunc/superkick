@@ -20,6 +20,7 @@ import type {
 	LaunchWorktreeStrategy
 } from '@/types'
 import { Btn } from '@/ui/Btn'
+import { Icon } from '@/ui/Icon'
 import { Kbd } from '@/ui/Kbd'
 import { useNavigate } from '@tanstack/react-router'
 
@@ -132,7 +133,21 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 
 	return (
 		<div className="mx-auto flex w-full max-w-[720px] flex-col gap-3 px-6 py-12">
-			<div className="rounded-[14px] border border-border bg-surface p-4.5 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
+			{createLaunchTask.isPending && selectedIssue ? (
+				<div className="toast toast--accent">
+					<span className="toast__icon">
+						<Icon name="zap" size={18} className="ic" />
+					</span>
+					<div className="toast__body">
+						<div className="toast__title">Launching on {selectedIssue.identifier}…</div>
+						<div className="toast__sub">
+							{strategy === 'new_worktree' ? 'Preparing worktree' : 'Starting run'}
+						</div>
+					</div>
+				</div>
+			) : null}
+
+			<div className="rounded-[14px] border border-border bg-raised p-4.5 shadow-sm">
 				<textarea
 					aria-label="Launch task instructions"
 					value={body}
@@ -200,7 +215,7 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 						<Btn
 							kind="primary"
 							size="md"
-							iconRight="arrowRight"
+							icon="play"
 							onClick={handleSubmit}
 							disabled={!canSubmit}
 							aria-label="Launch task"

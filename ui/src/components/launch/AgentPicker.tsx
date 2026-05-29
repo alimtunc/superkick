@@ -39,17 +39,14 @@ export function AgentPicker({
 			<Menu.Trigger
 				disabled={disabled || empty}
 				aria-label={current ? `${label}: ${current.name}` : `Pick ${label} agent`}
-				className={cn(
-					'inline-flex items-center gap-[7px] rounded-[7px] border border-transparent bg-raised px-2.5 py-[5px] text-[12.5px] transition-colors',
-					'focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none',
-					'hover:border-border-strong',
-					disabled ? 'opacity-50' : null
-				)}
+				className={cn('select', disabled ? 'opacity-50' : null)}
 			>
-				<Icon name={icon} size={13} className="text-fg-muted" />
+				<Icon name={icon} size={14} className="ic text-fg-muted" />
 				<span className="text-fg-dim">{label}</span>
 				<span className={cn('font-medium', dim ? 'text-fg-dim' : 'text-fg')}>{valueText}</span>
-				<Icon name="chevDown" size={11} className="text-fg-dim" />
+				<span className="chev">
+					<Icon name="chevDown" size={14} className="ic" />
+				</span>
 			</Menu.Trigger>
 			<MenuPopup align="start" popupClassName="w-72">
 				<Menu.RadioGroup value={value ?? ''} onValueChange={(next) => onChange(next as string)}>

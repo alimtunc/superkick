@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Superkick — Run drawer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="detail.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<div class="doc">
+	<nav class="idx">
+		<div class="idx__brand"><div class="idx__logo">S</div><div class="idx__title">Superkick</div></div>
+		<div class="idx__sub">Redesign · 2026-05</div>
+		<div class="idx__group">Reference</div>
+		<a href="index.html">System Legend <span class="n">00</span></a>
+		<div class="idx__group">Surfaces</div>
+		<a href="issues-list.html">Issues list <span class="n">01</span></a>
+		<a href="issue-detail.html">Issue detail <span class="n">02</span></a>
+		<a href="app-shell.html">App shell <span class="n">03</span></a>
+		<a class="cur" href="run-drawer.html">Run drawer <span class="n">04</span></a>
+		<a href="run-inspector.html">Run inspector <span class="n">05</span></a>
+		<a href="launch.html">Launch flow <span class="n">06</span></a>
+		<a href="agents.html">Agents &amp; Settings <span class="n">07</span></a>
+		<a href="patterns.html">Patterns &amp; states <span class="n">08</span></a>
+	</nav>
+
+	<main class="canvas">
+	<div class="page">
+		<div class="page__kicker">Surface 04</div>
+		<h1 class="page__title">Run drawer</h1>
+		<p class="page__lede">Drilling into a run slides a tier&nbsp;2 drawer in from the right edge <strong>over the issue</strong> — the issue stays the context, dimmed behind a scrim. Run identity and a context strip pin to the top; tabs switch between activity, tool calls, files, logs and a live terminal. Operator <em>decisions</em> never live here — only inspection.</p>
+
+		<!-- ════ A · Drawer open over issue ════ -->
+		<section class="sect">
+			<div class="board-label"><span class="board-label__state state--active">Active</span><span class="board-label__title">Drawer open over the issue · Activity</span><span class="board-label__dim">1380 × 820 · slide 220ms</span></div>
+			<div class="scale-frame"><div class="scaled" style="width:1380px;height:820px">
+				<div class="shell">
+					<aside class="sidebar" id="sb"></aside>
+					<div class="main" style="position:relative">
+						<div class="topbar">
+							<div class="crumbs"><span>Issues</span><span class="sep">/</span><span class="mono">SUP-132</span></div>
+							<div class="topbar__actions"><button class="btn btn--sm">Open run</button><button class="iconbtn"><svg class="ic"><use href="#ic-more"></use></svg></button></div>
+						</div>
+						<div class="content" style="overflow:hidden">
+							<div class="detail">
+								<div class="detail__body"><div class="detail__inner" id="behind"></div></div>
+								<div class="detail__rail" id="behind-rail"></div>
+							</div>
+						</div>
+						<div class="drawer-scrim"></div>
+						<div class="drawer" id="drawer-main"></div>
+					</div>
+				</div>
+			</div></div>
+		</section>
+
+		<!-- ════ Tabs as specimens ════ -->
+		<section class="sect">
+			<div class="board-label"><span class="board-label__state state--active">Tabs</span><span class="board-label__title">Tool calls · Files · Terminal</span><span class="board-label__dim">560px · tier 2</span></div>
+			<div class="specimen" style="gap:var(--space-7);align-items:flex-start">
+				<div style="position:static;inset:auto;width:440px;height:520px;border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border-strong);box-shadow:var(--shadow-lg);display:flex;flex-direction:column" class="drawer" id="d-tools"></div>
+				<div style="position:static;inset:auto;width:440px;height:520px;border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border-strong);box-shadow:var(--shadow-lg);display:flex;flex-direction:column" class="drawer" id="d-files"></div>
+				<div style="position:static;inset:auto;width:440px;height:520px;border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border-strong);box-shadow:var(--shadow-lg);display:flex;flex-direction:column" class="drawer" id="d-term"></div>
+			</div>
+		</section>
+	</div>
+	</main>
+</div>
+
+<script src="icons.js"></script>
+<script src="shell.js"></script>
+<script src="glyphs.js"></script>
+<script src="detail.js"></script>
+<script src="scale.js"></script>
+<script>
+var E = { alim: { name: 'Alim Tunç', initials: 'AT', av: 'av-1' }, claude: { name: 'claude', initials: 'C', av: 'av-claude', agent: true } };
+
+function ic(n, w) { w = w || 16; return '<svg class="ic" style="width:' + w + 'px;height:' + w + 'px"><use href="#ic-' + n + '"></use></svg>'; }
+
+/* ── Drawer chrome ─────────────────────────────────────────────────────── */
+function drawerHead(activeTab, tabs) {
+	var head = '<div class="drawer__head">' + ic('terminal', 16) + '<span class="drawer__id mono">run_a7c0e2</span>' +
+		'<span class="runchip runchip--running"><span class="agdot agdot--running"></span>Coding</span><span class="spacer"></span>' +
+		'<button class="iconbtn"><svg class="ic"><use href="#ic-external"></use></svg></button>' +
+		'<button class="iconbtn"><svg class="ic"><use href="#ic-x"></use></svg></button></div>';
+	var ctx = '<div class="drawer__context">' +
+		'<span class="ctx"><span class="ctx__k">agent</span><span class="avatar avatar--agent av-claude avatar--sm">C</span><span class="ctx__v">claude</span></span>' +
+		'<span class="ctx"><span class="ctx__k">branch</span>' + ic('branch', 13) + '<span class="ctx__v">feature/sup-132</span></span>' +
+		'<span class="ctx"><span class="ctx__k">mode</span><span class="ctx__v">full-auto</span></span>' +
+		'<span class="ctx"><span class="ctx__k">started</span><span class="ctx__v">14m ago</span></span>' +
+	'</div>';
+	var tabHtml = '<div class="drawer__tabs">' + tabs.map(function (t) {
+		return '<div class="dtab' + (t.k === activeTab ? ' dtab--active' : '') + '">' + t.label + (t.n != null ? '<span class="dtab__count">' + t.n + '</span>' : '') + '</div>';
+	}).join('') + '</div>';
+	return head + ctx + tabHtml;
+}
+var TABS = [{ k: 'activity', label: 'Activity' }, { k: 'tools', label: 'Tool calls', n: 24 }, { k: 'files', label: 'Files', n: 2 }, { k: 'logs', label: 'Logs' }, { k: 'terminal', label: 'Terminal' }];
+
+/* Activity tab — run steps timeline (RunStep / StepKey) */
+function activityBody() {
+	var steps = [
+		{ k: 'prepare', s: 'succeeded', meta: '2s' },
+		{ k: 'plan', s: 'succeeded', meta: '38s' },
+		{ k: 'code', s: 'running', meta: 'live' },
+		{ k: 'commands', s: 'pending', meta: '' },
+		{ k: 'review_swarm', s: 'pending', meta: '' },
+		{ k: 'create_pr', s: 'pending', meta: '' }
+	];
+	var rows = steps.map(function (st) {
+		var glyph = st.s === 'succeeded' ? '<span style="color:var(--success)">' + ic('check', 14) + '</span>'
+			: st.s === 'running' ? '<span class="agdot agdot--running" style="width:9px;height:9px"></span>'
+			: '<span style="color:var(--fg-faint)">' + ic('clock', 14) + '</span>';
+		var c = st.s === 'pending' ? 'var(--fg-dim)' : 'var(--fg)';
+		return '<div class="execrow"><span class="execrow__icon">' + glyph + '</span><span class="execrow__title mono" style="color:' + c + '">' + st.k + '</span>' + (st.meta ? '<span class="execrow__meta">' + st.meta + '</span>' : '') + '</div>';
+	}).join('');
+	return '<div class="drawer__body"><div style="font-size:var(--text-11);text-transform:uppercase;letter-spacing:var(--tracking-wide);color:var(--fg-dim);margin-bottom:var(--space-4);font-weight:600">Steps</div>' + rows +
+		'<div style="margin-top:var(--space-6)"><div class="toolcall"><div class="toolcall__head">' + ic('terminal', 13) + '<span class="toolcall__name">edit_file</span><span class="spacer"></span><span class="toolcall__dur">live</span></div><div class="toolcall__body">ui/src/features/run-drawer/stream.ts\n+ buffered tool-call events via EventSource…</div></div></div></div>';
+}
+
+/* Tool calls tab */
+function toolsBody() {
+	function tc(name, args, dur, body) {
+		return '<div class="toolcall"><div class="toolcall__head">' + ic('terminal', 13) + '<span class="toolcall__name">' + name + '</span><span class="spacer"></span><span class="toolcall__dur">' + dur + '</span></div><div class="toolcall__body">' + body + '</div></div>';
+	}
+	return '<div class="drawer__body">' +
+		tc('read_file', '', '0.1s', 'crates/core/src/events/tool_call.rs') +
+		tc('grep', '', '0.3s', 'pattern: "ToolCallEvent" · 12 matches') +
+		tc('edit_file', '', '0.2s', 'ui/src/features/run-drawer/stream.ts\n@@ -18,6 +18,40 @@  + EventSource subscription') +
+		tc('run_command', '', '4.1s', '$ pnpm vitest run stream.test.ts\n✓ 8 passed') +
+	'</div>';
+}
+
+/* Files tab — FileDiff list */
+function filesBody() {
+	function f(path, status, adds, dels) {
+		var badge = { modified: ['M', 'var(--warn)'], added: ['A', 'var(--success)'], deleted: ['D', 'var(--danger)'] }[status];
+		var dir = path.replace(/\/[^/]+$/, '/'); var name = path.split('/').pop();
+		return '<div class="filerow" style="padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border-faint)">' +
+			'<span style="width:16px;height:16px;border-radius:3px;background:var(--bg-app);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;color:' + badge[1] + '">' + badge[0] + '</span>' +
+			'<span class="filerow__path"><span class="dir">' + dir + '</span>' + name + '</span>' +
+			'<span class="filerow__stat"><span class="add">+' + adds + '</span><span class="del">−' + dels + '</span></span></div>';
+	}
+	return '<div class="drawer__body" style="padding:var(--space-4)">' +
+		'<div style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-3) var(--space-4);font-size:var(--text-12);color:var(--fg-dim)"><span>2 files</span><span class="add" style="color:var(--success)">+86</span><span class="del" style="color:var(--danger)">−12</span></div>' +
+		f('ui/src/features/run-drawer/stream.ts', 'modified', 64, 9) +
+		f('crates/core/src/events/tool_call.rs', 'modified', 22, 3) +
+	'</div>';
+}
+
+/* Terminal tab */
+function terminalBody() {
+	return '<div class="drawer__body"><div class="terminal">' +
+		'<div><span class="c-accent">claude</span><span class="c-dim"> ~/.superkick/wt/sup-132 $</span> <span class="c-fg">pnpm vitest run stream.test.ts</span></div>' +
+		'<div class="c-dim">RUN  v1.6.0</div>' +
+		'<div><span class="c-success"> ✓ </span>src/features/run-drawer/stream.test.ts <span class="c-dim">(8 tests) 412ms</span></div>' +
+		'<div class="c-success"> Test Files  1 passed (1)</div>' +
+		'<div class="c-success">      Tests  8 passed (8)</div>' +
+		'<div>&nbsp;</div>' +
+		'<div><span class="c-accent">claude</span><span class="c-dim"> $</span> <span class="c-fg">git add -A && git commit -m "stream tool calls"</span></div>' +
+		'<div class="c-dim">[feature/sup-132 a7c0e2] stream tool calls</div>' +
+		'<div class="c-warn"> 2 files changed, 86 insertions(+), 12 deletions(-)</div>' +
+		'<div><span class="agdot agdot--running" style="display:inline-block;vertical-align:middle"></span> <span class="c-dim">working…</span></div>' +
+	'</div></div>';
+}
+
+/* ── Mount ─────────────────────────────────────────────────────────────── */
+document.getElementById('sb').innerHTML = SK_SIDEBAR('issues');
+document.getElementById('behind').innerHTML =
+	SK.issueHead({ id: 'SUP-132', status: 'progress', statusLabel: 'In progress', title: 'Stream tool-call output into the run drawer' }) +
+	'<div class="md"><p>Tool calls currently only appear after a step finishes. Stream them incrementally so the operator can watch the agent work.</p></div>' +
+	SK.sectionHead('Execution');
+document.getElementById('behind-rail').innerHTML = SK.rail({ status: 'progress', statusLabel: 'In progress', prio: 'medium', assignee: E.alim, labels: [{ name: 'feature', color: 'var(--label-feature)' }], project: 'Runner core', cycle: 'Cycle 24', est: 3, due: null, created: 'May 29', updated: '2m ago' });
+
+document.getElementById('drawer-main').innerHTML = drawerHead('activity', TABS) + activityBody();
+document.getElementById('d-tools').innerHTML = drawerHead('tools', TABS) + toolsBody();
+document.getElementById('d-files').innerHTML = drawerHead('files', TABS) + filesBody();
+document.getElementById('d-term').innerHTML = drawerHead('terminal', TABS) + terminalBody();
+</script>
+</body>
+</html>

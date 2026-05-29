@@ -1,131 +1,102 @@
 import { cn } from '@/lib/utils'
-import { useCommandBarStore } from '@/stores/commandBar'
 import type { ShellNavId } from '@/types'
 import type { SKIconName } from '@/types/icons'
+import type { TaskBadgeKind } from '@/types/lifecycle'
 import { Avatar } from '@/ui/Avatar'
 import { Icon } from '@/ui/Icon'
-import { Kbd } from '@/ui/Kbd'
 import { Link } from '@tanstack/react-router'
 
 interface SidebarProps {
 	active: ShellNavId
 	counts?: Partial<Record<Exclude<ShellNavId, null>, number>>
+	agentActive?: boolean
 }
 
-interface NavItem {
+interface PrimaryNavItem {
 	id: Exclude<ShellNavId, null>
 	to: string
 	icon: SKIconName
 	label: string
-	badgeTone?: 'accent' | 'muted'
 }
 
-const NAV: NavItem[] = [
-	{ id: 'inbox', to: '/', icon: 'inbox', label: 'Inbox', badgeTone: 'accent' },
-	{ id: 'issues', to: '/issues', icon: 'issue', label: 'Issues', badgeTone: 'muted' },
-	{ id: 'agents', to: '/agents', icon: 'agent', label: 'Agents', badgeTone: 'muted' }
+const PRIMARY: PrimaryNavItem[] = [
+	{ id: 'inbox', to: '/', icon: 'inbox', label: 'Inbox' },
+	{ id: 'issues', to: '/issues', icon: 'issue', label: 'Issues' },
+	{ id: 'agents', to: '/agents', icon: 'agent', label: 'Agents' },
+	{ id: 'settings', to: '/settings', icon: 'settings', label: 'Settings' }
+]
+
+interface SavedView {
+	to: string
+	icon: SKIconName
+	label: string
+}
+
+const SAVED_VIEWS: SavedView[] = [
+	{ to: '/attention', icon: 'pin', label: 'Needs you' },
+	{ to: '/issues', icon: 'star', label: 'My issues' },
+	{ to: '/issues', icon: 'pr', label: 'In review' },
+	{ to: '/issues', icon: 'clock', label: 'Shipped this week' }
 ]
 
 interface NavRowProps {
-	item: NavItem
-	active: boolean
-	badge?: number
+	to: string
+	icon: SKIconName
+	label: string
+	active?: boolean
+	count?: number
+	dot?: TaskBadgeKind
 }
 
-function NavRow({ item, active, badge }: NavRowProps) {
-	const showBadge = typeof badge === 'number'
+function NavRow({ to, icon, label, active = false, count, dot }: NavRowProps) {
 	return (
-		<Link
-			to={item.to}
-			className={cn(
-				'group relative flex items-center gap-2.5 rounded-[7px] px-2.5 py-[7px] text-[13.5px] transition-colors',
-				'focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none',
-				active ? 'bg-raised font-medium text-fg' : 'text-fg-muted hover:text-fg'
-			)}
-		>
-			{active ? (
-				<span
-					aria-hidden="true"
-					className="absolute top-[6px] bottom-[6px] left-0 w-[2px] rounded-[2px] bg-accent"
-				/>
-			) : null}
-			<Icon
-				name={item.icon}
-				size={16}
-				className={active ? 'text-fg' : 'text-fg-dim group-hover:text-fg-muted'}
-			/>
-			<span className="flex-1">{item.label}</span>
-			{showBadge ? (
-				<span
-					className={cn(
-						'rounded-full px-1.5 py-px font-mono text-[11px] font-semibold',
-						item.badgeTone === 'accent' && badge > 0
-							? 'bg-accent text-white'
-							: 'bg-raised text-fg-muted'
-					)}
-				>
-					{badge}
-				</span>
-			) : null}
+		<Link to={to} className={cn('navitem', active && 'navitem--active')}>
+			<Icon name={icon} size={16} className="ic" />
+			<span className="flex-1">{label}</span>
+			{typeof count === 'number' ? <span className="navitem__count">{count}</span> : null}
+			{dot ? <span className={cn('navitem__dot agdot', `agdot--${dot}`)} /> : null}
 		</Link>
 	)
 }
 
-export function Sidebar({ active, counts }: SidebarProps) {
-	const openBar = useCommandBarStore((s) => s.openBar)
-
+export function Sidebar({ active, counts, agentActive = false }: SidebarProps) {
 	return (
-		<aside className="flex h-full w-56 shrink-0 flex-col gap-0.5 border-r border-border bg-surface px-3 py-3.5">
-			<div className="flex items-center gap-2.5 px-2 pt-1 pb-3">
-				<span className="flex size-6.5 items-center justify-center rounded-[7px] bg-accent text-[13px] font-bold text-white">
-					S
-				</span>
-				<div className="flex min-w-0 flex-1 flex-col">
-					<span className="text-[13px] font-semibold text-fg">superkick</span>
-					<span className="text-[11px] text-fg-dim">local workspace</span>
+		<aside className="sidebar">
+			<div className="sidebar__brand">
+				<div className="sidebar__logo">S</div>
+				<div className="sidebar__brandname">
+					Superkick <span className="meta">· local</span>
 				</div>
 			</div>
 
-			<button
-				type="button"
-				onClick={openBar}
-				className={cn(
-					'mb-3 flex items-center gap-[7px] rounded-[7px] border border-border bg-raised px-2.5 py-1.5',
-					'text-left text-[12.5px] text-fg-dim transition-colors',
-					'hover:border-border-strong hover:text-fg-muted',
-					'focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none'
-				)}
-			>
-				<Icon name="search" size={14} className="text-fg-dim" />
-				<span className="flex-1">Search</span>
-				<Kbd>⌘K</Kbd>
-			</button>
+			<div className="sidebar__scroll">
+				<div className="navgroup">
+					{PRIMARY.map((item) => (
+						<NavRow
+							key={item.id}
+							to={item.to}
+							icon={item.icon}
+							label={item.label}
+							active={active === item.id}
+							count={counts?.[item.id]}
+							dot={item.id === 'agents' && agentActive ? 'running' : undefined}
+						/>
+					))}
+				</div>
 
-			<nav className="flex flex-col gap-0.5">
-				{NAV.map((item) => (
-					<NavRow key={item.id} item={item} active={active === item.id} badge={counts?.[item.id]} />
-				))}
-			</nav>
+				<div className="navgroup">
+					<div className="navgroup__label">Saved views</div>
+					{SAVED_VIEWS.map((view) => (
+						<NavRow key={view.label} to={view.to} icon={view.icon} label={view.label} />
+					))}
+				</div>
+			</div>
 
-			<div className="flex-1" />
-
-			<nav className="flex flex-col gap-0.5">
-				<NavRow
-					item={{
-						id: 'settings',
-						to: '/settings',
-						icon: 'settings',
-						label: 'Settings',
-						badgeTone: 'muted'
-					}}
-					active={active === 'settings'}
-				/>
-			</nav>
-			<div className="mt-2 flex items-center gap-2.5 p-2">
-				<Avatar name="You" size={24} />
-				<div className="flex min-w-0 flex-1 flex-col">
-					<span className="text-[12.5px] font-medium text-fg">You</span>
-					<span className="text-[11px] text-fg-dim">local operator</span>
+			<div className="sidebar__footer">
+				<div className="navitem">
+					<Avatar name="You" id="local-operator" size={20} />
+					<span className="flex-1">You</span>
+					<Icon name="chevDown" size={14} className="ic" />
 				</div>
 			</div>
 		</aside>

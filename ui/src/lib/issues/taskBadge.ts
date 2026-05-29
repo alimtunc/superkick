@@ -3,9 +3,9 @@ import type { IssueWithState, LifecycleBucket, TaskBadgeKind } from '@/types'
 const SHIPPED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
 export const TASK_KIND_BG: Record<TaskBadgeKind, string> = {
-	needs: 'bg-warn',
-	running: 'bg-info',
-	review: 'bg-accent',
+	needs: 'bg-[var(--status-needs)]',
+	running: 'bg-accent',
+	review: 'bg-[var(--status-review)]',
 	shipped: 'bg-success'
 }
 

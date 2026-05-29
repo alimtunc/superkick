@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Superkick — Run inspector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="detail.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<div class="doc">
+	<nav class="idx">
+		<div class="idx__brand"><div class="idx__logo">S</div><div class="idx__title">Superkick</div></div>
+		<div class="idx__sub">Redesign · 2026-05</div>
+		<div class="idx__group">Reference</div>
+		<a href="index.html">System Legend <span class="n">00</span></a>
+		<div class="idx__group">Surfaces</div>
+		<a href="issues-list.html">Issues list <span class="n">01</span></a>
+		<a href="issue-detail.html">Issue detail <span class="n">02</span></a>
+		<a href="app-shell.html">App shell <span class="n">03</span></a>
+		<a href="run-drawer.html">Run drawer <span class="n">04</span></a>
+		<a class="cur" href="run-inspector.html">Run inspector <span class="n">05</span></a>
+		<a href="launch.html">Launch flow <span class="n">06</span></a>
+		<a href="agents.html">Agents &amp; Settings <span class="n">07</span></a>
+		<a href="patterns.html">Patterns &amp; states <span class="n">08</span></a>
+	</nav>
+
+	<main class="canvas">
+	<div class="page">
+		<div class="page__kicker">Surface 05 · lower priority</div>
+		<h1 class="page__title">Run inspector</h1>
+		<p class="page__lede">A deep-link / debug cockpit for one run, reached by URL — not part of the primary navigation. It surfaces the full <code style="font-family:var(--font-mono)">Run</code> + <code style="font-family:var(--font-mono)">RunStep</code> record: budget, step ledger, and raw step I/O for when something goes wrong. Same tokens, denser presentation.</p>
+
+		<!-- ════ A · Active run ════ -->
+		<section class="sect">
+			<div class="board-label"><span class="board-label__state state--active">Active</span><span class="board-label__title">Run cockpit</span><span class="board-label__dim">1380 × 760</span></div>
+			<div class="scale-frame"><div class="scaled" style="width:1380px;height:760px">
+				<div class="shell">
+					<aside class="sidebar" id="sb"></aside>
+					<div class="main">
+						<div class="topbar">
+							<div class="crumbs"><span>Issues</span><span class="sep">/</span><span class="mono">SUP-132</span><span class="sep">/</span><span class="cur mono">run_a7c0e2</span></div>
+							<div class="topbar__actions"><button class="btn btn--sm"><svg class="ic"><use href="#ic-pause"></use></svg>Pause</button><button class="btn btn--danger btn--sm"><svg class="ic"><use href="#ic-stop"></use></svg>Cancel</button></div>
+						</div>
+						<div class="content">
+							<div class="inspector">
+								<div class="inspector__main">
+									<div style="display:flex;align-items:center;gap:var(--space-4);margin-bottom:var(--space-3)">
+										<svg class="ic" style="width:18px;height:18px;color:var(--fg-muted)"><use href="#ic-terminal"></use></svg>
+										<span class="mono" style="font-size:var(--text-16)">run_a7c0e2</span>
+										<span class="runchip runchip--running"><span class="agdot agdot--running"></span>Coding</span>
+										<span class="pill pill--neutral">full-auto</span>
+									</div>
+									<div style="font-size:var(--text-13);color:var(--fg-dim);margin-bottom:var(--space-5)">Stream tool-call output into the run drawer · <span class="mono">claude</span></div>
+									<div class="statgrid" id="stats"></div>
+									<div class="section-head"><span class="section-head__title">Step ledger</span><span class="section-head__line"></span></div>
+									<div class="steplist" id="steps"></div>
+								</div>
+								<div class="inspector__side">
+									<div class="rail__group" id="meta"></div>
+									<div class="rail__group" id="budget"></div>
+									<div class="rail__footer"><div>Started May 29, 14:02</div><div>Updated 2m ago</div></div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div></div>
+		</section>
+
+		<!-- ════ B · Failed state ════ -->
+		<section class="sect">
+			<div class="board-label"><span class="board-label__state state--needs">Failed</span><span class="board-label__title">Terminal failure → disposition</span></div>
+			<div class="specimen" style="display:block">
+				<div class="opbanner" style="background:var(--danger-soft);border-color:var(--danger);max-width:680px">
+					<span class="opbanner__icon" style="color:var(--danger)"><svg class="ic" style="width:18px;height:18px"><use href="#ic-alert"></use></svg></span>
+					<div class="opbanner__body">
+						<p class="opbanner__title">Run failed at <span class="mono">commands</span> — tests_failed</p>
+						<p class="opbanner__q" style="font-family:var(--font-mono);font-size:var(--text-12);background:var(--bg-code);padding:var(--space-4) var(--space-5);border-radius:var(--radius-sm);margin-top:var(--space-3)">3 failing: worktree_test::persists_across_restart (assertion failed at line 88)</p>
+						<div class="opbanner__actions"><button class="btn btn--sm"><svg class="ic"><use href="#ic-loop"></use></svg>Retry from step</button><button class="btn btn--ghost btn--sm"><svg class="ic"><use href="#ic-terminal"></use></svg>Open logs</button><button class="btn btn--ghost btn--sm"><svg class="ic"><use href="#ic-external"></use></svg>Attach shell</button></div>
+					</div>
+				</div>
+			</div>
+		</section>
+	</div>
+	</main>
+</div>
+
+<script src="icons.js"></script>
+<script src="shell.js"></script>
+<script src="glyphs.js"></script>
+<script src="scale.js"></script>
+<script>
+function ic(n, w) { w = w || 14; return '<svg class="ic" style="width:' + w + 'px;height:' + w + 'px"><use href="#ic-' + n + '"></use></svg>'; }
+document.getElementById('sb').innerHTML = SK_SIDEBAR('issues');
+
+var STATS = [
+	{ k: 'Elapsed', v: '14:02', u: 'min' },
+	{ k: 'Tokens', v: '512', u: 'k' },
+	{ k: 'Steps', v: '3 / 6', u: '' },
+	{ k: 'Attempts', v: '1', u: '' },
+	{ k: 'Tool calls', v: '24', u: '' },
+	{ k: 'Est. cost', v: '$0.38', u: '' }
+];
+document.getElementById('stats').innerHTML = STATS.map(function (s) {
+	return '<div class="stat"><div class="stat__k">' + s.k + '</div><div class="stat__v">' + s.v + (s.u ? '<span class="unit">' + s.u + '</span>' : '') + '</div></div>';
+}).join('');
+
+var STEPS = [
+	{ k: 'prepare', s: 'succeeded', meta: 'worktree · 2s' },
+	{ k: 'plan', s: 'succeeded', meta: 'claude · 38s' },
+	{ k: 'code', s: 'running', meta: 'claude · live' },
+	{ k: 'commands', s: 'pending', meta: '—' },
+	{ k: 'review_swarm', s: 'pending', meta: '3 reviewers' },
+	{ k: 'create_pr', s: 'pending', meta: '—' }
+];
+document.getElementById('steps').innerHTML = STEPS.map(function (st) {
+	var glyph = st.s === 'succeeded' ? '<span style="color:var(--success)">' + ic('check', 15) + '</span>'
+		: st.s === 'running' ? '<span class="agdot agdot--running" style="width:10px;height:10px"></span>'
+		: '<span style="color:var(--fg-faint)">' + ic('clock', 15) + '</span>';
+	var c = st.s === 'pending' ? 'var(--fg-dim)' : 'var(--fg)';
+	return '<div class="stepitem"><span style="width:18px;display:flex;justify-content:center">' + glyph + '</span>' +
+		'<span class="stepitem__key" style="color:' + c + '">' + st.k + '</span>' +
+		'<span class="pill pill--neutral" style="text-transform:capitalize">' + st.s + '</span>' +
+		'<span class="stepitem__meta">' + st.meta + '</span></div>';
+}).join('');
+
+function prop(k, v) { return '<div class="prop"><span class="prop__k">' + k + '</span><span class="prop__v truncate mono" style="font-size:var(--text-12)">' + v + '</span></div>'; }
+document.getElementById('meta').innerHTML =
+	'<div style="font-size:var(--text-11);text-transform:uppercase;letter-spacing:var(--tracking-wide);color:var(--fg-dim);margin-bottom:var(--space-4);font-weight:600">Run</div>' +
+	prop('Issue', 'SUP-132') + prop('Repo', 'alimtunc/superkick') + prop('Base', 'main') +
+	prop('Branch', 'feature/sup-132') + prop('Worktree', '~/.superkick/wt/sup-132') + prop('Trigger', 'operator');
+document.getElementById('budget').innerHTML =
+	'<div style="font-size:var(--text-11);text-transform:uppercase;letter-spacing:var(--tracking-wide);color:var(--fg-dim);margin-bottom:var(--space-4);font-weight:600">Budget</div>' +
+	prop('Duration', '30m cap') + prop('Token ceiling', '2.0M') + prop('Retries', '0 / 2') + prop('Pause', 'none');
+</script>
+</body>
+</html>

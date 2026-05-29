@@ -1,8 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import '@fontsource-variable/geist/index.css';
+@import '@fontsource-variable/geist-mono/index.css';
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import './styles/tokens.css';
+@import './styles/redesign.css';
 @custom-variant dark (&:is(.dark *));
 
 @layer base {
@@ -19,17 +21,14 @@ html {
 }
 
 body {
-	font-family:
-		'DM Sans',
-		system-ui,
-		-apple-system,
-		sans-serif;
-	font-size: 14px;
-	line-height: 1.45;
+	font-family: var(--font-ui);
+	font-size: var(--text-13);
+	line-height: var(--lh-snug);
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
-	background-color: var(--color-void);
-	color: var(--color-fg);
+	text-rendering: optimizeLegibility;
+	background-color: var(--bg-app);
+	color: var(--fg);
 }
 
 /* ── Mono for data ── */
@@ -153,8 +152,8 @@ body {
 
 /* ── shadcn/ui theme — mapped to Graphite Operations Atelier ── */
 @theme inline {
-	--font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
-	--font-heading: 'DM Sans', system-ui, -apple-system, sans-serif;
+	--font-sans: var(--font-ui);
+	--font-heading: var(--font-ui);
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
 	--color-card: var(--card);
@@ -193,10 +192,14 @@ body {
 	--secondary-foreground: var(--color-fg);
 	--muted: var(--color-raised);
 	--muted-foreground: var(--color-fg-muted);
-	--accent: var(--color-raised);
+	/* shadcn's `accent` surface = the raised tier; namespaced so it never shadows
+	   the redesign brand token `--accent` (#5b6ef2) that tokens.css owns. */
 	--accent-foreground: var(--color-fg);
 	--destructive: var(--color-danger);
-	--border: var(--color-border);
+	/* `--accent` and `--border` are intentionally NOT redefined here: tokens.css
+	   owns them, and redefining via var(--color-*) created a circular reference
+	   (--border ↔ --color-border) that blanked every border, plus overwrote the
+	   brand accent with the raised grey. */
 	--input: var(--color-border);
 	--ring: var(--color-accent);
 	--radius: 7px;

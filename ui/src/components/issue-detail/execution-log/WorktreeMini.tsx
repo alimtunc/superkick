@@ -1,4 +1,3 @@
-import { RunPrBadge } from '@/components/issue-detail/RunPrBadge'
 import type { WorktreeFacts } from '@/types'
 import { Btn, Icon } from '@/ui'
 
@@ -13,24 +12,33 @@ export function WorktreeMini({ facts }: WorktreeMiniProps) {
 	const cloneCommand = branch ? `git fetch origin && git switch ${branch}` : null
 
 	return (
-		<div className="flex flex-col gap-2.5">
-			<div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[11.5px]">
-				{branch ? (
-					<span className="inline-flex items-center gap-1.5">
-						<Icon name="branch" size={11} className="text-fg-dim" />
-						<span className="font-data text-fg">{branch}</span>
+		<>
+			{branch ? (
+				<span className="wfact">
+					<span className="wfact__k">branch</span>
+					<Icon name="branch" size={13} className="ic" />
+					<span className="wfact__v">{branch}</span>
+				</span>
+			) : null}
+			{worktreePath ? (
+				<span className="wfact">
+					<span className="wfact__k">worktree</span>
+					<span className="wfact__v">{worktreePath}</span>
+				</span>
+			) : null}
+			{pr ? (
+				<span className="wfact">
+					<span className="wfact__k">PR</span>
+					<Icon name="pr" size={13} className="ic" />
+					<span className="wfact__v">
+						<a href={pr.url} target="_blank" rel="noopener noreferrer">
+							#{pr.number}
+						</a>
 					</span>
-				) : null}
-				{worktreePath ? (
-					<span className="inline-flex min-w-0 items-center gap-1.5">
-						<Icon name="folder" size={11} className="text-fg-dim" />
-						<span className="font-data truncate text-fg-muted">{worktreePath}</span>
-					</span>
-				) : null}
-				{pr ? <RunPrBadge pr={pr} /> : null}
-			</div>
+				</span>
+			) : null}
 			{cloneCommand ? (
-				<div className="flex items-center gap-1.5">
+				<span className="wfact">
 					<Btn
 						kind="ghost"
 						size="sm"
@@ -39,8 +47,8 @@ export function WorktreeMini({ facts }: WorktreeMiniProps) {
 					>
 						Copy clone command
 					</Btn>
-				</div>
+				</span>
 			) : null}
-		</div>
+		</>
 	)
 }

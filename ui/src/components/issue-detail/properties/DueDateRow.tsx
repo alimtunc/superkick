@@ -32,11 +32,7 @@ export function DueDateRow({ issue }: DueDateRowProps) {
 		<PropertyRow label="Due date">
 			<Popover.Root open={open} onOpenChange={setOpen}>
 				<Popover.Trigger className={PROPERTY_ROW_TRIGGER} aria-label="Change due date">
-					{dueLabel ? (
-						<span className="text-fg">{dueLabel}</span>
-					) : (
-						<span className="text-fg-dim">No due date</span>
-					)}
+					{dueLabel ? <span>{dueLabel}</span> : <span className="prop__empty">Add due date…</span>}
 				</Popover.Trigger>
 				<DueDatePicker current={issue.due_date} onApply={onApply} />
 			</Popover.Root>

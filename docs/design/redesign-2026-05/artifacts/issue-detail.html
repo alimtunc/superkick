@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Superkick — Issue detail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="detail.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<div class="doc">
+	<nav class="idx">
+		<div class="idx__brand"><div class="idx__logo">S</div><div class="idx__title">Superkick</div></div>
+		<div class="idx__sub">Redesign · 2026-05</div>
+		<div class="idx__group">Reference</div>
+		<a href="index.html">System Legend <span class="n">00</span></a>
+		<div class="idx__group">Surfaces</div>
+		<a href="issues-list.html">Issues list <span class="n">01</span></a>
+		<a class="cur" href="issue-detail.html">Issue detail <span class="n">02</span></a>
+		<a href="app-shell.html">App shell <span class="n">03</span></a>
+		<a href="run-drawer.html">Run drawer <span class="n">04</span></a>
+		<a href="run-inspector.html">Run inspector <span class="n">05</span></a>
+		<a href="launch.html">Launch flow <span class="n">06</span></a>
+		<a href="agents.html">Agents &amp; Settings <span class="n">07</span></a>
+		<a href="patterns.html">Patterns &amp; states <span class="n">08</span></a>
+	</nav>
+
+	<main class="canvas">
+	<div class="page">
+		<div class="page__kicker">Surface 02 · top priority</div>
+		<h1 class="page__title">Issue detail</h1>
+		<p class="page__lede">The issue is the anchor. Agent execution renders <strong>inline</strong> as an ExecutionLog; operator decisions surface as a banner <strong>on the issue</strong>, never buried in the drawer. Body floor is tier&nbsp;0; the ExecutionLog and comments are tier&nbsp;2 cards; the activity feed threads everything on a single gutter connector.</p>
+
+		<!-- ════ A · NEEDS-HUMAN ════ -->
+		<section class="sect">
+			<div class="board-label">
+				<span class="board-label__state state--needs">Needs human</span>
+				<span class="board-label__title">Agent paused — operator decision on the issue</span>
+				<span class="board-label__dim">1380 × 880</span>
+			</div>
+			<div class="scale-frame"><div class="scaled" style="width:1380px;height:880px">
+				<div class="shell">
+					<aside class="sidebar" id="sb-1"></aside>
+					<div class="main">
+						<div class="topbar">
+							<div class="crumbs"><span>Issues</span><span class="sep">/</span><span class="mono">SUP-128</span></div>
+							<div class="topbar__actions">
+								<button class="btn btn--sm"><svg class="ic"><use href="#ic-terminal"></use></svg>Open run</button>
+								<button class="iconbtn" title="Copy ID"><svg class="ic"><use href="#ic-copy"></use></svg></button>
+								<button class="iconbtn" title="Open in Linear"><svg class="ic"><use href="#ic-external"></use></svg></button>
+								<button class="iconbtn"><svg class="ic"><use href="#ic-more"></use></svg></button>
+							</div>
+						</div>
+						<div class="content" style="overflow:hidden">
+							<div class="detail">
+								<div class="detail__body"><div class="detail__inner" id="body-1"></div></div>
+								<div class="detail__rail" id="rail-1"></div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div></div>
+		</section>
+
+		<!-- ════ B · ACTIVE (running) ════ -->
+		<section class="sect">
+			<div class="board-label">
+				<span class="board-label__state state--active">Active</span>
+				<span class="board-label__title">Agent running · live ExecutionLog</span>
+				<span class="board-label__dim">1380 × 880</span>
+			</div>
+			<div class="scale-frame"><div class="scaled" style="width:1380px;height:880px">
+				<div class="shell">
+					<aside class="sidebar" id="sb-2"></aside>
+					<div class="main">
+						<div class="topbar">
+							<div class="crumbs"><span>Issues</span><span class="sep">/</span><span class="mono">SUP-132</span></div>
+							<div class="topbar__actions">
+								<button class="btn btn--sm"><svg class="ic"><use href="#ic-terminal"></use></svg>Open run</button>
+								<button class="iconbtn"><svg class="ic"><use href="#ic-copy"></use></svg></button>
+								<button class="iconbtn"><svg class="ic"><use href="#ic-external"></use></svg></button>
+								<button class="iconbtn"><svg class="ic"><use href="#ic-more"></use></svg></button>
+							</div>
+						</div>
+						<div class="content" style="overflow:hidden">
+							<div class="detail">
+								<div class="detail__body"><div class="detail__inner" id="body-2"></div></div>
+								<div class="detail__rail" id="rail-2"></div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div></div>
+		</section>
+
+		<!-- ════ C · IDLE / EMPTY ════ -->
+		<section class="sect">
+			<div class="board-label">
+				<span class="board-label__state state--empty">Empty / idle</span>
+				<span class="board-label__title">No description, no run yet · sparse rail</span>
+				<span class="board-label__dim">1380 × 720</span>
+			</div>
+			<div class="scale-frame"><div class="scaled" style="width:1380px;height:720px">
+				<div class="shell">
+					<aside class="sidebar" id="sb-3"></aside>
+					<div class="main">
+						<div class="topbar">
+							<div class="crumbs"><span>Issues</span><span class="sep">/</span><span class="mono">SUP-160</span></div>
+							<div class="topbar__actions">
+								<button class="btn btn--primary btn--sm"><svg class="ic"><use href="#ic-play"></use></svg>Launch agent</button>
+								<button class="iconbtn"><svg class="ic"><use href="#ic-more"></use></svg></button>
+							</div>
+						</div>
+						<div class="content" style="overflow:hidden">
+							<div class="detail">
+								<div class="detail__body"><div class="detail__inner" id="body-3"></div></div>
+								<div class="detail__rail" id="rail-3"></div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div></div>
+		</section>
+
+		<!-- ════ D · DONE execlog + E · LOADING ════ -->
+		<section class="sect">
+			<div class="board-label">
+				<span class="board-label__state state--done">Done</span>
+				<span class="board-label__title">ExecutionLog terminal state (PR opened)</span>
+				<span class="board-label__state state--loading" style="margin-left:var(--space-6)">Loading</span>
+				<span class="board-label__title">Skeleton</span>
+			</div>
+			<div class="grid2" style="align-items:start">
+				<div class="specimen" style="display:block"><div id="execdone"></div></div>
+				<div class="specimen" style="display:block">
+					<div class="skel" style="height:24px;width:60%;margin-bottom:var(--space-6)"></div>
+					<div class="skel" style="height:13px;width:100%;margin-bottom:var(--space-3)"></div>
+					<div class="skel" style="height:13px;width:92%;margin-bottom:var(--space-3)"></div>
+					<div class="skel" style="height:13px;width:80%;margin-bottom:var(--space-8)"></div>
+					<div class="skel" style="height:120px;width:100%;border-radius:var(--radius-lg);margin-bottom:var(--space-6)"></div>
+					<div class="skel" style="height:13px;width:40%;margin-bottom:var(--space-3)"></div>
+					<div class="skel" style="height:60px;width:100%;border-radius:var(--radius-md)"></div>
+				</div>
+			</div>
+		</section>
+	</div>
+	</main>
+</div>
+
+<script src="icons.js"></script>
+<script src="shell.js"></script>
+<script src="glyphs.js"></script>
+<script src="detail.js"></script>
+<script src="scale.js"></script>
+<script>
+var E = {
+	alim:  { name: 'Alim Tunç', initials: 'AT', av: 'av-1' },
+	maya:  { name: 'Maya K.',   initials: 'MK', av: 'av-2' },
+	jonas: { name: 'Jonas D.',  initials: 'JD', av: 'av-3' },
+	claude:{ name: 'claude',    initials: 'C',  av: 'av-claude', agent: true },
+	codex: { name: 'codex',     initials: 'Cx', av: 'av-codex',  agent: true }
+};
+var L = {
+	bug:         { name: 'bug',         color: 'var(--label-bug)' },
+	feature:     { name: 'feature',     color: 'var(--label-feature)' },
+	infra:       { name: 'infra',       color: 'var(--label-infra)' },
+	design:      { name: 'design',      color: 'var(--label-design)' }
+};
+
+/* ── A · NEEDS-HUMAN (SUP-128) ─────────────────────────────────────────── */
+var DESC_128 =
+	'<p>The coding agent needs to apply a schema migration that drops the legacy <code>run_steps_v1</code> table and backfills <code>run_steps</code>. This is destructive against the shared dev database.</p>' +
+	'<h2>Acceptance</h2>' +
+	'<ul><li>Migration runs inside the worktree, not against prod.</li><li>Backfill is idempotent and logged.</li><li>Operator signs off before the drop executes.</li></ul>';
+
+document.getElementById('body-1').innerHTML =
+	SK.issueHead({ id: 'SUP-128', status: 'progress', statusLabel: 'In progress', title: 'Approve database migration before the agent proceeds', parent: 'SUP-100' }) +
+	'<div class="md">' + DESC_128 + '</div>' +
+	SK.sectionHead('Execution') +
+	SK.execlog({
+		kind: 'needs', runId: 'run_9f2a13 · claude', mode: 'semi-auto',
+		phases: [{ label: 'Plan', status: 'done' }, { label: 'Implement', status: 'paused' }, { label: 'Review', status: 'pending' }],
+		rows: [
+			{ kind: 'plan', title: 'Drafted migration + backfill plan', meta: '3 steps' },
+			{ kind: 'edit', title: 'Wrote migrations/0042_drop_run_steps_v1.sql', meta: '+48 −0' },
+			{ kind: 'tool', title: 'Ran sqlx migrate --dry-run', meta: 'ok' },
+			{ kind: 'ask', title: 'Paused: destructive migration needs approval', active: true }
+		],
+		files: [
+			{ path: 'migrations/0042_drop_run_steps_v1.sql', adds: 48, dels: 0 },
+			{ path: 'crates/core/src/run_steps.rs', adds: 31, dels: 12 }
+		]
+	}) +
+	SK.opbanner({ title: 'Agent paused — approval required', question: '“About to drop run_steps_v1 (1,204 rows) and backfill run_steps. Proceed against the dev database?”' }) +
+	SK.sectionHead('Activity') +
+	SK.feed([
+		{ kind: 'system', icon: 'dot', text: '<strong>Maya K.</strong> created the issue', ts: '2d ago' },
+		{ kind: 'system', icon: 'branch', tone: 'accent', text: '<strong>claude</strong> started run <span class="accent mono">run_9f2a13</span>', ts: '34m ago' },
+		{ kind: 'comment', author: E.maya, ts: '8m ago', body: '<p>Go ahead and drop v1 — we migrated the last consumer last week. Keep the backfill log though.</p>' },
+		{ kind: 'system', icon: 'alert', tone: 'warn', text: '<strong>claude</strong> requested approval to run a destructive migration', ts: '6m ago' }
+	]) +
+	SK.composer('Reply, or approve above…');
+
+document.getElementById('rail-1').innerHTML = SK.rail({
+	status: 'progress', statusLabel: 'In progress', prio: 'high', assignee: E.maya,
+	labels: [L.infra], project: 'Runner core', cycle: 'Cycle 24', est: 5, due: null,
+	relations: [
+		{ k: 'Parent', status: 'progress', id: 'SUP-100', title: 'Run persistence' },
+		{ k: 'Blocks', status: 'todo', id: 'SUP-133', title: 'Migrate prod' }
+	],
+	created: 'May 26', updated: '6m ago'
+});
+
+/* ── B · ACTIVE running (SUP-132) ──────────────────────────────────────── */
+document.getElementById('body-2').innerHTML =
+	SK.issueHead({ id: 'SUP-132', status: 'progress', statusLabel: 'In progress', title: 'Stream tool-call output into the run drawer' }) +
+	'<div class="md"><p>Tool calls currently only appear after a step finishes. Stream them incrementally so the operator can watch the agent work in the run drawer’s <strong>Tool calls</strong> tab.</p></div>' +
+	SK.sectionHead('Execution') +
+	SK.execlog({
+		kind: 'running', runId: 'run_a7c0e2 · claude', mode: 'full-auto',
+		phases: [{ label: 'Plan', status: 'done' }, { label: 'Implement', status: 'active' }, { label: 'Review', status: 'pending' }],
+		rows: [
+			{ kind: 'plan', title: 'Plan: stream via SSE, buffer in the drawer store', meta: '4 steps' },
+			{ kind: 'search', title: 'Searched for the run event channel', meta: '12 hits' },
+			{ kind: 'edit', title: 'Editing ui/src/features/run-drawer/stream.ts', meta: '+64 −9', active: true }
+		],
+		files: [
+			{ path: 'ui/src/features/run-drawer/stream.ts', adds: 64, dels: 9 },
+			{ path: 'crates/core/src/events/tool_call.rs', adds: 22, dels: 3 }
+		]
+	}) +
+	SK.sectionHead('Activity') +
+	SK.feed([
+		{ kind: 'system', icon: 'dot', text: '<strong>Alim Tunç</strong> created the issue', ts: '5h ago' },
+		{ kind: 'system', icon: 'pr', tone: 'accent', text: '<strong>Alim Tunç</strong> assigned <strong>claude</strong> and launched a run', ts: '14m ago' },
+		{ kind: 'comment', author: E.alim, ts: '12m ago', body: '<p>Full-auto is fine here, it’s additive. Ping me if the SSE channel needs a new event type.</p>' }
+	]) +
+	SK.composer();
+
+document.getElementById('rail-2').innerHTML = SK.rail({
+	status: 'progress', statusLabel: 'In progress', prio: 'medium', assignee: E.alim,
+	labels: [L.feature], project: 'Runner core', cycle: 'Cycle 24', est: 3, due: null,
+	created: 'May 29', updated: '2m ago'
+});
+
+/* ── C · IDLE / EMPTY (SUP-160) — sparse ───────────────────────────────── */
+document.getElementById('body-3').innerHTML =
+	SK.issueHead({ id: 'SUP-160', status: 'todo', statusLabel: 'Todo', title: 'Document the elevation token map' }) +
+	'<div class="md md--empty">No description.</div>' +
+	SK.sectionHead('Execution') +
+	SK.execlog({ kind: 'idle' }) +
+	SK.sectionHead('Activity') +
+	SK.feed([{ kind: 'system', icon: 'dot', text: '<strong>Alim Tunç</strong> created the issue', ts: '1d ago' }]) +
+	SK.composer();
+
+document.getElementById('rail-3').innerHTML = SK.rail({
+	status: 'todo', statusLabel: 'Todo', prio: 'none', assignee: E.alim,
+	labels: [L.design], project: null, cycle: null, est: null, due: null,
+	created: 'May 28', updated: '1d ago'
+});
+
+/* ── D · DONE ExecutionLog specimen ────────────────────────────────────── */
+document.getElementById('execdone').innerHTML = SK.execlog({
+	kind: 'done', runId: 'run_5d81f0 · claude', mode: 'full-auto',
+	phases: [{ label: 'Plan', status: 'done' }, { label: 'Implement', status: 'done' }, { label: 'Review', status: 'done' }],
+	rows: [
+		{ kind: 'edit', title: 'Implemented worktree path persistence', meta: '+142 −37' },
+		{ kind: 'test', title: 'cargo test — 218 passed', meta: 'green' },
+		{ kind: 'pr', title: 'Opened PR #318', meta: 'feature/sup-119' },
+		{ kind: 'done', title: 'Run completed', meta: '6m 12s' }
+	],
+	files: [
+		{ path: 'crates/core/src/worktree.rs', adds: 88, dels: 24 },
+		{ path: 'crates/core/src/daemon.rs', adds: 41, dels: 13 },
+		{ path: 'crates/core/tests/worktree_test.rs', adds: 13, dels: 0 }
+	],
+	worktree: { branch: 'feature/sup-119', path: '~/.superkick/wt/sup-119', pr: 318 }
+});
+
+['sb-1', 'sb-2', 'sb-3'].forEach(function (id) { document.getElementById(id).innerHTML = SK_SIDEBAR('issues'); });
+</script>
+</body>
+</html>

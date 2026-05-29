@@ -436,7 +436,7 @@ where
             StepKey::Prepare => self.execute_prepare(run).await,
             StepKey::Plan | StepKey::Code => {
                 let wt = require_worktree(worktree_path)?;
-                let agent_name = self.find_workflow_agent(key)?;
+                let agent_name = self.find_workflow_agent(key, run)?;
                 self.execute_agent(run, step, &agent_name, wt, cancel_token)
                     .await
             }
@@ -452,7 +452,7 @@ where
             }
             StepKey::ReviewSwarm => {
                 let wt = require_worktree(worktree_path)?;
-                let (agents, threshold) = self.find_review_swarm_config()?;
+                let (agents, threshold) = self.find_review_swarm_config(run)?;
                 self.execute_review_swarm(run, step, &agents, threshold, wt, cancel_token)
                     .await
             }
@@ -1031,7 +1031,17 @@ where
         }
     }
 
-    fn find_workflow_agent(&self, key: StepKey) -> Result<String> {
+    fn find_workflow_agent(&self, key: StepKey, run: &superkick_core::Run) -> Result<String> {
+        // A run-level override (operator picked an agent at launch) wins over the
+        // workflow default for that step.
+        let override_agent = match key {
+            StepKey::Plan => run.agent_overrides.planner.as_deref(),
+            StepKey::Code => run.agent_overrides.coder.as_deref(),
+            _ => None,
+        };
+        if let Some(agent) = override_agent {
+            return Ok(agent.to_string());
+        }
         for ws in &self.config.workflow.steps {
             match (key, ws) {
                 (StepKey::Plan, WorkflowStep::Plan { agent }) => return Ok(agent.clone()),

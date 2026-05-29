@@ -39,11 +39,15 @@ export function AssigneeRow({ issue }: AssigneeRowProps) {
 				<Popover.Trigger className={PROPERTY_ROW_TRIGGER} aria-label="Change assignee">
 					{issue.assignee ? (
 						<>
-							<AuthorAvatar name={issue.assignee.name} avatarUrl={issue.assignee.avatar_url} />
+							<AuthorAvatar
+								name={issue.assignee.name}
+								avatarUrl={issue.assignee.avatar_url}
+								size={16}
+							/>
 							<span className="truncate">{issue.assignee.name}</span>
 						</>
 					) : (
-						<span className="text-fg-dim">Unassigned</span>
+						<span className="prop__empty">Unassigned</span>
 					)}
 				</Popover.Trigger>
 				<AssigneePicker users={users} currentId={issue.assignee?.id ?? null} onSelect={onSelect} />

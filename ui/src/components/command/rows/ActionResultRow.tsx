@@ -2,7 +2,6 @@ import { MatchHighlight } from '@/components/command/MatchHighlight'
 import { ResultRowShell } from '@/components/command/ResultRowShell'
 import type { SearchActionRow } from '@/types'
 import { Icon } from '@/ui/Icon'
-import { Kbd } from '@/ui/Kbd'
 
 import { iconForActionKind } from './actionIcon'
 
@@ -20,16 +19,12 @@ export function ActionResultRow({ action, query, selected, onSelect, onActivate 
 			selected={selected}
 			onSelect={onSelect}
 			onActivate={onActivate}
-			leading={<Icon name={iconForActionKind(action.kind)} size={13} className="text-accent" />}
+			leading={<Icon name={iconForActionKind(action.kind)} size={16} className="text-accent" />}
 			primary={<MatchHighlight text={action.label} query={query} />}
 			secondary={action.hint ?? null}
 			trailing={
 				action.kbdHints.length > 0 ? (
-					<span className="flex items-center gap-1">
-						{action.kbdHints.map((hint) => (
-							<Kbd key={`${action.id}-${hint}`}>{hint}</Kbd>
-						))}
-					</span>
+					<span className="font-mono text-[11px] text-fg-dim">{action.kbdHints.join(' ')}</span>
 				) : null
 			}
 		/>
