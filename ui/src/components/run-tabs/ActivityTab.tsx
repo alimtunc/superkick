@@ -34,7 +34,7 @@ export function ActivityTab({ events, sessions, attentionRequests }: ActivityTab
 	return (
 		<div className="px-5 py-3 pl-7">
 			{pendingAttentions.length > 0 ? (
-				<ul className="mb-3 space-y-2 border-b border-edge pb-3">
+				<ul className="mb-3 space-y-2 border-b border-border pb-3">
 					{pendingAttentions.map((request) => (
 						<li key={request.id} className="flex items-start gap-2">
 							<Pill mono size="xs" tone="warn">

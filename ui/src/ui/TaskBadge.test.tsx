@@ -36,16 +36,16 @@ describe('TaskBadge', () => {
 
 	it('pulses only on the running kind', () => {
 		const { container: runningContainer } = render(<TaskBadge kind="running" />)
-		expect(runningContainer.querySelector('.live-pulse')).not.toBeNull()
+		expect(runningContainer.querySelector('.sk-pulse')).not.toBeNull()
 		expect(runningContainer.querySelector('.motion-reduce\\:animate-none')).not.toBeNull()
 
 		const { container: needsContainer } = render(<TaskBadge kind="needs" />)
-		expect(needsContainer.querySelector('.live-pulse')).toBeNull()
+		expect(needsContainer.querySelector('.sk-pulse')).toBeNull()
 
 		const { container: reviewContainer } = render(<TaskBadge kind="review" />)
-		expect(reviewContainer.querySelector('.live-pulse')).toBeNull()
+		expect(reviewContainer.querySelector('.sk-pulse')).toBeNull()
 
 		const { container: shippedContainer } = render(<TaskBadge kind="shipped" />)
-		expect(shippedContainer.querySelector('.live-pulse')).toBeNull()
+		expect(shippedContainer.querySelector('.sk-pulse')).toBeNull()
 	})
 })

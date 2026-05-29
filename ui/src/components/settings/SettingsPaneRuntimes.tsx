@@ -21,7 +21,7 @@ export function SettingsPaneRuntimes() {
 			</div>
 
 			{refreshError !== null ? (
-				<p className="font-data mb-3 text-[11px] text-oxide">{refreshError}</p>
+				<p className="font-data mb-3 text-[11px] text-danger">{refreshError}</p>
 			) : null}
 
 			<RuntimesBody runtimes={runtimes} isLoading={isLoading} error={error} />

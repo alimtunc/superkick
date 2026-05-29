@@ -41,7 +41,7 @@ export function IssueMemoryListSection({ issueId, omitWhenEmpty }: IssueMemoryLi
 					return (
 						<li
 							key={entry.id}
-							className="rounded-md border border-edge bg-slate-deep/30 px-2.5 py-2"
+							className="rounded-md border border-border bg-raised/30 px-2.5 py-2"
 						>
 							<div className="flex flex-wrap items-center gap-2 text-[12px]">
 								<Pill tone={memoryRoleTone(entry.role)} size="xs">

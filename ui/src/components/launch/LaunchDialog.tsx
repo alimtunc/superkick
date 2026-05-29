@@ -47,11 +47,11 @@ export function LaunchDialog({
 		>
 			<DialogPopup popupClassName="panel w-full max-w-xl p-5">
 				<div className="mb-4 flex items-center justify-between">
-					<Dialog.Title className="font-data text-sm font-medium text-silver">
+					<Dialog.Title className="font-data text-sm font-medium text-fg-muted">
 						LAUNCH RUN
 					</Dialog.Title>
 					<Dialog.Close
-						className="inline-flex size-6 items-center justify-center rounded-md text-dim transition-colors hover:bg-edge hover:text-silver focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none"
+						className="inline-flex size-6 items-center justify-center rounded-md text-fg-dim transition-colors hover:bg-border hover:text-fg-muted focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:outline-none"
 						aria-label="Close"
 					>
 						<X size={14} strokeWidth={1.75} aria-hidden="true" />
@@ -61,7 +61,7 @@ export function LaunchDialog({
 				<ProfileFlags profile={profile} />
 
 				<div className="mt-4">
-					<span className="font-data mb-1.5 block text-[10px] tracking-wider text-dim uppercase">
+					<span className="font-data mb-1.5 block text-[10px] tracking-wider text-fg-dim uppercase">
 						EXECUTION MODE
 					</span>
 					<div className="flex gap-2">
@@ -83,14 +83,14 @@ export function LaunchDialog({
 				</div>
 
 				<label className="mt-4 block">
-					<span className="font-data mb-1.5 block text-[10px] tracking-wider text-dim uppercase">
+					<span className="font-data mb-1.5 block text-[10px] tracking-wider text-fg-dim uppercase">
 						INSTRUCTIONS
 					</span>
 					<textarea
 						value={instructions}
 						onChange={(e) => onInstructionsChange(e.target.value)}
 						rows={8}
-						className="font-data w-full resize-y rounded border border-edge bg-carbon px-3 py-2 text-[12px] leading-relaxed text-silver placeholder:text-dim/60 focus:border-edge-bright focus:outline-none"
+						className="font-data w-full resize-y rounded border border-border bg-surface px-3 py-2 text-[12px] leading-relaxed text-fg-muted placeholder:text-fg-dim/60 focus:border-border-strong focus:outline-none"
 						placeholder={PLACEHOLDER}
 					/>
 				</label>
@@ -102,7 +102,7 @@ export function LaunchDialog({
 							onCheckedChange={onUseWorktreeChange}
 							aria-label="Use worktree"
 						/>
-						<span className="font-data text-[11px] text-dim">Use worktree</span>
+						<span className="font-data text-[11px] text-fg-dim">Use worktree</span>
 					</div>
 
 					<div className="flex items-center gap-2">

@@ -63,9 +63,9 @@ export function EditableDescription({ issue }: EditableDescriptionProps) {
 	}
 
 	return (
-		<div className="group relative">
+		<div className="group relative max-w-180">
 			{hasDescription ? (
-				<IssueMarkdown text={issue.description} className="text-[14px] leading-7" />
+				<IssueMarkdown text={issue.description} className="text-[13.5px] leading-[1.65] text-fg" />
 			) : (
 				<p className="text-[13px] text-fg-dim">No description.</p>
 			)}

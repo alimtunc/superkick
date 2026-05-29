@@ -10,7 +10,7 @@ export function ToolPayloadBlock({ label, value, tone = 'default' }: ToolPayload
 	const onCopy = () => {
 		void navigator.clipboard?.writeText(value)
 	}
-	const preTone = tone === 'error' ? 'text-oxide' : 'text-fg'
+	const preTone = tone === 'error' ? 'text-danger' : 'text-fg'
 	return (
 		<div>
 			<div className="mb-1 flex items-center gap-2">
@@ -25,7 +25,7 @@ export function ToolPayloadBlock({ label, value, tone = 'default' }: ToolPayload
 				</button>
 			</div>
 			<pre
-				className={`bg-ink overflow-x-auto rounded border border-edge px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap ${preTone}`}
+				className={`bg-ink overflow-x-auto rounded border border-border px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap ${preTone}`}
 			>
 				{value || '(empty)'}
 			</pre>

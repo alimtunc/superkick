@@ -65,28 +65,28 @@ export function ChatSidebar({
 			)
 		}
 		return (
-			<ul className="divide-y divide-edge">
+			<ul className="divide-y divide-border">
 				{conversations.map((conversation) => (
 					<li key={conversation.id}>
 						<button
 							type="button"
 							onClick={() => onSelect(conversation.id)}
 							className={cn(
-								'flex w-full flex-col gap-1 px-3 py-2 text-left transition-colors hover:bg-carbon',
-								selectedId === conversation.id ? 'bg-carbon' : 'bg-transparent'
+								'flex w-full flex-col gap-1 px-3 py-2 text-left transition-colors hover:bg-surface',
+								selectedId === conversation.id ? 'bg-surface' : 'bg-transparent'
 							)}
 						>
 							<div className="flex items-start justify-between gap-2">
-								<span className="font-data line-clamp-2 text-[11px] text-fog">
+								<span className="font-data line-clamp-2 text-[11px] text-fg">
 									{conversationTitle(conversation)}
 								</span>
-								<span className="font-data shrink-0 text-[10px] text-dim">
+								<span className="font-data shrink-0 text-[10px] text-fg-dim">
 									{fmtRelativeShort(conversationTimestamp(conversation), now)}
 								</span>
 							</div>
 							<div className="flex items-center justify-between gap-2">
 								<ConversationStateBadge state={rowState(conversation)} />
-								<span className="font-data text-[10px] text-dim capitalize">
+								<span className="font-data text-[10px] text-fg-dim capitalize">
 									{conversation.provider}
 								</span>
 							</div>
@@ -98,9 +98,11 @@ export function ChatSidebar({
 	}
 
 	return (
-		<aside className="flex w-60 shrink-0 flex-col border-r border-edge">
-			<div className="bg-carbon-dim sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-edge p-2">
-				<span className="font-data text-[11px] tracking-wider text-dim uppercase">Conversations</span>
+		<aside className="flex w-60 shrink-0 flex-col border-r border-border">
+			<div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-surface p-2">
+				<span className="font-data text-[11px] tracking-wider text-fg-dim uppercase">
+					Conversations
+				</span>
 				<Button variant="outline" size="xs" onClick={onNewChat} className="font-data">
 					<Plus aria-hidden="true" />
 					New

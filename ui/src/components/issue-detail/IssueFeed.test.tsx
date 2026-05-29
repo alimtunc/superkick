@@ -97,6 +97,23 @@ describe('IssueFeed — activity timeline', () => {
 
 		expect(screen.getByText('Alice Example')).toBeInTheDocument()
 		expect(screen.getByText('Hello world')).toBeInTheDocument()
+		expect(screen.getByRole('button', { name: /comment actions/i })).toBeInTheDocument()
+		expect(screen.queryByText('agent')).toBeNull()
+	})
+
+	it('tags agent-authored comments with an "agent" provenance pill', () => {
+		const agentComment: IssueComment = {
+			id: 'c-bot',
+			body: 'patched the regression',
+			author: { id: 'u-fixbot', name: 'fix-bot', avatar_url: null },
+			created_at: '2026-05-25T08:00:00.000Z',
+			updated_at: '2026-05-25T08:00:00.000Z',
+			parent_id: null
+		}
+		render(<IssueFeed issue={buildIssue({ comments: [agentComment] })} />)
+
+		expect(screen.getByText('fix-bot')).toBeInTheDocument()
+		expect(screen.getByText('agent')).toBeInTheDocument()
 	})
 
 	it('expands a terminal run into launched and completed event rows in the timeline', () => {
@@ -155,7 +172,20 @@ describe('IssueFeed — activity timeline', () => {
 		const older = screen.getByText('older note')
 		const newer = screen.getByText('newer note')
 		expect(older.compareDocumentPosition(newer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-		expect(screen.queryByText('Newest first')).toBeNull()
+	})
+
+	it('renders the "Newest first" sort affordance in the Activity header when populated', () => {
+		render(
+			<IssueFeed
+				issue={buildIssue({
+					comments: [
+						comment({ id: 'c1', body: 'a comment', created_at: '2026-05-25T08:00:00.000Z' })
+					]
+				})}
+			/>
+		)
+
+		expect(screen.getByRole('button', { name: /newest first/i })).toBeInTheDocument()
 	})
 
 	it('renders a compact empty state when there are no comments and no qualifying run events', () => {

@@ -1,5 +1,6 @@
 @theme {
-	--color-canvas: #0b0d0f;
+	--color-void: #0b0d0f;
+	--color-canvas: var(--color-void);
 	--color-surface: #15181c;
 	--color-raised: #1c2026;
 	--color-overlay: #23282f;
@@ -12,6 +13,7 @@
 
 	--color-accent: #5b6ef2;
 	--color-accent-soft: rgba(91, 110, 242, 0.16);
+	--color-accent-line: rgba(91, 110, 242, 0.5);
 
 	--color-success: #4ea674;
 	--color-success-soft: rgba(78, 166, 116, 0.13);
@@ -25,7 +27,7 @@
 	--color-code: #0f1114;
 	--color-code-fg: #cdd2d8;
 
-	--font-mono: 'JetBrains Mono', 'IBM Plex Mono', 'DM Mono', ui-monospace, monospace;
+	--font-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, Menlo, monospace;
 }
 
 /* Layered z-index scale. Every interactive overlay must pick from this

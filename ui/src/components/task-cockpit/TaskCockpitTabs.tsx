@@ -21,13 +21,13 @@ export function TaskCockpitTabs({ steps, activeTab, onChangeTab }: TaskCockpitTa
 	const changedFiles = new Set(steps.flatMap((step) => step.structured_result?.changed_files ?? [])).size
 
 	return (
-		<div className="flex shrink-0 items-center border-b border-edge bg-carbon">
+		<div className="flex shrink-0 items-center border-b border-border bg-surface">
 			<TabBar
 				tabs={TABS}
 				activeId={activeTab}
 				onChange={onChangeTab}
 				ariaLabel="Task cockpit"
-				className="min-w-0 flex-1 border-0 bg-carbon"
+				className="min-w-0 flex-1 border-0 bg-surface"
 			/>
 			<div className="font-data hidden shrink-0 items-center gap-3 px-4 text-[11px] text-fg-dim md:flex">
 				<span>{steps.length} steps</span>

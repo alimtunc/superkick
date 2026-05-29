@@ -38,10 +38,8 @@ export function PriorityRow({ issue }: PriorityRowProps) {
 		<PropertyRow label="Priority">
 			<Popover.Root open={open} onOpenChange={setOpen}>
 				<Popover.Trigger className={PROPERTY_ROW_TRIGGER} aria-label="Change priority">
-					<span className="inline-flex items-center gap-1.5">
-						<PriorityIcon kind={priorityIconKindFromValue(issue.priority.value)} size={12} />
-						<span>{label}</span>
-					</span>
+					<PriorityIcon kind={priorityIconKindFromValue(issue.priority.value)} size={13} />
+					<span>{label}</span>
 				</Popover.Trigger>
 				<PriorityPicker currentValue={issue.priority.value} onSelect={onSelect} />
 			</Popover.Root>

@@ -73,10 +73,10 @@ export function PtyTerminal({ runId, isTerminal, wsUrl, loadHistoryOnTerminal = 
 			fontSize: 12,
 			fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
 			theme: {
-				background: readToken('--color-carbon'),
-				foreground: readToken('--color-silver'),
-				cursor: readToken('--color-silver'),
-				selectionBackground: readToken('--color-slate-deep')
+				background: readToken('--color-surface'),
+				foreground: readToken('--color-fg-muted'),
+				cursor: readToken('--color-fg-muted'),
+				selectionBackground: readToken('--color-raised')
 			},
 			scrollback: 10000,
 			convertEol: true
@@ -215,7 +215,7 @@ export function PtyTerminal({ runId, isTerminal, wsUrl, loadHistoryOnTerminal = 
 	}, [runId, isTerminal, loadHistoryOnTerminal, setupTerminal, connectWebSocket, loadHistory])
 
 	return (
-		<div className="rounded-md border border-edge bg-carbon">
+		<div className="rounded-md border border-border bg-surface">
 			<TerminalStatusBar status={status} capabilities={capabilities} />
 			<div ref={containerRef} className="min-h-80 p-1" />
 		</div>

@@ -20,7 +20,7 @@ export function IssueExtraBadges({ item, dispatchPosition }: IssueExtraBadgesPro
 			key: 'launchable',
 			element: (
 				<Pill
-					tone="live"
+					tone="success"
 					size="xs"
 					title="Ready to dispatch"
 					leading={<Rocket size={10} aria-hidden="true" />}
@@ -36,7 +36,7 @@ export function IssueExtraBadges({ item, dispatchPosition }: IssueExtraBadgesPro
 			key: 'waiting',
 			element: (
 				<Pill
-					tone="gold"
+					tone="warn"
 					size="xs"
 					title={item.reason}
 					leading={<Gauge size={10} aria-hidden="true" />}
@@ -59,7 +59,7 @@ export function IssueExtraBadges({ item, dispatchPosition }: IssueExtraBadgesPro
 			key: 'blocked',
 			element: (
 				<Pill
-					tone="oxide"
+					tone="danger"
 					size="xs"
 					title={item.reason}
 					leading={<CircleSlash size={10} aria-hidden="true" />}

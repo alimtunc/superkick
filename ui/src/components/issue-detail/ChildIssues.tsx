@@ -8,15 +8,15 @@ export function ChildIssues({ issues }: { issues: IssueChildRef[] }) {
 	const completionPercent = Math.round((completed / issues.length) * 100)
 
 	return (
-		<div className="overflow-hidden rounded-md border border-border bg-canvas">
-			<header className="flex h-9 items-center gap-2 border-b border-border bg-surface px-3">
-				<Icon name="chevDown" size={12} className="text-fg-dim" />
-				<h3 className="text-[13px] font-semibold text-fg">Sub-issues</h3>
+		<div className="overflow-hidden rounded-[8px] border border-border bg-surface">
+			<header className="flex items-center gap-2 border-b border-border px-3 py-2">
+				<Icon name="chevDown" size={11} className="text-fg-dim" />
+				<h3 className="text-[12.5px] font-semibold text-fg">Sub-issues</h3>
 				<span className="font-data text-[11px] text-fg-dim">
 					{completed} / {issues.length}
 				</span>
 				<div
-					className="ml-auto h-1 w-20 overflow-hidden rounded-full bg-raised"
+					className="ml-auto h-1.25 w-20 overflow-hidden rounded-[3px] bg-border"
 					aria-label={`Sub-issues ${completionPercent}% complete`}
 				>
 					<div className="h-full bg-success" style={{ width: `${completionPercent}%` }} />

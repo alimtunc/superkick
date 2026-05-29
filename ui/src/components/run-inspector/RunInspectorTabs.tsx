@@ -51,7 +51,7 @@ export function RunInspectorTabs({
 				activeId={tab}
 				onChange={onChangeTab}
 				ariaLabel="Run inspector"
-				className="border-edge bg-surface"
+				className="border-border bg-surface"
 			/>
 			<div className="min-h-0 flex-1 overflow-y-auto">
 				{tab === 'activity' ? (

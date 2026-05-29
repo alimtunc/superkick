@@ -39,8 +39,8 @@ export function InterventionComposer({ linearIssueId, taskId, disabled }: Interv
 		: 'Leave a request for the next step…   ⌘↵ to send'
 
 	return (
-		<div className="border-b border-edge bg-carbon/40 px-6 py-3">
-			<div className="rounded-md border border-edge bg-canvas focus-within:border-edge-bright">
+		<div className="border-b border-border bg-surface/40 px-6 py-3">
+			<div className="rounded-md border border-border bg-canvas focus-within:border-border-strong">
 				<textarea
 					value={value}
 					onChange={(e) => setValue(e.target.value)}
@@ -49,10 +49,10 @@ export function InterventionComposer({ linearIssueId, taskId, disabled }: Interv
 					disabled={disabled || create.isPending}
 					rows={2}
 					aria-label="Intervention body"
-					className="font-data block w-full resize-y rounded-t-md border-0 bg-transparent px-3 py-2 text-[12px] text-fog placeholder-dim focus:outline-none disabled:opacity-60"
+					className="font-data block w-full resize-y rounded-t-md border-0 bg-transparent px-3 py-2 text-[12px] text-fg placeholder-fg-dim focus:outline-none disabled:opacity-60"
 				/>
-				<div className="flex items-center justify-between gap-2 border-t border-edge px-2 py-1.5">
-					<span className="font-data text-[11px] text-dim">
+				<div className="flex items-center justify-between gap-2 border-t border-border px-2 py-1.5">
+					<span className="font-data text-[11px] text-fg-dim">
 						Queued for the next step. Does not interrupt the active step.
 					</span>
 					<Button

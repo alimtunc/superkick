@@ -32,9 +32,9 @@ export function SessionWatchRail({ refTime, mode = 'overview' }: SessionWatchRai
 	}
 
 	return (
-		<div className="border-b border-edge bg-carbon/60">
+		<div className="border-b border-border bg-surface/60">
 			<div className="mx-auto flex max-w-360 items-center gap-2 overflow-x-auto px-5 py-1.5">
-				<span className="font-data mr-1 shrink-0 text-[9px] tracking-widest text-dim uppercase">
+				<span className="font-data mr-1 shrink-0 text-[9px] tracking-widest text-fg-dim uppercase">
 					Watch
 				</span>
 				{watchedRuns.map((run) => {

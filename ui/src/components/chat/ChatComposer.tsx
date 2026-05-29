@@ -64,7 +64,7 @@ export function ChatComposer({
 
 	return (
 		<div className="space-y-2">
-			<div className="rounded-md border border-edge bg-carbon focus-within:border-edge-bright">
+			<div className="rounded-md border border-border bg-surface focus-within:border-border-strong">
 				<textarea
 					value={value}
 					onChange={(e) => setValue(e.target.value)}
@@ -77,9 +77,9 @@ export function ChatComposer({
 					disabled={disabled}
 					rows={3}
 					aria-label="Message"
-					className="font-data block w-full resize-y rounded-t-md border-0 bg-transparent px-3 py-2 text-[12px] text-fog placeholder-dim focus:outline-none disabled:opacity-60"
+					className="font-data block w-full resize-y rounded-t-md border-0 bg-transparent px-3 py-2 text-[12px] text-fg placeholder-fg-dim focus:outline-none disabled:opacity-60"
 				/>
-				<div className="flex items-center justify-between gap-2 border-t border-edge px-2 py-1.5">
+				<div className="flex items-center justify-between gap-2 border-t border-border px-2 py-1.5">
 					<div className="flex items-center gap-1.5">
 						{onProviderChange ? (
 							<ProviderPicker
@@ -124,7 +124,7 @@ export function ChatComposer({
 				</div>
 			</div>
 			{error ? (
-				<p className="font-data rounded bg-oxide-dim p-2 text-[11px] text-oxide">{error}</p>
+				<p className="font-data rounded bg-danger-soft p-2 text-[11px] text-danger">{error}</p>
 			) : null}
 		</div>
 	)

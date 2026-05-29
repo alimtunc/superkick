@@ -27,26 +27,26 @@ export function LedgerRow({ event, sessionById, attentionById, connect }: Ledger
 		<li className="relative">
 			{connect ? (
 				<span
-					className="absolute top-5 -bottom-1.5 -left-4 w-px -translate-x-1/2 bg-edge/60"
+					className="absolute top-5 -bottom-1.5 -left-4 w-px -translate-x-1/2 bg-border/60"
 					aria-hidden
 				/>
 			) : null}
 			<span
-				className={`absolute top-2 -left-4 inline-block h-2 w-2 -translate-x-1/2 rounded-full ${visual.dot} ring-2 ${visual.ring} ring-offset-1 ring-offset-carbon`}
+				className={`absolute top-2 -left-4 inline-block h-2 w-2 -translate-x-1/2 rounded-full ${visual.dot} ring-2 ${visual.ring} ring-offset-1 ring-offset-surface`}
 				aria-hidden
 			/>
 			<div className="flex items-baseline gap-2 py-1">
-				<span className="font-data text-[10px] tracking-wider text-dim uppercase">
+				<span className="font-data text-[10px] tracking-wider text-fg-dim uppercase">
 					{visual.label}
 				</span>
 				<span className={`text-[13px] leading-snug ${ledgerTone(event.level, category)}`}>
 					{title}
 				</span>
-				<span className="font-data ml-auto shrink-0 text-[10px] text-dim">
+				<span className="font-data ml-auto shrink-0 text-[10px] text-fg-dim">
 					{fmtRelativeTime(event.ts)}
 				</span>
 			</div>
-			{detail ? <div className="pb-1 text-[11.5px] text-silver">{detail}</div> : null}
+			{detail ? <div className="pb-1 text-[11.5px] text-fg-muted">{detail}</div> : null}
 		</li>
 	)
 }

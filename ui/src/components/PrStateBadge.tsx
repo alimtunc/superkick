@@ -2,10 +2,10 @@ import { Pill, type PillTone } from '@/components/ui/pill'
 import type { PrState } from '@/types'
 
 const tone: Record<PrState, PillTone> = {
-	open: 'live',
+	open: 'success',
 	draft: 'neutral',
-	merged: 'violet',
-	closed: 'oxide'
+	merged: 'accent',
+	closed: 'danger'
 }
 
 const label: Record<PrState, string> = {

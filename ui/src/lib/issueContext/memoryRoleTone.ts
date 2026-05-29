@@ -5,16 +5,16 @@ const ROLE_TONE: Record<KnownMemoryRole, PillTone> = {
 	plan: 'info',
 	planner: 'info',
 	decision: 'accent',
-	fact: 'mineral',
+	fact: 'success',
 	note: 'neutral',
 	warning: 'warn',
 	error: 'danger',
 	failure: 'danger',
-	review: 'violet',
-	reviewer: 'violet',
-	coder: 'cyan',
-	implementor: 'cyan',
-	implementer: 'cyan'
+	review: 'accent',
+	reviewer: 'accent',
+	coder: 'info',
+	implementor: 'info',
+	implementer: 'info'
 }
 
 export function memoryRoleTone(role: MemoryRole): PillTone {

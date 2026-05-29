@@ -5,9 +5,10 @@ import {
 	ISSUE_STATE_ORDER,
 	isDroppableIssueState,
 	issueStateAccent,
-	launchQueueItemIdentifier
+	launchQueueItemIdentifier,
+	toMutableIssueState
 } from '@/lib/domain'
-import type { IssueState, IssueStateMutable, LaunchQueueItem } from '@/types'
+import type { IssueState, LaunchQueueItem } from '@/types'
 import {
 	KeyboardSensor,
 	PointerSensor,
@@ -103,6 +104,9 @@ export function useIssueKanbanDnd({ groups }: UseIssueKanbanDndParams): UseIssue
 				return
 			}
 
+			const to = toMutableIssueState(target)
+			if (to === null) return
+
 			const item = findItem(groups, identifier)
 			if (!item || item.kind !== 'issue') return
 
@@ -110,7 +114,7 @@ export function useIssueKanbanDnd({ groups }: UseIssueKanbanDndParams): UseIssue
 				issueId: item.issue.id,
 				issueIdentifier: identifier,
 				teamId: item.issue.team_id,
-				to: target as IssueStateMutable
+				to
 			})
 		},
 		[groups, updateState]

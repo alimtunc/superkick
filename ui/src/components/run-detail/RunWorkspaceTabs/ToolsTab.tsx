@@ -37,7 +37,7 @@ export function ToolsTab({ runId }: ToolsTabProps) {
 	}
 
 	return (
-		<ul className="divide-y divide-edge">
+		<ul className="divide-y divide-border">
 			{calls.map((call) => (
 				<ToolCallRow key={`${call.turn_id}:${call.call_id}`} call={call} />
 			))}

@@ -15,11 +15,11 @@ export function RunPrBadge({ pr, className }: RunPrBadgeProps) {
 			target="_blank"
 			rel="noopener noreferrer"
 			className={cn(
-				'inline-flex shrink-0 rounded-md focus-visible:ring-2 focus-visible:ring-neon-green/40 focus-visible:outline-none',
+				'inline-flex shrink-0 rounded-md focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:outline-none',
 				className
 			)}
 		>
-			<Pill tone="live" size="xs" interactive>
+			<Pill tone="success" size="xs" interactive>
 				#{pr.number}
 				<PrStateBadge state={pr.state} />
 			</Pill>

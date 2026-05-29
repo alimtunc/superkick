@@ -20,17 +20,17 @@ export function PendingInterrupt({
 	const formError = extractFormError(onSubmitError)
 
 	return (
-		<div className="panel glow-gold border-l-2 border-l-gold p-4">
+		<div className="panel glow-gold border-l-2 border-l-warn p-4">
 			<div className="flex items-start gap-3">
-				<span className="font-data mt-0.5 text-base text-gold">!!</span>
+				<span className="font-data mt-0.5 text-base text-warn">!!</span>
 				<div className="min-w-0 flex-1">
-					<p className="text-sm font-medium text-fog">{interrupt.question}</p>
-					<p className="font-data mt-1 text-[10px] text-dim">
+					<p className="text-sm font-medium text-fg">{interrupt.question}</p>
+					<p className="font-data mt-1 text-[10px] text-fg-dim">
 						{new Date(interrupt.created_at).toLocaleString()}
 					</p>
 
 					{formError ? (
-						<p className="font-data mt-2 rounded bg-oxide-dim p-2 text-[12px] text-oxide">
+						<p className="font-data mt-2 rounded bg-danger-soft p-2 text-[12px] text-danger">
 							{String(formError)}
 						</p>
 					) : null}
@@ -42,7 +42,7 @@ export function PendingInterrupt({
 								size="xs"
 								disabled={isSubmitting}
 								onClick={retry}
-								className="font-data border-cyan/30 bg-cyan-dim text-[11px] text-cyan hover:bg-cyan/20"
+								className="font-data border-info/30 bg-info-soft text-[11px] text-info hover:bg-info/20"
 							>
 								RETRY
 							</Button>
@@ -51,7 +51,7 @@ export function PendingInterrupt({
 								size="xs"
 								disabled={isSubmitting}
 								onClick={abort}
-								className="font-data border-oxide/30 bg-oxide-dim text-[11px] text-oxide hover:bg-oxide/20"
+								className="font-data border-danger/30 bg-danger-soft text-[11px] text-danger hover:bg-danger/20"
 							>
 								ABORT
 							</Button>
@@ -67,7 +67,7 @@ export function PendingInterrupt({
 											onBlur={field.handleBlur}
 											onChange={(e) => field.handleChange(e.target.value)}
 											placeholder="Add a note and continue..."
-											className="font-data flex-1 border-edge bg-carbon text-[12px] text-fog placeholder-dim focus:border-edge-bright"
+											className="font-data flex-1 border-border bg-surface text-[12px] text-fg placeholder-fg-dim focus:border-border-strong"
 										/>
 										{field.state.meta.isTouched && !field.state.meta.isValid ? (
 											<FieldError errors={field.state.meta.errors} />
@@ -80,7 +80,7 @@ export function PendingInterrupt({
 								size="xs"
 								disabled={isSubmitting || form.getFieldValue('note').trim().length === 0}
 								onClick={continueWithNote}
-								className="font-data border-mineral/30 bg-mineral-dim text-[11px] text-mineral hover:bg-mineral/20"
+								className="font-data border-success/30 bg-success-soft text-[11px] text-success hover:bg-success/20"
 							>
 								CONTINUE
 							</Button>

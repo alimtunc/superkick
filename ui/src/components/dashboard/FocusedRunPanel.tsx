@@ -38,17 +38,17 @@ export function FocusedRunPanel({ refTime }: { refTime: number }) {
 	if (!focusedId || !focusedRun) return null
 
 	return (
-		<div className="border-b border-edge bg-carbon/40">
+		<div className="border-b border-border bg-surface/40">
 			<div className="mx-auto max-w-360 px-5 py-4">
 				<div className="mb-3 flex items-center justify-between">
 					<div className="flex items-center gap-3">
-						<span className="font-data text-[9px] tracking-widest text-dim uppercase">
+						<span className="font-data text-[9px] tracking-widest text-fg-dim uppercase">
 							Focused
 						</span>
-						<h2 className="text-sm font-medium text-fog">{focusedRun.issue_identifier}</h2>
+						<h2 className="text-sm font-medium text-fg">{focusedRun.issue_identifier}</h2>
 						<RunStateBadge state={focusedRun.state} />
-						<span className="font-data text-[10px] text-dim">{focusedRun.repo_slug}</span>
-						<span className="font-data text-[10px] text-dim">
+						<span className="font-data text-[10px] text-fg-dim">{focusedRun.repo_slug}</span>
+						<span className="font-data text-[10px] text-fg-dim">
 							{fmtElapsed(focusedRun.started_at, refTime)}
 						</span>
 					</div>
@@ -56,7 +56,7 @@ export function FocusedRunPanel({ refTime }: { refTime: number }) {
 						<Link
 							to="/runs/$runId"
 							params={{ runId: focusedRun.id }}
-							className="font-data rounded border border-edge px-2 py-0.5 text-[11px] text-silver transition-colors hover:border-edge-bright hover:text-fog"
+							className="font-data rounded border border-border px-2 py-0.5 text-[11px] text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
 						>
 							FULL DETAIL
 						</Link>
@@ -64,7 +64,7 @@ export function FocusedRunPanel({ refTime }: { refTime: number }) {
 							variant="ghost"
 							size="icon-xs"
 							onClick={clearFocus}
-							className="font-data text-[11px] text-dim hover:text-silver"
+							className="font-data text-[11px] text-fg-dim hover:text-fg-muted"
 							title="Close panel"
 						>
 							<X size={12} strokeWidth={1.75} aria-hidden="true" />
@@ -73,34 +73,34 @@ export function FocusedRunPanel({ refTime }: { refTime: number }) {
 				</div>
 
 				{loading && !data?.run ? (
-					<p className="font-data py-2 text-[11px] text-dim">Loading&hellip;</p>
+					<p className="font-data py-2 text-[11px] text-fg-dim">Loading&hellip;</p>
 				) : error ? (
-					<p className="font-data py-2 text-[11px] text-oxide">{error}</p>
+					<p className="font-data py-2 text-[11px] text-danger">{error}</p>
 				) : data?.run ? (
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_1fr]">
 						<div className="space-y-3">
 							<dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
 								<div>
-									<dt className="font-data text-[9px] tracking-wider text-dim uppercase">
+									<dt className="font-data text-[9px] tracking-wider text-fg-dim uppercase">
 										Branch
 									</dt>
-									<dd className="font-data mt-0.5 text-silver">
+									<dd className="font-data mt-0.5 text-fg-muted">
 										{data.run.branch_name ?? '--'}
 									</dd>
 								</div>
 								<div>
-									<dt className="font-data text-[9px] tracking-wider text-dim uppercase">
+									<dt className="font-data text-[9px] tracking-wider text-fg-dim uppercase">
 										Step
 									</dt>
-									<dd className="font-data mt-0.5 text-silver">
+									<dd className="font-data mt-0.5 text-fg-muted">
 										{data.run.current_step_key ?? '--'}
 									</dd>
 								</div>
 								<div>
-									<dt className="font-data text-[9px] tracking-wider text-dim uppercase">
+									<dt className="font-data text-[9px] tracking-wider text-fg-dim uppercase">
 										Started
 									</dt>
-									<dd className="font-data mt-0.5 text-silver">
+									<dd className="font-data mt-0.5 text-fg-muted">
 										<ClientDateTime
 											value={data.run.started_at}
 											format="time"
@@ -109,16 +109,16 @@ export function FocusedRunPanel({ refTime }: { refTime: number }) {
 									</dd>
 								</div>
 								<div>
-									<dt className="font-data text-[9px] tracking-wider text-dim uppercase">
+									<dt className="font-data text-[9px] tracking-wider text-fg-dim uppercase">
 										Trigger
 									</dt>
-									<dd className="font-data mt-0.5 text-silver">
+									<dd className="font-data mt-0.5 text-fg-muted">
 										{data.run.trigger_source}
 									</dd>
 								</div>
 							</dl>
 							{data.run.error_message ? (
-								<p className="font-data rounded border border-oxide/20 bg-oxide-dim p-2 text-[11px] text-oxide">
+								<p className="font-data rounded border border-danger/20 bg-danger-soft p-2 text-[11px] text-danger">
 									{data.run.error_message}
 								</p>
 							) : null}
@@ -127,7 +127,7 @@ export function FocusedRunPanel({ refTime }: { refTime: number }) {
 							) : null}
 						</div>
 						<div>
-							<span className="font-data mb-2 block text-[9px] tracking-wider text-dim uppercase">
+							<span className="font-data mb-2 block text-[9px] tracking-wider text-fg-dim uppercase">
 								Steps
 							</span>
 							<StepTimeline steps={data.steps} />

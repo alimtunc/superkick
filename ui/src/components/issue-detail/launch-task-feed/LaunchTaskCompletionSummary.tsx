@@ -65,7 +65,7 @@ export function LaunchTaskCompletionSummary({
 	const showWorktreeRow = worktreePath !== null || !isFailure
 
 	return (
-		<section className="border-b border-edge bg-surface px-6 py-4">
+		<section className="border-b border-border bg-surface px-6 py-4">
 			<div className={cardClass}>
 				<header className="flex flex-col gap-1">
 					<span className={headlineClass}>{headline}</span>
@@ -90,7 +90,7 @@ export function LaunchTaskCompletionSummary({
 					</div>
 				) : null}
 				{showWorktreeRow ? (
-					<div className="mt-3 border-t border-edge pt-2.5">
+					<div className="mt-3 border-t border-border pt-2.5">
 						<WorktreeFooterRow
 							runId={linkedRunId}
 							worktreePath={worktreePath}

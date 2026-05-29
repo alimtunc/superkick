@@ -199,6 +199,21 @@ defines what should be on that surface instead.
   hide. If queue position matters operationally, surface it in the issue
   detail topbar or the kanban column header — not on every card.
 
+## DOCK-01 · Global `RunDock` bottom bar (shell)
+
+- **Where:** `components/shell/RunDock.tsx`, mounted in `AppShell.tsx`.
+- **Action:** **hide** behind `FEATURES.globalRunDock` (default off).
+- **Spec:** §0.2 / §7.3. The shell is Sidebar + Topbar + scroll content;
+  run state lives inline on the issue (ExecutionLog §17) and in the Drawer
+  (§18), not a global dock.
+
+## DOCK-02 · Global `SessionWatchRail` (under topbar)
+
+- **Where:** `components/dashboard/SessionWatchRail.tsx`, mounted in
+  `AppShell.tsx` between Topbar and main.
+- **Action:** **hide** behind `FEATURES.sessionWatchRail` (default off).
+- **Spec:** §0.2 / §7.3. Not part of the §7 shell composition.
+
 ---
 
 ## How to implement the "hide" disposition

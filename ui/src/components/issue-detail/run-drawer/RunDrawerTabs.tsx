@@ -20,7 +20,7 @@ export function RunDrawerTabs() {
 			activeId={tab}
 			onChange={setTab}
 			ariaLabel="Run drawer"
-			className="border-edge bg-carbon"
+			className="border-border bg-surface"
 		/>
 	)
 }

@@ -68,10 +68,10 @@ function buildRows(run: Run, steps: RunStep[], refTime: number): Row[] {
 }
 
 function ratioColor(ratio: number | null): string {
-	if (ratio === null) return 'bg-dim/30'
-	if (ratio >= 1) return 'bg-oxide'
-	if (ratio >= 0.8) return 'bg-gold'
-	return 'bg-mineral'
+	if (ratio === null) return 'bg-fg-dim/30'
+	if (ratio >= 1) return 'bg-danger'
+	if (ratio >= 0.8) return 'bg-warn'
+	return 'bg-success'
 }
 
 export function RunBudgetCard({ run, steps, refTime }: RunBudgetCardProps) {

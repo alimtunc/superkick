@@ -36,16 +36,30 @@ export const stateIcon: Partial<Record<RunState, string>> = {
 	cancelled: '~~'
 }
 
+export const runStateLabel: Record<RunState, string> = {
+	queued: 'Queued',
+	preparing: 'Preparing',
+	planning: 'Planning',
+	coding: 'Coding',
+	running_commands: 'Running commands',
+	reviewing: 'Reviewing',
+	waiting_human: 'Waiting on you',
+	opening_pr: 'Opening PR',
+	completed: 'Completed',
+	failed: 'Failed',
+	cancelled: 'Cancelled'
+}
+
 export const stateTone: Record<RunState, PillTone> = {
 	queued: 'neutral',
-	preparing: 'cyan',
-	planning: 'cyan',
-	coding: 'live',
-	running_commands: 'live',
-	reviewing: 'violet',
-	waiting_human: 'gold',
-	opening_pr: 'mineral',
-	completed: 'mineral',
-	failed: 'oxide',
+	preparing: 'info',
+	planning: 'info',
+	coding: 'success',
+	running_commands: 'success',
+	reviewing: 'accent',
+	waiting_human: 'warn',
+	opening_pr: 'success',
+	completed: 'success',
+	failed: 'danger',
 	cancelled: 'neutral'
 }

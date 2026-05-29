@@ -5,6 +5,7 @@ interface AssigneeAvatarProps {
 	name: string | null
 	avatarUrl?: string | null
 	size?: 18 | 20
+	tint?: string
 	className?: string
 }
 
@@ -13,7 +14,7 @@ const SIZE_CLASS: Record<NonNullable<AssigneeAvatarProps['size']>, string> = {
 	20: 'h-5 w-5'
 }
 
-export function AssigneeAvatar({ name, avatarUrl, size = 20, className }: AssigneeAvatarProps) {
+export function AssigneeAvatar({ name, avatarUrl, size = 20, tint, className }: AssigneeAvatarProps) {
 	const sizing = SIZE_CLASS[size]
 
 	if (name === null) {
@@ -44,10 +45,12 @@ export function AssigneeAvatar({ name, avatarUrl, size = 20, className }: Assign
 	return (
 		<span
 			className={cn(
-				'flex shrink-0 items-center justify-center rounded-full border border-border bg-raised text-[8px] font-medium text-fg-muted',
+				'flex shrink-0 items-center justify-center rounded-full border border-border text-[8px] font-medium text-fg-muted',
+				tint ? 'border-transparent text-white' : 'bg-raised',
 				sizing,
 				className
 			)}
+			style={tint ? { backgroundColor: tint } : undefined}
 			title={name}
 			aria-label={`Assigned to ${name}`}
 		>

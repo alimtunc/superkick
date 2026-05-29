@@ -2,7 +2,7 @@ import { MenuPopup } from '@/components/ui/menu-shell'
 import { Btn } from '@/ui/Btn'
 import { Menu } from '@base-ui/react/menu'
 import { useNavigate } from '@tanstack/react-router'
-import { Link as LinkIcon, MoreHorizontal, RefreshCw, Star, Zap } from 'lucide-react'
+import { Copy, MoreHorizontal, RefreshCw, Star, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 
 const GHOST =
@@ -49,7 +49,7 @@ export function IssueDetailTopbarRight({ identifier, isDone, onRefresh }: IssueD
 				title="Copy link"
 				className={GHOST_ICON}
 			>
-				<LinkIcon size={14} strokeWidth={1.75} aria-hidden="true" />
+				<Copy size={14} strokeWidth={1.75} aria-hidden="true" />
 			</button>
 			<Menu.Root>
 				<Menu.Trigger aria-label="More actions" title="More" className={GHOST_ICON}>
@@ -65,9 +65,9 @@ export function IssueDetailTopbarRight({ identifier, isDone, onRefresh }: IssueD
 					</Menu.Item>
 				</MenuPopup>
 			</Menu.Root>
-			<div className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+			<div className="mx-1 h-4.5 w-px bg-border" aria-hidden="true" />
 			<Btn
-				kind="primary"
+				kind={isDone ? 'secondary' : 'primary'}
 				size="sm"
 				onClick={() => navigate({ to: '/tasks/new', search: { issue: identifier } })}
 				aria-label={launchAriaLabel}

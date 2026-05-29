@@ -49,11 +49,12 @@ function issueItem(
 	}
 }
 
-function groupsFor(open: string[], inProgress: string[]): Record<IssueState, LaunchQueueItem[]> {
+function groupsFor(todo: string[], inProgress: string[]): Record<IssueState, LaunchQueueItem[]> {
 	return {
-		open: open.map((id) => issueItem(id, 'unstarted')),
-		in_progress: inProgress.map((id) => issueItem(id, 'started')),
 		needs_human: [],
+		backlog: [],
+		todo: todo.map((id) => issueItem(id, 'unstarted')),
+		in_progress: inProgress.map((id) => issueItem(id, 'started')),
 		in_review: [],
 		done: []
 	}
@@ -64,8 +65,8 @@ function snapshot(groups: Record<IssueState, LaunchQueueItem[]>): LaunchQueueRes
 		generated_at: '2026-05-21T10:00:00Z',
 		active_capacity: { current: 0, max: 3 },
 		groups: {
-			backlog: [],
-			todo: groups.open,
+			backlog: groups.backlog,
+			todo: groups.todo,
 			launchable: [],
 			waiting: [],
 			blocked: [],
@@ -116,7 +117,7 @@ describe('useIssueKanbanDnd onDragEnd', () => {
 		})
 
 		await act(async () => {
-			result.current.onDragEnd(dragEnd('SUP-1', 'open', 'in_progress'))
+			result.current.onDragEnd(dragEnd('SUP-1', 'todo', 'in_progress'))
 		})
 
 		await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
@@ -128,9 +129,10 @@ describe('useIssueKanbanDnd onDragEnd', () => {
 	it('sends team_id: null when the issue has no team', async () => {
 		fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
 		const groups: Record<IssueState, LaunchQueueItem[]> = {
-			open: [issueItem('SUP-2', 'unstarted', null)],
-			in_progress: [],
 			needs_human: [],
+			backlog: [],
+			todo: [issueItem('SUP-2', 'unstarted', null)],
+			in_progress: [],
 			in_review: [],
 			done: []
 		}
@@ -142,7 +144,7 @@ describe('useIssueKanbanDnd onDragEnd', () => {
 		})
 
 		await act(async () => {
-			result.current.onDragEnd(dragEnd('SUP-2', 'open', 'done'))
+			result.current.onDragEnd(dragEnd('SUP-2', 'todo', 'done'))
 		})
 
 		await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
@@ -160,7 +162,7 @@ describe('useIssueKanbanDnd onDragEnd', () => {
 		})
 
 		await act(async () => {
-			result.current.onDragEnd(dragEnd('SUP-1', 'open', 'open'))
+			result.current.onDragEnd(dragEnd('SUP-1', 'todo', 'todo'))
 		})
 
 		expect(fetchMock).not.toHaveBeenCalled()
@@ -176,7 +178,7 @@ describe('useIssueKanbanDnd onDragEnd', () => {
 		})
 
 		await act(async () => {
-			result.current.onDragEnd(dragEnd('SUP-1', 'open', 'needs_human'))
+			result.current.onDragEnd(dragEnd('SUP-1', 'todo', 'needs_human'))
 		})
 
 		expect(fetchMock).not.toHaveBeenCalled()
@@ -194,7 +196,7 @@ describe('useIssueKanbanDnd onDragEnd', () => {
 		})
 
 		await act(async () => {
-			result.current.onDragEnd(dragEnd('SUP-1', 'open', 'in_review'))
+			result.current.onDragEnd(dragEnd('SUP-1', 'todo', 'in_review'))
 		})
 
 		expect(fetchMock).not.toHaveBeenCalled()
@@ -212,14 +214,14 @@ describe('useIssueKanbanDnd onDragEnd', () => {
 
 		act(() => {
 			result.current.onDragStart({
-				active: { id: 'SUP-1', data: { current: { fromState: 'open' } } }
+				active: { id: 'SUP-1', data: { current: { fromState: 'todo' } } }
 			} as never)
 		})
 		expect(result.current.activeIdentifier).toBe('SUP-1')
 
 		act(() => {
 			result.current.onDragCancel({
-				active: { id: 'SUP-1', data: { current: { fromState: 'open' } } }
+				active: { id: 'SUP-1', data: { current: { fromState: 'todo' } } }
 			} as never)
 		})
 		expect(result.current.activeIdentifier).toBeNull()
@@ -238,7 +240,7 @@ describe('useIssueKanbanDnd onDragEnd', () => {
 		})
 
 		await act(async () => {
-			result.current.onDragEnd(dragEnd('SUP-1', 'open', 'done'))
+			result.current.onDragEnd(dragEnd('SUP-1', 'todo', 'done'))
 		})
 
 		await waitFor(() => expect(toastMocks.error).toHaveBeenCalled())

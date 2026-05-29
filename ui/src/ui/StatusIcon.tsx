@@ -39,7 +39,7 @@ const TONE_CLASS: Record<StatusIconKind, string> = {
 	todo: 'text-fg-muted',
 	progress: 'text-info',
 	needs: 'text-warn',
-	review: 'text-warn',
+	review: 'text-accent',
 	done: 'text-success',
 	cancelled: 'text-fg-dim'
 }
@@ -97,16 +97,20 @@ function StatusIconShape({ kind }: { kind: StatusIconKind }) {
 			return (
 				<>
 					<circle cx="8" cy="8" r="6.25" stroke="currentColor" strokeWidth="1.5" />
-					<path d="M8 8 V 1.75 A 6.25 6.25 0 0 1 8 14.25 Z" fill="currentColor" />
+					<path d="M8 8 L8 1.75 A 6.25 6.25 0 0 1 12.42 12.42 L8 8 Z" fill="currentColor" />
 				</>
 			)
 		case 'review':
 			return (
 				<>
+					<circle cx="8" cy="8" r="6.25" fill="currentColor" fillOpacity="0.18" />
 					<circle cx="8" cy="8" r="6.25" stroke="currentColor" strokeWidth="1.5" />
 					<path
-						d="M8 1.75 A 6.25 6.25 0 0 1 14.25 8 A 6.25 6.25 0 0 1 8 14.25 L 8 8 Z"
-						fill="currentColor"
+						d="M4.4 7.3 L6.2 9 L9.6 5.4"
+						stroke="currentColor"
+						strokeWidth="1.5"
+						strokeLinecap="round"
+						strokeLinejoin="round"
 					/>
 				</>
 			)

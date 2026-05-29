@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 
 import { joinWithAnd } from '@/components/issue-detail/joinWithAnd'
 import { LabelChip } from '@/components/issue-detail/LabelChip'
-import { StatusChip } from '@/components/issue-detail/StatusChip'
 import { PRIORITY_META } from '@/lib/domain'
 import { formatLongDate } from '@/lib/format'
 import type {
@@ -10,10 +9,10 @@ import type {
 	IssueAssignee,
 	IssueHistoryEvent,
 	IssueLabel,
-	IssueStatus,
 	ProjectRef,
 	WorkflowStateRef
 } from '@/types'
+import { Inline, StatusIcon, statusIconKindFromLinear } from '@/ui'
 
 export function formatHistoryEvent(event: IssueHistoryEvent, actor: IssueAssignee | null): ReactNode {
 	switch (event.kind) {
@@ -42,12 +41,13 @@ export function formatHistoryEvent(event: IssueHistoryEvent, actor: IssueAssigne
 	}
 }
 
-function statusToIssueStatus(ref: WorkflowStateRef): IssueStatus {
-	return {
-		state_type: ref.state_type,
-		name: ref.name,
-		color: ref.color
-	}
+function InlineStatus({ status }: { status: WorkflowStateRef }) {
+	return (
+		<Inline>
+			<StatusIcon kind={statusIconKindFromLinear(status.state_type)} size={12} />
+			{status.name}
+		</Inline>
+	)
 }
 
 function formatStatus(from: WorkflowStateRef, to: WorkflowStateRef): ReactNode {
@@ -55,14 +55,13 @@ function formatStatus(from: WorkflowStateRef, to: WorkflowStateRef): ReactNode {
 	if (fromInit) {
 		return (
 			<>
-				set status to <StatusChip status={statusToIssueStatus(to)} />
+				set status to <InlineStatus status={to} />
 			</>
 		)
 	}
 	return (
 		<>
-			changed status from <StatusChip status={statusToIssueStatus(from)} /> to{' '}
-			<StatusChip status={statusToIssueStatus(to)} />
+			changed status from <InlineStatus status={from} /> to <InlineStatus status={to} />
 		</>
 	)
 }

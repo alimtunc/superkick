@@ -14,7 +14,7 @@ export function ProfileFlags({ profile }: { profile: LaunchProfile }) {
 			{flags.map((flag) => (
 				<span
 					key={flag}
-					className="font-data inline-block rounded bg-edge/30 px-1.5 py-0.5 text-[10px] text-dim"
+					className="font-data inline-block rounded bg-border/30 px-1.5 py-0.5 text-[10px] text-fg-dim"
 				>
 					{flag}
 				</span>

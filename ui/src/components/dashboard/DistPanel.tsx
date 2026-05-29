@@ -9,12 +9,12 @@ interface DistPanelProps {
 export function DistPanel({ title, items, total }: DistPanelProps) {
 	return (
 		<div className="panel p-4">
-			<h4 className="font-data mb-4 text-[10px] tracking-wider text-dim uppercase">{title}</h4>
+			<h4 className="font-data mb-4 text-[10px] tracking-wider text-fg-dim uppercase">{title}</h4>
 			{total === 0 ? (
-				<p className="font-data text-[11px] text-dim">No data</p>
+				<p className="font-data text-[11px] text-fg-dim">No data</p>
 			) : (
 				<>
-					<div className="mb-4 flex h-1.5 overflow-hidden rounded-full bg-edge">
+					<div className="mb-4 flex h-1.5 overflow-hidden rounded-full bg-border">
 						{items
 							.filter((i) => i.count > 0)
 							.map((item) => (
@@ -32,13 +32,13 @@ export function DistPanel({ title, items, total }: DistPanelProps) {
 								<div key={item.label} className="flex items-center justify-between">
 									<div className="flex items-center gap-2">
 										<span className={`h-2 w-2 rounded-sm ${item.color}`} />
-										<span className="text-[11px] text-silver capitalize">
+										<span className="text-[11px] text-fg-muted capitalize">
 											{item.label}
 										</span>
 									</div>
-									<span className="font-data text-[11px] text-ash">
+									<span className="font-data text-[11px] text-fg-dim">
 										{item.count}
-										<span className="ml-1 text-dim">
+										<span className="ml-1 text-fg-dim">
 											({Math.round((item.count / total) * 100)}%)
 										</span>
 									</span>

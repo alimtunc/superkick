@@ -97,15 +97,15 @@ export function categoryOf(kind: EventKind): LedgerCategory {
 }
 
 const CATEGORY_VISUAL: Record<LedgerCategory, CategoryVisual> = {
-	step: { dot: 'bg-cyan', ring: 'ring-cyan/40', label: 'Step' },
-	session: { dot: 'bg-violet', ring: 'ring-violet/40', label: 'Session' },
-	handoff: { dot: 'bg-gold', ring: 'ring-gold/40', label: 'Handoff' },
-	attention: { dot: 'bg-gold', ring: 'ring-gold/40', label: 'Attention' },
-	interrupt: { dot: 'bg-gold', ring: 'ring-gold/40', label: 'Interrupt' },
-	ownership: { dot: 'bg-silver', ring: 'ring-silver/30', label: 'Ownership' },
-	operator: { dot: 'bg-mineral', ring: 'ring-mineral/40', label: 'Operator' },
-	system: { dot: 'bg-dim', ring: 'ring-dim/30', label: 'System' },
-	error: { dot: 'bg-oxide', ring: 'ring-oxide/40', label: 'Error' }
+	step: { dot: 'bg-info', ring: 'ring-info/40', label: 'Step' },
+	session: { dot: 'bg-accent', ring: 'ring-accent/40', label: 'Session' },
+	handoff: { dot: 'bg-warn', ring: 'ring-warn/40', label: 'Handoff' },
+	attention: { dot: 'bg-warn', ring: 'ring-warn/40', label: 'Attention' },
+	interrupt: { dot: 'bg-warn', ring: 'ring-warn/40', label: 'Interrupt' },
+	ownership: { dot: 'bg-fg-muted', ring: 'ring-fg-muted/30', label: 'Ownership' },
+	operator: { dot: 'bg-success', ring: 'ring-success/40', label: 'Operator' },
+	system: { dot: 'bg-fg-dim', ring: 'ring-fg-dim/30', label: 'System' },
+	error: { dot: 'bg-danger', ring: 'ring-danger/40', label: 'Error' }
 }
 
 export function visualOf(kind: EventKind): CategoryVisual {
@@ -129,10 +129,10 @@ export function payloadOf(event: RunEvent): Payload | null {
 }
 
 export function ledgerTone(level: EventLevel, category: LedgerCategory): string {
-	if (level === 'error') return 'text-oxide'
-	if (level === 'warn') return 'text-gold'
-	if (category === 'operator' || category === 'attention') return 'text-fog'
-	return 'text-fog/90'
+	if (level === 'error') return 'text-danger'
+	if (level === 'warn') return 'text-warn'
+	if (category === 'operator' || category === 'attention') return 'text-fg'
+	return 'text-fg/90'
 }
 
 export function ledgerTitle(event: RunEvent, payload: Payload | null): string {

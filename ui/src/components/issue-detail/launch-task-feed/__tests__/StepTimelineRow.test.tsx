@@ -81,8 +81,8 @@ describe('StepTimelineRow', () => {
 				/>
 			)
 		)
-		// Active running steps render a ring on their status dot.
-		expect(container.querySelector('span[class*="ring"]')).not.toBeNull()
+		// Active running steps render a pulsing status dot.
+		expect(container.querySelector('span.sk-pulse')).not.toBeNull()
 	})
 
 	it('renders the structured summary card when structured_result is present', () => {

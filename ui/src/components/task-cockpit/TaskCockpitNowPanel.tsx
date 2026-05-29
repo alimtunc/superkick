@@ -38,10 +38,10 @@ export function TaskCockpitNowPanel({
 	return (
 		<aside
 			aria-label="Now panel"
-			className="bg-carbon-dim/40 flex h-full min-h-0 w-80 shrink-0 flex-col border-l border-edge"
+			className="flex h-full min-h-0 w-80 shrink-0 flex-col border-l border-border bg-surface/40"
 		>
-			<header className="flex h-9 shrink-0 items-center border-b border-edge px-4">
-				<h2 className="font-data text-[11px] font-medium tracking-widest text-silver uppercase">
+			<header className="flex h-9 shrink-0 items-center border-b border-border px-4">
+				<h2 className="font-data text-[11px] font-medium tracking-widest text-fg-muted uppercase">
 					Now
 				</h2>
 			</header>
@@ -57,7 +57,7 @@ export function TaskCockpitNowPanel({
 					</p>
 				</section>
 
-				<section className="space-y-2 border-t border-edge pt-4">
+				<section className="space-y-2 border-t border-border pt-4">
 					<div className="font-data text-[10px] tracking-widest text-fg-dim uppercase">Run</div>
 					{linkedRunId ? (
 						<>
@@ -107,7 +107,7 @@ export function TaskCockpitNowPanel({
 					</FactRow>
 				</section>
 
-				<section className="space-y-2 border-t border-edge pt-4">
+				<section className="space-y-2 border-t border-border pt-4">
 					<div className="font-data text-[10px] tracking-widest text-fg-dim uppercase">
 						Worktree
 					</div>
@@ -147,7 +147,7 @@ export function TaskCockpitNowPanel({
 				</section>
 
 				{changedFiles.length > 0 ? (
-					<section className="space-y-2 border-t border-edge pt-4">
+					<section className="space-y-2 border-t border-border pt-4">
 						<div className="font-data text-[10px] tracking-widest text-fg-dim uppercase">
 							Files changed · {changedFiles.length}
 						</div>
@@ -162,7 +162,7 @@ export function TaskCockpitNowPanel({
 				) : null}
 			</div>
 			{task.status === 'needs_human' && issueIdentifier ? (
-				<div className="flex shrink-0 items-center justify-between gap-2 border-t border-edge px-4 py-2">
+				<div className="flex shrink-0 items-center justify-between gap-2 border-t border-border px-4 py-2">
 					<span className="font-data text-[10px] tracking-widest text-fg-dim uppercase">
 						Intervene
 					</span>
@@ -178,7 +178,7 @@ export function TaskCockpitNowPanel({
 				</div>
 			) : null}
 			{!isTerminal && task.status !== 'needs_human' ? (
-				<div className="flex shrink-0 items-center justify-between gap-2 border-t border-edge px-4 py-2">
+				<div className="flex shrink-0 items-center justify-between gap-2 border-t border-border px-4 py-2">
 					<span className="font-data text-[10px] tracking-widest text-fg-dim uppercase">
 						Intervene
 					</span>

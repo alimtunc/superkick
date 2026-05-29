@@ -15,7 +15,7 @@ export function ChatToggleButton() {
 				onClick={toggle}
 				aria-label={open ? 'Hide chat' : 'Open chat'}
 				aria-pressed={open}
-				className={open ? 'border-mineral/30 bg-mineral-dim text-mineral hover:bg-mineral/20' : ''}
+				className={open ? 'border-success/30 bg-success-soft text-success hover:bg-success/20' : ''}
 			>
 				<MessageSquare size={13} strokeWidth={1.75} aria-hidden="true" />
 			</Button>

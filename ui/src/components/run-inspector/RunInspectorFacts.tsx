@@ -48,10 +48,10 @@ export function RunInspectorFacts({ run, pr, steps, sessions, events, refTime }:
 	return (
 		<aside
 			aria-label="Run facts"
-			className="bg-carbon-dim/40 flex h-full min-h-0 w-80 shrink-0 flex-col border-l border-edge"
+			className="flex h-full min-h-0 w-80 shrink-0 flex-col border-l border-border bg-surface/40"
 		>
-			<header className="flex h-9 shrink-0 items-center border-b border-edge px-4">
-				<h2 className="font-data text-[11px] font-medium tracking-widest text-silver uppercase">
+			<header className="flex h-9 shrink-0 items-center border-b border-border px-4">
+				<h2 className="font-data text-[11px] font-medium tracking-widest text-fg-muted uppercase">
 					Facts
 				</h2>
 			</header>

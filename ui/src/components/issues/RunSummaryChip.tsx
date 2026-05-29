@@ -16,11 +16,10 @@ export function RunSummaryChip({ item, refTime }: RunSummaryChipProps) {
 
 	return (
 		<Pill
-			tone="cyan"
+			tone="info"
 			size="xs"
-			shape="round"
 			title={item.reason}
-			leading={<span className="h-1.5 w-1.5 rounded-full bg-cyan" aria-hidden="true" />}
+			leading={<span className="h-1.5 w-1.5 rounded-full bg-info" aria-hidden="true" />}
 		>
 			{label}
 		</Pill>

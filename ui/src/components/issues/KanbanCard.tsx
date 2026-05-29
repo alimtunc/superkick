@@ -1,5 +1,6 @@
 import { KanbanIssueCard } from '@/components/issues/KanbanIssueCard'
 import { KanbanRunCard } from '@/components/issues/KanbanRunCard'
+import { FEATURES } from '@/lib/features'
 import type { IssueState, LaunchQueueItem } from '@/types'
 
 interface KanbanCardProps {
@@ -34,5 +35,6 @@ export function KanbanCard({
 			/>
 		)
 	}
+	if (!FEATURES.kanbanRunCards) return null
 	return <KanbanRunCard item={item} refTime={refTime} />
 }

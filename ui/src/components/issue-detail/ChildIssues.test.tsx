@@ -55,6 +55,16 @@ describe('ChildIssues', () => {
 		expect(screen.getByLabelText('Sub-issues 60% complete')).toBeInTheDocument()
 	})
 
+	it('paints the card on surface (not void) with the 8px radius', () => {
+		const { container } = render(<ChildIssues issues={[child('ISS-1', 'started')]} />)
+
+		const card = container.firstElementChild
+		expect(card).not.toBeNull()
+		expect(card).toHaveClass('bg-surface')
+		expect(card).toHaveClass('rounded-[8px]')
+		expect(card).not.toHaveClass('bg-canvas')
+	})
+
 	it('renders each child as a compact sub-issue row (not a full list IssueRow)', () => {
 		const { container } = render(
 			<ChildIssues

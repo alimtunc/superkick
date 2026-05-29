@@ -7,13 +7,13 @@ import type {
 	LinearStateType
 } from '@/types'
 
-/** 9 server buckets → 5 operator lanes. Backlog / waiting / blocked / launchable fold into `open` (gating reasons live on badges). */
+/** 9 server buckets → 6 operator lanes (Linear-faithful columns). `backlog` keeps its own lane; todo / launchable / waiting / blocked fold into the `todo` lane (gating reasons live on badges). */
 const LAUNCH_QUEUE_TO_ISSUE_STATE: Record<LaunchQueue, IssueState> = {
-	backlog: 'open',
-	todo: 'open',
-	launchable: 'open',
-	waiting: 'open',
-	blocked: 'open',
+	backlog: 'backlog',
+	todo: 'todo',
+	launchable: 'todo',
+	waiting: 'todo',
+	blocked: 'todo',
 	active: 'in_progress',
 	'needs-human': 'needs_human',
 	'in-pr': 'in_review',
@@ -24,29 +24,46 @@ export function mapLaunchQueueToIssueState(bucket: LaunchQueue): IssueState {
 	return LAUNCH_QUEUE_TO_ISSUE_STATE[bucket]
 }
 
-/** Canonical left-to-right kanban order. Five entries, exactly. */
+/** Canonical left-to-right kanban order: `Needs you` pinned first, then Backlog → Todo → In Progress → In Review → Done. Six entries, exactly. */
 export const ISSUE_STATE_ORDER: readonly IssueState[] = [
-	'open',
-	'in_progress',
 	'needs_human',
+	'backlog',
+	'todo',
+	'in_progress',
 	'in_review',
 	'done'
 ] as const
 
-/** States the kanban can persist. `needs_human` / `in_review` are runtime-derived — read-only drop targets. */
+/** States the kanban can persist. `needs_human` / `in_review` are runtime-derived — read-only drop targets. `backlog` / `todo` both write back as the unstarted `open` mutation. */
 export const ISSUE_STATE_DROPPABLE: ReadonlySet<IssueState> = new Set<IssueState>([
-	'open',
+	'backlog',
+	'todo',
 	'in_progress',
 	'done'
 ])
 
-export function isDroppableIssueState(state: IssueState): state is IssueStateMutable {
+export function isDroppableIssueState(state: IssueState): boolean {
 	return ISSUE_STATE_DROPPABLE.has(state)
 }
 
+/** Map a droppable lane to the state the backend can persist. Backlog and Todo both collapse to the unstarted `open` mutation. */
+export function toMutableIssueState(state: IssueState): IssueStateMutable | null {
+	switch (state) {
+		case 'backlog':
+		case 'todo':
+			return 'open'
+		case 'in_progress':
+			return 'in_progress'
+		case 'done':
+			return 'done'
+		default:
+			return null
+	}
+}
+
 const LINEAR_STATE_TO_ISSUE_STATE: Record<LinearStateType, IssueState> = {
-	backlog: 'open',
-	unstarted: 'open',
+	backlog: 'backlog',
+	unstarted: 'todo',
 	started: 'in_progress',
 	completed: 'done',
 	canceled: 'done'
@@ -62,9 +79,10 @@ export function groupItemsByIssueState(
 	items: readonly LaunchQueueItem[]
 ): Record<IssueState, LaunchQueueItem[]> {
 	const groups: Record<IssueState, LaunchQueueItem[]> = {
-		open: [],
-		in_progress: [],
 		needs_human: [],
+		backlog: [],
+		todo: [],
+		in_progress: [],
 		in_review: [],
 		done: []
 	}

@@ -56,7 +56,7 @@ export function RunDrawerContent({ runId }: RunDrawerContentProps) {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<div className="flex shrink-0 items-center gap-2 border-b border-edge px-4 py-2">
+			<div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2">
 				<Link
 					to="/issues/$issueId"
 					params={{ issueId: run.issue_identifier }}

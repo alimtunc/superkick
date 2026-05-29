@@ -18,12 +18,12 @@ export function CompletedTable({ completed }: CompletedTableProps) {
 		<section className="fade-up delay-4">
 			<SectionTitle title="COMPLETED" accent="mineral" count={completed.length} />
 			{completed.length === 0 ? (
-				<p className="font-data text-sm text-dim">No completed runs.</p>
+				<p className="font-data text-sm text-fg-dim">No completed runs.</p>
 			) : (
 				<div className="panel overflow-hidden">
 					<table className="w-full text-[12px]">
 						<thead>
-							<tr className="font-data border-b border-edge text-[10px] tracking-wider text-dim uppercase">
+							<tr className="font-data border-b border-border text-[10px] tracking-wider text-fg-dim uppercase">
 								<th className="px-3 py-2 text-left">Issue</th>
 								<th className="hidden px-3 py-2 text-left sm:table-cell">Repo</th>
 								<th className="px-3 py-2 text-left">Duration</th>
@@ -42,27 +42,25 @@ export function CompletedTable({ completed }: CompletedTableProps) {
 								.map((run) => (
 									<tr
 										key={run.id}
-										className="border-b border-edge/50 transition-colors hover:bg-slate-deep/50"
+										className="border-b border-border/50 transition-colors hover:bg-raised/50"
 									>
 										<td className="px-3 py-2">
 											<Link
 												to="/runs/$runId"
 												params={{ runId: run.id }}
-												className="font-data text-mineral transition-colors hover:text-neon-green"
+												className="font-data text-success transition-colors hover:text-success"
 											>
 												{run.issue_identifier}
 											</Link>
 										</td>
-										<td className="hidden px-3 py-2 text-silver sm:table-cell">
+										<td className="hidden px-3 py-2 text-fg-muted sm:table-cell">
 											{run.repo_slug}
 										</td>
-										<td className="font-data px-3 py-2 text-fog">
-											{fmtRunDuration(run)}
-										</td>
-										<td className="font-data hidden max-w-40 truncate px-3 py-2 text-dim md:table-cell">
+										<td className="font-data px-3 py-2 text-fg">{fmtRunDuration(run)}</td>
+										<td className="font-data hidden max-w-40 truncate px-3 py-2 text-fg-dim md:table-cell">
 											{run.branch_name ?? '--'}
 										</td>
-										<td className="font-data px-3 py-2 text-right text-dim">
+										<td className="font-data px-3 py-2 text-right text-fg-dim">
 											{run.finished_at
 												? new Date(run.finished_at).toLocaleString([], {
 														month: 'short',

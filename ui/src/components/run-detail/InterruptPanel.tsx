@@ -25,14 +25,14 @@ export function InterruptPanel({ runId, interrupts, onAnswered }: InterruptPanel
 
 			{resolved.length > 0 ? (
 				<div className="space-y-2">
-					<h3 className="font-data text-[10px] tracking-wider text-dim uppercase">History</h3>
+					<h3 className="font-data text-[10px] tracking-wider text-fg-dim uppercase">History</h3>
 					{resolved.map((interrupt) => (
 						<ResolvedInterrupt key={interrupt.id} interrupt={interrupt} />
 					))}
 				</div>
 			) : null}
 
-			{interrupts.length === 0 ? <p className="font-data text-sm text-dim">No interrupts.</p> : null}
+			{interrupts.length === 0 ? <p className="font-data text-sm text-fg-dim">No interrupts.</p> : null}
 		</div>
 	)
 }

@@ -58,7 +58,7 @@ export function LaunchPlanStrip({ task, steps, variant = 'chips' }: LaunchPlanSt
 			<div className="flex items-center gap-3">
 				{steps.map((step, index) => (
 					<Fragment key={step.id}>
-						{index > 0 ? <span className="h-px flex-1 bg-edge" aria-hidden="true" /> : null}
+						{index > 0 ? <span className="h-px flex-1 bg-border" aria-hidden="true" /> : null}
 						<StepperNode step={step} isCurrent={step.id === task.current_step_id} />
 					</Fragment>
 				))}
@@ -84,7 +84,7 @@ function StepperNode({ step, isCurrent }: StepperNodeProps) {
 			<div
 				className={cn(
 					'flex size-7 shrink-0 items-center justify-center rounded-full border bg-surface',
-					isCurrent ? 'border-accent ring-4 ring-accent/10' : 'border-edge',
+					isCurrent ? 'border-accent ring-4 ring-accent/10' : 'border-border',
 					isDone ? 'border-success text-success' : null
 				)}
 			>

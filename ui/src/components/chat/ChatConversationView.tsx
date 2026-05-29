@@ -88,12 +88,14 @@ export function ChatConversationView({
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<header className="flex items-center justify-between gap-3 border-b border-edge p-3">
-				<span className="font-data text-[12px] text-fog">{agentLabel}</span>
+			<header className="flex items-center justify-between gap-3 border-b border-border p-3">
+				<span className="font-data text-[12px] text-fg">{agentLabel}</span>
 			</header>
 
 			{view.error ? (
-				<p className="font-data m-3 rounded bg-oxide-dim p-2 text-[11px] text-oxide">{view.error}</p>
+				<p className="font-data m-3 rounded bg-danger-soft p-2 text-[11px] text-danger">
+					{view.error}
+				</p>
 			) : null}
 
 			<div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-3">
@@ -116,7 +118,7 @@ export function ChatConversationView({
 				))}
 			</div>
 
-			<div className="border-t border-edge p-3">
+			<div className="border-t border-border p-3">
 				<ChatComposer
 					onSubmit={handleSubmit}
 					onCancelActiveTurn={view.cancelActiveTurn}

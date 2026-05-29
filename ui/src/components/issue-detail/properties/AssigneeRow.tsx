@@ -38,10 +38,10 @@ export function AssigneeRow({ issue }: AssigneeRowProps) {
 			<Popover.Root open={open} onOpenChange={setOpen}>
 				<Popover.Trigger className={PROPERTY_ROW_TRIGGER} aria-label="Change assignee">
 					{issue.assignee ? (
-						<span className="inline-flex items-center gap-2">
+						<>
 							<AuthorAvatar name={issue.assignee.name} avatarUrl={issue.assignee.avatar_url} />
 							<span className="truncate">{issue.assignee.name}</span>
-						</span>
+						</>
 					) : (
 						<span className="text-fg-dim">Unassigned</span>
 					)}

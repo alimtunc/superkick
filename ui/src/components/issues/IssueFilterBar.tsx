@@ -53,7 +53,7 @@ export function IssueFilterBar({
 	const chips = useMemo(() => buildChips(filters, options), [filters, options])
 
 	return (
-		<div className="flex min-h-10 items-center gap-1.5 border-b border-border bg-surface px-4 py-1.5">
+		<div className="flex min-h-[41px] items-center gap-1.5 border-b border-border bg-surface px-4 py-[7px]">
 			<IssueFilterDropdown
 				filters={filters}
 				onChange={onFiltersChange}
@@ -63,7 +63,7 @@ export function IssueFilterBar({
 				trigger={
 					<button
 						type="button"
-						className="inline-flex h-6.5 items-center gap-1.5 rounded border border-dashed border-border bg-transparent px-2.5 text-[12px] text-fg-muted transition-colors hover:border-border-strong hover:text-fg focus-visible:ring-1 focus-visible:ring-accent-soft focus-visible:outline-none"
+						className="inline-flex h-[26px] items-center gap-1.5 rounded-[5px] border border-dashed border-border bg-transparent px-[9px] text-[12px] text-fg-muted transition-colors hover:border-border-strong hover:text-fg focus-visible:ring-1 focus-visible:ring-accent-soft focus-visible:outline-none"
 					>
 						<Icon name="plus" size={11} />
 						<span>Filter</span>
@@ -313,7 +313,7 @@ function FilterChip({
 }) {
 	const label = `${chip.name} ${chip.op} ${chip.valueLabel}`
 	return (
-		<span className="inline-flex h-6.5 items-center gap-1.5 rounded border border-border bg-raised pr-1 pl-2 text-[12px] whitespace-nowrap text-fg">
+		<span className="inline-flex h-[26px] items-center gap-1.5 rounded-[5px] border border-border bg-raised pr-1 pl-[9px] text-[12px] whitespace-nowrap text-fg">
 			<span className="text-fg-muted">{chip.name}</span>
 			{canToggleOperator(chip) ? (
 				<button
@@ -327,17 +327,29 @@ function FilterChip({
 			) : (
 				<span className="font-data text-fg-dim">{chip.op}</span>
 			)}
-			<span className="font-medium">{chip.valueLabel}</span>
+			<span className={cn('font-medium', chipValueToneClass(chip.axis))}>{chip.valueLabel}</span>
 			<button
 				type="button"
 				onClick={onRemove}
-				className="inline-flex size-4 items-center justify-center rounded text-fg-dim hover:bg-overlay hover:text-fg focus-visible:outline-none"
+				className="inline-flex size-[18px] items-center justify-center rounded-[4px] text-fg-dim hover:bg-raised hover:text-fg focus-visible:outline-none"
 				aria-label={`Remove filter ${label}`}
 			>
 				<Icon name="x" size={10} />
 			</button>
 		</span>
 	)
+}
+
+function chipValueToneClass(axis: ChipDescriptor['axis']): string {
+	switch (axis) {
+		case 'status':
+		case 'status_not':
+			return 'text-info'
+		case 'task':
+			return 'text-accent'
+		default:
+			return 'text-fg'
+	}
 }
 
 function taskLabel(value: string): string {
@@ -401,10 +413,11 @@ function SelectControl<T extends string>({
 					<button
 						{...props}
 						type="button"
-						className="inline-flex h-6.5 items-center gap-1 rounded px-1.5 text-[12px] text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-1 focus-visible:ring-accent-soft focus-visible:outline-none"
+						className="inline-flex h-[26px] items-center gap-1 rounded-[5px] px-2 text-[12px] text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-1 focus-visible:ring-accent-soft focus-visible:outline-none"
 					>
 						<span className="text-fg-dim">{label}</span>
 						<span className="font-medium text-fg">{current}</span>
+						<Icon name="chevDown" size={10} className="text-fg-dim" />
 					</button>
 				)}
 			/>
@@ -442,7 +455,7 @@ function LayoutToggle({
 	onChange: (next: IssueViewLayout) => void
 }) {
 	return (
-		<div className="inline-flex h-6.5 items-center gap-px rounded border border-border bg-raised p-px">
+		<div className="inline-flex h-[26px] items-center gap-px rounded-[5px] border border-border bg-raised p-px">
 			{(['list', 'board'] as const).map((value) => (
 				<button
 					key={value}

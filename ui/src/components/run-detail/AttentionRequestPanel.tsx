@@ -15,7 +15,7 @@ export function AttentionRequestPanel({ runId, requests, onUpdated }: AttentionR
 	return (
 		<div className="space-y-3">
 			{pending.length > 0 ? (
-				<p className="font-data text-[11px] text-dim">
+				<p className="font-data text-[11px] text-fg-dim">
 					The run is paused until you reply. Answers are persisted on the run.
 				</p>
 			) : null}
@@ -31,7 +31,7 @@ export function AttentionRequestPanel({ runId, requests, onUpdated }: AttentionR
 
 			{resolved.length > 0 ? (
 				<div className="space-y-2">
-					<h3 className="font-data text-[10px] tracking-wider text-dim uppercase">History</h3>
+					<h3 className="font-data text-[10px] tracking-wider text-fg-dim uppercase">History</h3>
 					{resolved.map((request) => (
 						<ResolvedAttentionRequest key={request.id} request={request} />
 					))}
@@ -39,7 +39,7 @@ export function AttentionRequestPanel({ runId, requests, onUpdated }: AttentionR
 			) : null}
 
 			{requests.length === 0 ? (
-				<p className="font-data text-sm text-dim">No attention requests.</p>
+				<p className="font-data text-sm text-fg-dim">No attention requests.</p>
 			) : null}
 		</div>
 	)

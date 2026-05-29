@@ -16,7 +16,7 @@ export function StalledBadge({ run }: StalledBadgeProps) {
 	return (
 		<span
 			role="status"
-			className="font-data inline-flex items-center gap-1 rounded bg-gold-dim px-1.5 py-px text-[9px] leading-tight tracking-wider text-gold"
+			className="font-data inline-flex items-center gap-1 rounded bg-warn-soft px-1.5 py-px text-[9px] leading-tight tracking-wider text-warn"
 		>
 			<Diamond size={8} fill="currentColor" aria-hidden="true" />
 			<span>Stalled · {duration}</span>

@@ -29,13 +29,13 @@ export function ConfirmDialog({
 	return (
 		<AlertDialog.Root open={open} onOpenChange={onOpenChange}>
 			<AlertDialog.Portal>
-				<AlertDialog.Backdrop className="fixed inset-0 z-overlay bg-carbon/70 backdrop-blur-sm transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
-				<AlertDialog.Popup className="fixed top-1/2 left-1/2 z-dialog w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border border-edge bg-carbon p-5 shadow-xl transition-all duration-150 outline-none data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
-					<AlertDialog.Title className="text-[14px] font-semibold text-fog">
+				<AlertDialog.Backdrop className="fixed inset-0 z-overlay bg-surface/70 backdrop-blur-sm transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
+				<AlertDialog.Popup className="fixed top-1/2 left-1/2 z-dialog w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-surface p-5 shadow-xl transition-all duration-150 outline-none data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
+					<AlertDialog.Title className="text-[14px] font-semibold text-fg">
 						{title}
 					</AlertDialog.Title>
 					{description ? (
-						<AlertDialog.Description className="font-data mt-2 text-[12px] leading-snug text-silver/80">
+						<AlertDialog.Description className="font-data mt-2 text-[12px] leading-snug text-fg-muted/80">
 							{description}
 						</AlertDialog.Description>
 					) : null}
@@ -46,7 +46,7 @@ export function ConfirmDialog({
 									variant="ghost"
 									size="xs"
 									disabled={busy}
-									className="font-data text-[11px] text-dim hover:text-silver"
+									className="font-data text-[11px] text-fg-dim hover:text-fg-muted"
 								>
 									{cancelLabel}
 								</Button>

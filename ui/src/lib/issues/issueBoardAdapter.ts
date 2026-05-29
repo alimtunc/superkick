@@ -13,9 +13,10 @@ export function issueWithStateToLaunchQueueItem(wrapper: IssueWithState): Launch
 
 export function projectBoardColumns(columns: IssueBoardColumns): Record<IssueState, LaunchQueueItem[]> {
 	return {
-		open: columns.open.map(issueWithStateToLaunchQueueItem),
-		in_progress: columns.in_progress.map(issueWithStateToLaunchQueueItem),
 		needs_human: columns.needs_human.map(issueWithStateToLaunchQueueItem),
+		backlog: columns.backlog.map(issueWithStateToLaunchQueueItem),
+		todo: columns.todo.map(issueWithStateToLaunchQueueItem),
+		in_progress: columns.in_progress.map(issueWithStateToLaunchQueueItem),
 		in_review: columns.in_review.map(issueWithStateToLaunchQueueItem),
 		done: columns.done.map(issueWithStateToLaunchQueueItem)
 	}

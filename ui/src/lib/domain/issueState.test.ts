@@ -70,11 +70,11 @@ function runItem(
 
 describe('mapLaunchQueueToIssueState', () => {
 	const cases: ReadonlyArray<[LaunchQueue, ReturnType<typeof mapLaunchQueueToIssueState>]> = [
-		['backlog', 'open'],
-		['todo', 'open'],
-		['launchable', 'open'],
-		['waiting', 'open'],
-		['blocked', 'open'],
+		['backlog', 'backlog'],
+		['todo', 'todo'],
+		['launchable', 'todo'],
+		['waiting', 'todo'],
+		['blocked', 'todo'],
 		['active', 'in_progress'],
 		['needs-human', 'needs_human'],
 		['in-pr', 'in_review'],
@@ -89,8 +89,15 @@ describe('mapLaunchQueueToIssueState', () => {
 })
 
 describe('ISSUE_STATE_ORDER', () => {
-	it('lists exactly five states in canonical kanban order', () => {
-		expect(ISSUE_STATE_ORDER).toEqual(['open', 'in_progress', 'needs_human', 'in_review', 'done'])
+	it('pins Needs you first, then Backlog → Todo → In Progress → In Review → Done', () => {
+		expect(ISSUE_STATE_ORDER).toEqual([
+			'needs_human',
+			'backlog',
+			'todo',
+			'in_progress',
+			'in_review',
+			'done'
+		])
 	})
 })
 
@@ -102,7 +109,7 @@ describe('groupItemsByIssueState', () => {
 		}
 	})
 
-	it('routes backlog / waiting / blocked / launchable items into the open lane', () => {
+	it('keeps backlog in its own lane and folds waiting / blocked / launchable into the todo lane', () => {
 		const items = [
 			issueItem('backlog', 'A'),
 			issueItem('waiting', 'B'),
@@ -110,7 +117,8 @@ describe('groupItemsByIssueState', () => {
 			issueItem('launchable', 'D')
 		]
 		const groups = groupItemsByIssueState(items)
-		expect(groups.open).toHaveLength(4)
+		expect(groups.backlog).toHaveLength(1)
+		expect(groups.todo).toHaveLength(3)
 		expect(groups.in_progress).toHaveLength(0)
 	})
 
@@ -125,9 +133,9 @@ describe('groupItemsByIssueState', () => {
 })
 
 describe('issueStateFromLinear (fallback path)', () => {
-	it('maps every Linear state to an issue state, collapsing canceled into done and backlog/unstarted into open', () => {
-		expect(issueStateFromLinear('backlog')).toBe('open')
-		expect(issueStateFromLinear('unstarted')).toBe('open')
+	it('maps every Linear state to an issue state: backlog → backlog, unstarted → todo, canceled collapsed into done', () => {
+		expect(issueStateFromLinear('backlog')).toBe('backlog')
+		expect(issueStateFromLinear('unstarted')).toBe('todo')
 		expect(issueStateFromLinear('started')).toBe('in_progress')
 		expect(issueStateFromLinear('completed')).toBe('done')
 		expect(issueStateFromLinear('canceled')).toBe('done')

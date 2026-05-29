@@ -16,7 +16,7 @@ export function SubIssueRow({ child }: SubIssueRowProps) {
 			params={{ issueId: child.identifier }}
 			data-sub-issue-row
 			data-identifier={child.identifier}
-			className="group flex h-[30px] items-center gap-2.5 border-b border-border px-3 transition-colors last:border-b-0 hover:bg-raised focus-visible:bg-raised focus-visible:outline-none"
+			className="group flex h-[30px] items-center gap-2.25 border-b border-border px-2.5 transition-colors last:border-b-0 hover:bg-raised focus-visible:bg-raised focus-visible:outline-none"
 		>
 			<span className="flex w-3.5 shrink-0 items-center justify-center">
 				<PriorityIcon kind={priorityIconKindFromValue(child.priority.value)} size={12} />

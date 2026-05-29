@@ -37,7 +37,7 @@ export function RunMetaStrip({ run, sessions, density = 'comfortable' }: RunMeta
 
 	return (
 		<div
-			className={`grid shrink-0 grid-cols-2 gap-x-4 gap-y-2 border-b border-edge bg-carbon ${DENSITY_PAD[density]} md:grid-cols-[minmax(90px,.7fr)_minmax(110px,.8fr)_minmax(150px,1fr)_minmax(170px,1fr)_minmax(90px,.6fr)]`}
+			className={`grid shrink-0 grid-cols-2 gap-x-4 gap-y-2 border-b border-border bg-surface ${DENSITY_PAD[density]} md:grid-cols-[minmax(90px,.7fr)_minmax(110px,.8fr)_minmax(150px,1fr)_minmax(170px,1fr)_minmax(90px,.6fr)]`}
 			data-density={density}
 		>
 			<div className="min-w-0">

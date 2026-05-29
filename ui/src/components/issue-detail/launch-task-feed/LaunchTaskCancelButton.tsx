@@ -22,7 +22,7 @@ export function LaunchTaskCancelButton({ linearIssueId, taskId, linkedRunId }: L
 				size="xs"
 				onClick={() => setConfirmOpen(true)}
 				disabled={cancel.isPending}
-				className="font-data text-[11px] text-dim hover:text-oxide"
+				className="font-data text-[11px] text-fg-dim hover:text-danger"
 			>
 				<CircleStop size={12} strokeWidth={1.75} aria-hidden="true" />
 				Cancel

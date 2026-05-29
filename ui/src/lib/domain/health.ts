@@ -12,9 +12,9 @@ export function healthSignal(run: Run, refTime: number): HealthSignal {
 }
 
 export const healthSignalBg: Record<HealthSignal, string> = {
-	critical: 'bg-oxide',
-	warning: 'bg-gold',
-	ok: 'bg-mineral'
+	critical: 'bg-danger',
+	warning: 'bg-warn',
+	ok: 'bg-success'
 }
 
 export function shouldShowInterrupts(state: RunState, interruptCount: number): boolean {

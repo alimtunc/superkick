@@ -16,7 +16,7 @@ export function LaunchQueueUnblockBadge({ resolvedAt, refTime }: LaunchQueueUnbl
 	if (!isWithinUnblockWindow(resolvedAt, refTime)) return null
 
 	return (
-		<Pill tone="live" size="xs" dot pulse title={`Unblocked ${fmtRelativeTime(resolvedAt)}`}>
+		<Pill tone="success" size="xs" dot pulse title={`Unblocked ${fmtRelativeTime(resolvedAt)}`}>
 			Unblocked
 		</Pill>
 	)

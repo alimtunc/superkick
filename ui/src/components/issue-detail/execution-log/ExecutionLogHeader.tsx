@@ -1,10 +1,12 @@
 import { Fragment, type ReactNode } from 'react'
 
-import { Pill, type PillTone } from '@/components/ui/pill'
+import { ExecStateChip } from '@/components/issue-detail/execution-log/ExecStateChip'
 import { useNow } from '@/hooks/useNow'
-import { fmtElapsed } from '@/lib/domain'
+import { agentColor, fmtElapsed } from '@/lib/domain'
 import { useRunDrawerStore } from '@/stores/runDrawer'
 import type { LaunchTaskStep, LinkedRunSummary, RunState } from '@/types'
+import type { SKTone } from '@/types/icons'
+import { Btn } from '@/ui'
 import { Bot, Zap } from 'lucide-react'
 
 type HeaderKind = 'running' | 'needs' | 'done'
@@ -16,18 +18,17 @@ interface ExecutionLogHeaderProps {
 }
 
 interface ChipMeta {
-	tone: PillTone
+	tone: SKTone
 	label: string
-	dot: boolean
 	pulse: boolean
 }
 
 function chipFor(kind: HeaderKind, runState: RunState | null): ChipMeta {
-	if (kind === 'needs') return { tone: 'warn', label: 'needs you', dot: true, pulse: true }
-	if (kind === 'running') return { tone: 'info', label: 'running', dot: true, pulse: true }
-	if (runState === 'failed') return { tone: 'danger', label: 'failed', dot: true, pulse: false }
-	if (runState === 'cancelled') return { tone: 'neutral', label: 'cancelled', dot: true, pulse: false }
-	return { tone: 'success', label: 'shipped', dot: true, pulse: false }
+	if (kind === 'needs') return { tone: 'warn', label: 'paused · needs you', pulse: true }
+	if (kind === 'running') return { tone: 'info', label: 'running', pulse: true }
+	if (runState === 'failed') return { tone: 'danger', label: 'failed', pulse: false }
+	if (runState === 'cancelled') return { tone: 'neutral', label: 'cancelled', pulse: false }
+	return { tone: 'success', label: 'shipped', pulse: false }
 }
 
 function elapsedFromRun(run: LinkedRunSummary | null, now: number): string | null {
@@ -62,12 +63,13 @@ export function ExecutionLogHeader({ kind, currentStep, run }: ExecutionLogHeade
 			node: (
 				<span className="ml-1 inline-flex items-center gap-1.5">
 					<span
-						className="inline-flex size-4 items-center justify-center rounded-full bg-accent-soft text-accent"
+						className="inline-flex size-3.5 items-center justify-center rounded-full text-white"
+						style={{ backgroundColor: agentColor(agentName) }}
 						aria-hidden="true"
 					>
-						<Bot size={10} strokeWidth={2} />
+						<Bot size={8} strokeWidth={2} />
 					</span>
-					<span className="font-data text-[11.5px] text-fg-muted">{agentName}</span>
+					<span className="font-data text-[11.5px] font-medium text-fg">{agentName}</span>
 				</span>
 			)
 		})
@@ -75,7 +77,7 @@ export function ExecutionLogHeader({ kind, currentStep, run }: ExecutionLogHeade
 	if (modelLabel) {
 		meta.push({
 			key: 'model',
-			node: <span className="font-data text-[11.5px] text-fg-muted">{modelLabel}</span>
+			node: <span className="font-data text-[11.5px] text-fg-dim">{modelLabel}</span>
 		})
 	}
 	if (elapsed) {
@@ -90,14 +92,12 @@ export function ExecutionLogHeader({ kind, currentStep, run }: ExecutionLogHeade
 	}
 
 	return (
-		<header className="flex flex-wrap items-center gap-2">
-			<span className="inline-flex items-center gap-1 text-[12.5px] font-medium text-fg">
-				<Zap size={12} strokeWidth={2} className="text-accent" aria-hidden="true" />
+		<header className="flex flex-wrap items-center gap-2 border-b border-border bg-canvas px-4 py-3">
+			<span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-fg">
+				<Zap size={14} strokeWidth={2} className="text-accent" aria-hidden="true" />
 				Execution
 			</span>
-			<Pill tone={chip.tone} size="sm" dot={chip.dot} pulse={chip.pulse}>
-				{chip.label}
-			</Pill>
+			<ExecStateChip tone={chip.tone} label={chip.label} pulse={chip.pulse} />
 			{meta.map((seg, i) => (
 				<Fragment key={seg.key}>
 					{i > 0 ? <MetaSep /> : null}
@@ -105,13 +105,17 @@ export function ExecutionLogHeader({ kind, currentStep, run }: ExecutionLogHeade
 				</Fragment>
 			))}
 			{run ? (
-				<button
-					type="button"
-					onClick={() => openDrawer(run.id, 'activity')}
-					className="font-data ml-auto inline-flex h-7 items-center gap-1 rounded-md border border-transparent px-2 text-[11.5px] text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
-				>
-					Open run →
-				</button>
+				<div className="ml-auto flex items-center gap-2">
+					<span className="h-3.5 w-px bg-border" aria-hidden="true" />
+					<Btn
+						kind="ghost"
+						size="sm"
+						icon="external"
+						onClick={() => openDrawer(run.id, 'activity')}
+					>
+						Open run
+					</Btn>
+				</div>
 			) : null}
 		</header>
 	)

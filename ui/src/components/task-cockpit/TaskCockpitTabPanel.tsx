@@ -33,7 +33,7 @@ function FilesPanel({ steps }: { steps: readonly LaunchTaskStep[] }) {
 	if (files.length === 0) return <TabEmptyState icon={FileDiff} title="No changed files captured yet" />
 
 	return (
-		<div className="divide-y divide-edge">
+		<div className="divide-y divide-border">
 			{files.map((file) => (
 				<div key={file} className="px-6 py-3 font-mono text-[12px] text-fg">
 					{file}
@@ -50,11 +50,11 @@ function StepSummariesPanel({ steps }: { steps: readonly LaunchTaskStep[] }) {
 	if (rows.length === 0) return <TabEmptyState icon={ScrollText} title="No step summaries yet." />
 
 	return (
-		<div className="divide-y divide-edge">
+		<div className="divide-y divide-border">
 			{rows.map((step) => (
 				<div key={step.id} className="px-6 py-4">
 					<StepBadge step={step} />
-					<pre className="bg-ink mt-3 rounded border border-edge px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-fg-muted">
+					<pre className="bg-ink mt-3 rounded border border-border px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-fg-muted">
 						{step.structured_result?.summary ??
 							step.summary ??
 							JSON.stringify(step.failure_classification)}
@@ -74,7 +74,7 @@ function TerminalPanel({ linkedRunId }: { linkedRunId: string | null }) {
 				to="/runs/$runId"
 				params={{ runId: linkedRunId }}
 				hash="terminal"
-				className="inline-flex h-9 items-center rounded border border-edge px-3 font-mono text-[12px] text-fg hover:border-edge-bright"
+				className="inline-flex h-9 items-center rounded border border-border px-3 font-mono text-[12px] text-fg hover:border-border-strong"
 			>
 				Open {linkedRunId} terminal
 			</Link>

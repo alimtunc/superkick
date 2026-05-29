@@ -16,7 +16,7 @@ export function Tooltip({ label, children, delay = 300 }: TooltipProps) {
 			<TooltipPrimitive.Trigger delay={delay} render={children} />
 			<TooltipPrimitive.Portal>
 				<TooltipPrimitive.Positioner sideOffset={6} className="z-popover">
-					<TooltipPrimitive.Popup className="font-data rounded-md bg-ash px-2 py-1 text-[10px] text-silver shadow-md">
+					<TooltipPrimitive.Popup className="font-data rounded-md bg-fg-dim px-2 py-1 text-[10px] text-fg-muted shadow-md">
 						{label}
 					</TooltipPrimitive.Popup>
 				</TooltipPrimitive.Positioner>

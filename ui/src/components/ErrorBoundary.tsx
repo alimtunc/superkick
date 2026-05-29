@@ -28,15 +28,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 				this.props.fallback ?? (
 					<div className="flex min-h-screen items-center justify-center bg-void">
 						<div className="panel glow-red max-w-md p-6 text-center">
-							<p className="font-data mb-3 text-[11px] tracking-wider text-oxide uppercase">
+							<p className="font-data mb-3 text-[11px] tracking-wider text-danger uppercase">
 								Something went wrong
 							</p>
-							<p className="mb-4 text-sm text-silver">{this.state.error.message}</p>
+							<p className="mb-4 text-sm text-fg-muted">{this.state.error.message}</p>
 							<Button
 								variant="outline"
 								size="sm"
 								onClick={() => this.setState({ error: null })}
-								className="font-data text-[11px] text-silver hover:text-fog"
+								className="font-data text-[11px] text-fg-muted hover:text-fg"
 							>
 								TRY AGAIN
 							</Button>

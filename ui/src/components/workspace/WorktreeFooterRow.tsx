@@ -63,7 +63,7 @@ export function WorktreeFooterRow({ runId, worktreePath, branchName, emptyLabel 
 					type="button"
 					onClick={handleOpenTerminal}
 					disabled={openTakeover.isPending}
-					className="inline-flex items-center gap-1.5 rounded-md border border-border bg-raised px-2.5 py-1 text-[11.5px] text-fg transition-colors hover:bg-raised/70 focus-visible:ring-2 focus-visible:ring-mineral/40 focus-visible:outline-none disabled:opacity-50"
+					className="inline-flex items-center gap-1.5 rounded-md border border-border bg-raised px-2.5 py-1 text-[11.5px] text-fg transition-colors hover:bg-raised/70 focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:outline-none disabled:opacity-50"
 				>
 					<TerminalSquare size={12} strokeWidth={1.75} />
 					Open terminal here

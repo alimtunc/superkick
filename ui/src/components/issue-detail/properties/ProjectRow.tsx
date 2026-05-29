@@ -38,10 +38,10 @@ export function ProjectRow({ issue }: ProjectRowProps) {
 			<Popover.Root open={open} onOpenChange={setOpen}>
 				<Popover.Trigger className={PROPERTY_ROW_TRIGGER} aria-label="Change project">
 					{issue.project ? (
-						<span className="inline-flex items-center gap-1.5 text-fg">
-							<Icon name="folder" size={12} className="text-fg-dim" />
-							<span className="truncate">{issue.project.name}</span>
-						</span>
+						<>
+							<Icon name="folder" size={11} className="text-fg-muted" />
+							<span className="truncate text-fg">{issue.project.name}</span>
+						</>
 					) : (
 						<span className="text-fg-dim">No project</span>
 					)}

@@ -41,15 +41,15 @@ function formatUsage(turn: Turn): UsageDisplay | null {
 function statusBadgeClass(status: Turn['status']): string {
 	switch (status) {
 		case 'completed':
-			return 'bg-mineral-dim text-mineral'
+			return 'bg-success-soft text-success'
 		case 'failed':
-			return 'bg-oxide-dim text-oxide'
+			return 'bg-danger-soft text-danger'
 		case 'cancelled':
-			return 'bg-edge bg-clip-padding text-dim'
+			return 'bg-border bg-clip-padding text-fg-dim'
 		case 'streaming':
-			return 'bg-cyan-dim text-cyan'
+			return 'bg-info-soft text-info'
 		default:
-			return 'bg-edge text-dim'
+			return 'bg-border text-fg-dim'
 	}
 }
 
@@ -65,28 +65,28 @@ export function TurnView({ turn, events, live, onTerminal, onLiveEvent }: TurnVi
 
 	return (
 		<article className="space-y-3">
-			<div className="font-data rounded-md border border-edge bg-carbon p-3 text-[12px] text-fog">
-				<div className="mb-1 text-[10px] text-dim uppercase">You</div>
+			<div className="font-data rounded-md border border-border bg-surface p-3 text-[12px] text-fg">
+				<div className="mb-1 text-[10px] text-fg-dim uppercase">You</div>
 				<p className="whitespace-pre-wrap">{turn.user_text}</p>
 			</div>
 
 			<div className="space-y-2">
 				<div className="flex items-center gap-2">
-					<span className="text-[10px] text-dim uppercase">Agent</span>
+					<span className="text-[10px] text-fg-dim uppercase">Agent</span>
 					<span
 						className={`font-data rounded px-1.5 py-0.5 text-[10px] ${statusBadgeClass(turn.status)}`}
 					>
 						{turn.status}
 					</span>
 					{usage ? (
-						<span className="font-data text-[10px] text-dim" title={usage.tooltip}>
+						<span className="font-data text-[10px] text-fg-dim" title={usage.tooltip}>
 							{usage.label}
 						</span>
 					) : null}
 				</div>
 
 				{stream.text.length > 0 ? (
-					<div className="font-data bg-carbon-dim rounded-md border border-edge p-3 text-[12px] whitespace-pre-wrap text-fog">
+					<div className="font-data rounded-md border border-border bg-surface p-3 text-[12px] whitespace-pre-wrap text-fg">
 						{stream.text}
 					</div>
 				) : null}
@@ -103,25 +103,27 @@ export function TurnView({ turn, events, live, onTerminal, onLiveEvent }: TurnVi
 					<Disclosure
 						header={() => (
 							<>
-								<span className="text-mineral uppercase">thinking</span>
-								<span className="ml-auto text-[10px] text-dim">
+								<span className="text-success uppercase">thinking</span>
+								<span className="ml-auto text-[10px] text-fg-dim">
 									{stream.thinking.length} chars
 								</span>
 							</>
 						)}
 					>
-						<pre className="wrap-break-word whitespace-pre-wrap text-dim">{stream.thinking}</pre>
+						<pre className="wrap-break-word whitespace-pre-wrap text-fg-dim">
+							{stream.thinking}
+						</pre>
 					</Disclosure>
 				) : null}
 
 				{turn.error ? (
-					<div className="font-data rounded-md border border-oxide/30 bg-oxide-dim p-2 text-[11px] text-oxide">
+					<div className="font-data rounded-md border border-danger/30 bg-danger-soft p-2 text-[11px] text-danger">
 						<span className="mr-1 uppercase">{turn.error.code}</span>
 						{turn.error.message}
 					</div>
 				) : null}
 				{turn.cancel_reason ? (
-					<div className="font-data text-[11px] text-dim">cancelled: {turn.cancel_reason}</div>
+					<div className="font-data text-[11px] text-fg-dim">cancelled: {turn.cancel_reason}</div>
 				) : null}
 			</div>
 		</article>

@@ -24,7 +24,7 @@ export function ErrorState({
 		<div
 			role="alert"
 			className={cn(
-				'flex items-center justify-between gap-3 rounded-md border border-oxide/40 bg-oxide-dim',
+				'flex items-center justify-between gap-3 rounded-md border border-danger/40 bg-danger-soft',
 				compact ? 'px-3 py-2' : 'px-4 py-3',
 				className
 			)}
@@ -33,16 +33,16 @@ export function ErrorState({
 				<AlertTriangle
 					size={compact ? 14 : 16}
 					strokeWidth={1.75}
-					className="mt-0.5 shrink-0 text-oxide"
+					className="mt-0.5 shrink-0 text-danger"
 					aria-hidden="true"
 				/>
 				<div className="flex flex-col gap-0.5">
 					{title ? (
-						<p className={cn('font-medium text-oxide', compact ? 'text-xs' : 'text-sm')}>
+						<p className={cn('font-medium text-danger', compact ? 'text-xs' : 'text-sm')}>
 							{title}
 						</p>
 					) : null}
-					<p className={cn('text-silver', compact ? 'text-[11px]' : 'text-xs')}>{message}</p>
+					<p className={cn('text-fg-muted', compact ? 'text-[11px]' : 'text-xs')}>{message}</p>
 				</div>
 			</div>
 			{onRetry ? (
