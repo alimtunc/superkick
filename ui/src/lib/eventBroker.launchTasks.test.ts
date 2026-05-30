@@ -213,6 +213,22 @@ describe('LaunchTaskEventBroker', () => {
 		expect(observed).toEqual([false, true, false])
 	})
 
+	it('reports connected on stream open before any event (idle workspace)', () => {
+		const harness = createSubscribeHarness()
+		const broker = createLaunchTaskBroker(harness.subscribe)
+		const observed: boolean[] = []
+		broker.subscribeConnection((connected) => observed.push(connected))
+		broker.start()
+		expect(broker.isConnected()).toBe(false)
+
+		// Stream opens with no domain event yet (keep-alive pings only). The
+		// daemon is healthy, so the broker must already read as connected —
+		// otherwise an idle workspace surfaces a false "disconnected" banner.
+		harness.current()?.onOpen?.()
+		expect(broker.isConnected()).toBe(true)
+		expect(observed).toEqual([false, true])
+	})
+
 	it('stop() does not schedule a reconnect', () => {
 		const harness = createSubscribeHarness()
 		const broker = createLaunchTaskBroker(harness.subscribe)

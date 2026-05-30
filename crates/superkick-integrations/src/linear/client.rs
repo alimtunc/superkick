@@ -34,6 +34,17 @@ query Viewer {
 /// 5 min — catches subsequent drops in a session while letting admins propagate state renames in a sane window.
 const WORKFLOW_STATE_TTL: Duration = Duration::from_secs(5 * 60);
 
+/// Page cap for the flat picker lists (users / projects / labels). The UI shows
+/// a truncated flag at the cap and falls back to server-side search.
+const OPTIONS_PAGE_LIMIT: u32 = 250;
+
+/// Page cap for `teams` in the picker query. Teams carry a nested `states`
+/// connection, so their page size multiplies Linear's query-complexity score.
+/// At 250 the query hits complexity 20125 — past Linear's 10000 ceiling — and
+/// the whole `/linear/options` call 400s. 50 stays well clear and still far
+/// exceeds any real workspace's team count.
+const TEAM_OPTIONS_LIMIT: u32 = 50;
+
 const ISSUES_QUERY: &str = r#"
 query ListIssues($first: Int!, $after: String) {
   issues(
@@ -276,8 +287,8 @@ mutation CreateComment($issueId: String!, $body: String!) {
 "#;
 
 const LINEAR_OPTIONS_QUERY: &str = r#"
-query LinearOptions($first: Int!) {
-  teams(first: $first) {
+query LinearOptions($first: Int!, $teamFirst: Int!) {
+  teams(first: $teamFirst) {
     nodes {
       id
       key
@@ -645,12 +656,14 @@ impl LinearClient {
 
     /// Fetch the picker metadata for the workspace in a single round-trip:
     /// teams (with their workflow states), active users, projects, and
-    /// labels. Capped at 250 per resource — the UI surfaces a truncated
-    /// flag when the cap is reached and switches to server-side search.
+    /// labels. Flat lists are capped at [`OPTIONS_PAGE_LIMIT`] (the UI surfaces
+    /// a truncated flag and switches to server-side search at the cap); teams
+    /// are capped lower ([`TEAM_OPTIONS_LIMIT`]) because their nested `states`
+    /// connection drives Linear's query-complexity score over the ceiling.
     pub async fn list_options(&self) -> Result<LinearOptions, LinearError> {
         let body = serde_json::json!({
             "query": LINEAR_OPTIONS_QUERY,
-            "variables": { "first": 250 }
+            "variables": { "first": OPTIONS_PAGE_LIMIT, "teamFirst": TEAM_OPTIONS_LIMIT }
         });
         let gql: GqlOptionsResponse = self.post(&body).await?;
         if let Some(errors) = gql.errors {

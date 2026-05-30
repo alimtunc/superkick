@@ -102,6 +102,7 @@ pub fn agents_test_router(catalog: Arc<AgentCatalog>) -> Router {
 pub fn launch_task_test_router(
     repo: Arc<SqliteLaunchTaskRepo>,
     intervention_repo: Arc<SqliteLaunchTaskInterventionRepo>,
+    run_repo: Arc<SqliteRunRepo>,
     catalog: Arc<AgentCatalog>,
 ) -> Router {
     use superkick_runtime::StubStepRunner;
@@ -115,6 +116,7 @@ pub fn launch_task_test_router(
     let state = handlers::launch_tasks::LaunchTaskState::<StubStepRunner> {
         repo,
         intervention_repo,
+        run_repo,
         catalog,
         bus,
         executor,

@@ -20,6 +20,8 @@ export interface CreateAttentionRequest {
 
 export interface SseHandlers<T> {
 	onEvent: (event: T) => void
+	/** Fired when the underlying stream connects, before any domain event. */
+	onOpen?: () => void
 	onLagged?: (skipped: number) => void
 	onClosed?: () => void
 	onError?: (err: Event) => void

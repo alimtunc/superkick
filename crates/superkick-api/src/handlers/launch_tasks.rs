@@ -61,6 +61,10 @@ pub type ProdLaunchTaskExecutor = LaunchTaskExecutor<SqliteLaunchTaskRepo, ProdR
 pub struct LaunchTaskState<S: StepRunner> {
     pub repo: Arc<SqliteLaunchTaskRepo>,
     pub intervention_repo: Arc<SqliteLaunchTaskInterventionRepo>,
+    /// Runs repo used only for the active-run dedup guard at create time, so
+    /// launching a task for an issue that already has an active run returns a
+    /// clean 409 instead of crashing the shadow-run insert later (SUP-66).
+    pub run_repo: Arc<SqliteRunRepo>,
     pub catalog: Arc<AgentCatalog>,
     pub bus: Arc<LaunchTaskEventBus>,
     pub executor: Arc<LaunchTaskExecutor<SqliteLaunchTaskRepo, S>>,
@@ -80,6 +84,7 @@ impl<S: StepRunner> Clone for LaunchTaskState<S> {
         Self {
             repo: Arc::clone(&self.repo),
             intervention_repo: Arc::clone(&self.intervention_repo),
+            run_repo: Arc::clone(&self.run_repo),
             catalog: Arc::clone(&self.catalog),
             bus: Arc::clone(&self.bus),
             executor: Arc::clone(&self.executor),
@@ -93,6 +98,7 @@ impl FromRef<AppState> for LaunchTaskState<ProdRealStepRunner> {
         Self {
             repo: Arc::clone(&state.launch_task_repo),
             intervention_repo: Arc::clone(&state.launch_task_intervention_repo),
+            run_repo: Arc::clone(&state.run_repo),
             catalog: Arc::clone(&state.agent_catalog),
             bus: Arc::clone(&state.launch_task_event_bus),
             executor: Arc::clone(&state.launch_task_executor),
@@ -123,16 +129,16 @@ pub async fn create_launch_task<S: StepRunner>(
     State(state): State<LaunchTaskState<S>>,
     Json(body): Json<CreateLaunchTaskRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let linear_issue_id = body.linear_issue_id.trim().to_string();
+    crate::handlers::runs::guard_no_active_run(&state.run_repo, &linear_issue_id).await?;
+
     let agents = PlanImplementReviewAgents {
         planner: body.planner_agent.trim().to_string(),
         coder: body.coder_agent.trim().to_string(),
         reviewer: body.reviewer_agent.trim().to_string(),
     };
-    let (mut task, steps) = LaunchTask::new_with_v1_recipe(
-        body.linear_issue_id.trim().to_string(),
-        agents,
-        state.catalog.as_ref(),
-    )?;
+    let (mut task, steps) =
+        LaunchTask::new_with_v1_recipe(linear_issue_id, agents, state.catalog.as_ref())?;
     task.apply_overrides(LaunchTaskOverrides {
         base_branch: body.base_branch,
         use_worktree: body.use_worktree,
