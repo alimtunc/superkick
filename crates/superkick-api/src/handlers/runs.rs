@@ -49,6 +49,21 @@ fn default_base_branch() -> String {
     "main".into()
 }
 
+/// Reject a launch when the issue already has an active (non-terminal) run.
+/// Shared by `create_run` and the launch-task creation path so both entry
+/// points surface the same 409 `DuplicateActiveRun` shape instead of letting
+/// the `runs` partial-unique index blow up later as an opaque insert error.
+pub(crate) async fn guard_no_active_run(
+    run_repo: &SqliteRunRepo,
+    issue_identifier: &str,
+) -> Result<(), AppError> {
+    let existing = run_repo
+        .find_active_by_issue_identifier(issue_identifier)
+        .await?;
+    Run::guard_no_active(existing.as_ref(), issue_identifier)?;
+    Ok(())
+}
+
 pub async fn create_run(
     State(state): State<AppState>,
     Json(body): Json<CreateRunRequest>,
@@ -93,11 +108,7 @@ pub(crate) async fn spawn_run_from_request(
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
 
-    let existing = state
-        .run_repo
-        .find_active_by_issue_identifier(&issue_identifier)
-        .await?;
-    Run::guard_no_active(existing.as_ref(), &issue_identifier)?;
+    guard_no_active_run(&state.run_repo, &issue_identifier).await?;
 
     let use_worktree = body
         .use_worktree

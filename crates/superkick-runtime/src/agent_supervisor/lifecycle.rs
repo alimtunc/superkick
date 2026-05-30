@@ -98,22 +98,10 @@ where
     )
     .await;
 
-    if let Some(payload) = initial_stdin {
-        // Tuned-by-hand: both `claude` and `codex` print a welcome banner
-        // before accepting input. Without this brief sleep the injected
-        // prefix lands inside the banner instead of the prompt box.
-        tokio::time::sleep(Duration::from_millis(150)).await;
-        if let Err(e) = pty_session.write_input(payload.as_bytes()) {
-            warn!(
-                run_id = %run_id,
-                error = %e,
-                "failed to inject initial prompt into PTY — operator must retype"
-            );
-        }
-        // `\r` is the canonical Enter in raw mode; submits the typed line.
-        let _ = pty_session.write_input(b"\r");
-    }
-
+    // Start draining the PTY output BEFORE injecting the prompt. The reader
+    // broadcasts and persists agent output; with nothing draining it, a large
+    // prompt write deadlocks against the agent's startup banner (the PTY
+    // buffers fill in both directions) and wedges the writing thread.
     let output_pipeline = spawn_output_reader(
         spawned.master_reader,
         run_id,
@@ -127,6 +115,38 @@ where
         step_result_rx,
         transcript_hints_rx,
     } = output_pipeline;
+
+    if let Some(payload) = initial_stdin {
+        // Inject the prompt on a detached task: `write_input` is a blocking
+        // `write_all`, so running it inline on the async runtime would let a
+        // slow or unready agent (one not draining its stdin) wedge a tokio
+        // worker — freezing the HTTP API — and bypass the timeout below. The
+        // reader started above drains the PTY concurrently so the write does
+        // not deadlock; on timeout/cancel the agent is killed, the blocked
+        // write returns an error, and the spawn_blocking thread unwinds.
+        let writer = Arc::clone(&pty_session);
+        tokio::spawn(async move {
+            // Tuned-by-hand: both `claude` and `codex` print a welcome banner
+            // before accepting input. Without this brief sleep the injected
+            // prefix lands inside the banner instead of the prompt box.
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            let injected = tokio::task::spawn_blocking(move || {
+                writer.write_input(payload.as_bytes())?;
+                // `\r` is the canonical Enter in raw mode; submits the line.
+                writer.write_input(b"\r")
+            })
+            .await;
+            match injected {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => warn!(
+                    run_id = %run_id,
+                    error = %e,
+                    "failed to inject initial prompt into PTY — operator must retype"
+                ),
+                Err(e) => warn!(run_id = %run_id, error = %e, "prompt injection task panicked"),
+            }
+        });
+    }
 
     // child.wait() is blocking (portable-pty API), so wrap in spawn_blocking.
     let wait_handle = tokio::task::spawn_blocking(move || child.wait());

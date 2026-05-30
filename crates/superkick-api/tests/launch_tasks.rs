@@ -19,12 +19,13 @@ use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use superkick_api::launch_task_test_router;
 use superkick_core::{
-    AgentCatalog, AgentProvider, CoreAgentDefinition, CoreError, LaunchTaskId, LaunchTaskStatus,
-    LaunchTaskStepStatus, LinearContextMode, ResolvedMcpPolicy, ResolvedToolPolicy,
+    AgentCatalog, AgentProvider, CoreAgentDefinition, CoreError, ExecutionMode, LaunchTaskId,
+    LaunchTaskStatus, LaunchTaskStepStatus, LinearContextMode, ResolvedMcpPolicy,
+    ResolvedToolPolicy, Run, TriggerSource,
 };
 use superkick_storage::connect;
-use superkick_storage::repo::{LaunchTaskInterventionRepo, LaunchTaskRepo};
-use superkick_storage::{SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo};
+use superkick_storage::repo::{LaunchTaskInterventionRepo, LaunchTaskRepo, RunRepo};
+use superkick_storage::{SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo, SqliteRunRepo};
 use tower::ServiceExt;
 
 fn agent(name: &str, provider: AgentProvider, model: Option<&str>) -> CoreAgentDefinition {
@@ -67,8 +68,25 @@ fn catalog() -> AgentCatalog {
 async fn router() -> axum::Router {
     let pool = connect("sqlite::memory:").await.expect("pool");
     let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
-    let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool));
-    launch_task_test_router(repo, interventions, Arc::new(catalog()))
+    let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
+    let run_repo = Arc::new(SqliteRunRepo::new(pool));
+    launch_task_test_router(repo, interventions, run_repo, Arc::new(catalog()))
+}
+
+/// Variant of `router()` that returns the run repo so the dedup-guard test can
+/// seed an active run for an issue before the launch-task POST.
+async fn router_with_run_repo() -> (axum::Router, Arc<SqliteRunRepo>) {
+    let pool = connect("sqlite::memory:").await.expect("pool");
+    let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
+    let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
+    let run_repo = Arc::new(SqliteRunRepo::new(pool));
+    let router = launch_task_test_router(
+        repo,
+        interventions,
+        Arc::clone(&run_repo),
+        Arc::new(catalog()),
+    );
+    (router, run_repo)
 }
 
 /// Variant of `router()` that returns the repo handle alongside the router so
@@ -77,8 +95,14 @@ async fn router() -> axum::Router {
 async fn router_with_repo() -> (axum::Router, Arc<SqliteLaunchTaskRepo>) {
     let pool = connect("sqlite::memory:").await.expect("pool");
     let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
-    let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool));
-    let router = launch_task_test_router(Arc::clone(&repo), interventions, Arc::new(catalog()));
+    let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
+    let run_repo = Arc::new(SqliteRunRepo::new(pool));
+    let router = launch_task_test_router(
+        Arc::clone(&repo),
+        interventions,
+        run_repo,
+        Arc::new(catalog()),
+    );
     (router, repo)
 }
 
@@ -92,10 +116,12 @@ async fn router_with_intervention_repo() -> (
 ) {
     let pool = connect("sqlite::memory:").await.expect("pool");
     let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
-    let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool));
+    let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
+    let run_repo = Arc::new(SqliteRunRepo::new(pool));
     let router = launch_task_test_router(
         Arc::clone(&repo),
         Arc::clone(&interventions),
+        run_repo,
         Arc::new(catalog()),
     );
     (router, repo, interventions)
@@ -212,6 +238,66 @@ async fn create_with_empty_linear_issue_id_is_400() {
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn create_is_409_when_issue_already_has_active_run() {
+    let (app, run_repo) = router_with_run_repo().await;
+    // Seed a non-terminal run for the issue so the dedup guard must fire.
+    let run = Run::new(
+        "SUP-66".into(),
+        "SUP-66".into(),
+        "owner/repo".into(),
+        TriggerSource::Manual,
+        ExecutionMode::FullAuto,
+        "main".into(),
+        true,
+        None,
+    );
+    let active_id = run.id;
+    run_repo.insert(&run).await.expect("seed active run");
+
+    let (status, body) = create_request(
+        &app,
+        json!({
+            "linear_issue_id": "SUP-66",
+            "planner_agent": "planner",
+            "coder_agent": "coder",
+            "reviewer_agent": "reviewer"
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CONFLICT, "unexpected body: {body}");
+    assert_eq!(body["active_run_id"], active_id.0.to_string());
+    assert!(
+        body["error"].as_str().unwrap().contains("SUP-66"),
+        "unexpected: {body}"
+    );
+
+    // The guard must reject before any launch task row is created.
+    let (_, list) = get_json(&app, "/launch-tasks?linear_issue_id=SUP-66").await;
+    assert!(
+        list.as_array().unwrap().is_empty(),
+        "no launch task should be created on conflict: {list}"
+    );
+}
+
+#[tokio::test]
+async fn create_succeeds_when_issue_has_no_active_run() {
+    // Guard is wired but must not block when there is no active run.
+    let (app, _run_repo) = router_with_run_repo().await;
+    let (status, _body) = create_request(
+        &app,
+        json!({
+            "linear_issue_id": "SUP-66",
+            "planner_agent": "planner",
+            "coder_agent": "coder",
+            "reviewer_agent": "reviewer"
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
 }
 
 #[tokio::test]

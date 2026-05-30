@@ -69,6 +69,10 @@ export async function throwLinearError(res: Response, fallbackLabel: string): Pr
 export function subscribeToSse<T>(path: string, eventName: string, handlers: SseHandlers<T>): () => void {
 	const es = new EventSource(`${BASE}${path}`)
 
+	es.addEventListener('open', () => {
+		handlers.onOpen?.()
+	})
+
 	es.addEventListener(eventName, (e) => {
 		const data = JSON.parse(e.data) as T
 		handlers.onEvent(data)

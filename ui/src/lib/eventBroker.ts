@@ -106,6 +106,14 @@ export class SseBroker<Event, Filter> {
 
 	private connect(): void {
 		this.stopStream = this.options.subscribe({
+			onOpen: () => {
+				// Mark connected as soon as the stream opens — an idle workspace
+				// may send no domain events for minutes (keep-alive pings only),
+				// and waiting for the first event would surface a false
+				// "daemon disconnected" banner on a perfectly healthy daemon.
+				this.reconnectDelay = RECONNECT_MIN_MS
+				this.setConnected(true)
+			},
 			onEvent: (event) => {
 				this.reconnectDelay = RECONNECT_MIN_MS
 				this.setConnected(true)
