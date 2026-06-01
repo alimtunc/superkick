@@ -21,20 +21,6 @@ interface TrackedSelection {
 	hydrated: boolean
 }
 
-/**
- * Per-subject conversation row selection backed by `localStorage`. Keeps
- * `selectedId` aligned with `subjectKey` so a subject switch can never
- * persist the previous subject's selection under the new subject's key.
- *
- * Hydration is two-phase because the conversation list is loaded async:
- *  1. the subject change resets selection synchronously;
- *  2. once `loading === false`, we read `localStorage` and pick either the
- *     persisted id (when still present in the list) or the first row.
- *
- * Persistence happens on every commit where the tracked subject matches
- * the current one — the tracked-key gate prevents the cross-subject leak
- * that motivated this hook (see SUP-110 review).
- */
 export function useChatSubjectSelection(args: UseChatSubjectSelectionArgs): UseChatSubjectSelectionResult {
 	const { subjectKey, conversations, loading } = args
 
@@ -48,12 +34,7 @@ export function useChatSubjectSelection(args: UseChatSubjectSelectionArgs): UseC
 		setTracked({ key: subjectKey, selectedId: null, hydrated: false })
 	}
 
-	// `conversations` is a fresh array reference on every TanStack Query
-	// revalidation, so depending on it would re-fire the effect even when
-	// the row set is identical. The hydration only needs to read the latest
-	// list at the moment it runs (transition to `loading: false`, or subject
-	// switch), so route the access through a ref and gate the effect on
-	// `loading` + `tracked.*` only.
+	// Via ref so the effect isn't re-fired by `conversations` getting a fresh array reference on every revalidation.
 	const conversationsRef = useRef(conversations)
 	conversationsRef.current = conversations
 

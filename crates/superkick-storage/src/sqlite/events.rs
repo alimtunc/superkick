@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{EventId, EventKind, EventLevel, RunEvent, RunId, StepId};
 
-use super::codec::{deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
 use crate::repo::RunEventRepo;
 
 pub struct SqliteRunEventRepo {
@@ -95,7 +95,7 @@ impl EventRow {
                 .as_deref()
                 .map(|s| uuid::Uuid::parse_str(s).map(StepId))
                 .transpose()?,
-            ts: chrono::DateTime::parse_from_rfc3339(&self.ts)?.to_utc(),
+            ts: decode_rfc3339(&self.ts)?,
             kind: deserialize_enum::<EventKind>(&self.kind)?,
             level: deserialize_enum::<EventLevel>(&self.level)?,
             message: self.message,

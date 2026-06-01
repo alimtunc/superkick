@@ -9,10 +9,8 @@ use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::warn;
 
-use superkick_core::{
-    AgentProvider, EventKind, EventLevel, RunEvent, RunId, StepId, StepResult, TranscriptChunk,
-};
-use superkick_storage::repo::{RunEventRepo, TranscriptRepo};
+use superkick_core::{AgentProvider, RunId, StepResult, TranscriptChunk};
+use superkick_storage::repo::TranscriptRepo;
 
 use crate::protocol_adapter::{
     FailureHintScanner, MarkerError, StepResultScanner, TranscriptHints,
@@ -68,21 +66,6 @@ where
         persist_join,
         step_result_rx,
         transcript_hints_rx,
-    }
-}
-
-/// Emit a single run event, logging on failure.
-pub(crate) async fn emit_event<E: RunEventRepo>(
-    repo: &E,
-    run_id: RunId,
-    step_id: StepId,
-    kind: EventKind,
-    level: EventLevel,
-    message: String,
-) {
-    let event = RunEvent::new(run_id, Some(step_id), kind, level, message);
-    if let Err(err) = repo.insert(&event).await {
-        warn!("failed to emit run event: {err}");
     }
 }
 

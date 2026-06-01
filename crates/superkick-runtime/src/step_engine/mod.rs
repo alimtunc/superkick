@@ -859,7 +859,13 @@ where
             EventLevel::Warn,
             format!("attention requested (Approval): {title}"),
         );
-        arq_event.payload_json = serde_json::to_value(&request).ok();
+        arq_event.payload_json = match serde_json::to_value(&request) {
+            Ok(payload) => Some(payload),
+            Err(e) => {
+                warn!(error = %e, "dropping attention_requested event payload: serialization failed");
+                None
+            }
+        };
         if let Err(e) = self.event_repo.insert(&arq_event).await {
             warn!("failed to emit attention_requested event: {e}");
         }
@@ -1258,6 +1264,18 @@ pub(crate) async fn emit_event<E: RunEventRepo>(
     let event = RunEvent::new(run_id, step_id, kind, level, message);
     if let Err(e) = repo.insert(&event).await {
         warn!("failed to emit run event: {e}");
+    }
+}
+
+/// Insert a pre-built run event, folding `log_subject` into the failure log so
+/// readers can tell which emitter dropped an event (`attention`, `ownership`, …).
+pub(crate) async fn emit_built_event<E: RunEventRepo>(
+    repo: &E,
+    event: &RunEvent,
+    log_subject: &str,
+) {
+    if let Err(e) = repo.insert(event).await {
+        warn!("failed to emit {log_subject} event: {e}");
     }
 }
 

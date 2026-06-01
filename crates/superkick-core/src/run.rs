@@ -26,7 +26,8 @@ pub enum RunState {
 
 impl RunState {
     /// Returns `true` when the run has reached a final outcome.
-    /// `Failed` is terminal but allows a retry transition back to `Queued`.
+    /// `Completed`, `Failed`, and `Cancelled` are all terminal with no
+    /// outgoing transitions; recovery from a failed run is a fresh run.
     pub fn is_terminal(self) -> bool {
         matches!(self, Self::Completed | Self::Failed | Self::Cancelled)
     }
@@ -55,8 +56,7 @@ impl RunState {
                 Cancelled,
             ],
             OpeningPr => &[Completed, WaitingHuman, Failed, Cancelled],
-            Failed => &[Queued],
-            Completed | Cancelled => &[],
+            Completed | Failed | Cancelled => &[],
         }
     }
 

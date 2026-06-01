@@ -1,6 +1,6 @@
 import type { AttachPayload, RuntimesResponse } from '@/types'
 
-import { BASE, throwGenericApiError } from './_shared'
+import { BASE, postJson } from './_shared'
 
 export async function fetchRuntimes(): Promise<RuntimesResponse> {
 	const res = await fetch(`${BASE}/runtimes`)
@@ -9,15 +9,9 @@ export async function fetchRuntimes(): Promise<RuntimesResponse> {
 }
 
 export async function refreshRuntimes(): Promise<RuntimesResponse> {
-	const res = await fetch(`${BASE}/runtimes/refresh`, { method: 'POST' })
-	if (!res.ok) await throwGenericApiError(res, 'refresh runtimes failed')
-	return res.json()
+	return postJson('/runtimes/refresh', 'refresh runtimes failed')
 }
 
 export async function prepareSessionAttach(runId: string, sessionId: string): Promise<AttachPayload> {
-	const res = await fetch(`${BASE}/runs/${runId}/sessions/${sessionId}/attach`, {
-		method: 'POST'
-	})
-	if (!res.ok) await throwGenericApiError(res, 'prepare attach failed')
-	return res.json()
+	return postJson(`/runs/${runId}/sessions/${sessionId}/attach`, 'prepare attach failed')
 }

@@ -34,8 +34,9 @@ use superkick_core::{
     RecoveryAction, RecoveryConfig, RunRecoveredPayload, RunStalledPayload, classify_recovery,
     decide_recovery_action,
 };
-use superkick_runtime::WorkspaceEventBus;
 use superkick_storage::SqliteRecoveryEventRepo;
+
+use crate::WorkspaceEventBus;
 
 /// Spawn the periodic recovery tick. The task lives until the process exits.
 pub fn spawn_recovery_scheduler(

@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use sqlx::SqlitePool;
 use superkick_core::{LatestEventTag, RecoveryCandidate, RunId, RunState, StalledReason};
 
-use super::codec::deserialize_enum;
+use super::codec::{decode_rfc3339, deserialize_enum};
 
 /// Stored row in `run_recovery_events`. The `kind` is one of `"stalled"` or
 /// `"recovered"`; the `reason` is JSON-encoded `StalledReason` for stalled
@@ -163,14 +163,14 @@ impl RawRecoveryRow {
         let stalled_since = self
             .stalled_since
             .as_deref()
-            .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
+            .map(decode_rfc3339)
             .transpose()?;
         Ok(RecoveryEventRow {
             run_id: RunId(uuid::Uuid::parse_str(&self.run_id)?),
             kind,
             reason,
             stalled_since,
-            detected_at: chrono::DateTime::parse_from_rfc3339(&self.detected_at)?.to_utc(),
+            detected_at: decode_rfc3339(&self.detected_at)?,
         })
     }
 }
@@ -213,11 +213,11 @@ impl RecoveryCandidateRow {
         Ok(RecoveryCandidate {
             run_id: RunId(uuid::Uuid::parse_str(&self.id)?),
             state: deserialize_enum::<RunState>(&self.state)?,
-            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)?.to_utc(),
+            updated_at: decode_rfc3339(&self.updated_at)?,
             last_heartbeat_at: self
                 .last_heartbeat_at
                 .as_deref()
-                .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
+                .map(decode_rfc3339)
                 .transpose()?,
         })
     }

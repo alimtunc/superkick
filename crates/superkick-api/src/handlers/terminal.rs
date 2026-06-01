@@ -133,7 +133,6 @@ async fn handle_terminal_socket(
 ) {
     let (mut sender, mut receiver) = socket.split();
 
-    // Send capabilities message.
     let caps = CapabilitiesMessage {
         msg_type: "capabilities",
         writable,
@@ -150,7 +149,6 @@ async fn handle_terminal_socket(
         }
     }
 
-    // Send scrollback as a single binary message.
     if !scrollback.is_empty()
         && sender
             .send(Message::Binary(scrollback.into()))

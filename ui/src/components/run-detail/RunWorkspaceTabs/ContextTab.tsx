@@ -3,6 +3,8 @@ import { RunDetailsGrid } from '@/components/run-detail/RunDetailsGrid'
 import { RunHero } from '@/components/run-detail/RunHero'
 import type { AgentSession, AttentionRequest, Interrupt, PullRequest, Run, RunStep } from '@/types'
 
+const NO_INTERRUPTS: Interrupt[] = []
+
 interface ContextTabProps {
 	run: Run
 	pr: PullRequest | null
@@ -19,7 +21,7 @@ export function ContextTab({
 	steps,
 	sessions,
 	attentionRequests,
-	interrupts = [],
+	interrupts = NO_INTERRUPTS,
 	refTime
 }: ContextTabProps) {
 	return (

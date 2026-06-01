@@ -66,6 +66,36 @@ impl GitDiffProbe {
     fn workdir(&self) -> &Path {
         &self.worktree
     }
+
+    /// Run the blocking `git diff --quiet HEAD` probe on a blocking thread and
+    /// capture the verdict, so the synchronous classifier — invoked from the
+    /// async step-completion path — never shells out on a tokio worker thread.
+    ///
+    /// Only `Implement` steps can be classified `NoDiff`, so the probe is
+    /// skipped (and the verdict left unconsulted) for every other step kind.
+    pub(crate) async fn probe_for(self, step_kind: LaunchStepKind) -> PrecomputedDiffProbe {
+        if !matches!(step_kind, LaunchStepKind::Implement) {
+            return PrecomputedDiffProbe { has_changes: true };
+        }
+        let has_changes = tokio::task::spawn_blocking(move || self.has_changes())
+            .await
+            .unwrap_or(true);
+        PrecomputedDiffProbe { has_changes }
+    }
+}
+
+/// A [`DiffProbe`] whose verdict was computed ahead of time. Lets the blocking
+/// `git` probe run on a blocking thread (via [`GitDiffProbe::probe`]) while the
+/// classifier stays synchronous and I/O-free.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PrecomputedDiffProbe {
+    has_changes: bool,
+}
+
+impl DiffProbe for PrecomputedDiffProbe {
+    fn has_changes(&self) -> bool {
+        self.has_changes
+    }
 }
 
 impl DiffProbe for GitDiffProbe {

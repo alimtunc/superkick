@@ -16,6 +16,8 @@ use superkick_core::{
 };
 use superkick_storage::repo::{AttentionRequestRepo, RunEventRepo, RunRepo};
 
+use crate::step_engine::emit_built_event;
+
 pub struct AttentionService<A, E, R> {
     attention_repo: Arc<A>,
     event_repo: Arc<E>,
@@ -63,7 +65,7 @@ where
                 "attention requested ({:?}): {}",
                 request.kind, request.title
             ),
-            serde_json::to_value(&request).ok(),
+            request_event_payload(&request),
         )
         .await;
         info!(
@@ -99,7 +101,7 @@ where
             EventKind::AttentionReplied,
             EventLevel::Info,
             format!("attention replied: {}", request.title),
-            serde_json::to_value(&request).ok(),
+            request_event_payload(&request),
         )
         .await;
         info!(
@@ -150,8 +152,18 @@ where
     ) {
         let mut event = RunEvent::new(run_id, None, kind, level, message);
         event.payload_json = payload;
-        if let Err(e) = self.event_repo.insert(&event).await {
-            tracing::warn!("failed to emit attention event: {e}");
+        emit_built_event(&*self.event_repo, &event, "attention").await;
+    }
+}
+
+/// Serialize an attention-request event payload, logging (rather than silently
+/// dropping) a serialization failure so the lost structured body is visible.
+fn request_event_payload(request: &AttentionRequest) -> Option<serde_json::Value> {
+    match serde_json::to_value(request) {
+        Ok(payload) => Some(payload),
+        Err(e) => {
+            tracing::warn!(request_id = %request.id, error = %e, "dropping attention event payload: serialization failed");
+            None
         }
     }
 }

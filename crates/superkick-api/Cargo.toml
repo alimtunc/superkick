@@ -10,7 +10,7 @@ superkick-storage = { path = "../superkick-storage" }
 superkick-runtime = { path = "../superkick-runtime" }
 superkick-integrations = { path = "../superkick-integrations" }
 axum.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "net"] }
 tokio-stream = "0.1"
 async-stream = "0.3"
 tracing.workspace = true

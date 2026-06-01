@@ -47,8 +47,8 @@ use crate::linear_context::OptionalLinearClient;
 use crate::protocol_adapter::MarkerError;
 use crate::repo_cache::RepoCache;
 use crate::session_bus::SessionBus;
-use crate::step_engine::build_full_prompt;
 use crate::step_engine::prompts::{PromptStepKind, step_body_for};
+use crate::step_engine::{build_full_prompt, emit_event};
 use crate::step_failure_classifier::{
     ClassifyInputs, GitDiffProbe, classify, classify_spawn_error,
 };
@@ -482,10 +482,10 @@ where
             error = %e,
             "failed to persist structured_result — step status will still flip"
         );
-        crate::agent_supervisor::output::emit_event(
+        emit_event(
             &*self.event_repo,
             run_id,
-            run_step_id,
+            Some(run_step_id),
             EventKind::Error,
             EventLevel::Warn,
             format!("structured_result persist failed: {e}"),
@@ -552,10 +552,10 @@ where
                 )
             }
         };
-        crate::agent_supervisor::output::emit_event(
+        emit_event(
             &*self.event_repo,
             shadow_run_id,
-            ctx.run_step_id,
+            Some(ctx.run_step_id),
             event_kind,
             EventLevel::Warn,
             ui_msg,
@@ -595,7 +595,9 @@ where
             .await;
         }
 
-        let diff_probe = GitDiffProbe::new(ctx.worktree.to_path_buf());
+        let diff_probe = GitDiffProbe::new(ctx.worktree.to_path_buf())
+            .probe_for(ctx.step.step_kind)
+            .await;
         let classification = classify(ClassifyInputs {
             provider,
             role: ctx.role,

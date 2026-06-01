@@ -309,6 +309,26 @@ async fn post_issues_returns_201_and_location_header_with_detail_body() {
 }
 
 #[tokio::test]
+async fn post_issues_drops_location_header_when_id_is_not_header_safe() {
+    let mut detail = sample_detail();
+    detail.id = "bad\nid".into();
+    let writer = StubLinearWriter::new().with_detail(detail);
+    let router = linear_writes_test_router(Some(Arc::clone(&writer) as Arc<dyn LinearWriter>));
+
+    let payload = json!({
+        "team_id": "team-1",
+        "title": "Fix Safari login",
+        "priority": 2,
+    });
+    let (status, headers, body) = send(&router, "POST", "/issues", Some(payload)).await;
+
+    // The create succeeded; a non-header-safe id must not panic — drop the header, keep the 201.
+    assert_eq!(status, StatusCode::CREATED, "body = {body}");
+    assert_eq!(body["identifier"], "SUP-99");
+    assert!(headers.get("Location").is_none());
+}
+
+#[tokio::test]
 async fn post_issues_rejects_empty_title_with_400() {
     let writer = StubLinearWriter::new().with_detail(sample_detail());
     let router = linear_writes_test_router(Some(Arc::clone(&writer) as Arc<dyn LinearWriter>));

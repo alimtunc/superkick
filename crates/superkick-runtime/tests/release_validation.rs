@@ -336,11 +336,15 @@ async fn cancel_drives_task_to_cancelled() -> Result<()> {
 
         let join = tokio::spawn(async move { executor.run(task_id).await });
 
-        // Wait for the registry to register the task; cancel as soon as it's
-        // live so the cancel lands mid-step.
-        let registry = harness.executor.registry();
+        // Wait for the task to reach Running — the executor registers its
+        // cancel token synchronously before this status write, so observing
+        // Running proves a live token exists. Cancel as soon as it's live so
+        // the cancel lands mid-step.
         for _ in 0..200 {
-            if registry.contains(task_id) {
+            if matches!(
+                harness.repo.get(task_id).await?.map(|t| t.status),
+                Some(LaunchTaskStatus::Running)
+            ) {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(25)).await;

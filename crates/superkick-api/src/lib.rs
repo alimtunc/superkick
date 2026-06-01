@@ -1,21 +1,20 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
-use tokio_util::sync::CancellationToken;
 
 use axum::Router;
 use axum::routing::{get, post};
 
 use superkick_config::{IssueTrigger, LaunchProfileConfig, OrchestrationConfig};
-use superkick_core::{AgentCatalog, RunId};
+use superkick_core::AgentCatalog;
 use superkick_integrations::linear::LinearClient;
 use superkick_runtime::launch_task::{RealStepRunner, RealStepRunnerDeps};
 use superkick_runtime::{
     AttentionService, ConversationAdapters, ConversationRunner, InterruptService,
-    LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry, OwnershipService,
-    PtySessionRegistry, PublishingRunEventRepo, RepoCache, RuntimeDetector, SessionBus, StepEngine,
+    LaunchTaskCanceller, LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry,
+    OwnershipService, PtySessionRegistry, PublishingRunEventRepo, PullRequestService,
+    QueueTriageService, RepoCache, RunService, RuntimeDetector, SessionBus, StepEngine,
     StepEngineDeps, TerminalTakeoverService, TurnEventBus, WorkspaceEventBus,
     boot_refresh as runtime_boot_refresh, spawn_heartbeat_listener,
 };
@@ -30,7 +29,7 @@ use superkick_storage::{
 
 mod error;
 mod handlers;
-pub mod recovery_scheduler;
+mod run_seams;
 mod search_state;
 #[cfg(feature = "embedded-ui")]
 mod ui_assets;
@@ -247,7 +246,7 @@ pub fn issue_context_test_router(
 /// without service-level changes.
 type EventRepo = PublishingRunEventRepo<SqliteRunEventRepo>;
 
-type Engine = StepEngine<
+pub(crate) type Engine = StepEngine<
     SqliteRunRepo,
     SqliteRunStepRepo,
     EventRepo,
@@ -269,19 +268,30 @@ type ChatRunner =
 
 type TakeoverService = TerminalTakeoverService<EventRepo>;
 
+type PrService = PullRequestService<SqlitePullRequestRepo, SqliteArtifactRepo>;
+
+type TriageService = QueueTriageService<
+    SqliteRunRepo,
+    SqliteAttentionRequestRepo,
+    SqliteInterruptRepo,
+    SqliteSessionOwnershipRepo,
+    EventRepo,
+    SqlitePullRequestRepo,
+    SqliteArtifactRepo,
+>;
+
+type ProdRunService = RunService<SqliteRunRepo, SqliteLaunchTaskRepo, EventRepo>;
+
 #[derive(Clone)]
 pub(crate) struct AppState {
     pub run_repo: Arc<SqliteRunRepo>,
     pub step_repo: Arc<SqliteRunStepRepo>,
     pub event_repo: Arc<EventRepo>,
     pub session_repo: Arc<SqliteAgentSessionRepo>,
-    pub artifact_repo: Arc<SqliteArtifactRepo>,
     pub interrupt_repo: Arc<SqliteInterruptRepo>,
     pub attention_repo: Arc<SqliteAttentionRequestRepo>,
-    pub pr_repo: Arc<SqlitePullRequestRepo>,
     pub transcript_repo: Arc<SqliteTranscriptRepo>,
     pub issue_blocker_repo: Arc<SqliteIssueBlockerRepo>,
-    pub recovery_event_repo: Arc<SqliteRecoveryEventRepo>,
     /// SUP-102 — orchestrator session + checkpoint store. Independent of the
     /// run pipeline; lives next to it as a parallel aggregate.
     pub orchestrator_session_repo: Arc<SqliteOrchestratorSessionRepo>,
@@ -316,10 +326,22 @@ pub(crate) struct AppState {
     /// calls cannot both publish the same `DependencyResolved` transition
     /// (SUP-81). Held only around the diff+persist+emit window.
     pub blocker_reconcile_lock: Arc<Mutex<()>>,
-    pub engine: Arc<Engine>,
     pub interrupt_service: Arc<IntService>,
     pub attention_service: Arc<AttnService>,
     pub ownership_service: Arc<OwnService>,
+    /// Theme-1 — PR resolution + GitHub sync service. Owns the get-or-create
+    /// from PrUrl artifact policy and the staleness window that previously
+    /// lived inline in the `runs` handler.
+    pub pr_service: Arc<PrService>,
+    /// Theme-1 — shared per-run triage fan-out for the dashboard and launch
+    /// queue. Owns the trim-for-queue horizon, per-run signal aggregation, and
+    /// stall annotation that previously lived in the `queue_common` handler.
+    pub queue_triage_service: Arc<TriageService>,
+    /// Theme-1 — run lifecycle service. Owns the spawn persistence + dedup-race
+    /// path and the cancel orchestration that previously lived inline in the
+    /// `runs` handler. The engine spawn and launch-task cancel are injected as
+    /// object-safe seams so the engine generics never reach `AppState`.
+    pub run_service: Arc<ProdRunService>,
     pub pty_registry: Arc<PtySessionRegistry>,
     pub workspace_bus: Arc<WorkspaceEventBus>,
     pub conversation_repo: Arc<SqliteConversationRepo>,
@@ -334,7 +356,6 @@ pub(crate) struct AppState {
     /// SUP-158 — repo file path index, walked once at boot. Refresh via
     /// `POST /search/files/refresh`.
     pub file_index: search_state::FileIndex,
-    pub run_tokens: Arc<Mutex<HashMap<RunId, CancellationToken>>>,
     pub repo_slug: String,
     pub base_branch: String,
     pub launch_profile: LaunchProfileConfig,
@@ -501,6 +522,26 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         Arc::clone(&pty_registry),
     ));
 
+    let pr_service = PullRequestService::new(Arc::clone(&pr_repo), Arc::clone(&artifact_repo));
+
+    let queue_triage_service = QueueTriageService::new(
+        Arc::clone(&run_repo),
+        Arc::clone(&attention_repo),
+        Arc::clone(&interrupt_repo),
+        Arc::clone(&pr_service),
+        Arc::clone(&recovery_event_repo),
+        Arc::clone(&ownership_service),
+    );
+
+    let run_spawner = run_seams::EngineRunSpawner::new(Arc::clone(&engine));
+    let run_service = RunService::new(
+        Arc::clone(&run_repo),
+        Arc::clone(&launch_task_repo),
+        Arc::clone(&event_repo),
+        Arc::clone(&launch_task_executor) as Arc<dyn LaunchTaskCanceller>,
+        run_spawner as Arc<dyn superkick_runtime::RunSpawn>,
+    );
+
     let turn_event_bus = TurnEventBus::new();
     // Default workdir for issue-scoped conversations (no run worktree to
     // anchor to). The API server runs from the repo root today, so its CWD
@@ -526,7 +567,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     // from `SessionBus` events) and the recovery scheduler (periodic
     // Healthy↔Stalled classification).
     spawn_heartbeat_listener(Arc::clone(&session_bus), Arc::clone(&run_repo));
-    recovery_scheduler::spawn_recovery_scheduler(
+    superkick_runtime::spawn_recovery_scheduler(
         Arc::clone(&recovery_event_repo),
         Arc::clone(&workspace_bus),
         recovery_config,
@@ -548,13 +589,10 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         step_repo,
         event_repo,
         session_repo,
-        artifact_repo,
         interrupt_repo,
         attention_repo,
-        pr_repo,
         transcript_repo,
         issue_blocker_repo,
-        recovery_event_repo,
         orchestrator_session_repo,
         launch_task_repo,
         memory_repo,
@@ -565,10 +603,12 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         agent_catalog,
         runtime_detector,
         blocker_reconcile_lock: Arc::new(Mutex::new(())),
-        engine,
         interrupt_service,
         attention_service,
         ownership_service,
+        pr_service,
+        queue_triage_service,
+        run_service,
         pty_registry,
         workspace_bus,
         conversation_repo,
@@ -579,7 +619,6 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         linear_client,
         comment_cache,
         file_index,
-        run_tokens: Arc::new(Mutex::new(HashMap::new())),
         repo_slug,
         base_branch,
         launch_profile,

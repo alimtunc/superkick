@@ -1,13 +1,14 @@
 import { RULES_FIXTURE } from '@/components/settings/rulesFixture'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSection } from '@/components/settings/SettingsSection'
+import { Pill, type PillTone } from '@/components/ui/pill'
 import type { SettingsRule } from '@/types'
 import { Btn } from '@/ui/Btn'
 
-const STATUS_PILL: Record<SettingsRule['status'], string> = {
-	on: 'pill--success',
-	off: 'pill--warn',
-	'dry-run': 'pill--neutral'
+const STATUS_PILL_TONE: Record<SettingsRule['status'], PillTone> = {
+	on: 'success',
+	off: 'warn',
+	'dry-run': 'neutral'
 }
 
 export function SettingsPaneRules() {
@@ -23,8 +24,8 @@ export function SettingsPaneRules() {
 				{RULES_FIXTURE.map((rule, index) => (
 					<SettingsRow key={rule.id} label={rule.label} hint={rule.hint} last={index === lastIndex}>
 						<div className="flex items-center gap-2">
-							<span className={`pill ${STATUS_PILL[rule.status]}`}>{rule.status}</span>
-							{rule.meta ? <span className="pill pill--neutral">{rule.meta}</span> : null}
+							<Pill tone={STATUS_PILL_TONE[rule.status]}>{rule.status}</Pill>
+							{rule.meta ? <Pill tone="neutral">{rule.meta}</Pill> : null}
 							<Btn kind="ghost" size="sm" icon="more" aria-label="Rule actions" />
 						</div>
 					</SettingsRow>

@@ -2,7 +2,6 @@
 //! stream introduced by SUP-79's spawn-and-observe orchestrator runtime.
 
 use anyhow::{Context, Result};
-use chrono::DateTime;
 use sqlx::SqlitePool;
 
 use superkick_core::{
@@ -10,7 +9,7 @@ use superkick_core::{
     SessionLifecyclePhase, StepId,
 };
 
-use super::codec::{deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
 use crate::repo::SessionLifecycleRepo;
 
 pub struct SqliteSessionLifecycleRepo {
@@ -125,7 +124,7 @@ impl LifecycleRow {
                 .transpose()?
                 .map(HandoffId),
             phase: serde_json::from_str::<SessionLifecyclePhase>(&self.phase_json)?,
-            ts: DateTime::parse_from_rfc3339(&self.ts)?.to_utc(),
+            ts: decode_rfc3339(&self.ts)?,
         })
     }
 }

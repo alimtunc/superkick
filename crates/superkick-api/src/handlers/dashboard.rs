@@ -22,9 +22,10 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use superkick_core::{LinkedPrSummary, OperatorQueue, Run, SessionOwnership, StalledReason};
 
+use superkick_runtime::RunTriage;
+
 use crate::AppState;
 use crate::error::AppError;
-use crate::handlers::queue_common::{RunTriage, load_triages};
 
 /// Per-run triage summary shown in the operator queue.
 #[derive(Debug, Serialize)]
@@ -62,7 +63,7 @@ pub struct DashboardQueueResponse {
 pub async fn get_queue(
     State(state): State<AppState>,
 ) -> Result<Json<DashboardQueueResponse>, AppError> {
-    let triages = load_triages(&state).await?;
+    let triages = state.queue_triage_service.load_triages().await?;
     let summaries = triages.into_iter().map(into_summary).collect();
 
     Ok(Json(DashboardQueueResponse {

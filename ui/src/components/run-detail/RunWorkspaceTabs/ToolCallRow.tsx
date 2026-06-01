@@ -12,8 +12,11 @@ interface ToolCallRowProps {
 
 export function ToolCallRow({ call }: ToolCallRowProps) {
 	const [expanded, setExpanded] = useState(false)
-	const inputText = useMemo(() => stringifyForDisplay(call.input), [call.input])
-	const outputText = useMemo(() => stringifyForDisplay(call.output), [call.output])
+	const inputText = useMemo(() => (expanded ? stringifyForDisplay(call.input) : ''), [expanded, call.input])
+	const outputText = useMemo(
+		() => (expanded ? stringifyForDisplay(call.output) : ''),
+		[expanded, call.output]
+	)
 	const pending = call.output === null
 
 	return (

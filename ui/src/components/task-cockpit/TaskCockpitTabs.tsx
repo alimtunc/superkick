@@ -2,6 +2,8 @@ import { TabBar, type TabBarItem } from '@/components/ui/tab-bar'
 import type { LaunchTaskStep } from '@/types'
 import { Activity, FileDiff, ScrollText, Terminal } from 'lucide-react'
 
+import { uniqueChangedFiles } from './changedFiles'
+
 export type TaskCockpitTabId = 'activity' | 'files' | 'logs' | 'terminal'
 
 const TABS = [
@@ -18,7 +20,7 @@ interface TaskCockpitTabsProps {
 }
 
 export function TaskCockpitTabs({ steps, activeTab, onChangeTab }: TaskCockpitTabsProps) {
-	const changedFiles = new Set(steps.flatMap((step) => step.structured_result?.changed_files ?? [])).size
+	const changedFiles = uniqueChangedFiles(steps).length
 
 	return (
 		<div className="flex shrink-0 items-center border-b border-border bg-surface">

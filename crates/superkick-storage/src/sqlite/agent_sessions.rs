@@ -5,7 +5,7 @@ use superkick_core::{
     LaunchReason, LinearContextMode, RunId, RunnerMode, StepId,
 };
 
-use super::codec::{deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
 use super::ensure_updated;
 use crate::repo::AgentSessionRepo;
 
@@ -166,11 +166,11 @@ impl SessionRow {
             command: self.command,
             pid: self.pid.map(|p| p as u32),
             status: deserialize_enum::<AgentStatus>(&self.status)?,
-            started_at: chrono::DateTime::parse_from_rfc3339(&self.started_at)?.to_utc(),
+            started_at: decode_rfc3339(&self.started_at)?,
             finished_at: self
                 .finished_at
                 .as_deref()
-                .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
+                .map(decode_rfc3339)
                 .transpose()?,
             exit_code: self.exit_code,
             linear_context_mode: self

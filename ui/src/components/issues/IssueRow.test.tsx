@@ -165,10 +165,14 @@ describe('IssueRow', () => {
 		expect(screen.getByText('Platform')).toBeInTheDocument()
 	})
 
-	it('keeps the title at full emphasis (not dimmed) in the done bucket', () => {
+	it('renders the title with identical emphasis in the done and open buckets', () => {
+		const { unmount } = render(<IssueRow wrapper={makeWrapper(makeIssue())} bucket="open" now={NOW} />)
+		const openTitleClass = screen.getByText('Fix login bug').className
+		unmount()
+
 		render(<IssueRow wrapper={makeWrapper(makeIssue())} bucket="done" now={NOW} />)
-		const title = screen.getByText('Fix login bug')
-		expect(title).toHaveClass('row__title')
-		expect(title).not.toHaveClass('text-fg-muted')
+		const doneTitle = screen.getByText('Fix login bug')
+		expect(doneTitle).toBeInTheDocument()
+		expect(doneTitle.className).toBe(openTitleClass)
 	})
 })

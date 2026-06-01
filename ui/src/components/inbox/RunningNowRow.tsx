@@ -1,9 +1,9 @@
-import { InboxActionLink } from '@/components/inbox/InboxActionLink'
+import { actionLinkWrap } from '@/components/inbox/actionLinkWrap'
 import { InboxActionPill } from '@/components/inbox/InboxActionPill'
 import { InboxRow } from '@/components/inbox/InboxRow'
 import { Pill } from '@/components/ui/pill'
 import { fmtElapsed, stepLabel } from '@/lib/domain'
-import { inboxActionAriaLabel, pickPrimaryAction } from '@/lib/inbox/actions'
+import { pickPrimaryAction } from '@/lib/inbox/actions'
 import { runningNowPillLabel, runningNowTone } from '@/lib/inbox/runningNow'
 import type { QueueRunSummary } from '@/types'
 
@@ -36,15 +36,7 @@ export function RunningNowRow({ run, refTime }: RunningNowRowProps) {
 			why={run.reason || null}
 			ctx={ctxParts.join(' · ')}
 			age={fmtElapsed(run.started_at, refTime)}
-			wrap={(inner) => (
-				<InboxActionLink
-					action={action}
-					ariaLabel={inboxActionAriaLabel(action, run.issue_identifier)}
-					className="flex min-w-0 flex-1 items-start"
-				>
-					{inner}
-				</InboxActionLink>
-			)}
+			wrap={actionLinkWrap(action, run.issue_identifier)}
 			actions={<InboxActionPill action={action} />}
 		/>
 	)

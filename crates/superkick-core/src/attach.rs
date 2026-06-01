@@ -40,19 +40,16 @@ pub fn prepare_attach(
     run: &Run,
     session: &AgentSession,
 ) -> Result<(AttachPayload, RunEvent), CoreError> {
-    // Session belongs to this run
     if session.run_id != run.id {
         return Err(CoreError::InvalidInput(
             "session does not belong to this run".into(),
         ));
     }
 
-    // Run is not in terminal state
     if run.state.is_terminal() {
         return Err(CoreError::InvalidInput("run is in terminal state".into()));
     }
 
-    // Session is eligible for attach
     if !matches!(
         session.status,
         AgentStatus::Starting | AgentStatus::Running | AgentStatus::Failed
@@ -62,7 +59,6 @@ pub fn prepare_attach(
         ));
     }
 
-    // Worktree path available
     let Some(ref worktree_path) = run.worktree_path else {
         return Err(CoreError::InvalidInput(
             "no worktree path available for this run".into(),

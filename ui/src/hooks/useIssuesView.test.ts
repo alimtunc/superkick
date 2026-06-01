@@ -296,7 +296,7 @@ describe('useIssuesView', () => {
 		expect(r.tabCounts).toEqual({ mine: 1, 'all-open': 2, shipped: 1 })
 	})
 
-	it('list and kanban share the same filtered view-model', () => {
+	it('list and board share the same filtered view-model', () => {
 		const sixDaysAgo = new Date(NOW.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString()
 		const issues = [
 			makeIssue({ identifier: 'A', assigneeId: VIEWER, stateType: 'started' }),

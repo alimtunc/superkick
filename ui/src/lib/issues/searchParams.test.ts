@@ -3,10 +3,6 @@ import { describe, expect, it } from 'vitest'
 import { parseIssuesSearch, resolveSearch } from './searchParams'
 
 describe('parseIssuesSearch', () => {
-	it('rewrites legacy view=kanban to view=board', () => {
-		expect(parseIssuesSearch({ view: 'kanban' }).view).toBe('board')
-	})
-
 	it('keeps view=list and view=board as-is', () => {
 		expect(parseIssuesSearch({ view: 'list' }).view).toBe('list')
 		expect(parseIssuesSearch({ view: 'board' }).view).toBe('board')

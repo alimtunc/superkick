@@ -1,7 +1,18 @@
 import type { ReactNode } from 'react'
 
 import type { AgentProvider, ChatPermissionMode } from '@/types'
-import { ClipboardList, CodeXml, Hand, Sparkles } from 'lucide-react'
+import { Bot, ClipboardList, CodeXml, Hand, Sparkles } from 'lucide-react'
+
+export interface ProviderOption {
+	value: AgentProvider
+	label: string
+	icon: ReactNode
+}
+
+export const PROVIDER_OPTIONS: ProviderOption[] = [
+	{ value: 'claude', label: 'Claude', icon: <Sparkles size={14} strokeWidth={1.75} /> },
+	{ value: 'codex', label: 'Codex', icon: <Bot size={14} strokeWidth={1.75} /> }
+]
 
 interface ModelOption {
 	value: string | null

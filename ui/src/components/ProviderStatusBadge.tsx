@@ -1,9 +1,10 @@
+import { Pill, type PillTone } from '@/components/ui/pill'
 import type { ProviderStatus } from '@/types'
 
-const styles: Record<ProviderStatus, string> = {
-	available: 'bg-emerald-500/15 text-emerald-300',
-	unavailable: 'bg-danger-soft text-danger',
-	stale: 'bg-warn-soft text-warn'
+const tones: Record<ProviderStatus, PillTone> = {
+	available: 'success',
+	unavailable: 'danger',
+	stale: 'warn'
 }
 
 interface ProviderStatusBadgeProps {
@@ -12,10 +13,12 @@ interface ProviderStatusBadgeProps {
 
 export function ProviderStatusBadge({ status }: ProviderStatusBadgeProps) {
 	return (
-		<span
-			className={`font-data inline-block rounded px-2 py-0.5 text-[10px] font-medium tracking-wider uppercase ${styles[status]}`}
+		<Pill
+			tone={tones[status]}
+			size="xs"
+			className="font-data h-auto rounded px-2 py-0.5 text-[10px] tracking-wider uppercase"
 		>
 			{status}
-		</span>
+		</Pill>
 	)
 }

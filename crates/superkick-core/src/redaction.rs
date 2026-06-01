@@ -35,9 +35,7 @@ static PATTERNS: LazyLock<Vec<(&'static str, Regex)>> = LazyLock::new(|| {
     ];
     raw.iter()
         .map(|(kind, pattern)| {
-            let regex = Regex::new(pattern).unwrap_or_else(|err| {
-                panic!("invalid redaction pattern {kind:?}: {err}");
-            });
+            let regex = Regex::new(pattern).expect("bug: invalid hardcoded redaction pattern");
             (*kind, regex)
         })
         .collect()

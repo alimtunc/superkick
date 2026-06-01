@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { PopoverPopup } from '@/components/ui/popover-shell'
 import type { ProjectOption } from '@/types'
 
+import { filterByName } from './filterByName'
 import { PopBody, PopHeader, Popline } from './popoverParts'
 
 interface ProjectPickerProps {
@@ -13,10 +14,7 @@ interface ProjectPickerProps {
 
 export function ProjectPicker({ projects, currentId, onSelect }: ProjectPickerProps) {
 	const [query, setQuery] = useState('')
-	const filtered =
-		query.trim().length === 0
-			? projects
-			: projects.filter((project) => project.name.toLowerCase().includes(query.toLowerCase()))
+	const filtered = filterByName(projects, query)
 
 	return (
 		<PopoverPopup popupClassName="w-72 max-h-80 overflow-hidden flex flex-col p-0">

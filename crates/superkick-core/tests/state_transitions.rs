@@ -117,11 +117,6 @@ fn any_active_state_can_cancel() {
 }
 
 #[test]
-fn failed_can_retry_to_queued() {
-    assert!(RunState::Failed.can_transition_to(RunState::Queued));
-}
-
-#[test]
 fn failed_sets_finished_at() {
     let mut run = run_in(RunState::Preparing);
     run.transition_to(RunState::Failed).unwrap();
@@ -140,6 +135,12 @@ fn completed_is_terminal() {
 fn cancelled_is_terminal() {
     assert!(RunState::Cancelled.is_terminal());
     assert!(RunState::Cancelled.allowed_transitions().is_empty());
+}
+
+#[test]
+fn failed_is_terminal() {
+    assert!(RunState::Failed.is_terminal());
+    assert!(RunState::Failed.allowed_transitions().is_empty());
 }
 
 #[test]

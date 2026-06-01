@@ -13,10 +13,9 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::Utc;
-use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
-use tokio::sync::broadcast;
+use portable_pty::CommandBuilder;
 use tracing::warn;
 
 use superkick_core::{
@@ -25,8 +24,9 @@ use superkick_core::{
 };
 use superkick_storage::repo::RunEventRepo;
 
+use crate::agent_supervisor::process::{SpawnedPty, open_pty_and_spawn};
 use crate::pty_io::read_pty_raw;
-use crate::pty_session::{PtySession, PtySessionRegistry, TakeoverEntry};
+use crate::pty_session::{PtySessionRegistry, TakeoverEntry};
 
 /// Outcome of a takeover spawn — what the service hands back to the handler.
 pub struct SpawnedTakeover {
@@ -230,15 +230,6 @@ where
     }
 }
 
-// ── PTY spawn helpers (local to the takeover service) ────────────────
-
-struct SpawnedPty {
-    child: Box<dyn portable_pty::Child + Send + Sync>,
-    master_reader: Box<dyn std::io::Read + Send>,
-    session: Arc<PtySession>,
-    broadcast_tx: broadcast::Sender<Vec<u8>>,
-}
-
 fn spawn_takeover_pty(
     run_id: RunId,
     cwd: &Path,
@@ -249,40 +240,12 @@ fn spawn_takeover_pty(
     // takeovers.
     command.cwd(cwd);
 
-    let pty_system = NativePtySystem::default();
-    let pty_pair = pty_system
-        .openpty(PtySize {
-            rows: 24,
-            cols: 80,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .context("failed to open takeover PTY pair")?;
-
-    let master_reader = pty_pair
-        .master
-        .try_clone_reader()
-        .context("failed to clone takeover PTY master reader")?;
-    let master_writer = pty_pair
-        .master
-        .take_writer()
-        .context("failed to take takeover PTY master writer")?;
-
-    let (session, broadcast_tx) = PtySession::new(run_id, master_writer, pty_pair.master);
-
-    let child = pty_pair
-        .slave
-        .spawn_command(command)
-        .context("failed to spawn takeover PTY command")?;
-
-    drop(pty_pair.slave);
-
-    Ok(SpawnedPty {
-        child,
-        master_reader,
-        session,
-        broadcast_tx,
-    })
+    open_pty_and_spawn(
+        run_id,
+        command,
+        "takeover PTY",
+        "failed to spawn takeover PTY command",
+    )
 }
 
 async fn emit_takeover_event<E: RunEventRepo>(

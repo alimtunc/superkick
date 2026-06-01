@@ -48,7 +48,7 @@ pub fn apply_runner_mode(resolved: &ResolvedAgent, prompt: String) -> RunnerMode
             stdin_payload: None,
         },
         (provider, mode) => unreachable!(
-            "apply_runner_mode received an invalid (provider, runner_mode) pair: \
+            "bug: apply_runner_mode received an invalid (provider, runner_mode) pair: \
              ({provider:?}, {mode:?}); RoleRouter::resolve must reject this via \
              RunnerMode::validate_with before calling into the runtime"
         ),

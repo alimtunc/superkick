@@ -1,6 +1,11 @@
 use std::any::type_name;
 
 use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
+
+pub fn decode_rfc3339(value: &str) -> Result<DateTime<Utc>> {
+    Ok(DateTime::parse_from_rfc3339(value)?.to_utc())
+}
 
 pub fn serialize_enum<T: serde::Serialize>(value: &T) -> Result<String> {
     let encoded = serde_json::to_string(value)

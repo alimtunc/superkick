@@ -10,7 +10,7 @@ interface RecentlyDoneRowSummary {
 	ctx: string
 }
 
-export function runStateTone(state: RunState): SKTone {
+function runStateTone(state: RunState): SKTone {
 	if (state === 'completed') return 'success'
 	if (state === 'failed') return 'danger'
 	return 'neutral'

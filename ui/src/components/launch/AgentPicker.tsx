@@ -49,7 +49,12 @@ export function AgentPicker({
 				</span>
 			</Menu.Trigger>
 			<MenuPopup align="start" popupClassName="w-72">
-				<Menu.RadioGroup value={value ?? ''} onValueChange={(next) => onChange(next as string)}>
+				<Menu.RadioGroup
+					value={value ?? ''}
+					onValueChange={(next: unknown) => {
+						if (typeof next === 'string') onChange(next)
+					}}
+				>
 					{groups.map((group, index) => (
 						<Fragment key={group.provider}>
 							{index > 0 ? <div aria-hidden className="mx-2 my-1 h-px bg-border" /> : null}

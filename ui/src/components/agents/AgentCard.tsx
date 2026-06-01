@@ -1,39 +1,20 @@
-import type { SKTone } from '@/types/icons'
-import type { AgentIdentity } from '@/ui/Avatar'
+import { Pill } from '@/components/ui/pill'
+import type { AgentProvider, AgentSummary } from '@/types'
 import { Avatar } from '@/ui/Avatar'
 import { Icon } from '@/ui/Icon'
 import { Sparkline } from '@/ui/Sparkline'
 
 interface AgentCardProps {
-	id?: string
-	name: string
-	role: string
-	model: string
-	runs: number
-	success: number
-	sparkline: number[]
-	tags: string[]
-	tone: SKTone
-	status: 'active' | 'paused'
+	agent: AgentSummary
 }
 
-function agentIdentityOf(model: string): AgentIdentity {
+function agentIdentityOf(model: string): AgentProvider {
 	const m = model.toLowerCase()
 	return m.includes('codex') || m.includes('gpt') ? 'codex' : 'claude'
 }
 
-export function AgentCard({
-	id,
-	name,
-	role,
-	model,
-	runs,
-	success,
-	sparkline,
-	tags,
-	tone,
-	status
-}: AgentCardProps) {
+export function AgentCard({ agent }: AgentCardProps) {
+	const { id, name, role, model, runs, success, sparkline, tags, tone, status } = agent
 	const isActive = status === 'active'
 	const successOk = success >= 85
 
@@ -50,18 +31,18 @@ export function AgentCard({
 				<div className="flex min-w-0 flex-1 flex-col gap-1">
 					<div className="flex items-center gap-2">
 						<span className="text-[14px] font-semibold text-fg">{name}</span>
-						<span className="pill pill--neutral">{role}</span>
+						<Pill tone="neutral">{role}</Pill>
 					</div>
 					<span className="mono text-[12px] text-fg-dim">{model}</span>
 				</div>
-				<span className={`pill ${isActive ? 'pill--success' : 'pill--warn'}`}>
-					{isActive ? (
-						<span className="agdot agdot--running" />
-					) : (
-						<Icon name="pause" size={11} className="ic" />
-					)}
+				<Pill
+					tone={isActive ? 'success' : 'warn'}
+					dot={isActive}
+					pulse={isActive}
+					leading={isActive ? undefined : <Icon name="pause" size={11} className="ic" />}
+				>
 					{status}
-				</span>
+				</Pill>
 			</header>
 
 			<Sparkline tone={tone} data={sparkline} width={260} height={28} />
@@ -83,9 +64,9 @@ export function AgentCard({
 
 			<div className="flex flex-wrap gap-1.5">
 				{tags.map((tag) => (
-					<span key={tag} className="pill pill--neutral">
+					<Pill key={tag} tone="neutral">
 						{tag}
-					</span>
+					</Pill>
 				))}
 			</div>
 		</article>

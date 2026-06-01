@@ -15,10 +15,6 @@ interface ChatConversationViewProps {
 	model: string | null
 	onModeChange: (next: ChatPermissionMode) => void
 	onModelChange: (next: string | null) => void
-	/** First-turn text handed off from `NewChatLauncher` once it has created
-	 * the conversation row. The view dispatches it through the standard
-	 * turn-create mutation on mount — so transient failures surface in the
-	 * composer's error pill and a retry stays on the same conversation. */
 	pendingFirstMessage?: string | null
 	onPendingFirstMessageConsumed?: () => void
 }
@@ -40,12 +36,7 @@ export function ChatConversationView({
 	const eventsByTurn = view.detail?.events_by_turn ?? {}
 	const isStreaming = view.activeTurnId !== null
 
-	// Auto-scroll the transcript so the latest content stays in view, both
-	// when a new turn appends and as live tokens arrive on an active turn.
-	// `liveTick` bumps once per live SSE envelope (see `onLiveEvent` below)
-	// so the effect re-fires mid-stream — `view.detail.events_by_turn` only
-	// updates on terminal refetch and would otherwise leave the scroll
-	// position frozen while tokens are still flowing.
+	// `liveTick` re-fires the scroll effect mid-stream: events_by_turn only updates on terminal refetch.
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const [liveTick, setLiveTick] = useState(0)
 	const handleLiveEvent = useCallback(() => setLiveTick((t) => t + 1), [])
@@ -55,16 +46,11 @@ export function ChatConversationView({
 		el.scrollTop = el.scrollHeight
 	}, [view.turns.length, view.activeTurnId, liveTick])
 
-	// Reset the live tick when the active turn changes so a stale counter
-	// from a previous turn cannot re-trigger the scroll effect after a new
-	// turn appends but before its first live envelope lands.
 	useEffect(() => {
 		setLiveTick(0)
 	}, [view.activeTurnId])
 
-	// Latest mode / model snapshot for the pending-first-message effect.
-	// Read via ref so the effect only fires on `pendingFirstMessage` changes
-	// (not every keystroke that updates mode/model in the parent).
+	// Read via ref so the effect fires only on pendingFirstMessage changes, not on every mode/model edit.
 	const sendOptionsRef = useRef({ mode, model })
 	useEffect(() => {
 		sendOptionsRef.current = { mode, model }
@@ -73,9 +59,7 @@ export function ChatConversationView({
 	useEffect(() => {
 		if (!pendingFirstMessage) return
 		const { mode: m, model: md } = sendOptionsRef.current
-		void view.send(pendingFirstMessage, { mode: m, model: md ?? undefined }).catch(() => {
-			// surfaces via view.sendError; the composer's error pill prompts a retry
-		})
+		void view.send(pendingFirstMessage, { mode: m, model: md ?? undefined }).catch(() => {})
 		onPendingFirstMessageConsumed?.()
 	}, [pendingFirstMessage, view, onPendingFirstMessageConsumed])
 

@@ -1,4 +1,9 @@
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, isValidElement, type Key, type ReactNode } from 'react'
+
+function partKey(part: ReactNode, fallback: number): Key {
+	if (isValidElement(part) && part.key !== null) return part.key
+	return fallback
+}
 
 export function joinWithAnd(parts: ReactNode[]): ReactNode {
 	if (parts.length === 0) return null
@@ -15,7 +20,7 @@ export function joinWithAnd(parts: ReactNode[]): ReactNode {
 	return (
 		<>
 			{head.map((part, i) => (
-				<Fragment key={i}>
+				<Fragment key={partKey(part, i)}>
 					{part}
 					{', '}
 				</Fragment>

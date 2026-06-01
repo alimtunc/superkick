@@ -1,6 +1,6 @@
-import type { KeyboardEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
-import { cn } from '@/lib/utils'
+import { Switch } from '@/components/ui/switch'
 
 interface ToggleProps {
 	checked: boolean
@@ -11,28 +11,21 @@ interface ToggleProps {
 }
 
 export function Toggle({ checked, ariaLabel, onChange, label, disabled = false }: ToggleProps) {
-	const interactive = !disabled
-	const toggle = () => onChange?.(!checked)
-	const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-		if (event.key === 'Enter' || event.key === ' ') {
-			event.preventDefault()
-			toggle()
-		}
-	}
+	const control = (
+		<Switch
+			checked={checked}
+			disabled={disabled}
+			aria-label={ariaLabel}
+			onCheckedChange={(next) => onChange?.(next)}
+		/>
+	)
+
+	if (!label) return control
 
 	return (
-		<div
-			className={cn('toggle', checked ? 'toggle--on' : null)}
-			role="switch"
-			aria-checked={checked}
-			aria-label={ariaLabel}
-			aria-disabled={disabled || undefined}
-			tabIndex={interactive ? 0 : undefined}
-			onClick={interactive ? toggle : undefined}
-			onKeyDown={interactive ? onKeyDown : undefined}
-		>
-			<span className="toggle__track" />
-			{label ? <span className="toggle__label">{label}</span> : null}
-		</div>
+		<span className="toggle">
+			{control}
+			<span className="toggle__label">{label}</span>
+		</span>
 	)
 }

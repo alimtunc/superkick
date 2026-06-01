@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use chrono::Utc;
-use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
+use portable_pty::CommandBuilder;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
@@ -15,11 +15,12 @@ use superkick_core::{
 };
 use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
 
-use super::output::{emit_event, spawn_output_reader};
-use super::process::kill_by_pid;
+use super::output::spawn_output_reader;
+use super::process::{SpawnedPty, kill_by_pid, open_pty_and_spawn};
 use super::{AgentResult, record_lifecycle};
-use crate::pty_session::{PtySession, PtySessionRegistry};
+use crate::pty_session::PtySessionRegistry;
 use crate::session_bus::SessionBus;
+use crate::step_engine::emit_event;
 
 /// Dependencies for the supervised lifecycle, bundled to keep the arg count manageable.
 pub(crate) struct SupervisedDeps<S, E, T> {
@@ -91,7 +92,7 @@ where
     emit_event(
         &*event_repo,
         run_id,
-        step_id,
+        Some(step_id),
         EventKind::AgentOutput,
         EventLevel::Info,
         format!("agent {} started (pid {:?})", session.provider, pid),
@@ -163,7 +164,7 @@ where
             session.status = AgentStatus::Failed;
             session.finished_at = Some(Utc::now());
             emit_event(
-                &*event_repo, run_id, step_id,
+                &*event_repo, run_id, Some(step_id),
                 EventKind::Error, EventLevel::Error,
                 format!("agent {} timed out after {timeout:?}", session.provider),
             ).await;
@@ -193,7 +194,7 @@ where
             session.status = AgentStatus::Cancelled;
             session.finished_at = Some(Utc::now());
             emit_event(
-                &*event_repo, run_id, step_id,
+                &*event_repo, run_id, Some(step_id),
                 EventKind::AgentOutput, EventLevel::Warn,
                 format!("agent {} cancelled", session.provider),
             ).await;
@@ -253,14 +254,6 @@ where
     })
 }
 
-/// Result of spawning a PTY child process.
-struct SpawnedPty {
-    child: Box<dyn portable_pty::Child + Send + Sync>,
-    master_reader: Box<dyn std::io::Read + Send>,
-    session: Arc<PtySession>,
-    broadcast_tx: tokio::sync::broadcast::Sender<Vec<u8>>,
-}
-
 /// Open a PTY pair and spawn the child process on the slave side.
 fn spawn_pty_child(
     args: &[String],
@@ -270,50 +263,16 @@ fn spawn_pty_child(
 ) -> Result<SpawnedPty> {
     let program = args.first().context("args must not be empty")?;
 
-    let pty_system = NativePtySystem::default();
-    let pty_pair = pty_system
-        .openpty(PtySize {
-            rows: 24,
-            cols: 80,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .context("failed to open PTY pair")?;
-
-    // Clone the master reader before spawning — avoids a race if the child exits fast.
-    let master_reader = pty_pair
-        .master
-        .try_clone_reader()
-        .context("failed to clone PTY master reader")?;
-
-    // Get a writer handle for input into the PTY.
-    let master_writer = pty_pair
-        .master
-        .take_writer()
-        .context("failed to take PTY master writer")?;
-
-    // Create the PtySession with broadcast channel.
-    let (pty_session, broadcast_tx) = PtySession::new(run_id, master_writer, pty_pair.master);
-
     let mut cmd = CommandBuilder::new(program);
     cmd.args(&args[1..]);
     cmd.cwd(workdir);
 
-    let child = pty_pair
-        .slave
-        .spawn_command(cmd)
-        .with_context(|| format!("failed to spawn `{command_display}` via PTY"))?;
-
-    // Drop the slave — the child owns it now. Keeping it open would prevent
-    // EOF on the master when the child exits.
-    drop(pty_pair.slave);
-
-    Ok(SpawnedPty {
-        child,
-        master_reader,
-        session: pty_session,
-        broadcast_tx,
-    })
+    open_pty_and_spawn(
+        run_id,
+        cmd,
+        "PTY",
+        &format!("failed to spawn `{command_display}` via PTY"),
+    )
 }
 
 /// Schedule deferred cleanup of the PTY session from the registry (30s delay).
@@ -350,7 +309,7 @@ where
         emit_event(
             &**event_repo,
             run_id,
-            step_id,
+            Some(step_id),
             EventKind::AgentOutput,
             EventLevel::Info,
             format!("agent {} completed (exit 0)", session.provider),
@@ -362,7 +321,7 @@ where
         emit_event(
             &**event_repo,
             run_id,
-            step_id,
+            Some(step_id),
             EventKind::Error,
             EventLevel::Error,
             format!("agent {} failed (exit {code})", session.provider),

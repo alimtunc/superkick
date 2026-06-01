@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 
 import { AgentCard } from '@/components/agents/AgentCard'
 import { AGENTS_FIXTURE } from '@/components/agents/agentsFixture'
+import { Pill } from '@/components/ui/pill'
 import { usePageActions } from '@/shell/usePageActions'
 import { Btn } from '@/ui/Btn'
 import { createRoute } from '@tanstack/react-router'
@@ -23,10 +24,9 @@ function AgentsPage() {
 	const right = useMemo(
 		() => (
 			<div className="flex items-center gap-2">
-				<span className="pill pill--accent">
-					<span className="agdot agdot--running" />
+				<Pill tone="accent" dot pulse>
 					{running} / {total} running
-				</span>
+				</Pill>
 				<Btn kind="primary" size="sm" icon="plus">
 					New agent
 				</Btn>
@@ -41,19 +41,7 @@ function AgentsPage() {
 		<div className="px-6 py-6">
 			<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
 				{AGENTS_FIXTURE.map((agent) => (
-					<AgentCard
-						key={agent.id}
-						id={agent.id}
-						name={agent.name}
-						role={agent.role}
-						model={agent.model}
-						runs={agent.runs}
-						success={agent.success}
-						sparkline={agent.sparkline}
-						tags={agent.tags}
-						tone={agent.tone}
-						status={agent.status}
-					/>
+					<AgentCard key={agent.id} agent={agent} />
 				))}
 			</div>
 		</div>

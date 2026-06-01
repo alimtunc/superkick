@@ -7,7 +7,6 @@ pub mod cli_resume;
 pub mod conversation_runner;
 pub mod detector;
 pub mod git;
-pub mod handoff_service;
 pub mod heartbeat;
 pub mod interrupt_service;
 pub mod launch_queue_blockers;
@@ -18,14 +17,17 @@ pub mod launch_task_registry;
 pub mod launch_task_step_runner;
 pub mod linear_context;
 pub mod mcp_policy;
-pub mod orchestrator;
 pub mod ownership_service;
 pub mod protocol_adapter;
 pub mod pty_io;
 pub mod pty_session;
+pub mod pull_request_service;
+pub mod queue_triage_service;
+pub mod recovery_scheduler;
 pub mod release_validation;
 pub mod repo_cache;
 pub mod run_diff;
+pub mod run_service;
 pub mod runner_mode;
 pub mod session_bus;
 pub mod step_engine;
@@ -46,7 +48,6 @@ pub use conversation_runner::{
     RunChatSnapshot, TurnOverrides, TurnStreamItem,
 };
 pub use detector::{RuntimeDetector, boot_refresh, capabilities_for};
-pub use handoff_service::HandoffService;
 pub use heartbeat::spawn_heartbeat_listener;
 pub use interrupt_service::InterruptService;
 pub use launch_queue_blockers::reconcile_blockers;
@@ -63,9 +64,6 @@ pub use launch_task_registry::{CancelDecision, LaunchTaskRegistry, ReservedSlot}
 pub mod launch_task {
     pub use crate::launch_task_step_runner::{RealStepRunner, RealStepRunnerDeps};
 }
-pub use orchestrator::{
-    OrchestratedSession, Orchestrator, SessionObservation, spawn_lifecycle_persistence_sink,
-};
 pub use ownership_service::{OwnershipService, ServiceError as OwnershipServiceError};
 pub use protocol_adapter::{
     ClaudeAdapterOptions, ClaudePermissionMode, ClaudeProtocolAdapter, CodexAdapterOptions,
@@ -74,9 +72,13 @@ pub use protocol_adapter::{
     TurnHandle, protocol_event_channel,
 };
 pub use pty_session::{PtySession, PtySessionRegistry, TakeoverEntry, WriterHolder};
+pub use pull_request_service::{PR_SYNC_STALENESS_THRESHOLD, PullRequestService};
+pub use queue_triage_service::{QueueTriageService, RunTriage};
+pub use recovery_scheduler::spawn_recovery_scheduler;
 pub use release_validation::{RunnerAvailability, requested_runners, runner_available};
 pub use repo_cache::RepoCache;
 pub use run_diff::{DiffError, collect_run_diff};
+pub use run_service::{LaunchTaskCanceller, RunService, RunServiceError, RunSpawn};
 pub use session_bus::SessionBus;
 pub use step_engine::{StepEngine, StepEngineDeps};
 pub use step_failure_classifier::{

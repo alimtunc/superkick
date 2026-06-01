@@ -6,17 +6,15 @@ use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Json};
 use serde::{Deserialize, Serialize};
-use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
-    ArtifactKind, EventKind, EventLevel, ExecutionMode, LinkedPrSummary, PullRequest, Run,
-    RunAgentOverrides, RunDiff, RunEvent, RunId, TriggerSource, parse_pr_number,
+    AgentSession, AttentionRequest, ExecutionMode, Interrupt, PullRequest, Run, RunAgentOverrides,
+    RunDiff, RunEvent, RunId, RunStep, SessionOwnership, TriggerSource,
 };
 use superkick_runtime::{DiffError, collect_run_diff};
 use superkick_storage::SqliteRunRepo;
 use superkick_storage::repo::{
-    AgentSessionRepo, ArtifactRepo, AttentionRequestRepo, InterruptRepo, LaunchTaskRepo,
-    PullRequestRepo, RunEventRepo, RunRepo, RunStepRepo,
+    AgentSessionRepo, AttentionRequestRepo, InterruptRepo, RunEventRepo, RunRepo, RunStepRepo,
 };
 
 use crate::AppState;
@@ -146,51 +144,27 @@ pub(crate) async fn spawn_run_from_request(
     .with_budget(state.run_budget)
     .with_agent_overrides(agent_overrides);
 
-    if let Err(err) = state.run_repo.insert(&run).await {
-        if is_unique_violation(&err) {
-            // Re-check: the conflicting run may have finished between our guard and insert.
-            let existing = state
-                .run_repo
-                .find_active_by_issue_identifier(&run.issue_identifier)
-                .await?;
-            return match Run::guard_no_active(existing.as_ref(), &run.issue_identifier) {
-                // Still active → 409 Conflict
-                Err(core_err) => Err(AppError::from(core_err)),
-                // Race resolved: conflicting run finished between guard and insert.
-                Ok(()) => Err(AppError::Internal(anyhow::anyhow!(
-                    "unique constraint violated but no active run for issue {} — concurrent race resolved",
-                    run.issue_identifier
-                ))),
-            };
-        }
-        return Err(AppError::Internal(err));
-    }
-
-    let engine = Arc::clone(&state.engine);
-    let run_clone = run.clone();
-    let token = CancellationToken::new();
-    let spawn_token = token.clone();
-
-    {
-        let mut tokens = state.run_tokens.lock().await;
-        tokens.insert(run.id, token);
-    }
-
-    let run_tokens = Arc::clone(&state.run_tokens);
-    let run_id = run.id;
-    tokio::spawn(async move {
-        if let Err(e) = engine.execute(run_clone, spawn_token).await {
-            tracing::error!(error = %e, "run execution failed");
-        }
-        run_tokens.lock().await.remove(&run_id);
-    });
-
-    Ok(run)
+    state
+        .run_service
+        .spawn_run(run)
+        .await
+        .map_err(AppError::from)
 }
 
 pub async fn list_runs(State(state): State<AppState>) -> Result<Json<Vec<Run>>, AppError> {
     let runs = state.run_repo.list_all().await?;
     Ok(Json(runs))
+}
+
+#[derive(Serialize)]
+struct GetRunResponse {
+    run: Run,
+    steps: Vec<RunStep>,
+    sessions: Vec<AgentSession>,
+    interrupts: Vec<Interrupt>,
+    attention_requests: Vec<AttentionRequest>,
+    ownership: Vec<SessionOwnership>,
+    pr: Option<PullRequest>,
 }
 
 pub async fn get_run(
@@ -206,7 +180,7 @@ pub async fn get_run(
     let sessions = state.session_repo.list_by_run(run_id).await?;
     let interrupts = state.interrupt_repo.list_by_run(run_id).await?;
     let attention_requests = state.attention_repo.list_by_run(run_id).await?;
-    let pr = resolve_pr(&state, run_id, &run.repo_slug).await;
+    let pr = state.pr_service.resolve_pr(run_id, &run.repo_slug).await;
 
     let ownership = match state.ownership_service.snapshots_for_run(run_id).await {
         Ok(snaps) => snaps,
@@ -216,15 +190,15 @@ pub async fn get_run(
         }
     };
 
-    Ok(Json(serde_json::json!({
-        "run": run,
-        "steps": steps,
-        "sessions": sessions,
-        "interrupts": interrupts,
-        "attention_requests": attention_requests,
-        "ownership": ownership,
-        "pr": pr,
-    })))
+    Ok(Json(GetRunResponse {
+        run,
+        steps,
+        sessions,
+        interrupts,
+        attention_requests,
+        ownership,
+        pr,
+    }))
 }
 
 /// JSON snapshot of persisted events for a run; the SSE bus at
@@ -300,151 +274,10 @@ pub async fn cancel_run(
     Path(id): Path<uuid::Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     let run_id = RunId(id);
-
-    {
-        let mut tokens = state.run_tokens.lock().await;
-        if let Some(token) = tokens.remove(&run_id) {
-            token.cancel();
-        }
+    match state.run_service.cancel_run(run_id).await? {
+        None => Err(AppError::NotFound("run not found")),
+        Some(run) => Ok(Json(run)),
     }
-
-    let Some(mut run) = state.run_repo.get(run_id).await? else {
-        return Err(AppError::NotFound("run not found"));
-    };
-    if run.state.is_terminal() {
-        return Ok(Json(run));
-    }
-
-    if let Some(step) = state
-        .launch_task_repo
-        .find_step_by_linked_run(run_id)
-        .await?
-        && !step.status.is_terminal()
-    {
-        tracing::info!(%run_id, launch_task_id = %step.launch_task_id, "cancel run via launch-task executor");
-        state
-            .launch_task_executor
-            .cancel(step.launch_task_id)
-            .await?;
-        let mut refreshed = state
-            .run_repo
-            .get(run_id)
-            .await?
-            .ok_or(AppError::NotFound("run not found"))?;
-        if !refreshed.state.is_terminal() {
-            refreshed.transition_to(superkick_core::RunState::Cancelled)?;
-            state.run_repo.update(&refreshed).await?;
-            emit_cancel_event(&state, refreshed.id).await;
-        }
-        return Ok(Json(refreshed));
-    }
-
-    tracing::info!(%run_id, "cancel run via direct state transition");
-    run.transition_to(superkick_core::RunState::Cancelled)?;
-    state.run_repo.update(&run).await?;
-    emit_cancel_event(&state, run.id).await;
-    Ok(Json(run))
-}
-
-// Sole writer for the shadow-run terminal transition on operator cancel:
-// `launch_task_executor::cancel` only touches the launch_task row, never the
-// run. If that invariant changes, gate this emit to avoid double `state_change`.
-async fn emit_cancel_event(state: &AppState, run_id: RunId) {
-    let event = RunEvent::new(
-        run_id,
-        None,
-        EventKind::StateChange,
-        EventLevel::Info,
-        "run cancelled by operator".to_string(),
-    );
-    if let Err(err) = state.event_repo.insert(&event).await {
-        tracing::warn!(%run_id, error = %err, "failed to emit cancel state-change event");
-    }
-}
-
-/// Resolve the PullRequest for a run. Lazily creates a record from the PrUrl
-/// artifact if one doesn't exist yet. Syncs state from GitHub if stale.
-pub(crate) async fn resolve_pr(
-    state: &AppState,
-    run_id: RunId,
-    repo_slug: &str,
-) -> Option<PullRequest> {
-    // Check for existing PR record first.
-    if let Ok(Some(mut pr)) = state.pr_repo.get_by_run(run_id).await {
-        // Sync from GitHub if PR is in a non-terminal state and stale (>60s).
-        if !pr.state.is_terminal() {
-            let age = chrono::Utc::now() - pr.updated_at;
-            if age.num_seconds() > 60 {
-                sync_pr_state(state, &mut pr).await;
-            }
-        }
-        return Some(pr);
-    }
-
-    // No PR record yet — try to create one from the PrUrl artifact.
-    let pr_url = extract_pr_url_from_artifacts(state, run_id).await?;
-    let number = parse_pr_number(&pr_url)?;
-
-    let pr = PullRequest::new(
-        run_id,
-        number,
-        repo_slug.to_string(),
-        pr_url,
-        String::new(),
-        String::new(),
-    );
-
-    if let Err(e) = state.pr_repo.upsert(&pr).await {
-        tracing::warn!(run_id = %run_id.0, error = %e, "failed to persist PullRequest record");
-    }
-
-    // Immediately sync to get title and current state.
-    let mut pr = pr;
-    sync_pr_state(state, &mut pr).await;
-    Some(pr)
-}
-
-/// Extract a PR URL from the artifacts table (legacy path).
-async fn extract_pr_url_from_artifacts(state: &AppState, run_id: RunId) -> Option<String> {
-    let artifacts = state.artifact_repo.list_by_run(run_id).await.ok()?;
-    artifacts
-        .into_iter()
-        .find(|a| a.kind == ArtifactKind::PrUrl)
-        .map(|a| a.path_or_url)
-}
-
-/// Fetch current state from GitHub and update the local record.
-async fn sync_pr_state(state: &AppState, pr: &mut PullRequest) {
-    match superkick_integrations::github::fetch_pr_state(&pr.repo_slug, pr.number).await {
-        Ok(gh) => {
-            pr.state = gh.state;
-            pr.title = gh.title;
-            pr.merged_at = gh.merged_at;
-            pr.updated_at = chrono::Utc::now();
-            if let Err(e) = state.pr_repo.update(pr).await {
-                tracing::warn!(pr_id = %pr.id, error = %e, "failed to update PR state");
-            }
-        }
-        Err(e) => {
-            tracing::debug!(pr_number = pr.number, error = %e, "GitHub PR sync failed (gh cli may not be available)");
-        }
-    }
-}
-
-/// Build a `LinkedPrSummary` for a run, used by the issues handler.
-pub(crate) async fn resolve_pr_summary(
-    state: &AppState,
-    run_id: RunId,
-    repo_slug: &str,
-) -> Option<LinkedPrSummary> {
-    resolve_pr(state, run_id, repo_slug)
-        .await
-        .as_ref()
-        .map(LinkedPrSummary::from)
-}
-
-fn is_unique_violation(err: &anyhow::Error) -> bool {
-    superkick_storage::is_unique_violation(err)
 }
 
 /// SUP-172 — substate slice the run-diff handler reads. Carved out of

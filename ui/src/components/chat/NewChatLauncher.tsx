@@ -13,20 +13,11 @@ interface NewChatLauncherProps {
 	model: string | null
 	onModeChange: (next: ChatPermissionMode) => void
 	onModelChange: (next: string | null) => void
-	/** Called once the new conversation row exists. Parent swaps the empty
-	 * state for the conversation view, which then sends the operator's
-	 * first message via the standard turn-create mutation — keeping retries
-	 * on a single conversation row instead of double-creating on transient
-	 * failure. */
 	onCreated: (conversationId: string, firstMessage: string) => void
 }
 
-// V1 fixes the chat agent identifier — there is no "role" axis to pick
-// (planner/coder), only the provider that handles the conversation. Once a
-// runtime registry exposes per-agent profiles we can reintroduce the axis.
 const DEFAULT_AGENT_ID = 'default'
 
-// Splits conversation creation from first-turn send to isolate transient failures.
 export function NewChatLauncher({
 	subject,
 	mode,

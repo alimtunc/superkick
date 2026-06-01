@@ -1,10 +1,11 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{
     AttentionKind, AttentionReply, AttentionRequest, AttentionRequestId, AttentionStatus, RunId,
 };
 
-use super::codec::{deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::repo::AttentionRequestRepo;
 
 pub struct SqliteAttentionRequestRepo {
@@ -91,9 +92,7 @@ impl AttentionRequestRepo for SqliteAttentionRequestRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("update attention_request {}", request.id.0))?;
-        if result.rows_affected() == 0 {
-            return Err(anyhow!("attention request {} not found", request.id.0));
-        }
+        ensure_updated(result, "attention request", request.id.0)?;
         Ok(())
     }
 }
@@ -133,12 +132,8 @@ impl AttentionRow {
                 .map(serde_json::from_str::<AttentionReply>)
                 .transpose()?,
             replied_by: self.replied_by,
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
-            replied_at: self
-                .replied_at
-                .as_deref()
-                .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
-                .transpose()?,
+            created_at: decode_rfc3339(&self.created_at)?,
+            replied_at: self.replied_at.as_deref().map(decode_rfc3339).transpose()?,
         })
     }
 }

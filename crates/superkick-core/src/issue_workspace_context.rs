@@ -328,8 +328,10 @@ mod tests {
     fn set_memory_ledger_pointer_round_trips_and_bumps_updated_at() {
         let (mut ctx, _, _) =
             IssueWorkspaceContext::new(sample_snapshot(), vec![], vec![]).expect("valid snapshot");
-        let initial_updated_at = ctx.updated_at;
-        std::thread::sleep(std::time::Duration::from_millis(2));
+        // Pin `updated_at` to the past so the setter's `Utc::now()` is
+        // guaranteed strictly greater without sleeping the test thread.
+        let initial_updated_at = Utc::now() - chrono::Duration::seconds(1);
+        ctx.updated_at = initial_updated_at;
         ctx.set_memory_ledger_pointer(Some("ledger-uuid".into()));
         assert_eq!(ctx.memory_ledger_pointer.as_deref(), Some("ledger-uuid"));
         assert!(ctx.updated_at > initial_updated_at);

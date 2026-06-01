@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{RunId, TranscriptChunk, TranscriptChunkId};
 
+use super::codec::decode_rfc3339;
 use crate::repo::TranscriptRepo;
 
 pub struct SqliteTranscriptRepo {
@@ -60,7 +61,7 @@ impl TranscriptRow {
             id: TranscriptChunkId(uuid::Uuid::parse_str(&self.id)?),
             run_id: RunId(uuid::Uuid::parse_str(&self.run_id)?),
             sequence: self.sequence,
-            ts: chrono::DateTime::parse_from_rfc3339(&self.ts)?.to_utc(),
+            ts: decode_rfc3339(&self.ts)?,
             payload: self.payload,
         })
     }

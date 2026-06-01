@@ -1,7 +1,5 @@
 export {
 	fmtDuration,
-	avgDuration,
-	medianDuration,
 	elapsedMs,
 	fmtElapsed,
 	fmtRelativeTime,

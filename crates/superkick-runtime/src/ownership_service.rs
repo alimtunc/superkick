@@ -33,6 +33,8 @@ use superkick_core::{
 };
 use superkick_storage::repo::{RunEventRepo, SessionOwnershipRepo};
 
+use crate::step_engine::emit_built_event;
+
 use crate::pty_session::{PtySessionRegistry, WriterHolder};
 
 /// Snapshot of PTY writer state, suitable for `SessionOwnership`. `None` when
@@ -264,11 +266,16 @@ where
             event.to.kind_str(),
             event.reason,
         );
+        let payload = match serde_json::to_value(event) {
+            Ok(payload) => Some(payload),
+            Err(e) => {
+                tracing::warn!(run_id = %event.run_id, error = %e, "dropping ownership event payload: serialization failed");
+                None
+            }
+        };
         let mut run_event = RunEvent::new(event.run_id, None, kind, EventLevel::Info, message);
-        run_event.payload_json = serde_json::to_value(event).ok();
-        if let Err(e) = self.event_repo.insert(&run_event).await {
-            tracing::warn!("failed to emit ownership run event: {e}");
-        }
+        run_event.payload_json = payload;
+        emit_built_event(&*self.event_repo, &run_event, "ownership run").await;
     }
 
     /// Batch snapshot for every session in a run. Used by `get_run` to avoid

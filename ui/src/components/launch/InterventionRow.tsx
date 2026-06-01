@@ -19,10 +19,9 @@ function relativeTimestamp(iso: string): string {
 }
 
 export function InterventionRow({ intervention }: InterventionRowProps) {
-	const consumed = intervention.consumed_at != null
-	const status = consumed
-		? `delivered at ${relativeTimestamp(intervention.consumed_at as string)}`
-		: 'queued for next step'
+	const consumedAt = intervention.consumed_at
+	const status =
+		consumedAt != null ? `delivered at ${relativeTimestamp(consumedAt)}` : 'queued for next step'
 
 	return (
 		<div className="mb-3 rounded-md border border-border bg-surface/30 px-3 py-2">

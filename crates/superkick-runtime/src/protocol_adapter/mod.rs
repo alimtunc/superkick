@@ -16,6 +16,7 @@ mod claude_stream;
 mod codex;
 mod codex_stream;
 mod failure_hints;
+mod process;
 mod step_result_marker;
 mod stub;
 

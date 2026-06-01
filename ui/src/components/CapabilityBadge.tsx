@@ -1,3 +1,4 @@
+import { Pill } from '@/components/ui/pill'
 import { Tooltip } from '@/components/ui/tooltip'
 
 interface CapabilityBadgeProps {
@@ -13,11 +14,13 @@ export function CapabilityBadge({ label, title, enabled }: CapabilityBadgeProps)
 	const fullLabel = enabled ? title : `${title} (not supported)`
 	return (
 		<Tooltip label={fullLabel}>
-			<span
-				className={`font-data inline-flex h-5 items-center rounded border px-1.5 text-[9px] tracking-wider uppercase ${tone}`}
+			<Pill
+				tone="neutral"
+				size="xs"
+				className={`font-data h-5 rounded border px-1.5 text-[9px] tracking-wider uppercase ${tone}`}
 			>
 				{label}
-			</span>
+			</Pill>
 		</Tooltip>
 	)
 }

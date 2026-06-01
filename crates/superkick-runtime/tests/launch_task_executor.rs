@@ -19,8 +19,8 @@ use superkick_core::{
 };
 use superkick_runtime::test_support::{agents, catalog, drain_events};
 use superkick_runtime::{
-    LaunchTaskEvent, LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry, RetryError,
-    StepLinks, StepOutcome, StepRunner,
+    CancelDecision, LaunchTaskEvent, LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry,
+    RetryError, StepLinks, StepOutcome, StepRunner,
 };
 use superkick_storage::repo::LaunchTaskRepo;
 use superkick_storage::{SqliteLaunchTaskRepo, connect};
@@ -543,19 +543,22 @@ async fn cancel_mid_step_marks_task_and_current_step_cancelled() -> Result<()> {
     let task_id = task.id;
     let exec_handle = tokio::spawn(async move { exec_for_run.run(task_id).await });
 
-    // Wait for the registry to register the task — this confirms the executor
-    // has reached the spawn point and the planner step is running. Polling
-    // here is fine; the executor registers synchronously before the first
-    // repo write.
+    // Wait for the task to reach Running — the executor registers its cancel
+    // token synchronously *before* writing this status, so observing Running
+    // proves the token is live in the registry without mutating the slot.
     for _ in 0..100 {
-        if registry.contains(task_id) {
+        if matches!(
+            repo.get(task_id).await?.map(|t| t.status),
+            Some(LaunchTaskStatus::Running)
+        ) {
             break;
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
-    assert!(
-        registry.contains(task_id),
-        "executor should have registered cancel token before running the planner step"
+    assert_eq!(
+        repo.get(task_id).await?.map(|t| t.status),
+        Some(LaunchTaskStatus::Running),
+        "executor should have moved the task to Running (after registering its cancel token)"
     );
 
     // Wait until the planner step actually transitions to Running so we know
@@ -570,7 +573,15 @@ async fn cancel_mid_step_marks_task_and_current_step_cancelled() -> Result<()> {
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
 
-    assert!(registry.cancel(task_id), "cancel must signal a live token");
+    // A live token exists (planner is mid-step), so cancel_or_reserve must
+    // signal it rather than reserve an empty slot.
+    assert!(
+        matches!(
+            registry.cancel_or_reserve(task_id),
+            CancelDecision::Signalled
+        ),
+        "cancel must signal a live token"
+    );
     exec_handle.await??;
 
     let reloaded = repo.get(task_id).await?.unwrap();

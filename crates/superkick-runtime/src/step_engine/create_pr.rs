@@ -33,7 +33,7 @@ where
         worktree: &std::path::Path,
         cancel_token: &CancellationToken,
     ) -> Result<()> {
-        let (create, _generate_description) = self.find_pr_config();
+        let create = self.find_pr_config();
 
         if !create {
             info!(run_id = %run.id, "PR creation disabled (create: false) — skipping");
@@ -117,7 +117,7 @@ where
             &["rev-parse", &format!("origin/{}", run.base_branch)],
         )
         .await
-        .unwrap_or_default();
+        .with_context(|| format!("failed to resolve base sha for origin/{}", run.base_branch))?;
 
         let head_sha = crate::git::git(worktree, &["rev-parse", "HEAD"])
             .await
@@ -288,16 +288,12 @@ where
     }
 
     /// Extract PR config from the workflow steps, defaulting to create: true.
-    pub(super) fn find_pr_config(&self) -> (bool, bool) {
+    pub(super) fn find_pr_config(&self) -> bool {
         for ws in &self.config.workflow.steps {
-            if let superkick_config::WorkflowStep::Pr {
-                create,
-                generate_description,
-            } = ws
-            {
-                return (*create, *generate_description);
+            if let superkick_config::WorkflowStep::Pr { create, .. } = ws {
+                return *create;
             }
         }
-        (true, false)
+        true
     }
 }

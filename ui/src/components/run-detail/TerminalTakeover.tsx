@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { takeoverWsUrl } from '@/api'
 import { PtyTerminal } from '@/components/run-detail/PtyTerminal'
 import { TerminalTakeoverModeButton } from '@/components/run-detail/TerminalTakeoverModeButton'
+import { Button } from '@/components/ui/button'
 import {
 	useActiveTakeovers,
 	useCloseTakeover,
@@ -156,14 +157,16 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 								<span className="font-data text-[10px] text-fg-dim">
 									· {modeLabel(activeTakeover.mode)}
 								</span>
-								<button
+								<Button
 									type="button"
+									variant="outline"
+									size="xs"
 									onClick={handleClose}
 									disabled={closing}
-									className="font-data hover:border-rust/40 hover:text-rust focus-visible:ring-rust/40 ml-auto inline-flex items-center gap-1 rounded-sm border border-border bg-surface/40 px-2 py-1 text-[10px] tracking-wider text-fg-muted uppercase transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+									className="font-data hover:border-rust/40 hover:text-rust focus-visible:ring-rust/40 ml-auto h-auto rounded-sm border-border bg-surface/40 px-2 py-1 text-[10px] tracking-wider text-fg-muted uppercase focus-visible:ring-2"
 								>
 									Close takeover
-								</button>
+								</Button>
 							</div>
 							<PtyTerminal
 								runId={runId}
@@ -215,21 +218,25 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 								</select>
 							</label>
 							<div className="flex gap-2">
-								<button
+								<Button
 									type="button"
+									variant="outline"
+									size="xs"
 									onClick={() => handleConfirmForce(pendingForceSubMode)}
 									disabled={openMutation.isPending}
-									className="font-data border-rust/60 bg-rust/20 text-rust hover:border-rust hover:bg-rust/30 focus-visible:ring-rust/40 inline-flex items-center gap-1 rounded-sm border px-2 py-1 text-[10px] tracking-wider uppercase transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+									className="font-data border-rust/60 bg-rust/20 text-rust hover:border-rust hover:bg-rust/30 focus-visible:ring-rust/40 h-auto rounded-sm px-2 py-1 text-[10px] tracking-wider uppercase focus-visible:ring-2"
 								>
 									Cancel turn & take over
-								</button>
-								<button
+								</Button>
+								<Button
 									type="button"
+									variant="outline"
+									size="xs"
 									onClick={() => setPendingForceSubMode(null)}
-									className="font-data inline-flex items-center gap-1 rounded-sm border border-border bg-surface/40 px-2 py-1 text-[10px] tracking-wider text-fg-muted uppercase transition-colors hover:border-success/40 focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:outline-none"
+									className="font-data h-auto rounded-sm border-border bg-surface/40 px-2 py-1 text-[10px] tracking-wider text-fg-muted uppercase hover:border-success/40 focus-visible:ring-2 focus-visible:ring-success/40"
 								>
 									Back
-								</button>
+								</Button>
 							</div>
 						</div>
 					) : null}

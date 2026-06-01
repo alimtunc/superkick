@@ -14,18 +14,14 @@ import {
 	TurnAlreadyStreamingError,
 	apiErrorField,
 	apiErrorMessage,
+	postJson,
+	postVoid,
 	readApiErrorBody,
-	throwGenericApiError
+	subscribeToSse
 } from './_shared'
 
 export async function createConversation(req: CreateConversationRequest): Promise<Conversation> {
-	const res = await fetch(`${BASE}/conversations`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(req)
-	})
-	if (!res.ok) await throwGenericApiError(res, 'create conversation failed')
-	return res.json()
+	return postJson('/conversations', 'create conversation failed', req)
 }
 
 export async function fetchConversation(id: string): Promise<ConversationDetail> {
@@ -105,10 +101,7 @@ export async function createTurn(
 }
 
 export async function cancelTurn(conversationId: string, turnId: string): Promise<void> {
-	const res = await fetch(`${BASE}/conversations/${conversationId}/turns/${turnId}/cancel`, {
-		method: 'POST'
-	})
-	if (!res.ok) await throwGenericApiError(res, 'cancel turn failed')
+	await postVoid(`/conversations/${conversationId}/turns/${turnId}/cancel`, 'cancel turn failed')
 }
 
 export function subscribeToTurnEvents(
@@ -120,32 +113,10 @@ export function subscribeToTurnEvents(
 		onError?: (err: Event) => void
 	}
 ): () => void {
-	const es = new EventSource(`${BASE}/turns/${turnId}/events`)
-
-	es.addEventListener('turn_event', (e) => {
-		try {
-			const envelope = JSON.parse(e.data) as TurnEventEnvelope
-			handlers.onEvent(envelope)
-		} catch (err) {
-			handlers.onError?.(err as unknown as Event)
-		}
+	return subscribeToSse<TurnEventEnvelope>(`/turns/${turnId}/events`, 'turn_event', {
+		onEvent: handlers.onEvent,
+		onLagged: handlers.onLagged,
+		onClosed: handlers.onDone,
+		onError: handlers.onError
 	})
-
-	es.addEventListener('lagged', (e) => {
-		const skipped = Number.parseInt(e.data, 10) || 0
-		handlers.onLagged?.(skipped)
-	})
-
-	es.addEventListener('done', () => {
-		es.close()
-		handlers.onDone?.()
-	})
-
-	es.addEventListener('error', (err) => {
-		if (es.readyState === EventSource.CLOSED) {
-			handlers.onError?.(err)
-		}
-	})
-
-	return () => es.close()
 }

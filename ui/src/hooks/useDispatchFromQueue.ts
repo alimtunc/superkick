@@ -11,15 +11,6 @@ interface DispatchMutationVariables {
 	request?: DispatchFromQueueRequest
 }
 
-/**
- * Dispatch a launchable Linear issue from the queue.
- *
- * Owns the 409-handling + toast feedback so route components can just call
- * `dispatch(identifier)` — the success toast, the `DuplicateRunError`
- * branch, and the generic failure copy all live in one place, matching the
- * `useCreateRun` shape. The cache-invalidation footprint stays tight:
- * launch-queue, runs list, dashboard queue.
- */
 export function useDispatchFromQueue() {
 	const queryClient = useQueryClient()
 

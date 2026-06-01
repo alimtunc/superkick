@@ -5,7 +5,6 @@
 pub fn parse_repo_slug(url: &str) -> Option<String> {
     let url = url.trim();
 
-    // SSH: git@github.com:owner/repo.git
     if let Some(path) = url.strip_prefix("git@github.com:") {
         let slug = path.strip_suffix(".git").unwrap_or(path);
         if slug.contains('/') && !slug.starts_with('/') {
@@ -13,7 +12,6 @@ pub fn parse_repo_slug(url: &str) -> Option<String> {
         }
     }
 
-    // HTTPS: https://github.com/owner/repo.git
     if let Some(rest) = url
         .strip_prefix("https://github.com/")
         .or_else(|| url.strip_prefix("http://github.com/"))

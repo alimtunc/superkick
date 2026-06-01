@@ -20,11 +20,7 @@ impl From<GqlComment> for IssueComment {
         Self {
             id: c.id,
             body: c.body,
-            author: c.user.map(|u| IssueAssignee {
-                id: u.id,
-                name: u.name,
-                avatar_url: u.avatar_url,
-            }),
+            author: c.user.map(gql_user_to_assignee),
             created_at: c.created_at,
             updated_at: c.updated_at,
             parent_id: c.parent.map(|p| p.id),
@@ -124,11 +120,7 @@ impl From<GqlIssueDetail> for IssueDetailResponse {
                     color: l.color,
                 })
                 .collect(),
-            assignee: g.assignee.map(|a| IssueAssignee {
-                id: a.id,
-                name: a.name,
-                avatar_url: a.avatar_url,
-            }),
+            assignee: g.assignee.map(gql_user_to_assignee),
             project: g.project.map(|p| IssueProject { name: p.name }),
             cycle: g.cycle.map(|c| IssueCycle {
                 name: c.name,
@@ -376,11 +368,7 @@ impl From<GqlIssue> for LinearIssueListItem {
                     color: l.color,
                 })
                 .collect(),
-            assignee: g.assignee.map(|a| IssueAssignee {
-                id: a.id,
-                name: a.name,
-                avatar_url: a.avatar_url,
-            }),
+            assignee: g.assignee.map(gql_user_to_assignee),
             project: g.project.map(|p| IssueProject { name: p.name }),
             parent: g.parent.map(parent_ref_from_gql),
             children: g
@@ -450,11 +438,7 @@ fn gql_child_to_child_ref(c: GqlChildIssue) -> IssueChildRef {
                 color: l.color,
             })
             .collect(),
-        assignee: c.assignee.map(|a| IssueAssignee {
-            id: a.id,
-            name: a.name,
-            avatar_url: a.avatar_url,
-        }),
+        assignee: c.assignee.map(gql_user_to_assignee),
         updated_at: c.updated_at,
     }
 }

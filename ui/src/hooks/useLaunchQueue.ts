@@ -17,18 +17,6 @@ const EMPTY_GROUPS: Record<LaunchQueue, LaunchQueueItem[]> = LAUNCH_QUEUES.reduc
 	{} as Record<LaunchQueue, LaunchQueueItem[]>
 )
 
-/**
- * Launch queue snapshot + live refresh on `state_change` events and
- * `dependency_resolved` issue events (SUP-81). The classifier is pure — it
- * recomputes the queue from (issues, runs, config) on every GET — so we just
- * invalidate the query and let the server re-derive, instead of duplicating
- * the bucketing rules client-side.
- *
- * The `recentUnblocks` map tracks downstream issues whose blocker resolved in
- * the current session; consumers show an "unblocked" badge for 24 h (see
- * `UNBLOCK_BADGE_WINDOW_MS`). Session-local on purpose: the event feed is the
- * authoritative audit source; no additional storage is required.
- */
 export function useLaunchQueue() {
 	const query = useQuery(launchQueueQuery())
 	const queryClient = useQueryClient()
@@ -67,9 +55,7 @@ export function useLaunchQueue() {
 	}
 }
 
-/** Add `id -> resolvedAt` and drop any prior entry older than the badge
- *  window, so the session-local map cannot grow unbounded across a multi-day
- *  session. */
+// Drops entries older than the badge window so the session-local map can't grow unbounded.
 function pruneAndInsert(prev: RecentUnblocks, id: string, resolvedAt: string): RecentUnblocks {
 	const cutoff = Date.now() - UNBLOCK_BADGE_WINDOW_MS
 	const next: RecentUnblocks = {}

@@ -63,21 +63,24 @@ export function EditableTitle({ issue }: EditableTitleProps) {
 	}
 
 	return (
-		<h1
+		<button
+			type="button"
 			className="issue-title"
-			role="button"
-			tabIndex={0}
 			onClick={() => setEditing(true)}
-			onKeyDown={(event) => {
-				if (event.key === 'Enter' || event.key === ' ') {
-					event.preventDefault()
-					setEditing(true)
-				}
-			}}
 			aria-label="Edit title"
-			style={{ cursor: 'text' }}
+			style={{
+				appearance: 'none',
+				background: 'none',
+				border: 'none',
+				padding: 0,
+				margin: 0,
+				width: '100%',
+				textAlign: 'left',
+				fontFamily: 'inherit',
+				cursor: 'text'
+			}}
 		>
 			{issue.title}
-		</h1>
+		</button>
 	)
 }

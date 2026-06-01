@@ -1,4 +1,5 @@
 import type { PillTone } from '@/components/ui/pill'
+import { truncate } from '@/lib/format'
 import type { LaunchQueueItem, NeedsHumanItem, NeedsHumanReasonKind, QueueRunSummary, Run } from '@/types'
 import type { SKTone } from '@/types/icons'
 
@@ -172,9 +173,4 @@ function isRecent(iso: string | null, now: number): boolean {
 	const ts = Date.parse(iso)
 	if (Number.isNaN(ts)) return false
 	return now - ts <= FAILED_RECENT_WINDOW_MS
-}
-
-function truncate(value: string, max: number): string {
-	if (value.length <= max) return value
-	return `${value.slice(0, max - 1)}…`
 }

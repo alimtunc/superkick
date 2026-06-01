@@ -6,7 +6,7 @@ use superkick_core::{
     StepKey, TriggerSource,
 };
 
-use super::codec::{deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
 use super::ensure_updated;
 use crate::repo::RunRepo;
 
@@ -217,12 +217,12 @@ impl RunRow {
             worktree_path: self.worktree_path,
             branch_name: self.branch_name,
             operator_instructions: self.operator_instructions,
-            started_at: chrono::DateTime::parse_from_rfc3339(&self.started_at)?.to_utc(),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)?.to_utc(),
+            started_at: decode_rfc3339(&self.started_at)?,
+            updated_at: decode_rfc3339(&self.updated_at)?,
             finished_at: self
                 .finished_at
                 .as_deref()
-                .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
+                .map(decode_rfc3339)
                 .transpose()?,
             error_message: self.error_message,
             budget,
@@ -232,7 +232,7 @@ impl RunRow {
             last_heartbeat_at: self
                 .last_heartbeat_at
                 .as_deref()
-                .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
+                .map(decode_rfc3339)
                 .transpose()?,
             agent_overrides,
         })

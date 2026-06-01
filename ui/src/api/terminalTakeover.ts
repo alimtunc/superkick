@@ -5,7 +5,7 @@ import type {
 	TakeoverModesResponse
 } from '@/types'
 
-import { BASE, throwGenericApiError } from './_shared'
+import { BASE, getJson, postJson, throwGenericApiError } from './_shared'
 
 export function takeoverWsUrl(runId: string, takeoverSessionId: string): string {
 	const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -13,19 +13,11 @@ export function takeoverWsUrl(runId: string, takeoverSessionId: string): string 
 }
 
 export async function fetchTakeoverModes(runId: string): Promise<TakeoverModesResponse> {
-	const res = await fetch(`${BASE}/runs/${runId}/terminal-takeover/modes`)
-	if (!res.ok) await throwGenericApiError(res, 'fetch takeover modes failed')
-	return res.json()
+	return getJson(`/runs/${runId}/terminal-takeover/modes`, 'fetch takeover modes failed')
 }
 
 export async function openTakeover(runId: string, body: OpenTakeoverRequest): Promise<OpenedTakeover> {
-	const res = await fetch(`${BASE}/runs/${runId}/terminal-takeover/open`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(body)
-	})
-	if (!res.ok) await throwGenericApiError(res, 'open takeover failed')
-	return res.json()
+	return postJson(`/runs/${runId}/terminal-takeover/open`, 'open takeover failed', body)
 }
 
 export async function closeTakeover(runId: string, takeoverSessionId: string): Promise<void> {
@@ -36,7 +28,5 @@ export async function closeTakeover(runId: string, takeoverSessionId: string): P
 }
 
 export async function listActiveTakeovers(runId: string): Promise<ActiveTakeoversResponse> {
-	const res = await fetch(`${BASE}/runs/${runId}/takeovers`)
-	if (!res.ok) await throwGenericApiError(res, 'list takeovers failed')
-	return res.json()
+	return getJson(`/runs/${runId}/takeovers`, 'list takeovers failed')
 }

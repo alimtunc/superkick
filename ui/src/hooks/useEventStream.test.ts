@@ -52,7 +52,7 @@ describe('mergeRunEvents', () => {
 
 describe('eventStreamReducer — reset', () => {
 	it('clears accumulated events so a runId change does not leak prior run history', () => {
-		const populated = { events: [event('a'), event('b')], connected: true, done: false }
+		const populated = { events: [event('a'), event('b')] }
 
 		const next = eventStreamReducer(populated, { type: 'reset' })
 
@@ -60,7 +60,7 @@ describe('eventStreamReducer — reset', () => {
 	})
 
 	it('returns the same state identity when already at the initial state', () => {
-		const initial = { events: [], connected: true, done: false }
+		const initial = { events: [] }
 
 		const next = eventStreamReducer(initial, { type: 'reset' })
 

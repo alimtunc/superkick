@@ -8,6 +8,11 @@ export function formatLongDate(iso: string): string {
 	return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+export function truncate(value: string, max: number): string {
+	if (value.length <= max) return value
+	return `${value.slice(0, max - 1)}…`
+}
+
 export function getInitials(name: string): string {
 	return name
 		.split(/\s+/)

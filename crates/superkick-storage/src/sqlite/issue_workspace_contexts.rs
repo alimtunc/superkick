@@ -21,7 +21,8 @@ use superkick_core::{
     IssueWorkspaceContextLinkId, IssueWorkspaceContextLinkKind,
 };
 
-use super::codec::{deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::is_unique_violation;
 use crate::repo::IssueWorkspaceContextRepo;
 
@@ -291,9 +292,7 @@ impl IssueWorkspaceContextRepo for SqliteIssueWorkspaceContextRepo {
                 id.0
             )
         })?;
-        if result.rows_affected() == 0 {
-            return Err(anyhow!("issue_workspace_context {} not found", id.0));
-        }
+        ensure_updated(result, "issue_workspace_context", id.0)?;
         Ok(())
     }
 
@@ -303,9 +302,7 @@ impl IssueWorkspaceContextRepo for SqliteIssueWorkspaceContextRepo {
             .execute(&self.pool)
             .await
             .with_context(|| format!("delete issue_workspace_context {}", id.0))?;
-        if result.rows_affected() == 0 {
-            return Err(anyhow!("issue_workspace_context {} not found", id.0));
-        }
+        ensure_updated(result, "issue_workspace_context", id.0)?;
         Ok(())
     }
 }
@@ -335,10 +332,10 @@ impl IssueWorkspaceContextRow {
             snapshot_title: self.snapshot_title,
             snapshot_body_md: self.snapshot_body_md,
             snapshot_status_name: self.snapshot_status_name,
-            captured_at: chrono::DateTime::parse_from_rfc3339(&self.captured_at)?.to_utc(),
+            captured_at: decode_rfc3339(&self.captured_at)?,
             memory_ledger_pointer: self.memory_ledger_pointer,
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)?.to_utc(),
+            created_at: decode_rfc3339(&self.created_at)?,
+            updated_at: decode_rfc3339(&self.updated_at)?,
         })
     }
 }
@@ -363,7 +360,7 @@ impl IssueWorkspaceContextCommentExcerptRow {
             linear_comment_id: self.linear_comment_id,
             author: self.author,
             body_md: self.body_md,
-            captured_at: chrono::DateTime::parse_from_rfc3339(&self.captured_at)?.to_utc(),
+            captured_at: decode_rfc3339(&self.captured_at)?,
         })
     }
 }
@@ -386,7 +383,7 @@ impl IssueWorkspaceContextLinkRow {
             )?),
             link_kind: deserialize_enum::<IssueWorkspaceContextLinkKind>(&self.link_kind)?,
             target_id: self.target_id,
-            attached_at: chrono::DateTime::parse_from_rfc3339(&self.attached_at)?.to_utc(),
+            attached_at: decode_rfc3339(&self.attached_at)?,
         })
     }
 }

@@ -4,6 +4,7 @@ import { PopoverPopup } from '@/components/ui/popover-shell'
 import type { LabelOption } from '@/types'
 import { Btn } from '@/ui/Btn'
 
+import { filterByName } from './filterByName'
 import { PopBody, PopFooter, PopHeader, Popline } from './popoverParts'
 
 interface LabelsPickerProps {
@@ -15,10 +16,7 @@ interface LabelsPickerProps {
 export function LabelsPicker({ labels, selectedIds, onApply }: LabelsPickerProps) {
 	const [draft, setDraft] = useState<Set<string>>(() => new Set(selectedIds))
 	const [query, setQuery] = useState('')
-	const filtered =
-		query.trim().length === 0
-			? labels
-			: labels.filter((label) => label.name.toLowerCase().includes(query.toLowerCase()))
+	const filtered = filterByName(labels, query)
 
 	const toggle = (id: string) => {
 		setDraft((prev) => {

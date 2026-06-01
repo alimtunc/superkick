@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{PrState, PullRequest, PullRequestId, RunId};
 
-use super::codec::{deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
 use super::ensure_updated;
 use crate::repo::PullRequestRepo;
 
@@ -99,14 +99,9 @@ impl PullRequestRow {
             state: deserialize_enum::<PrState>(&self.state)?,
             title: self.title,
             head_branch: self.head_branch,
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)?.to_utc(),
-            merged_at: self
-                .merged_at
-                .as_deref()
-                .map(chrono::DateTime::parse_from_rfc3339)
-                .transpose()?
-                .map(|dt| dt.to_utc()),
+            created_at: decode_rfc3339(&self.created_at)?,
+            updated_at: decode_rfc3339(&self.updated_at)?,
+            merged_at: self.merged_at.as_deref().map(decode_rfc3339).transpose()?,
         })
     }
 }

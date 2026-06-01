@@ -7,7 +7,7 @@ import type {
 	IssueUpdateRequest
 } from '@/types'
 
-import { BASE, throwGenericApiError, throwLinearError } from './_shared'
+import { BASE, patchVoid, throwLinearError } from './_shared'
 
 export async function fetchIssues(limit = 200): Promise<IssueListResponse> {
 	const res = await fetch(`${BASE}/issues?limit=${limit}`)
@@ -27,12 +27,7 @@ export async function patchIssueState(
 	state: IssueStateMutable,
 	teamId: string | null
 ): Promise<void> {
-	const res = await fetch(`${BASE}/issues/${id}`, {
-		method: 'PATCH',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ state, team_id: teamId })
-	})
-	if (!res.ok) await throwGenericApiError(res, `PATCH /issues/${id} failed`)
+	await patchVoid(`/issues/${id}`, `PATCH /issues/${id} failed`, { state, team_id: teamId })
 }
 
 /** Create a Linear issue. Returns the fully hydrated detail so the caller can navigate without a follow-up GET. */

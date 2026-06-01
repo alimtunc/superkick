@@ -1,17 +1,39 @@
 //! Internal deserialization types matching the Linear GraphQL response shape.
 
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 use super::super::error::LinearError;
 
-// ── Issue list response ──────────────────────────────────────────────
+/// Linear's `priority` is wire-typed `Float` but ranges over the integer scale
+/// 0..=4; accept the Float shape (matching the history path's `Option<f32>`) and
+/// round into the domain `u8`, collapsing out-of-range to `0` ("No priority").
+fn deserialize_priority<'de, D>(deserializer: D) -> Result<u8, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let raw = f64::deserialize(deserializer)?;
+    if !raw.is_finite() {
+        return Ok(0);
+    }
+    let rounded = raw.round();
+    if !(0.0..=4.0).contains(&rounded) {
+        return Ok(0);
+    }
+    Ok(rounded as u8)
+}
 
+/// Linear's top-level GraphQL response envelope: every query/mutation comes
+/// back as `{ data, errors }`. `T` is the operation-specific `data` payload.
 #[derive(Debug, Deserialize)]
-pub(crate) struct GqlResponse {
-    pub data: Option<GqlData>,
+pub(crate) struct GqlEnvelope<T> {
+    pub data: Option<T>,
     pub errors: Option<Vec<GqlError>>,
 }
+
+// ── Issue list response ──────────────────────────────────────────────
+
+pub(crate) type GqlResponse = GqlEnvelope<GqlData>;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GqlError {
@@ -103,6 +125,7 @@ pub(crate) struct GqlIssue {
     pub state: GqlIssueState,
     #[serde(default)]
     pub team: Option<GqlTeamRef>,
+    #[serde(deserialize_with = "deserialize_priority")]
     pub priority: u8,
     pub priority_label: String,
     pub labels: GqlLabelConnection,
@@ -160,6 +183,7 @@ pub(crate) struct GqlChildIssue {
     pub title: String,
     pub updated_at: DateTime<Utc>,
     pub state: GqlIssueState,
+    #[serde(deserialize_with = "deserialize_priority")]
     pub priority: u8,
     pub priority_label: String,
     pub labels: GqlLabelConnection,
@@ -193,11 +217,7 @@ pub(crate) struct GqlUser {
     pub avatar_url: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GqlViewerResponse {
-    pub data: Option<GqlViewerData>,
-    pub errors: Option<Vec<GqlError>>,
-}
+pub(crate) type GqlViewerResponse = GqlEnvelope<GqlViewerData>;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GqlViewerData {
@@ -206,11 +226,7 @@ pub(crate) struct GqlViewerData {
 
 // ── Issue detail response ────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GqlDetailResponse {
-    pub data: Option<GqlDetailData>,
-    pub errors: Option<Vec<GqlError>>,
-}
+pub(crate) type GqlDetailResponse = GqlEnvelope<GqlDetailData>;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GqlDetailData {
@@ -228,6 +244,7 @@ pub(crate) struct GqlIssueDetail {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub state: GqlIssueState,
+    #[serde(deserialize_with = "deserialize_priority")]
     pub priority: u8,
     pub priority_label: String,
     pub labels: GqlLabelConnection,
@@ -369,11 +386,7 @@ pub(crate) struct GqlCommentRef {
 
 // ── Issue search response ────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GqlSearchResponse {
-    pub data: Option<GqlSearchData>,
-    pub errors: Option<Vec<GqlError>>,
-}
+pub(crate) type GqlSearchResponse = GqlEnvelope<GqlSearchData>;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -383,11 +396,7 @@ pub(crate) struct GqlSearchData {
 
 // ── Recent comments response ─────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GqlCommentsResponse {
-    pub data: Option<GqlCommentsData>,
-    pub errors: Option<Vec<GqlError>>,
-}
+pub(crate) type GqlCommentsResponse = GqlEnvelope<GqlCommentsData>;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GqlCommentsData {
@@ -419,11 +428,7 @@ pub(crate) struct GqlRecentCommentIssue {
 
 // ── Team workflow states (drag-and-drop status mutation) ─────────────
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GqlTeamStatesResponse {
-    pub data: Option<GqlTeamStatesData>,
-    pub errors: Option<Vec<GqlError>>,
-}
+pub(crate) type GqlTeamStatesResponse = GqlEnvelope<GqlTeamStatesData>;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GqlTeamStatesData {
@@ -455,11 +460,7 @@ pub(crate) struct GqlWorkflowState {
 
 // ── Issue team lookup (cold-cache fallback for update_issue_state) ───
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GqlIssueTeamResponse {
-    pub data: Option<GqlIssueTeamData>,
-    pub errors: Option<Vec<GqlError>>,
-}
+pub(crate) type GqlIssueTeamResponse = GqlEnvelope<GqlIssueTeamData>;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GqlIssueTeamData {
@@ -473,11 +474,7 @@ pub(crate) struct GqlIssueTeam {
 
 // ── issueUpdate mutation response ────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GqlIssueUpdateResponse {
-    pub data: Option<GqlIssueUpdateData>,
-    pub errors: Option<Vec<GqlError>>,
-}
+pub(crate) type GqlIssueUpdateResponse = GqlEnvelope<GqlIssueUpdateData>;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -496,11 +493,7 @@ pub(crate) struct GqlIssueUpdate {
 
 // ── issueCreate mutation response ────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GqlIssueCreateResponse {
-    pub data: Option<GqlIssueCreateData>,
-    pub errors: Option<Vec<GqlError>>,
-}
+pub(crate) type GqlIssueCreateResponse = GqlEnvelope<GqlIssueCreateData>;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -517,11 +510,7 @@ pub(crate) struct GqlIssueCreate {
 
 // ── commentCreate mutation response ──────────────────────────────────
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GqlCommentCreateResponse {
-    pub data: Option<GqlCommentCreateData>,
-    pub errors: Option<Vec<GqlError>>,
-}
+pub(crate) type GqlCommentCreateResponse = GqlEnvelope<GqlCommentCreateData>;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -538,11 +527,7 @@ pub(crate) struct GqlCommentCreate {
 
 // ── linearOptions composite query response ───────────────────────────
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GqlOptionsResponse {
-    pub data: Option<GqlOptionsData>,
-    pub errors: Option<Vec<GqlError>>,
-}
+pub(crate) type GqlOptionsResponse = GqlEnvelope<GqlOptionsData>;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

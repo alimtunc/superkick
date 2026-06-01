@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import { InboxRow } from '@/components/inbox/InboxRow'
 import { Pill } from '@/components/ui/pill'
 import { pendingLabel, pickPrimaryAction } from '@/lib/inbox/actions'
@@ -10,6 +12,19 @@ interface ReadyToLaunchRowProps {
 	dispatchPosition: number
 	onDispatch: (issueIdentifier: string) => void
 	dispatchPending: boolean
+}
+
+function issueLinkWrap(issueId: string, issueIdentifier: string) {
+	return (inner: ReactNode) => (
+		<Link
+			to="/issues/$issueId"
+			params={{ issueId }}
+			className="flex min-w-0 flex-1 items-start"
+			aria-label={`View ${issueIdentifier}`}
+		>
+			{inner}
+		</Link>
+	)
 }
 
 export function ReadyToLaunchRow({
@@ -32,16 +47,7 @@ export function ReadyToLaunchRow({
 			}
 			why={item.reason || null}
 			ctx={`${item.issue.identifier}${priorityLabel ? ` · ${priorityLabel}` : ''}`}
-			wrap={(inner) => (
-				<Link
-					to="/issues/$issueId"
-					params={{ issueId: item.issue.id }}
-					className="flex min-w-0 flex-1 items-start"
-					aria-label={`View ${item.issue.identifier}`}
-				>
-					{inner}
-				</Link>
-			)}
+			wrap={issueLinkWrap(item.issue.id, item.issue.identifier)}
 			actions={
 				<Btn
 					kind="primary"

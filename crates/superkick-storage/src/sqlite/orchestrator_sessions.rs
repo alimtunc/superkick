@@ -8,7 +8,7 @@
 //! and bumps the parent session's denormalised pointers in the same
 //! transaction so the pointer cannot reference a missing row.
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{
     AgentProvider, EventId, HandoffId, OperatorId, OrchestratorCheckpoint,
@@ -16,7 +16,8 @@ use superkick_core::{
     OrchestratorStatus, RunId, RuntimeProviderId,
 };
 
-use super::codec::{deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::repo::OrchestratorSessionRepo;
 
 pub struct SqliteOrchestratorSessionRepo {
@@ -145,9 +146,7 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("update orchestrator_session {}", s.id.0))?;
-        if result.rows_affected() == 0 {
-            return Err(anyhow!("orchestrator_session {} not found", s.id.0));
-        }
+        ensure_updated(result, "orchestrator_session", s.id.0)?;
         Ok(())
     }
 
@@ -166,9 +165,7 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("set provider_session_id for orchestrator_session {}", id.0))?;
-        if result.rows_affected() == 0 {
-            return Err(anyhow!("orchestrator_session {} not found", id.0));
-        }
+        ensure_updated(result, "orchestrator_session", id.0)?;
         Ok(())
     }
 
@@ -228,13 +225,7 @@ impl OrchestratorSessionRepo for SqliteOrchestratorSessionRepo {
             )
         })?;
 
-        if result.rows_affected() == 0 {
-            return Err(anyhow!(
-                "orchestrator_session {} not found while inserting checkpoint {}",
-                c.session_id.0,
-                c.id.0
-            ));
-        }
+        ensure_updated(result, "orchestrator_session", c.session_id.0)?;
 
         tx.commit()
             .await
@@ -330,8 +321,8 @@ impl OrchestratorSessionRow {
                 .map(uuid::Uuid::parse_str)
                 .transpose()?
                 .map(EventId),
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)?.to_utc(),
+            created_at: decode_rfc3339(&self.created_at)?,
+            updated_at: decode_rfc3339(&self.updated_at)?,
         })
     }
 }
@@ -374,7 +365,7 @@ impl OrchestratorCheckpointRow {
             child_handoff_ids: serde_json::from_str::<Vec<HandoffId>>(
                 &self.child_handoff_ids_json,
             )?,
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
+            created_at: decode_rfc3339(&self.created_at)?,
         })
     }
 }

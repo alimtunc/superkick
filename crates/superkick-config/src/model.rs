@@ -275,9 +275,6 @@ pub struct AgentBudget {
     pub max_turns: Option<u32>,
 }
 
-/// Backwards-compatible alias — older call sites refer to `AgentConfig`.
-pub type AgentConfig = AgentDefinition;
-
 impl SuperkickConfig {
     /// Build the immutable `AgentCatalog` consumed by the core `RoleRouter`.
     ///
@@ -529,7 +526,7 @@ pub struct LaunchProfileConfig {
     pub allowed_agents: Option<Vec<String>>,
 }
 
-// ── Orchestration (SUP-80) ──────────────────────────────────────────
+// ── Orchestration ───────────────────────────────────────────────────
 //
 // Caps that gate when a Linear issue is allowed to transition from
 // "triggerable" to "launchable" in the launch queue. Purely declarative —
@@ -578,7 +575,7 @@ pub struct ApprovalRulesConfig {
     pub priorities: Vec<u8>,
 }
 
-// ── Recovery scheduler (SUP-73) ─────────────────────────────────────
+// ── Recovery scheduler ──────────────────────────────────────────────
 //
 // Heartbeat-driven recovery. The defaults live in
 // [`superkick_core::RecoveryConfig`] so they stay in one place; this section

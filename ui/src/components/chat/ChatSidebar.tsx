@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/state-empty'
 import { LoadingState } from '@/components/ui/state-loading'
 import { useNow } from '@/hooks/useNow'
 import { deriveConversationUxState, fmtRelativeShort } from '@/lib/domain'
+import { truncate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { ConversationSummary, ConversationUxState } from '@/types'
 import { MessagesSquare, Plus } from 'lucide-react'
@@ -21,10 +22,8 @@ interface ChatSidebarProps {
 
 const MAX_TITLE_CHARS = 48
 
-function truncate(text: string, max = MAX_TITLE_CHARS): string {
-	const trimmed = text.replaceAll(/\s+/g, ' ').trim()
-	if (trimmed.length <= max) return trimmed
-	return `${trimmed.slice(0, max - 1)}…`
+function truncateTitle(text: string, max = MAX_TITLE_CHARS): string {
+	return truncate(text.replaceAll(/\s+/g, ' ').trim(), max)
 }
 
 function conversationTimestamp(conversation: ConversationSummary): string {
@@ -33,7 +32,7 @@ function conversationTimestamp(conversation: ConversationSummary): string {
 
 function conversationTitle(conversation: ConversationSummary): string {
 	const opener = conversation.first_user_text?.trim()
-	return opener && opener.length > 0 ? truncate(opener) : 'Untitled chat'
+	return opener && opener.length > 0 ? truncateTitle(opener) : 'Untitled chat'
 }
 
 export function ChatSidebar({

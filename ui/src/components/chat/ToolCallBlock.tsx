@@ -1,46 +1,45 @@
+import { safeStringify } from '@/components/chat/toolCallBlock.helpers'
 import { Disclosure } from '@/components/ui/disclosure'
+import { truncate } from '@/lib/format'
 import type { ToolCallEntry } from '@/types'
 
-function safeStringify(value: unknown, pretty = true): string {
-	if (value === null || value === undefined) return ''
-	if (typeof value === 'string') return value
-	try {
-		return JSON.stringify(value, null, pretty ? 2 : 0)
-	} catch {
-		return String(value)
-	}
+interface ToolCallHeaderProps {
+	open: boolean
+	call: ToolCallEntry
+	hasOutput: boolean
+	summary: string
 }
 
-function truncate(value: string, max: number): string {
-	return value.length > max ? `${value.slice(0, max)}…` : value
+function ToolCallHeader({ open, call, hasOutput, summary }: ToolCallHeaderProps) {
+	return (
+		<>
+			<span className="text-info uppercase">tool</span>
+			<span className="truncate text-fg">{call.tool_name}</span>
+			{call.is_error ? (
+				<span className="rounded bg-danger-soft px-1.5 py-0.5 text-[10px] text-danger">error</span>
+			) : null}
+			{!hasOutput ? (
+				<span className="rounded bg-info-soft px-1.5 py-0.5 text-[10px] text-info">running…</span>
+			) : null}
+			{!open && summary ? (
+				<span className="ml-auto truncate text-[10px] text-fg-dim">{summary}</span>
+			) : null}
+		</>
+	)
+}
+
+function toolCallHeader(call: ToolCallEntry, hasOutput: boolean, summary: string) {
+	return (open: boolean) => (
+		<ToolCallHeader open={open} call={call} hasOutput={hasOutput} summary={summary} />
+	)
 }
 
 export function ToolCallBlock({ call }: { call: ToolCallEntry }) {
 	const hasOutput = call.output !== null
-	const summary = truncate(safeStringify(call.input, false), 60)
+	const summary = truncate(safeStringify(call.input, false), 61)
 
 	return (
-		<Disclosure
-			header={(open) => (
-				<>
-					<span className="text-info uppercase">tool</span>
-					<span className="truncate text-fg">{call.tool_name}</span>
-					{call.is_error ? (
-						<span className="rounded bg-danger-soft px-1.5 py-0.5 text-[10px] text-danger">
-							error
-						</span>
-					) : null}
-					{!hasOutput ? (
-						<span className="rounded bg-info-soft px-1.5 py-0.5 text-[10px] text-info">
-							running…
-						</span>
-					) : null}
-					{!open && summary ? (
-						<span className="ml-auto truncate text-[10px] text-fg-dim">{summary}</span>
-					) : null}
-				</>
-			)}
-		>
+		<Disclosure header={toolCallHeader(call, hasOutput, summary)}>
 			<div className="space-y-2">
 				<pre className="wrap-break-word whitespace-pre-wrap text-fg-dim">
 					input: {safeStringify(call.input)}

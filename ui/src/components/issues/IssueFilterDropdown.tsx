@@ -391,31 +391,17 @@ function axisLabel(axis: AxisKey): string {
 	return found ? found.label : axis
 }
 
+type StringAxisKey = Exclude<AxisKey, 'priority'>
+type AxisValue = { axis: 'priority'; value: number } | { axis: StringAxisKey; value: string }
+
+function axisValue(axis: AxisKey, value: string | number): AxisValue {
+	return axis === 'priority' ? { axis, value: Number(value) } : { axis, value: String(value) }
+}
+
 function isSelected(filters: IssueFilterState, axis: AxisKey, value: string | number): boolean {
-	switch (axis) {
-		case 'assignee':
-			return filters.assignee.includes(value as string)
-		case 'status':
-			return filters.status.includes(value as string)
-		case 'priority':
-			return filters.priority.includes(value as number)
-		case 'label':
-			return filters.label.includes(value as string)
-		case 'project':
-			return filters.project.includes(value as string)
-		case 'repo':
-			return filters.repo.includes(value as string)
-		case 'task':
-			return filters.task.includes(value as string)
-		case 'created':
-			return filters.created.includes(value as string)
-		case 'updated':
-			return filters.updated.includes(value as string)
-		case 'completed':
-			return filters.completed.includes(value as string)
-		case 'has_sub_issues':
-			return filters.has_sub_issues.includes(value as string)
-	}
+	const av = axisValue(axis, value)
+	if (av.axis === 'priority') return filters.priority.includes(av.value)
+	return filters[av.axis].includes(av.value)
 }
 
 function toggleFilterValue(
@@ -423,17 +409,15 @@ function toggleFilterValue(
 	axis: AxisKey,
 	value: string | number
 ): IssueFilterState {
-	if (axis === 'priority') {
+	const av = axisValue(axis, value)
+	if (av.axis === 'priority') {
 		const current = filters.priority
-		const next = current.includes(value as number)
-			? current.filter((v) => v !== value)
-			: [...current, value as number]
+		const next = current.includes(av.value)
+			? current.filter((v) => v !== av.value)
+			: [...current, av.value]
 		return { ...filters, priority: next }
 	}
-	const key: Exclude<AxisKey, 'priority'> = axis
-	const current = filters[key]
-	const next = current.includes(value as string)
-		? current.filter((v) => v !== value)
-		: [...current, value as string]
-	return { ...filters, [key]: next }
+	const current = filters[av.axis]
+	const next = current.includes(av.value) ? current.filter((v) => v !== av.value) : [...current, av.value]
+	return { ...filters, [av.axis]: next }
 }

@@ -11,7 +11,7 @@
 
 mod lifecycle;
 pub(crate) mod output;
-mod process;
+pub(crate) mod process;
 
 use std::path::PathBuf;
 use std::sync::Arc;

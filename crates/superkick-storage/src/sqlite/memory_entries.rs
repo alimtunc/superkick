@@ -17,6 +17,7 @@ use superkick_core::{
     IssueWorkspaceContextId, MemoryCursor, MemoryEntry, MemoryEntryId, MemoryPage,
 };
 
+use super::codec::decode_rfc3339;
 use crate::repo::MemoryEntryRepo;
 
 pub struct SqliteMemoryEntryRepo {
@@ -123,7 +124,7 @@ impl MemoryEntryRow {
             author: self.author,
             role: self.role,
             text: self.text,
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
+            created_at: decode_rfc3339(&self.created_at)?,
         })
     }
 }

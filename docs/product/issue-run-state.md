@@ -65,7 +65,7 @@ Owned by Superkick. Eleven variants live in
 | `WaitingHuman` | Paused on operator decision. The pause *cause* is in `pause_kind`. |
 | `OpeningPr` | PR creation step running. |
 | `Completed` | Terminal — PR opened (or no-op completion). |
-| `Failed` | Terminal but retryable: `Failed → Queued` is the only transition out. |
+| `Failed` | Terminal final. |
 | `Cancelled` | Terminal final. |
 
 Mirror in TypeScript:
@@ -191,13 +191,15 @@ state.
 
 ### `Failed`
 
-(a) `RunState::Failed`, `finished_at` set, `error_message` populated. The
-only allowed transition out is back to `Queued` (retry).
+(a) `RunState::Failed`, `finished_at` set, `error_message` populated.
+Terminal final — there is no in-place transition out. Recovery is a fresh
+run (one issue → many runs).
 
 (b) Nothing.
 
-(c) LinkedRuns surfaces the failed run with a retry affordance; the issue
-badge is unchanged.
+(c) LinkedRuns surfaces the failed run with a retry affordance (which
+dispatches a new run, not an in-place transition); the issue badge is
+unchanged.
 
 ### `Cancelled`
 

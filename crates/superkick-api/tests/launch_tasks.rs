@@ -19,9 +19,9 @@ use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use superkick_api::launch_task_test_router;
 use superkick_core::{
-    AgentCatalog, AgentProvider, CoreAgentDefinition, CoreError, ExecutionMode, LaunchTaskId,
-    LaunchTaskStatus, LaunchTaskStepStatus, LinearContextMode, ResolvedMcpPolicy,
-    ResolvedToolPolicy, Run, TriggerSource,
+    AgentCatalog, AgentProvider, CoreAgentDefinition, CoreError, ExecutionMode, HandoffStatus,
+    LaunchTaskId, LaunchTaskStatus, LaunchTaskStepStatus, LinearContextMode, ResolvedMcpPolicy,
+    ResolvedToolPolicy, Run, RunState, TriggerSource,
 };
 use superkick_storage::connect;
 use superkick_storage::repo::{LaunchTaskInterventionRepo, LaunchTaskRepo, RunRepo};
@@ -476,13 +476,20 @@ async fn retry_on_unknown_task_returns_404() {
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
-/// Verifies the `CoreError → AppError` mapping for the two new variants. No
-/// HTTP endpoint in SUP-116 mutates a task or step (writes are deferred to
-/// SUP-118 + the storage layer is tested directly), but the mapping must
-/// already render 409 so the execution loop's error surface is consistent
-/// from day one.
+/// Verifies the `CoreError → AppError` mapping renders every transition-refusal
+/// variant as 409 Conflict — the mapping is exhaustive (no catch-all), so a
+/// state-machine rejection never leaks as a 500. Covers the run-state machine
+/// (`InvalidTransition`), the launch-task aggregate/step, the handoff aggregate,
+/// keeping the execution loop's error surface consistent.
 #[tokio::test]
 async fn invalid_transitions_map_to_409() {
+    let response = superkick_api::tests_only::map_core_error(CoreError::InvalidTransition {
+        from: RunState::Completed,
+        to: RunState::Preparing,
+    })
+    .into_response();
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
     let response =
         superkick_api::tests_only::map_core_error(CoreError::InvalidLaunchTaskTransition {
             from: LaunchTaskStatus::Pending,
@@ -497,6 +504,13 @@ async fn invalid_transitions_map_to_409() {
             to: LaunchTaskStepStatus::Completed,
         })
         .into_response();
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    let response = superkick_api::tests_only::map_core_error(CoreError::InvalidHandoffTransition {
+        from: HandoffStatus::Pending,
+        to: HandoffStatus::Completed,
+    })
+    .into_response();
     assert_eq!(response.status(), StatusCode::CONFLICT);
 }
 

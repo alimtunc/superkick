@@ -59,15 +59,18 @@ export function useIssueKanbanDnd({ groups }: UseIssueKanbanDndParams): UseIssue
 				},
 				onDragOver: ({ active, over }) => {
 					if (!over) return `${active.id} is over no column.`
-					const target = over.id as IssueState
+					const target = over.id
+					if (!isIssueState(target)) return `${active.id} is over no column.`
 					if (!isDroppableIssueState(target)) {
 						return `${active.id} is over ${issueStateAccent[target].label} — not droppable.`
 					}
 					return `${active.id} is over ${issueStateAccent[target].label}.`
 				},
 				onDragEnd: ({ active, over }) => {
-					if (!over) return `${active.id} dropped outside a column. Reverted.`
-					return `${active.id} dropped on ${issueStateAccent[over.id as IssueState].label}.`
+					if (!over || !isIssueState(over.id)) {
+						return `${active.id} dropped outside a column. Reverted.`
+					}
+					return `${active.id} dropped on ${issueStateAccent[over.id].label}.`
 				},
 				onDragCancel: ({ active }) => `Drag of ${active.id} cancelled.`
 			}
@@ -90,9 +93,9 @@ export function useIssueKanbanDnd({ groups }: UseIssueKanbanDndParams): UseIssue
 			setActiveIdentifier(null)
 			setActiveFromState(null)
 			const { active, over } = event
-			if (!over) return
+			if (!over || !isIssueState(over.id)) return
 			const identifier = String(active.id)
-			const target = over.id as IssueState
+			const target = over.id
 			const from = readFromState(active.data.current)
 
 			if (from === target) return
@@ -133,6 +136,10 @@ export function useIssueKanbanDnd({ groups }: UseIssueKanbanDndParams): UseIssue
 
 function readFromState(data: unknown): IssueState | undefined {
 	return (data as { fromState?: IssueState } | undefined)?.fromState
+}
+
+function isIssueState(id: string | number): id is IssueState {
+	return typeof id === 'string' && (ISSUE_STATE_ORDER as readonly string[]).includes(id)
 }
 
 /** Snap X to a column-width step so one arrow press crosses a column boundary (dnd-kit's 25px default stays inside). */

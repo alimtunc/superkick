@@ -12,6 +12,7 @@ use superkick_storage::repo::{
     RunEventRepo, RunRepo, RunStepRepo, TranscriptRepo,
 };
 
+use super::prompts::{PromptStepKind, step_body_for};
 use super::{DEFAULT_AGENT_TIMEOUT, StepEngine, build_full_prompt};
 use crate::agent_spawn::{LaunchConfigInputs, build_launch_config, resolve_spawn_plan};
 use crate::agent_supervisor::AgentHandle;
@@ -77,14 +78,10 @@ where
             .await?;
 
             let base_prompt = format!(
-                "You are a code reviewer for issue {} (id: {}). \
-                 Review the changes on this branch. Look for bugs, logic errors, \
-                 security issues, and code quality problems. \
-                 If the code looks good, say 'LGTM'. \
-                 If there are issues, list them clearly. \
-                 IMPORTANT: Do NOT update the issue status in Linear or any external tracker. \
-                 Do NOT mark the issue as done, closed, or resolved. Only review code.",
-                run.issue_identifier, run.issue_id,
+                "You are working on issue {} (id: {}). {}",
+                run.issue_identifier,
+                run.issue_id,
+                step_body_for(PromptStepKind::Review),
             );
             // Route through the shared prompt builder so reviewers see the same
             // section ordering/headers as Plan/Code agents. Reviewers don't get
@@ -161,7 +158,10 @@ where
         {
             let mut updated_step = step.clone();
             updated_step.output_json = payload.clone();
-            let _ = self.step_repo.update(&updated_step).await;
+            self.step_repo
+                .update(&updated_step)
+                .await
+                .context("failed to persist review swarm step output")?;
         }
 
         let summary_msg = format!(
