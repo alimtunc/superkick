@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{RunId, RunStep, StepId, StepKey, StepStatus};
 
-use super::codec::{deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
 use super::ensure_updated;
 use crate::repo::RunStepRepo;
 
@@ -101,17 +101,14 @@ impl StepRow {
             run_id: RunId(uuid::Uuid::parse_str(&self.run_id)?),
             step_key: deserialize_enum::<StepKey>(&self.step_key)?,
             status: deserialize_enum::<StepStatus>(&self.status)?,
-            attempt: self.attempt as u32,
+            attempt: u32::try_from(self.attempt)
+                .with_context(|| format!("run_step {} attempt out of range", self.id))?,
             agent_provider: self.agent_provider,
-            started_at: self
-                .started_at
-                .as_deref()
-                .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
-                .transpose()?,
+            started_at: self.started_at.as_deref().map(decode_rfc3339).transpose()?,
             finished_at: self
                 .finished_at
                 .as_deref()
-                .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
+                .map(decode_rfc3339)
                 .transpose()?,
             input_json: self
                 .input_json

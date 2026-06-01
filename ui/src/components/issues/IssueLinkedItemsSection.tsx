@@ -53,10 +53,6 @@ export function IssueLinkedItemsSection({ issueId, omitWhenEmpty }: IssueLinkedI
 
 function LinkedItemRow({ item }: { item: IssueLinkedItemRef }) {
 	const href = linkedItemHref(item)
-	// Frozen-by-design: the context aggregate only persists `{ kind, id,
-	// captured_at }`, so we render the short id rather than join against the
-	// live run / launch-task state (which would defeat the snapshot semantics
-	// and add per-row queries).
 	const shortId = item.id.length > 8 ? `${item.id.slice(0, 8)}…` : item.id
 	const label = (
 		<span className="flex flex-wrap items-center gap-2 text-[12.5px]">

@@ -29,7 +29,8 @@ export function RunInspectorPage({ runId, refTime }: RunInspectorPageProps) {
 			</div>
 		)
 	}
-	if (!detail.run) {
+	const { run } = detail
+	if (!run) {
 		return (
 			<div className="px-4 py-4">
 				<EmptyState
@@ -42,5 +43,6 @@ export function RunInspectorPage({ runId, refTime }: RunInspectorPageProps) {
 		)
 	}
 
-	return <RunInspector detail={detail as LoadedRunDetail} refTime={refTime} />
+	const loaded: LoadedRunDetail = { ...detail, run }
+	return <RunInspector detail={loaded} refTime={refTime} />
 }

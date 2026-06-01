@@ -9,14 +9,15 @@ use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 
+use superkick_core::IssueWorkspaceContextSnapshot;
+
 use super::error::LinearError;
 use super::types::{
     CachedComment, GqlCommentCreateResponse, GqlCommentsResponse, GqlDetailResponse,
     GqlIssueCreateResponse, GqlIssueUpdateResponse, GqlOptionsResponse, GqlRecentComment,
     GqlResponse, GqlSearchResponse, GqlTeamStatesResponse, GqlViewerResponse, IssueComment,
     IssueCreateInput, IssueDetailResponse, IssueListResponse, IssueStateMutation, IssueUpdateInput,
-    LinearIssueListItem, LinearOptions, ViewerResponse, WorkflowStateOption,
-    classify_graphql_errors,
+    LinearIssueListItem, LinearOptions, ViewerResponse, classify_graphql_errors,
 };
 
 const LINEAR_API_URL: &str = "https://api.linear.app/graphql";
@@ -326,8 +327,6 @@ struct TeamWorkflowStates {
 struct WorkflowState {
     id: String,
     state_type: String,
-    name: String,
-    color: String,
     /// Linear's user-defined ordering. Teams can have multiple workflow states of the
     /// same `type` (e.g. "In Progress" and "In Review" both `started`); position
     /// disambiguates so `started` resolves to the leftmost lane the user expects.
@@ -380,8 +379,7 @@ impl LinearClient {
             let gql: GqlResponse = self.post(&body).await?;
 
             if let Some(errors) = gql.errors {
-                let msgs: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
-                return Err(LinearError::Graphql(msgs.join("; ")));
+                return Err(classify_graphql_errors(&errors));
             }
 
             let data = gql.data.ok_or(LinearError::NoData)?;
@@ -431,8 +429,7 @@ impl LinearClient {
         let gql: GqlSearchResponse = self.post(&body).await?;
 
         if let Some(errors) = gql.errors {
-            let msgs: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
-            return Err(LinearError::Graphql(msgs.join("; ")));
+            return Err(classify_graphql_errors(&errors));
         }
 
         let data = gql.data.ok_or(LinearError::NoData)?;
@@ -483,8 +480,7 @@ impl LinearClient {
 
             let gql: GqlCommentsResponse = self.post(&body).await?;
             if let Some(errors) = gql.errors {
-                let msgs: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
-                return Err(LinearError::Graphql(msgs.join("; ")));
+                return Err(classify_graphql_errors(&errors));
             }
 
             let data = gql.data.ok_or(LinearError::NoData)?;
@@ -515,12 +511,35 @@ impl LinearClient {
         let gql: GqlDetailResponse = self.post(&body).await?;
 
         if let Some(errors) = gql.errors {
-            let msgs: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
-            return Err(LinearError::Graphql(msgs.join("; ")));
+            return Err(classify_graphql_errors(&errors));
         }
 
         let data = gql.data.ok_or(LinearError::NoData)?;
         Ok(IssueDetailResponse::from(data.issue))
+    }
+
+    /// Resolve an issue (by UUID or identifier like `SUP-148`) into the frozen
+    /// `IssueWorkspaceContextSnapshot` the API persists on first attach. Owns
+    /// the Linear→core adaptation — team-key derivation and snapshot field
+    /// mapping — so the HTTP layer stays pure orchestration.
+    pub async fn issue_workspace_snapshot(
+        &self,
+        id: &str,
+    ) -> Result<IssueWorkspaceContextSnapshot, LinearError> {
+        let detail = self.get_issue(id).await?;
+        let team_key = detail
+            .identifier
+            .split_once('-')
+            .map(|(team, _)| team.to_string())
+            .unwrap_or_else(|| detail.identifier.clone());
+        Ok(IssueWorkspaceContextSnapshot {
+            linear_team_key: team_key,
+            linear_issue_identifier: detail.identifier,
+            linear_issue_id: detail.id,
+            snapshot_title: detail.title,
+            snapshot_body_md: detail.description,
+            snapshot_status_name: detail.status.name,
+        })
     }
 
     /// Identify the authenticated Linear user. Returns the viewer's stable
@@ -531,8 +550,7 @@ impl LinearClient {
         let gql: GqlViewerResponse = self.post(&body).await?;
 
         if let Some(errors) = gql.errors {
-            let msgs: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
-            return Err(LinearError::Graphql(msgs.join("; ")));
+            return Err(classify_graphql_errors(&errors));
         }
 
         let user = gql.data.ok_or(LinearError::NoData)?.viewer;
@@ -681,8 +699,6 @@ impl LinearClient {
                 .map(|s| WorkflowState {
                     id: s.id.clone(),
                     state_type: s.state_type.clone(),
-                    name: s.name.clone(),
-                    color: s.color.clone(),
                     position: s.position,
                 })
                 .collect();
@@ -716,34 +732,6 @@ impl LinearClient {
         self.resolve_workflow_state_id(&team_id, target_type).await
     }
 
-    /// Read the workflow states for `team_id`, returning the picker-ready
-    /// option shape (name + color + position + type). Warm-reads the cache,
-    /// fetches on miss. Used by handlers that need to translate a
-    /// workflow-state lane the UI selected by id back into a display label.
-    pub async fn list_workflow_states_for_team(
-        &self,
-        team_id: &str,
-    ) -> Result<Vec<WorkflowStateOption>, LinearError> {
-        let states = match self.cached_team_states(team_id) {
-            Some(states) => states,
-            None => {
-                let fetched = self.fetch_team_states(team_id).await?;
-                self.put_team_states(team_id.to_string(), fetched.clone());
-                fetched
-            }
-        };
-        Ok(states
-            .into_iter()
-            .map(|s| WorkflowStateOption {
-                id: s.id,
-                name: s.name,
-                state_type: s.state_type,
-                color: s.color,
-                position: s.position,
-            })
-            .collect())
-    }
-
     async fn fetch_issue_team_id(&self, issue_id: &str) -> Result<String, LinearError> {
         let body = serde_json::json!({
             "query": ISSUE_TEAM_QUERY,
@@ -751,8 +739,7 @@ impl LinearClient {
         });
         let gql: super::types::GqlIssueTeamResponse = self.post(&body).await?;
         if let Some(errors) = gql.errors {
-            let msgs: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
-            return Err(LinearError::Graphql(msgs.join("; ")));
+            return Err(classify_graphql_errors(&errors));
         }
         gql.data
             .and_then(|d| d.issue.map(|i| i.team.id))
@@ -813,8 +800,7 @@ impl LinearClient {
         });
         let gql: GqlTeamStatesResponse = self.post(&body).await?;
         if let Some(errors) = gql.errors {
-            let msgs: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
-            return Err(LinearError::Graphql(msgs.join("; ")));
+            return Err(classify_graphql_errors(&errors));
         }
         let data = gql.data.ok_or(LinearError::NoData)?;
         let team = data
@@ -827,8 +813,6 @@ impl LinearClient {
             .map(|s| WorkflowState {
                 id: s.id,
                 state_type: s.state_type,
-                name: s.name,
-                color: s.color,
                 position: s.position,
             })
             .collect())
@@ -899,8 +883,6 @@ mod tests {
         WorkflowState {
             id: id.to_string(),
             state_type: ty.to_string(),
-            name: String::new(),
-            color: String::new(),
             position,
         }
     }

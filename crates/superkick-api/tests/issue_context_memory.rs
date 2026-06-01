@@ -21,9 +21,9 @@ use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use superkick_api::issue_context_test_router;
 use superkick_api::test_handlers::{IssueLookup, IssueWorkspaceContextRepoDyn, MemoryEntryRepoDyn};
-use superkick_core::{IssueWorkspaceContext, IssueWorkspaceContextSnapshot};
+use superkick_core::{IssueWorkspaceContext, IssueWorkspaceContextSnapshot, MemoryEntry};
 use superkick_integrations::linear::LinearError;
-use superkick_storage::repo::IssueWorkspaceContextRepo;
+use superkick_storage::repo::{IssueWorkspaceContextRepo, MemoryEntryRepo};
 use superkick_storage::{SqliteIssueWorkspaceContextRepo, SqliteMemoryEntryRepo, connect};
 use tower::ServiceExt;
 
@@ -82,6 +82,7 @@ fn sample_snapshot() -> IssueWorkspaceContextSnapshot {
 struct Harness {
     router: axum::Router,
     context_repo: Arc<SqliteIssueWorkspaceContextRepo>,
+    memory_repo: Arc<SqliteMemoryEntryRepo>,
     lookup: Arc<StubLookup>,
 }
 
@@ -92,7 +93,7 @@ async fn harness() -> Harness {
     let lookup = StubLookup::new(sample_snapshot());
 
     let context_dyn: Arc<dyn IssueWorkspaceContextRepoDyn> = Arc::clone(&context_repo) as _;
-    let memory_dyn: Arc<dyn MemoryEntryRepoDyn> = memory_repo as _;
+    let memory_dyn: Arc<dyn MemoryEntryRepoDyn> = Arc::clone(&memory_repo) as _;
     let router = issue_context_test_router(
         context_dyn,
         memory_dyn,
@@ -101,6 +102,7 @@ async fn harness() -> Harness {
     Harness {
         router,
         context_repo,
+        memory_repo,
         lookup,
     }
 }
@@ -242,21 +244,20 @@ async fn get_memory_paginates_newest_first() {
     let uri_get = format!("/issues/{TEST_IDENTIFIER}/context/memory?limit=50");
     // Materialise a context first so all 75 entries share the same parent.
     let (_, _) = get(&h.router, &format!("/issues/{TEST_IDENTIFIER}/context")).await;
+    let context_id = list_contexts(&h).await[0].id;
 
+    // Seed directly through the repo with pinned `created_at` so the cursor
+    // compare is unambiguous — entry `i` is strictly newer than entry `i-1`
+    // without sleeping between writes. (The POST path is exercised in its own
+    // test; this one drives the GET pagination contract.)
+    let base = chrono::Utc::now();
     for i in 0..75 {
-        let payload = json!({
-            "role": "note",
-            "text": format!("entry {i}"),
-        });
-        let (s, _) = post(
-            &h.router,
-            &format!("/issues/{TEST_IDENTIFIER}/context/memory"),
-            payload,
-        )
-        .await;
-        assert_eq!(s, StatusCode::OK);
-        // Bump timestamps apart so the cursor compare is unambiguous.
-        tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+        let mut entry =
+            MemoryEntry::new(context_id, "note".into(), None, format!("entry {i}")).expect("entry");
+        entry.created_at = base + chrono::Duration::seconds(i);
+        MemoryEntryRepo::append(&*h.memory_repo, &entry)
+            .await
+            .expect("append");
     }
 
     let (s, page1) = get(&h.router, &uri_get).await;

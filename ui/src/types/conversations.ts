@@ -9,19 +9,8 @@ export type ConversationStatus = 'active' | 'archived'
 
 export type TurnStatus = 'pending' | 'streaming' | 'completed' | 'failed' | 'cancelled'
 
-/**
- * SUP-110 — operator-facing conversation status surfaced in the chat sidebar
- * (and reusable elsewhere). Six discrete buckets derived in
- * `lib/domain/conversationState.ts` from the data already cached on the
- * client (conversation, turns, optional run, optional active takeovers).
- */
 export type ConversationUxState = 'draft' | 'running' | 'needs_human' | 'completed' | 'failed' | 'taken_over'
 
-/**
- * Input shape for `deriveConversationUxState`. Lives here (not next to the
- * helper) because shared/exported domain types belong in `src/types/**` —
- * see `docs/conventions/frontend.md` §Types.
- */
 export interface ConversationUxStateInput {
 	conversation: ConversationSummary | Conversation
 	turns?: readonly Turn[] | null
@@ -44,11 +33,6 @@ export interface Conversation {
 	last_turn_at: string | null
 }
 
-/**
- * Sidebar-shaped conversation: the base row plus a denormalised first user
- * prompt the server fetches alongside the list. Only returned by
- * `GET /conversations?issue_id|run_id=…`.
- */
 export interface ConversationSummary extends Conversation {
 	first_user_text: string | null
 }
@@ -168,7 +152,6 @@ export interface ToolCallEntry {
 	is_error: boolean
 }
 
-// Pairs each `tool_use` with its `tool_result` across a run's conversations.
 export interface RunToolCall {
 	call_id: string
 	tool_name: string

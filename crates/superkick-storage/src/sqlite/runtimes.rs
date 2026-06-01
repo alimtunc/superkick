@@ -6,7 +6,7 @@ use superkick_core::{
     RuntimeMode, RuntimeProvider, RuntimeProviderId, RuntimeStatus,
 };
 
-use super::codec::{deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
 use super::ensure_updated;
 use crate::is_unique_violation;
 
@@ -220,8 +220,8 @@ impl RuntimeRow {
             platform: self.platform,
             arch: self.arch,
             last_seen_at: parse_optional_rfc3339(self.last_seen_at.as_deref())?,
-            created_at: DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
-            updated_at: DateTime::parse_from_rfc3339(&self.updated_at)?.to_utc(),
+            created_at: decode_rfc3339(&self.created_at)?,
+            updated_at: decode_rfc3339(&self.updated_at)?,
         })
     }
 }
@@ -263,15 +263,12 @@ impl RuntimeProviderRow {
                 supports_usage: self.supports_usage != 0,
             },
             last_seen_at: parse_optional_rfc3339(self.last_seen_at.as_deref())?,
-            created_at: DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
-            updated_at: DateTime::parse_from_rfc3339(&self.updated_at)?.to_utc(),
+            created_at: decode_rfc3339(&self.created_at)?,
+            updated_at: decode_rfc3339(&self.updated_at)?,
         })
     }
 }
 
 fn parse_optional_rfc3339(value: Option<&str>) -> Result<Option<DateTime<Utc>>> {
-    value
-        .map(|s| DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
-        .transpose()
-        .map_err(Into::into)
+    value.map(decode_rfc3339).transpose()
 }

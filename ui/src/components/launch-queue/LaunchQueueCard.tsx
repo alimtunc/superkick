@@ -7,12 +7,7 @@ interface LaunchQueueCardProps {
 	refTime: number
 	onDispatch: (issueIdentifier: string) => void
 	dispatchPending: boolean
-	/** ISO timestamp of a `DependencyResolved` for this issue, if observed in
-	 *  the current session (SUP-81). Ignored for run cards. */
 	unblockedAt: string | undefined
-	/** 1-indexed position in the dispatch queue, set by the column for
-	 *  Launchable items so the operator reads "this is next" without having
-	 *  to count cards. `undefined` everywhere else. */
 	dispatchPosition: number | undefined
 }
 

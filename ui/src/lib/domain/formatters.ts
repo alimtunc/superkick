@@ -1,5 +1,3 @@
-import type { Run } from '@/types'
-
 export function fmtDuration(ms: number): string {
 	const sec = Math.round(ms / 1000)
 	if (sec < 60) return `${sec}s`
@@ -7,28 +5,6 @@ export function fmtDuration(ms: number): string {
 	if (min < 60) return `${min}m ${sec % 60}s`
 	const h = Math.floor(min / 60)
 	return `${h}h ${min % 60}m`
-}
-
-export function avgDuration(runs: Run[]): string {
-	const finished = runs.filter((r) => r.finished_at)
-	if (finished.length === 0) return '--'
-	const avg =
-		finished.reduce(
-			(s, r) => s + (new Date(r.finished_at!).getTime() - new Date(r.started_at).getTime()),
-			0
-		) / finished.length
-	return fmtDuration(avg)
-}
-
-export function medianDuration(runs: Run[]): string {
-	const ds = runs
-		.filter((r) => r.finished_at)
-		.map((r) => new Date(r.finished_at!).getTime() - new Date(r.started_at).getTime())
-		.toSorted((a, b) => a - b)
-	if (ds.length === 0) return '--'
-	const mid = Math.floor(ds.length / 2)
-	const ms = ds.length % 2 === 0 ? (ds[mid - 1] + ds[mid]) / 2 : ds[mid]
-	return fmtDuration(ms)
 }
 
 export function elapsedMs(startedAt: string, refTime: number): number {
@@ -69,13 +45,14 @@ export function fmtSecondsVerbose(seconds: number): string {
 	return h === 0 ? `${d}d` : `${d}d ${h}h`
 }
 
+function toEpochMs(value: number | string | Date): number {
+	if (value instanceof Date) return value.getTime()
+	if (typeof value === 'number') return value
+	return new Date(value).getTime()
+}
+
 export function fmtRelativeTime(value: number | string | Date, refTime: number = Date.now()): string {
-	const ts =
-		value instanceof Date
-			? value.getTime()
-			: typeof value === 'number'
-				? value
-				: new Date(value).getTime()
+	const ts = toEpochMs(value)
 	const diff = refTime - ts
 	const sec = Math.floor(diff / 1000)
 	if (sec < 60) return 'just now'
@@ -89,12 +66,7 @@ export function fmtRelativeTime(value: number | string | Date, refTime: number =
 }
 
 export function fmtRelativeShort(value: number | string | Date, refTime: number = Date.now()): string {
-	const ts =
-		value instanceof Date
-			? value.getTime()
-			: typeof value === 'number'
-				? value
-				: new Date(value).getTime()
+	const ts = toEpochMs(value)
 	if (Number.isNaN(ts)) return ''
 	const diff = Math.max(0, refTime - ts)
 	const sec = Math.floor(diff / 1000)

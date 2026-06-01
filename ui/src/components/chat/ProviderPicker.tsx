@@ -1,21 +1,9 @@
-import type { ReactNode } from 'react'
-
 import { MenuPopup } from '@/components/ui/menu-shell'
+import { PROVIDER_OPTIONS } from '@/lib/chatPickerOptions'
 import { cn } from '@/lib/utils'
 import type { AgentProvider } from '@/types'
 import { Menu } from '@base-ui/react/menu'
-import { Bot, Check, ChevronDown, CircleDashed, Sparkles } from 'lucide-react'
-
-interface ProviderOption {
-	value: AgentProvider
-	label: string
-	icon: ReactNode
-}
-
-const PROVIDER_OPTIONS: ProviderOption[] = [
-	{ value: 'claude', label: 'Claude', icon: <Sparkles size={14} strokeWidth={1.75} /> },
-	{ value: 'codex', label: 'Codex', icon: <Bot size={14} strokeWidth={1.75} /> }
-]
+import { Check, ChevronDown, CircleDashed } from 'lucide-react'
 
 interface ProviderPickerProps {
 	value: AgentProvider | null

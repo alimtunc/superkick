@@ -15,8 +15,7 @@ export type IssueSort = 'updated' | 'created' | 'priority' | 'age'
  */
 export type IssueGroupBy = 'lifecycle' | 'status' | 'priority' | 'project' | 'assignee' | 'none'
 
-/** List-vs-board layout switch. `kanban` is accepted in the URL for one
- *  release and rewritten to `board` on entry (see `searchParams.ts`). */
+/** List-vs-board layout switch. */
 export type IssueViewLayout = 'list' | 'board'
 
 /**

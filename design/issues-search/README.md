@@ -1,7 +1,3 @@
-# Issues + Search rework — branch payload
-
-This folder is a self-contained drop for a `design/issues-search` branch on `alimtunc/superkick`. It contains the design canvas, the orchestrator handoff, the implementation spec, and the ticket bodies.
-
 ## What's in here
 
 ```

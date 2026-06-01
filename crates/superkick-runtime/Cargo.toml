@@ -8,7 +8,7 @@ superkick-core = { path = "../superkick-core" }
 superkick-config = { path = "../superkick-config" }
 superkick-integrations = { path = "../superkick-integrations" }
 superkick-storage = { path = "../superkick-storage" }
-tokio.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "process", "io-util", "fs"] }
 anyhow.workspace = true
 thiserror.workspace = true
 chrono.workspace = true

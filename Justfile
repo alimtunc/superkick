@@ -31,7 +31,7 @@ fmt:
 # Lint everything (same as lefthook pre-commit)
 lint:
     cargo fmt -- --check
-    cargo clippy --workspace -- -D warnings
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
     cd ui && pnpm lint
     cd ui && pnpm fmt:check
 

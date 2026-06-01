@@ -47,17 +47,11 @@ export const useWatchedSessionsStore = create<WatchedSessionsStore>()(
 					focusedId: s.focusedId === runId ? null : s.focusedId
 				})),
 
-			toggleWatch: (runId: string) =>
-				set((s) => {
-					if (s.ids.includes(runId)) {
-						return {
-							ids: s.ids.filter((id) => id !== runId),
-							focusedId: s.focusedId === runId ? null : s.focusedId
-						}
-					}
-					const next = [runId, ...s.ids].slice(0, MAX_WATCHED)
-					return { ids: next, focusedId: runId }
-				}),
+			toggleWatch: (runId: string) => {
+				const { ids, watch, unwatch } = get()
+				if (ids.includes(runId)) unwatch(runId)
+				else watch(runId)
+			},
 
 			focus: (runId: string) =>
 				set((s) => {

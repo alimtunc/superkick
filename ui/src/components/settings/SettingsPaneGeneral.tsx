@@ -1,7 +1,8 @@
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSection } from '@/components/settings/SettingsSection'
+import { Button } from '@/components/ui/button'
+import { Pill } from '@/components/ui/pill'
 import { useThemeStore } from '@/stores/theme'
-import { Btn } from '@/ui/Btn'
 import { Icon } from '@/ui/Icon'
 import { Toggle } from '@/ui/Toggle'
 
@@ -15,10 +16,9 @@ export function SettingsPaneGeneral() {
 
 			<SettingsSection title="Daemon">
 				<SettingsRow label="Status" hint="superkickd · port 7878">
-					<span className="pill pill--success">
-						<span className="agdot agdot--shipped" />
+					<Pill tone="success" leading={<span className="agdot agdot--shipped" />}>
 						running
-					</span>
+					</Pill>
 				</SettingsRow>
 				<SettingsRow label="Auto-start on login" last>
 					<Toggle checked disabled ariaLabel="Auto-start on login" />
@@ -27,10 +27,12 @@ export function SettingsPaneGeneral() {
 
 			<SettingsSection title="Linear">
 				<SettingsRow label="Workspace" hint="Connected · superkick.linear.app">
-					<Btn size="sm">Re-sync</Btn>
+					<Button variant="outline" size="sm">
+						Re-sync
+					</Button>
 				</SettingsRow>
 				<SettingsRow label="Default team" last>
-					<button type="button" className="select">
+					<button type="button" className="select" aria-label="Default team">
 						Superkick
 						<span className="chev">
 							<Icon name="chevDown" size={14} className="ic" />
@@ -48,18 +50,19 @@ export function SettingsPaneGeneral() {
 				</SettingsRow>
 				<SettingsRow label="Default skills" last>
 					<div className="flex gap-1.5">
-						<span className="pill pill--neutral">ticket</span>
-						<span className="pill pill--neutral">review</span>
-						<span className="pill pill--neutral">ship</span>
+						<Pill tone="neutral">ticket</Pill>
+						<Pill tone="neutral">review</Pill>
+						<Pill tone="neutral">ship</Pill>
 					</div>
 				</SettingsRow>
 			</SettingsSection>
 
 			<SettingsSection title="Appearance">
 				<SettingsRow label="Theme" hint="Live preview — flips the whole app" last>
-					<div className="seg">
+					<div className="seg" role="group" aria-label="Theme">
 						<button
 							type="button"
+							aria-pressed={theme === 'dark'}
 							className={theme === 'dark' ? 'on' : undefined}
 							onClick={() => setTheme('dark')}
 						>
@@ -67,6 +70,7 @@ export function SettingsPaneGeneral() {
 						</button>
 						<button
 							type="button"
+							aria-pressed={theme === 'light'}
 							className={theme === 'light' ? 'on' : undefined}
 							onClick={() => setTheme('light')}
 						>

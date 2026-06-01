@@ -79,22 +79,7 @@ impl IssueLookup for LinearClient {
         id: &'a str,
     ) -> Pin<Box<dyn Future<Output = Result<IssueWorkspaceContextSnapshot, LinearError>> + Send + 'a>>
     {
-        Box::pin(async move {
-            let detail = self.get_issue(id).await?;
-            let team_key = detail
-                .identifier
-                .split_once('-')
-                .map(|(team, _)| team.to_string())
-                .unwrap_or_else(|| detail.identifier.clone());
-            Ok(IssueWorkspaceContextSnapshot {
-                linear_team_key: team_key,
-                linear_issue_identifier: detail.identifier,
-                linear_issue_id: detail.id,
-                snapshot_title: detail.title,
-                snapshot_body_md: detail.description,
-                snapshot_status_name: detail.status.name,
-            })
-        })
+        Box::pin(async move { self.issue_workspace_snapshot(id).await })
     }
 }
 

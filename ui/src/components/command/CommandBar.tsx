@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 
 import { CommandBarFooter } from '@/components/command/CommandBarFooter'
 import { CommandBarHeader } from '@/components/command/CommandBarHeader'
+import { flattenRows } from '@/components/command/flattenRows'
 import { ScopeChips } from '@/components/command/ScopeChips'
-import { EmptySectionsView, buildEmptyRows } from '@/components/command/sections/EmptySectionsView'
+import { EmptySectionsView } from '@/components/command/sections/EmptySectionsView'
 import { ScopedSectionsView } from '@/components/command/sections/ScopedSectionsView'
 import { TypingSectionsView } from '@/components/command/sections/TypingSectionsView'
 import { DialogPopup } from '@/components/ui/dialog-shell'
 import { useCommandBarKeyboard } from '@/hooks/useCommandBarKeyboard'
-import { type CommandBarState, useCommandBarReducer } from '@/hooks/useCommandBarReducer'
+import { useCommandBarReducer } from '@/hooks/useCommandBarReducer'
 import { useCommandSearch } from '@/hooks/useCommandSearch'
 import { useDashboardRuns } from '@/hooks/useDashboardRuns'
+import { useScopedDonePref } from '@/hooks/useScopedDonePref'
 import { useCommandBarStore } from '@/stores/commandBar'
 import type { SearchResponse, SearchScope } from '@/types'
 import { Dialog } from '@base-ui/react/dialog'
@@ -149,9 +151,9 @@ export function CommandBar() {
 									reducer.setScope(targetScope)
 								}}
 							/>
-						) : (
+						) : reducer.state.scope !== 'all' ? (
 							<ScopedSectionsView
-								scope={reducer.state.scope as Exclude<SearchScope, 'all'>}
+								scope={reducer.state.scope}
 								results={results}
 								query={reducer.effectiveQuery}
 								selectedIdx={reducer.state.selectedIdx}
@@ -160,68 +162,11 @@ export function CommandBar() {
 								onActivate={handleActivate}
 								onToggleDone={() => setIncludeDoneInScoped((v) => !v)}
 							/>
-						)}
+						) : null}
 					</div>
 					<CommandBarFooter resultCount={itemCount} />
 				</div>
 			</DialogPopup>
 		</Dialog.Root>
 	)
-}
-
-function useScopedDonePref(): [boolean, (next: boolean | ((prev: boolean) => boolean)) => void] {
-	const STORAGE_KEY = 'superkick.search.showDoneInScoped'
-	const [value, setValue] = useState<boolean>(() => {
-		if (typeof window === 'undefined') return false
-		return window.localStorage.getItem(STORAGE_KEY) === 'true'
-	})
-	useEffect(() => {
-		if (typeof window === 'undefined') return
-		window.localStorage.setItem(STORAGE_KEY, String(value))
-	}, [value])
-	return [value, setValue]
-}
-
-const SECTION_LIMIT = 5
-
-function flattenRows(
-	state: CommandBarState,
-	mode: 'empty' | 'typing' | 'scoped',
-	results: SearchResponse,
-	needsYou: import('@/types').Run[],
-	includeDone: boolean
-): (string | null)[] {
-	if (mode === 'empty') {
-		return buildEmptyRows(needsYou).map((r) => r.target || null)
-	}
-	if (mode === 'typing') {
-		const out: (string | null)[] = []
-		for (const a of results.actions.slice(0, SECTION_LIMIT)) out.push(a.target ?? null)
-		for (const i of results.issues.slice(0, SECTION_LIMIT)) out.push(`/issues/${i.id}`)
-		for (const c of results.comments.slice(0, SECTION_LIMIT)) out.push(`/issues/${c.issueId}`)
-		for (const _ of results.files.slice(0, SECTION_LIMIT)) out.push(null)
-		for (const r of results.runs.slice(0, SECTION_LIMIT)) out.push(`/runs/${r.runId}`)
-		return out
-	}
-	switch (state.scope) {
-		case 'issues': {
-			const open = results.issues.filter((i) => !isDone(i.stateType))
-			const done = includeDone ? results.issues.filter((i) => isDone(i.stateType)) : []
-			return [...open, ...done].map((i) => `/issues/${i.id}`)
-		}
-		case 'comments':
-			return results.comments.map((c) => `/issues/${c.issueId}`)
-		case 'files':
-			return results.files.map(() => null)
-		case 'runs':
-			return results.runs.map((r) => `/runs/${r.runId}`)
-		case 'actions':
-			return results.actions.map((a) => a.target ?? null)
-		default:
-			return []
-	}
-}
-
-function isDone(stateType: string): boolean {
-	return stateType === 'completed' || stateType === 'canceled'
 }

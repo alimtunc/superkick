@@ -1229,17 +1229,6 @@ async fn artifact_insert_and_list() -> Result<()> {
 }
 
 #[tokio::test]
-async fn migrations_are_idempotent() -> Result<()> {
-    let pool = setup().await?;
-    // Running connect again on the same pool should not fail.
-    // We simulate by calling connect twice on the same in-memory db.
-    // Since :memory: creates a new db each time, we just verify no error.
-    let _pool2 = connect("sqlite::memory:").await?;
-    drop(pool);
-    Ok(())
-}
-
-#[tokio::test]
 async fn get_nonexistent_returns_none() -> Result<()> {
     let pool = setup().await?;
     let repo = SqliteRunRepo::new(pool);

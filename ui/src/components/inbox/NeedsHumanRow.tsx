@@ -1,10 +1,10 @@
-import { InboxActionLink } from '@/components/inbox/InboxActionLink'
+import { actionLinkWrap } from '@/components/inbox/actionLinkWrap'
 import { InboxActionPill } from '@/components/inbox/InboxActionPill'
 import { InboxRow } from '@/components/inbox/InboxRow'
 import { Pill } from '@/components/ui/pill'
 import { useNow } from '@/hooks/useNow'
 import { fmtRelativeTime } from '@/lib/domain'
-import { inboxActionAriaLabel, pickPrimaryAction } from '@/lib/inbox/actions'
+import { pickPrimaryAction } from '@/lib/inbox/actions'
 import {
 	NEEDS_HUMAN_REASON_LABEL,
 	NEEDS_HUMAN_REASON_TONE,
@@ -37,15 +37,7 @@ export function NeedsHumanRow({ item }: NeedsHumanRowProps) {
 			why={item.reason}
 			ctx={identifier}
 			age={ageIso ? fmtRelativeTime(ageIso, refTime) : null}
-			wrap={(inner) => (
-				<InboxActionLink
-					action={action}
-					ariaLabel={inboxActionAriaLabel(action, identifier)}
-					className="flex min-w-0 flex-1 items-start"
-				>
-					{inner}
-				</InboxActionLink>
-			)}
+			wrap={actionLinkWrap(action, identifier)}
 			actions={<InboxActionPill action={action} />}
 		/>
 	)

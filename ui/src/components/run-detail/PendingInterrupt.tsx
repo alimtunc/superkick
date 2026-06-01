@@ -31,7 +31,7 @@ export function PendingInterrupt({
 
 					{formError ? (
 						<p className="font-data mt-2 rounded bg-danger-soft p-2 text-[12px] text-danger">
-							{String(formError)}
+							{formError}
 						</p>
 					) : null}
 

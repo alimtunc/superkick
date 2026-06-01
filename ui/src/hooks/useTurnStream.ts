@@ -206,9 +206,5 @@ export function useTurnStream(args: UseTurnStreamArgs) {
 		}
 	}, [turnId, state.rendered.terminal])
 
-	return {
-		...state.rendered,
-		streamEnded: state.rendered.terminal,
-		lagged: 0
-	}
+	return state.rendered
 }

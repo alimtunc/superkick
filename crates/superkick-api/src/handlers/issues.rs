@@ -18,7 +18,6 @@ use superkick_storage::repo::RunRepo;
 
 use crate::AppState;
 use crate::error::AppError;
-use crate::handlers::runs::resolve_pr_summary;
 
 #[derive(Deserialize)]
 pub struct ListIssuesParams {
@@ -61,7 +60,10 @@ pub async fn get_issue(
         .await?;
     let mut summaries = Vec::with_capacity(runs.len());
     for run in &runs {
-        let pr = resolve_pr_summary(&state, run.id, &run.repo_slug).await;
+        let pr = state
+            .pr_service
+            .resolve_pr_summary(run.id, &run.repo_slug)
+            .await;
         summaries.push(LinkedRunSummary::from(run).with_pr(pr));
     }
     detail.linked_runs = summaries;
@@ -245,10 +247,17 @@ pub async fn create_issue(
     };
     let detail = writer.create_issue(input).await?;
     let location = format!("/issues/{}", detail.id);
-    let value = axum::http::HeaderValue::from_str(&location)
-        .expect("Linear issue id is ASCII, safe for header value");
     let mut response = (StatusCode::CREATED, Json(detail)).into_response();
-    response.headers_mut().insert("Location", value);
+    match axum::http::HeaderValue::from_str(&location) {
+        Ok(value) => {
+            response.headers_mut().insert("Location", value);
+        }
+        Err(err) => tracing::warn!(
+            %location,
+            %err,
+            "skipping Location header: issue id is not a valid header value",
+        ),
+    }
     Ok(response)
 }
 
@@ -411,8 +420,13 @@ async fn build_update_input(
         ),
         (None, Some(state_id)) => Some(state_id),
         (None, None) => None,
-        // Rejected by `validate_patch_issue` before we get here.
-        (Some(_), Some(_)) => unreachable!(),
+        // `validate_patch_issue` rejects this before we get here; guard
+        // defensively rather than panicking the handler if that ever changes.
+        (Some(_), Some(_)) => {
+            return Err(AppError::BadRequest(
+                "provide either `state` or `state_id`, not both".into(),
+            ));
+        }
     };
 
     Ok(IssueUpdateInput {

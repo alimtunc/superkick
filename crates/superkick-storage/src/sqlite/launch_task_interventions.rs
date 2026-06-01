@@ -7,6 +7,7 @@ use superkick_core::{
     LaunchTaskId, LaunchTaskIntervention, LaunchTaskInterventionId, LaunchTaskStepId,
 };
 
+use super::codec::decode_rfc3339;
 use crate::repo::LaunchTaskInterventionRepo;
 
 pub struct SqliteLaunchTaskInterventionRepo {
@@ -145,13 +146,12 @@ impl InterventionRow {
                 .map(LaunchTaskStepId),
             author: self.author,
             body: self.body,
-            created_at: DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
+            created_at: decode_rfc3339(&self.created_at)?,
             consumed_at: self
                 .consumed_at
                 .as_deref()
-                .map(DateTime::parse_from_rfc3339)
-                .transpose()?
-                .map(|d| d.to_utc()),
+                .map(decode_rfc3339)
+                .transpose()?,
         })
     }
 }

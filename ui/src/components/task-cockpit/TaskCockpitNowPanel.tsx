@@ -10,6 +10,8 @@ import type { LaunchTask, LaunchTaskStep, PullRequest } from '@/types'
 import { Link } from '@tanstack/react-router'
 import { ArrowUpRight, ExternalLink } from 'lucide-react'
 
+import { uniqueChangedFiles } from './changedFiles'
+
 interface TaskCockpitNowPanelProps {
 	task: LaunchTask
 	steps: readonly LaunchTaskStep[]
@@ -30,7 +32,7 @@ export function TaskCockpitNowPanel({
 	pr
 }: TaskCockpitNowPanelProps) {
 	const currentStep = steps.find((s) => s.id === task.current_step_id) ?? null
-	const changedFiles = [...new Set(steps.flatMap((step) => step.structured_result?.changed_files ?? []))]
+	const changedFiles = uniqueChangedFiles(steps)
 	const truncatedPath = worktreePath ? middleTruncate(worktreePath, WORKTREE_PATH_MAX) : null
 	const issueIdentifier = task.linear_issue_id
 	const openDrawer = useRunDrawerStore((s) => s.openDrawer)

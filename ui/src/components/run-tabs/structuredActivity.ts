@@ -1,24 +1,29 @@
 import type { RunEvent } from '@/types'
+import { z } from 'zod'
 
 export type ActivityKind = 'diff' | 'progress' | 'search' | 'spec' | 'summary' | 'test' | 'write'
 
-export interface ActivityPayload {
-	activity_kind?: ActivityKind
-	badge?: string
-	changed?: { added?: number; removed?: number }
-	command?: string
-	detail?: string
-	file?: string
-	snippet?: string[]
-	status?: 'fail' | 'green' | 'running'
-	tests?: { name: string; result: 'fail' | 'pass' }[]
-}
+const activityKindSchema = z.enum(['diff', 'progress', 'search', 'spec', 'summary', 'test', 'write'])
+
+const activityPayloadSchema = z
+	.object({
+		activity_kind: activityKindSchema,
+		badge: z.string().optional(),
+		changed: z.object({ added: z.number().optional(), removed: z.number().optional() }).optional(),
+		command: z.string().optional(),
+		detail: z.string().optional(),
+		file: z.string().optional(),
+		snippet: z.array(z.string()).optional(),
+		status: z.enum(['fail', 'green', 'running']).optional(),
+		tests: z.array(z.object({ name: z.string(), result: z.enum(['fail', 'pass']) })).optional()
+	})
+	.passthrough()
+
+export type ActivityPayload = z.infer<typeof activityPayloadSchema>
 
 export function activityPayload(event: RunEvent): ActivityPayload | null {
-	const payload = event.payload_json
-	if (!payload || typeof payload !== 'object') return null
-	const candidate = payload as ActivityPayload
-	return candidate.activity_kind ? candidate : null
+	const parsed = activityPayloadSchema.safeParse(event.payload_json)
+	return parsed.success ? parsed.data : null
 }
 
 export function hasStructuredActivity(events: readonly RunEvent[]): boolean {

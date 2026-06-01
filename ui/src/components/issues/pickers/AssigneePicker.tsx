@@ -4,6 +4,7 @@ import { AuthorAvatar } from '@/components/issue-detail/AuthorAvatar'
 import { PopoverPopup } from '@/components/ui/popover-shell'
 import type { UserOption } from '@/types'
 
+import { filterByName } from './filterByName'
 import { PopBody, PopHeader, Popline } from './popoverParts'
 
 interface AssigneePickerProps {
@@ -14,10 +15,7 @@ interface AssigneePickerProps {
 
 export function AssigneePicker({ users, currentId, onSelect }: AssigneePickerProps) {
 	const [query, setQuery] = useState('')
-	const filtered =
-		query.trim().length === 0
-			? users
-			: users.filter((user) => user.name.toLowerCase().includes(query.toLowerCase()))
+	const filtered = filterByName(users, query)
 
 	return (
 		<PopoverPopup popupClassName="w-72 max-h-80 overflow-hidden flex flex-col p-0">

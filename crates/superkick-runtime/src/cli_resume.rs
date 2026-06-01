@@ -45,7 +45,7 @@ pub fn interactive_command(
 ) -> (CommandBuilder, bool) {
     match provider {
         AgentProvider::Claude => claude_interactive(cwd, resume_session_id),
-        AgentProvider::Codex => codex_interactive(cwd, resume_session_id),
+        AgentProvider::Codex => codex_interactive(cwd),
     }
 }
 
@@ -63,7 +63,7 @@ fn claude_interactive(cwd: &Path, resume: Option<&str>) -> (CommandBuilder, bool
     (cmd, resume_attempted)
 }
 
-fn codex_interactive(cwd: &Path, _resume: Option<&str>) -> (CommandBuilder, bool) {
+fn codex_interactive(cwd: &Path) -> (CommandBuilder, bool) {
     // Codex interactive CLI does not yet accept a resume key issued by
     // `codex exec --json`. Until upstream ships the flag, we launch the CLI
     // fresh and tell the UI `resume_attempted = false`.

@@ -3,7 +3,7 @@ use axum::response::{IntoResponse, Json};
 
 use superkick_core::{AgentProvider, CoreError};
 use superkick_integrations::linear::LinearError;
-use superkick_runtime::{ConversationRunnerError, RetryError};
+use superkick_runtime::{ConversationRunnerError, RetryError, RunServiceError};
 
 #[derive(Debug)]
 pub enum AppError {
@@ -75,6 +75,20 @@ impl From<RetryError> for AppError {
     }
 }
 
+impl From<RunServiceError> for AppError {
+    fn from(err: RunServiceError) -> Self {
+        match err {
+            // Preserves the DuplicateActiveRun 409 ConflictRun shape and the
+            // InvalidTransition 409 shape via the existing CoreError mapping.
+            RunServiceError::Conflict(e) => AppError::from(e),
+            RunServiceError::RaceResolved(issue_identifier) => AppError::Internal(anyhow::anyhow!(
+                "unique constraint violated but no active run for issue {issue_identifier} — concurrent race resolved"
+            )),
+            RunServiceError::Internal(e) => AppError::Internal(e),
+        }
+    }
+}
+
 impl From<ConversationRunnerError> for AppError {
     fn from(err: ConversationRunnerError) -> Self {
         match err {
@@ -117,6 +131,10 @@ impl From<CoreError> for AppError {
                     active_run_state: state.to_string(),
                 }),
             },
+            CoreError::InvalidTransition { from, to } => AppError::Conflict {
+                message: format!("invalid state transition: {from} -> {to}"),
+                run: None,
+            },
             CoreError::InvalidOrchestratorTransition { from, to } => AppError::Conflict {
                 message: format!("invalid orchestrator session transition: {from} -> {to}"),
                 run: None,
@@ -129,10 +147,16 @@ impl From<CoreError> for AppError {
                 message: format!("invalid launch task step transition: {from} -> {to}"),
                 run: None,
             },
+            CoreError::InvalidHandoffTransition { from, to } => AppError::Conflict {
+                message: format!("invalid handoff transition: {from} -> {to}"),
+                run: None,
+            },
             CoreError::CredentialLikely { kind } => AppError::Unprocessable(format!(
                 "redacted credential-like content matched pattern: {kind}"
             )),
-            other => AppError::Internal(other.into()),
+            CoreError::InterruptAnswerSerialization(err) => {
+                AppError::Internal(anyhow::Error::from(err))
+            }
         }
     }
 }

@@ -13,24 +13,6 @@ interface EmptySectionsViewProps {
 	onActivate: (target: string) => void
 }
 
-export interface EmptyRow {
-	id: string
-	target: string
-}
-
-export function buildEmptyRows(needsYou: Run[]): EmptyRow[] {
-	const rows: EmptyRow[] = needsYou
-		.slice(0, 2)
-		.map((r) => ({ id: `needs:${r.id}`, target: `/runs/${r.id}` }))
-	for (const action of QUICK_ACTIONS) {
-		rows.push({ id: action.id, target: action.target ?? '' })
-	}
-	for (const jump of JUMP_TO_TARGETS) {
-		rows.push({ id: jump.id, target: jump.target })
-	}
-	return rows
-}
-
 export function EmptySectionsView({ needsYou, selectedIdx, onSelect, onActivate }: EmptySectionsViewProps) {
 	let idx = 0
 	const needsYouSlice = needsYou.slice(0, 2)

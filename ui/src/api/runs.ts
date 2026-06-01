@@ -10,7 +10,7 @@ import type {
 	RunStep
 } from '@/types'
 
-import { BASE, throwApiError, throwGenericApiError } from './_shared'
+import { BASE, postJson, throwApiError } from './_shared'
 
 // Sentinel for `fetchRunDiff`: 404 → no_worktree, 422 → not_worktree_backed.
 export type RunDiffUnavailableReason = 'no_worktree' | 'not_worktree_backed'
@@ -58,9 +58,7 @@ export async function fetchRunEvents(id: string): Promise<RunEvent[]> {
 }
 
 export async function cancelRun(id: string): Promise<Run> {
-	const res = await fetch(`${BASE}/runs/${id}/cancel`, { method: 'POST' })
-	if (!res.ok) await throwGenericApiError(res, 'cancel run failed')
-	return res.json()
+	return postJson(`/runs/${id}/cancel`, 'cancel run failed')
 }
 
 export async function fetchRunDiff(id: string): Promise<RunDiffResult> {

@@ -93,15 +93,15 @@ async fn insert_with_steps_persists_parent_and_children() -> Result<()> {
 #[tokio::test]
 async fn get_by_linear_issue_returns_most_recent() -> Result<()> {
     let repo = setup().await?;
-    let (first, first_steps) = LaunchTask::new_with_v1_recipe("SUP-9", agents(), &catalog())?;
+    // Pin `created_at` so the second row is unambiguously the most recent
+    // without racing `Utc::now()` or sleeping between inserts.
+    let base = chrono::Utc::now();
+    let (mut first, first_steps) = LaunchTask::new_with_v1_recipe("SUP-9", agents(), &catalog())?;
+    first.created_at = base;
     repo.insert_with_steps(&first, &first_steps).await?;
 
-    // sleep_micros: ensure the second created_at is strictly greater than the
-    // first. Without it, two creates inside the same millisecond sort
-    // ambiguously and the assertion below would be flaky.
-    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-
-    let (second, second_steps) = LaunchTask::new_with_v1_recipe("SUP-9", agents(), &catalog())?;
+    let (mut second, second_steps) = LaunchTask::new_with_v1_recipe("SUP-9", agents(), &catalog())?;
+    second.created_at = base + chrono::Duration::seconds(1);
     repo.insert_with_steps(&second, &second_steps).await?;
 
     let latest = repo

@@ -9,8 +9,6 @@ const MAX_EVENTS = 500
 
 interface EventStreamState {
 	events: RunEvent[]
-	connected: boolean
-	done: boolean
 }
 
 type EventStreamAction =
@@ -19,11 +17,11 @@ type EventStreamAction =
 	| { type: 'reset' }
 
 function createInitialState(): EventStreamState {
-	return { events: [], connected: true, done: false }
+	return { events: [] }
 }
 
 function isInitialState(state: EventStreamState): boolean {
-	return state.events.length === 0 && state.connected && !state.done
+	return state.events.length === 0
 }
 
 export function appendRunEvent(events: RunEvent[], event: RunEvent): RunEvent[] {
@@ -57,8 +55,7 @@ export function eventStreamReducer(state: EventStreamState, action: EventStreamA
 }
 
 // Backfills the persisted log on mount; the broker bus only delivers events
-// published after subscription. `connected`/`done` are legacy fields — observe
-// `run.state.is_terminal()` for the authoritative end signal.
+// published after subscription.
 export function useEventStream(runId: string | null | undefined, onStateChange?: () => void) {
 	const [state, dispatch] = useReducer(eventStreamReducer, undefined, createInitialState)
 	const onStateChangeRef = useRef(onStateChange)
@@ -93,8 +90,5 @@ export function useEventStream(runId: string | null | undefined, onStateChange?:
 		return unsubscribe
 	}, [runId])
 
-	return useMemo(
-		() => ({ events: state.events, connected: state.connected, done: state.done }),
-		[state.events, state.connected, state.done]
-	)
+	return useMemo(() => ({ events: state.events }), [state.events])
 }

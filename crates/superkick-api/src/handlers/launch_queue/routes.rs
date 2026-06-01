@@ -12,7 +12,6 @@ use superkick_runtime::reconcile_blockers;
 
 use crate::AppState;
 use crate::error::AppError;
-use crate::handlers::queue_common::load_triages;
 use crate::handlers::runs::{CreateRunRequest, spawn_run_from_request};
 
 use super::merge::merge_into_groups;
@@ -50,7 +49,7 @@ pub async fn get_queue(
         .await?;
     }
 
-    let triages = load_triages(&state).await?;
+    let triages = state.queue_triage_service.load_triages().await?;
 
     let run_inputs: Vec<QueueRunInput> = triages
         .iter()

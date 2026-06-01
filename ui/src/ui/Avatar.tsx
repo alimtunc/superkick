@@ -1,19 +1,18 @@
 import type { CSSProperties } from 'react'
 
 import { cn } from '@/lib/utils'
+import type { AgentProvider } from '@/types'
 import type { SKIconName, SKTone } from '@/types/icons'
 import type { TaskBadgeKind } from '@/types/lifecycle'
 
 import { Icon } from './Icon'
-
-export type AgentIdentity = 'claude' | 'codex'
 
 interface AvatarProps {
 	name?: string
 	/** Stable key for the fixed palette slot. Falls back to `name`. */
 	id?: string
 	/** Render as a rounded-square agent mark. Pass the agent identity for a dedicated color. */
-	agent?: AgentIdentity | boolean
+	agent?: AgentProvider | boolean
 	/** Corner state dot on agent avatars. */
 	state?: TaskBadgeKind
 	size?: number

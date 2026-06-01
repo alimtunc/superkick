@@ -18,9 +18,6 @@ interface ChatComposerProps {
 	provider: AgentProvider | null
 	onModeChange: (next: ChatPermissionMode) => void
 	onModelChange: (next: string | null) => void
-	/** When supplied, the toolbar shows an interactive provider picker as
-	 * the first pill. Omit it once the conversation is created — the
-	 * provider is fixed by the conversation row at that point. */
 	onProviderChange?: (next: AgentProvider) => void
 }
 
@@ -49,13 +46,11 @@ export function ChatComposer({
 		try {
 			await onSubmit(text)
 		} catch {
-			// error surfaces via parent's `error` prop
 			setValue(text)
 		}
 	}
 
 	const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-		// Enter sends; Shift+Enter is newline (matches Slack/Linear/Claude.app).
 		if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
 			event.preventDefault()
 			submit()

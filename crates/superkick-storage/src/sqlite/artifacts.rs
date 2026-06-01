@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{Artifact, ArtifactId, ArtifactKind, RunId};
 
-use super::codec::{deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
 use crate::repo::ArtifactRepo;
 
 pub struct SqliteArtifactRepo {
@@ -76,7 +76,7 @@ impl ArtifactRow {
                 .as_deref()
                 .map(serde_json::from_str)
                 .transpose()?,
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
+            created_at: decode_rfc3339(&self.created_at)?,
         })
     }
 }

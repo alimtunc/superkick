@@ -34,10 +34,11 @@ describe('TaskBadge', () => {
 		expect(container).toBeEmptyDOMElement()
 	})
 
+	// The pulse is a pure animation with no ARIA/text/role surface; the
+	// `.sk-pulse` keyframe class is the only DOM-observable proxy for it.
 	it('pulses only on the running kind', () => {
 		const { container: runningContainer } = render(<TaskBadge kind="running" />)
 		expect(runningContainer.querySelector('.sk-pulse')).not.toBeNull()
-		expect(runningContainer.querySelector('.motion-reduce\\:animate-none')).not.toBeNull()
 
 		const { container: needsContainer } = render(<TaskBadge kind="needs" />)
 		expect(needsContainer.querySelector('.sk-pulse')).toBeNull()

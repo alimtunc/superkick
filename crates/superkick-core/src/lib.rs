@@ -40,7 +40,6 @@ pub mod terminal_takeover;
 pub mod transcript;
 pub mod workspace_event;
 
-// Re-export primary types for ergonomic imports.
 pub use agent::{AgentProvider, AgentSession, AgentStatus, LaunchReason};
 pub use artifact::{Artifact, ArtifactKind};
 pub use attach::{AttachKind, AttachPayload};

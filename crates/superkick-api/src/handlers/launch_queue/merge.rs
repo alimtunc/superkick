@@ -7,8 +7,7 @@ use chrono::{DateTime, Utc};
 use indexmap::IndexMap;
 use superkick_core::{ClassifiedIssue, ClassifiedRun, LaunchQueue, LaunchQueueClassification};
 use superkick_integrations::linear::LinearIssueListItem;
-
-use crate::handlers::queue_common::RunTriage;
+use superkick_runtime::RunTriage;
 
 use super::wire::{LaunchQueueWireItem, LinkedIssueSummary};
 

@@ -1,3 +1,6 @@
+import type { ReactNode } from 'react'
+
+import { isDone } from '@/components/command/commandSections'
 import { ActionResultRow } from '@/components/command/rows/ActionResultRow'
 import { CommentResultRow } from '@/components/command/rows/CommentResultRow'
 import { FileResultRow } from '@/components/command/rows/FileResultRow'
@@ -97,67 +100,70 @@ function ScopedIssues({
 	)
 }
 
-function ScopedFlat({
-	type,
-	results,
-	query,
-	selectedIdx,
-	onSelect,
-	onActivate
-}: ScopedSectionsViewProps & { type: 'comments' | 'files' | 'runs' | 'actions' }) {
-	if (type === 'comments') {
-		return (
-			<div className="flex flex-col py-1">
-				<SectionHeader title="Comments" count={results.comments.length} />
-				{results.comments.map((comment, i) => (
-					<CommentResultRow
-						key={comment.commentId}
-						comment={comment}
-						selected={i === selectedIdx}
-						onSelect={() => onSelect(i)}
-						onActivate={() => onActivate(`/issues/${comment.issueId}`)}
-					/>
-				))}
-			</div>
-		)
-	}
-	if (type === 'files') {
-		return (
-			<div className="flex flex-col py-1">
-				<SectionHeader title="Files" count={results.files.length} />
-				{results.files.map((file, i) => (
-					<FileResultRow
-						key={file.path}
-						file={file}
-						query={query}
-						selected={i === selectedIdx}
-						onSelect={() => onSelect(i)}
-						onActivate={() => onActivate(null)}
-					/>
-				))}
-			</div>
-		)
-	}
-	if (type === 'runs') {
-		return (
-			<div className="flex flex-col py-1">
-				<SectionHeader title="Runs" count={results.runs.length} />
-				{results.runs.map((run, i) => (
-					<RunResultRow
-						key={run.runId}
-						run={run}
-						selected={i === selectedIdx}
-						onSelect={() => onSelect(i)}
-						onActivate={() => onActivate(`/runs/${run.runId}`)}
-					/>
-				))}
-			</div>
-		)
-	}
-	return (
-		<div className="flex flex-col py-1">
-			<SectionHeader title="Actions" count={results.actions.length} />
-			{results.actions.map((action, i) => (
+type FlatType = 'comments' | 'files' | 'runs' | 'actions'
+
+interface FlatRowContext {
+	query: string
+	selectedIdx: number
+	onSelect: (idx: number) => void
+	onActivate: (target: string | null) => void
+}
+
+interface FlatConfig {
+	title: string
+	count: (results: SearchResponse) => number
+	rows: (results: SearchResponse, ctx: FlatRowContext) => ReactNode
+}
+
+const FLAT_CONFIG: Record<FlatType, FlatConfig> = {
+	comments: {
+		title: 'Comments',
+		count: (results) => results.comments.length,
+		rows: (results, { selectedIdx, onSelect, onActivate }) =>
+			results.comments.map((comment, i) => (
+				<CommentResultRow
+					key={comment.commentId}
+					comment={comment}
+					selected={i === selectedIdx}
+					onSelect={() => onSelect(i)}
+					onActivate={() => onActivate(`/issues/${comment.issueId}`)}
+				/>
+			))
+	},
+	files: {
+		title: 'Files',
+		count: (results) => results.files.length,
+		rows: (results, { query, selectedIdx, onSelect, onActivate }) =>
+			results.files.map((file, i) => (
+				<FileResultRow
+					key={file.path}
+					file={file}
+					query={query}
+					selected={i === selectedIdx}
+					onSelect={() => onSelect(i)}
+					onActivate={() => onActivate(null)}
+				/>
+			))
+	},
+	runs: {
+		title: 'Runs',
+		count: (results) => results.runs.length,
+		rows: (results, { selectedIdx, onSelect, onActivate }) =>
+			results.runs.map((run, i) => (
+				<RunResultRow
+					key={run.runId}
+					run={run}
+					selected={i === selectedIdx}
+					onSelect={() => onSelect(i)}
+					onActivate={() => onActivate(`/runs/${run.runId}`)}
+				/>
+			))
+	},
+	actions: {
+		title: 'Actions',
+		count: (results) => results.actions.length,
+		rows: (results, { query, selectedIdx, onSelect, onActivate }) =>
+			results.actions.map((action, i) => (
 				<ActionResultRow
 					key={action.id}
 					action={action}
@@ -166,11 +172,23 @@ function ScopedFlat({
 					onSelect={() => onSelect(i)}
 					onActivate={() => onActivate(action.target ?? null)}
 				/>
-			))}
-		</div>
-	)
+			))
+	}
 }
 
-function isDone(stateType: string): boolean {
-	return stateType === 'completed' || stateType === 'canceled'
+function ScopedFlat({
+	type,
+	results,
+	query,
+	selectedIdx,
+	onSelect,
+	onActivate
+}: ScopedSectionsViewProps & { type: FlatType }) {
+	const config = FLAT_CONFIG[type]
+	return (
+		<div className="flex flex-col py-1">
+			<SectionHeader title={config.title} count={config.count(results)} />
+			{config.rows(results, { query, selectedIdx, onSelect, onActivate })}
+		</div>
+	)
 }

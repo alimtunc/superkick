@@ -5,11 +5,8 @@ import { z } from 'zod'
  * URL schema for the /issues route. Filter state is the URL — there is no
  * parallel React state — so this schema is the contract that drives
  * `useIssuesView`, the filter chips, and the saved-view tabs.
- *
- * `view=kanban` is accepted and rewritten to `board` for one release
- * (see `parseIssuesSearch`); after that the `kanban` literal can be dropped.
  */
-const layoutLiteral = z.enum(['list', 'board', 'kanban']).optional()
+const layoutLiteral = z.enum(['list', 'board']).optional()
 
 export const issuesSearchSchema = z.object({
 	tab: z.enum(['mine', 'all-open', 'shipped']).optional(),
@@ -59,15 +56,10 @@ export const EMPTY_FILTERS: IssueFilterState = {
 	has_sub_issues: []
 }
 
-/** Validate and coerce raw search params, rewriting the legacy `kanban`
- *  alias on the way in. Returns the partial URL shape — `resolveSearch`
- *  fills in defaults for the view-model. */
+/** Validate and coerce raw search params. Returns the partial URL shape —
+ *  `resolveSearch` fills in defaults for the view-model. */
 export function parseIssuesSearch(raw: unknown): IssuesSearch {
-	const parsed = issuesSearchSchema.parse(raw)
-	if (parsed.view === 'kanban') {
-		return { ...parsed, view: 'board' }
-	}
-	return parsed
+	return issuesSearchSchema.parse(raw)
 }
 
 /** Apply defaults to produce the resolved view-model input. The viewer-aware
@@ -79,7 +71,7 @@ export function resolveSearch(
 ): ResolvedIssuesSearch {
 	return {
 		tab: search.tab ?? (viewerId !== null ? 'mine' : 'all-open'),
-		view: (search.view === 'kanban' ? 'board' : (search.view ?? 'list')) as IssueViewLayout,
+		view: search.view ?? 'list',
 		group: search.group ?? 'status',
 		sort: search.sort ?? 'priority',
 		showDone: search.showDone ?? showDonePref,

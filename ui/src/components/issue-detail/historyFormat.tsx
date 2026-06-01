@@ -110,15 +110,14 @@ function formatLabels(added: IssueLabel[], removed: IssueLabel[]): ReactNode {
 	if (added.length > 0) {
 		phrases.push(
 			<span key="added">
-				added {joinWithAnd(added.map((l, i) => <LabelChip key={`add-${i}-${l.name}`} label={l} />))}
+				added {joinWithAnd(added.map((l) => <LabelChip key={`add-${l.name}`} label={l} />))}
 			</span>
 		)
 	}
 	if (removed.length > 0) {
 		phrases.push(
 			<span key="removed">
-				removed{' '}
-				{joinWithAnd(removed.map((l, i) => <LabelChip key={`rem-${i}-${l.name}`} label={l} />))}
+				removed {joinWithAnd(removed.map((l) => <LabelChip key={`rem-${l.name}`} label={l} />))}
 			</span>
 		)
 	}

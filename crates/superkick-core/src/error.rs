@@ -1,3 +1,4 @@
+use crate::handoff::HandoffStatus;
 use crate::id::RunId;
 use crate::launch_task::{LaunchTaskStatus, LaunchTaskStepStatus};
 use crate::orchestrator_session::OrchestratorStatus;
@@ -34,6 +35,16 @@ pub enum CoreError {
     InvalidLaunchTaskStepTransition {
         from: LaunchTaskStepStatus,
         to: LaunchTaskStepStatus,
+    },
+
+    /// Handoff state machine refused a transition. Same 409 mapping rationale
+    /// as `InvalidOrchestratorTransition` — its own variant so the API layer's
+    /// error message can name the handoff aggregate, versus 400 for shape
+    /// errors (`InvalidInput`).
+    #[error("invalid handoff transition: {from} -> {to}")]
+    InvalidHandoffTransition {
+        from: HandoffStatus,
+        to: HandoffStatus,
     },
 
     #[error("run is in terminal state: {0}")]

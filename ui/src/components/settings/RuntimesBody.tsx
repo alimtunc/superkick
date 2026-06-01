@@ -1,5 +1,8 @@
 import { NoProvidersDetected } from '@/components/settings/NoProvidersDetected'
 import { RuntimeCard } from '@/components/settings/RuntimeCard'
+import { EmptyState } from '@/components/ui/state-empty'
+import { ErrorState } from '@/components/ui/state-error'
+import { LoadingState } from '@/components/ui/state-loading'
 import type { RuntimeWithProviders } from '@/types'
 
 interface RuntimesBodyProps {
@@ -10,16 +13,18 @@ interface RuntimesBodyProps {
 
 export function RuntimesBody({ runtimes, isLoading, error }: RuntimesBodyProps) {
 	if (isLoading) {
-		return <p className="font-data text-[11px] text-fg-dim">Loading runtimes…</p>
+		return <LoadingState density="compact" />
 	}
 	if (error !== null) {
-		return <p className="font-data text-[11px] text-danger">{error}</p>
+		return <ErrorState message={error} density="compact" />
 	}
 	if (runtimes.length === 0) {
 		return (
-			<p className="font-data text-[11px] text-fg-dim">
-				No runtimes registered yet. Click Refresh to detect local CLIs.
-			</p>
+			<EmptyState
+				density="compact"
+				title="No runtimes registered yet"
+				description="Click Refresh to detect local CLIs."
+			/>
 		)
 	}
 	const hasAnyProvider = runtimes.some((runtime) => runtime.providers.length > 0)

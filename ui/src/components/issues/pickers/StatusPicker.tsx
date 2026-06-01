@@ -1,4 +1,5 @@
 import { PopoverPopup } from '@/components/ui/popover-shell'
+import { EmptyState } from '@/components/ui/state-empty'
 import type { WorkflowStateOption } from '@/types'
 import { StatusIcon, statusIconKindFor } from '@/ui'
 
@@ -14,15 +15,9 @@ export function StatusPicker({ states, currentId, onSelect }: StatusPickerProps)
 	return (
 		<PopoverPopup popupClassName="w-64 max-h-80 overflow-hidden flex flex-col p-0">
 			{states.length === 0 ? (
-				<p
-					style={{
-						padding: 'var(--space-4) var(--space-5)',
-						fontSize: 'var(--text-12)',
-						color: 'var(--fg-dim)'
-					}}
-				>
-					No statuses available for this team.
-				</p>
+				<div className="p-3">
+					<EmptyState title="No statuses available for this team." density="compact" />
+				</div>
 			) : (
 				<>
 					<PopBody ariaLabel="Status">

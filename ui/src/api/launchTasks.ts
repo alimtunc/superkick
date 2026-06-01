@@ -9,69 +9,49 @@ import type {
 	RetryLaunchTaskResponse
 } from '@/types'
 
-import { BASE, throwGenericApiError } from './_shared'
+import { getJson, postJson } from './_shared'
 
 export async function createLaunchTask(req: CreateLaunchTaskRequest): Promise<LaunchTaskWithSteps> {
-	const res = await fetch(`${BASE}/launch-tasks`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(req)
-	})
-	if (!res.ok) await throwGenericApiError(res, 'create launch task failed')
-	return res.json()
+	return postJson('/launch-tasks', 'create launch task failed', req)
 }
 
 export async function listLaunchTasksForIssue(linearIssueId: string): Promise<LaunchTask[]> {
-	const res = await fetch(`${BASE}/launch-tasks?linear_issue_id=${encodeURIComponent(linearIssueId)}`)
-	if (!res.ok) await throwGenericApiError(res, 'list launch tasks failed')
-	return res.json()
+	return getJson(
+		`/launch-tasks?linear_issue_id=${encodeURIComponent(linearIssueId)}`,
+		'list launch tasks failed'
+	)
 }
 
 export async function fetchLaunchTaskSteps(taskId: string): Promise<LaunchTaskStep[]> {
-	const res = await fetch(`${BASE}/launch-tasks/${encodeURIComponent(taskId)}/steps`)
-	if (!res.ok) await throwGenericApiError(res, 'list launch task steps failed')
-	return res.json()
+	return getJson(`/launch-tasks/${encodeURIComponent(taskId)}/steps`, 'list launch task steps failed')
 }
 
 export async function fetchLaunchTask(taskId: string): Promise<LaunchTask> {
-	const res = await fetch(`${BASE}/launch-tasks/${encodeURIComponent(taskId)}`)
-	if (!res.ok) await throwGenericApiError(res, 'fetch launch task failed')
-	return res.json()
+	return getJson(`/launch-tasks/${encodeURIComponent(taskId)}`, 'fetch launch task failed')
 }
 
 export async function cancelLaunchTask(taskId: string): Promise<CancelLaunchTaskResponse> {
-	const res = await fetch(`${BASE}/launch-tasks/${encodeURIComponent(taskId)}/cancel`, {
-		method: 'POST'
-	})
-	if (!res.ok) await throwGenericApiError(res, 'cancel launch task failed')
-	return res.json()
+	return postJson(`/launch-tasks/${encodeURIComponent(taskId)}/cancel`, 'cancel launch task failed')
 }
 
 export async function retryLaunchTask(taskId: string): Promise<RetryLaunchTaskResponse> {
-	const res = await fetch(`${BASE}/launch-tasks/${encodeURIComponent(taskId)}/retry`, {
-		method: 'POST'
-	})
-	if (!res.ok) await throwGenericApiError(res, 'retry launch task failed')
-	return res.json()
+	return postJson(`/launch-tasks/${encodeURIComponent(taskId)}/retry`, 'retry launch task failed')
 }
 
-// SUP-154 — operator interventions.
-
 export async function listLaunchTaskInterventions(taskId: string): Promise<LaunchTaskIntervention[]> {
-	const res = await fetch(`${BASE}/launch-tasks/${encodeURIComponent(taskId)}/interventions`)
-	if (!res.ok) await throwGenericApiError(res, 'list launch task interventions failed')
-	return res.json()
+	return getJson(
+		`/launch-tasks/${encodeURIComponent(taskId)}/interventions`,
+		'list launch task interventions failed'
+	)
 }
 
 export async function createLaunchTaskIntervention(
 	taskId: string,
 	req: CreateInterventionRequest
 ): Promise<LaunchTaskIntervention> {
-	const res = await fetch(`${BASE}/launch-tasks/${encodeURIComponent(taskId)}/interventions`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(req)
-	})
-	if (!res.ok) await throwGenericApiError(res, 'create launch task intervention failed')
-	return res.json()
+	return postJson(
+		`/launch-tasks/${encodeURIComponent(taskId)}/interventions`,
+		'create launch task intervention failed',
+		req
+	)
 }

@@ -14,11 +14,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::Utc;
-use superkick_api::recovery_scheduler;
 use superkick_core::{
     ExecutionMode, RecoveryConfig, Run, RunState, TriggerSource, WorkspaceRunEvent,
 };
 use superkick_runtime::WorkspaceEventBus;
+use superkick_runtime::recovery_scheduler;
 use superkick_storage::SqliteRecoveryEventRepo;
 use superkick_storage::repo::RunRepo;
 use superkick_storage::{SqliteRunRepo, connect};
@@ -166,7 +166,7 @@ async fn terminal_run_keeps_stall_history_but_drops_off_classification() {
     // Done column. The recovery scheduler filters terminal runs out of its
     // candidate set, so once a stalled run completes there is no `recovered`
     // row to close out the prior `stalled` row. The dashboard handler clamps
-    // at read time (see `queue_common::stall_annotation`); this test pins the
+    // at read time (see `queue_triage_service::stall_annotation`); this test pins the
     // *scheduler-side* invariant: after a run reaches `Completed`, no further
     // recovery rows are written for it on subsequent ticks. The stalled row
     // from before completion remains in the audit table — that's intended,

@@ -21,7 +21,7 @@ use superkick_core::{
     OrchestratorSessionId, RunId, StepResult,
 };
 
-use super::codec::{deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
 use crate::repo::LaunchTaskRepo;
 
 pub struct SqliteLaunchTaskRepo {
@@ -571,8 +571,8 @@ impl LaunchTaskRow {
             summary: self.summary,
             base_branch: self.base_branch,
             use_worktree: self.use_worktree.map(|v| v != 0),
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)?.to_utc(),
+            created_at: decode_rfc3339(&self.created_at)?,
+            updated_at: decode_rfc3339(&self.updated_at)?,
         })
     }
 }
@@ -656,8 +656,8 @@ impl LaunchTaskStepRow {
             summary: self.summary,
             structured_result,
             failure_classification,
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)?.to_utc(),
+            created_at: decode_rfc3339(&self.created_at)?,
+            updated_at: decode_rfc3339(&self.updated_at)?,
         })
     }
 }

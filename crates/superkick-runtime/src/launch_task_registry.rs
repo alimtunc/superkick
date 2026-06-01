@@ -43,18 +43,6 @@ impl LaunchTaskRegistry {
         Self::default()
     }
 
-    /// Register a token for an active execution. Returns the previous token
-    /// if the task was already registered — caller decides whether to cancel
-    /// the prior run before overwriting (the executor itself rejects
-    /// duplicate `run` calls upstream of this).
-    pub fn register(
-        &self,
-        task_id: LaunchTaskId,
-        token: CancellationToken,
-    ) -> Option<CancellationToken> {
-        self.lock().insert(task_id, token)
-    }
-
     /// Insert-if-absent: on conflict the new token is NOT stored, so the
     /// existing executor remains the one a subsequent `cancel` signals.
     pub fn try_register(
@@ -95,26 +83,9 @@ impl LaunchTaskRegistry {
         }
     }
 
-    /// Cancel the active execution if any. Returns `true` if a token was
-    /// found, `false` if there is no live executor for the task in this
-    /// process (orphan after restart, already finished, never started).
-    pub fn cancel(&self, task_id: LaunchTaskId) -> bool {
-        let guard = self.lock();
-        if let Some(token) = guard.get(&task_id) {
-            token.cancel();
-            true
-        } else {
-            false
-        }
-    }
-
     /// Drop the entry for a finished execution.
     pub fn unregister(&self, task_id: LaunchTaskId) {
         self.lock().remove(&task_id);
-    }
-
-    pub fn contains(&self, task_id: LaunchTaskId) -> bool {
-        self.lock().contains_key(&task_id)
     }
 
     /// Lock the inner map, recovering the inner data on poison rather than
@@ -139,25 +110,36 @@ mod tests {
         let reg = LaunchTaskRegistry::new();
         let id = LaunchTaskId::new();
         let token = CancellationToken::new();
-        assert!(reg.register(id, token.clone()).is_none());
-        assert!(reg.contains(id));
-        assert!(reg.cancel(id));
+        reg.try_register(id, token.clone()).unwrap();
+        // A second try_register failing proves the token is present in the slot.
+        assert!(reg.try_register(id, CancellationToken::new()).is_err());
+        assert!(matches!(
+            reg.cancel_or_reserve(id),
+            CancelDecision::Signalled
+        ));
         assert!(token.is_cancelled());
     }
 
     #[test]
-    fn cancel_unknown_task_returns_false() {
+    fn cancel_unknown_task_reserves_instead_of_signalling() {
         let reg = LaunchTaskRegistry::new();
-        assert!(!reg.cancel(LaunchTaskId::new()));
+        // No live token for an unknown task — cancel_or_reserve must not
+        // pretend it signalled one; it reserves the empty slot instead.
+        assert!(matches!(
+            reg.cancel_or_reserve(LaunchTaskId::new()),
+            CancelDecision::Reserved(_)
+        ));
     }
 
     #[test]
     fn unregister_removes_token() {
         let reg = LaunchTaskRegistry::new();
         let id = LaunchTaskId::new();
-        reg.register(id, CancellationToken::new());
+        reg.try_register(id, CancellationToken::new()).unwrap();
         reg.unregister(id);
-        assert!(!reg.contains(id));
+        // Slot is free again: a fresh try_register succeeds where it would
+        // have failed while the token was still registered.
+        assert!(reg.try_register(id, CancellationToken::new()).is_ok());
     }
 
     #[test]
@@ -175,7 +157,10 @@ mod tests {
         // stored — cancelling via the registry signals `original`, not the
         // discarded `intruder`.
         assert!(err.is_cancelled() == original.is_cancelled());
-        assert!(reg.cancel(id));
+        assert!(matches!(
+            reg.cancel_or_reserve(id),
+            CancelDecision::Signalled
+        ));
         assert!(original.is_cancelled());
         assert!(!intruder.is_cancelled());
     }

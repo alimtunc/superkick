@@ -5,16 +5,13 @@ import type { LaunchTaskStep } from '@/types'
 import { Link } from '@tanstack/react-router'
 import { FileDiff, ScrollText, Terminal } from 'lucide-react'
 
+import { uniqueChangedFiles } from './changedFiles'
 import type { TaskCockpitTabId } from './TaskCockpitTabs'
 
 interface TaskCockpitTabPanelProps {
 	tab: Exclude<TaskCockpitTabId, 'activity'>
 	steps: readonly LaunchTaskStep[]
 	linkedRunId: string | null
-}
-
-function uniqueChangedFiles(steps: readonly LaunchTaskStep[]): string[] {
-	return [...new Set(steps.flatMap((step) => step.structured_result?.changed_files ?? []))]
 }
 
 function StepBadge({ step }: { step: LaunchTaskStep }) {

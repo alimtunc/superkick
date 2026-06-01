@@ -1,3 +1,4 @@
+import { SECTION_LIMIT } from '@/components/command/commandSections'
 import { ActionResultRow } from '@/components/command/rows/ActionResultRow'
 import { CommentResultRow } from '@/components/command/rows/CommentResultRow'
 import { FileResultRow } from '@/components/command/rows/FileResultRow'
@@ -14,8 +15,6 @@ interface TypingSectionsViewProps {
 	onActivate: (target: string | null) => void
 	onViewAll: (section: 'issues' | 'comments' | 'files' | 'runs') => void
 }
-
-const SECTION_LIMIT = 5
 
 export function TypingSectionsView({
 	results,

@@ -9,7 +9,7 @@ use superkick_core::{
     UsageSnapshot,
 };
 
-use super::codec::{deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
 use super::ensure_updated;
 use crate::repo::{ConversationRepo, TurnEventRepo, TurnRepo};
 
@@ -254,9 +254,13 @@ impl ConversationRow {
                 .parse::<ConversationStatus>()
                 .map_err(anyhow::Error::msg)?,
             provider_session_id: self.provider_session_id,
-            created_at: parse_ts(&self.created_at)?,
-            updated_at: parse_ts(&self.updated_at)?,
-            last_turn_at: self.last_turn_at.as_deref().map(parse_ts).transpose()?,
+            created_at: decode_rfc3339(&self.created_at)?,
+            updated_at: decode_rfc3339(&self.updated_at)?,
+            last_turn_at: self
+                .last_turn_at
+                .as_deref()
+                .map(decode_rfc3339)
+                .transpose()?,
         })
     }
 }
@@ -506,9 +510,13 @@ impl TurnRow {
             usage,
             error,
             cancel_reason: self.cancel_reason,
-            created_at: parse_ts(&self.created_at)?,
-            started_at: self.started_at.as_deref().map(parse_ts).transpose()?,
-            finished_at: self.finished_at.as_deref().map(parse_ts).transpose()?,
+            created_at: decode_rfc3339(&self.created_at)?,
+            started_at: self.started_at.as_deref().map(decode_rfc3339).transpose()?,
+            finished_at: self
+                .finished_at
+                .as_deref()
+                .map(decode_rfc3339)
+                .transpose()?,
         })
     }
 }
@@ -595,12 +603,6 @@ impl TurnEventRepo for SqliteTurnEventRepo {
 struct TurnEventRow {
     id: String,
     turn_id: String,
-    #[sqlx(rename = "seq")]
-    _seq: i64,
-    #[sqlx(rename = "at")]
-    _at: String,
-    #[sqlx(rename = "kind")]
-    _kind: String,
     envelope_json: String,
 }
 
@@ -625,8 +627,4 @@ fn envelope_kind(envelope_json: &str) -> String {
         .ok()
         .and_then(|v| v.get("kind").and_then(|k| k.as_str()).map(str::to_string))
         .unwrap_or_else(|| "unknown".to_string())
-}
-
-fn parse_ts(value: &str) -> Result<DateTime<Utc>> {
-    Ok(DateTime::parse_from_rfc3339(value)?.to_utc())
 }

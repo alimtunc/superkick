@@ -1,11 +1,12 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{
     AgentSessionId, Handoff, HandoffFailure, HandoffId, HandoffKind, HandoffPayload, HandoffResult,
     HandoffStatus, RunId, StepId,
 };
 
-use super::codec::{deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::repo::HandoffRepo;
 
 pub struct SqliteHandoffRepo {
@@ -85,9 +86,7 @@ impl HandoffRepo for SqliteHandoffRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("update handoff {}", h.id.0))?;
-        if result.rows_affected() == 0 {
-            return Err(anyhow!("handoff {} not found", h.id.0));
-        }
+        ensure_updated(result, "handoff", h.id.0)?;
         Ok(())
     }
 }
@@ -149,16 +148,16 @@ impl HandoffRow {
                 .map(uuid::Uuid::parse_str)
                 .transpose()?
                 .map(HandoffId),
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
+            created_at: decode_rfc3339(&self.created_at)?,
             delivered_at: self
                 .delivered_at
                 .as_deref()
-                .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
+                .map(decode_rfc3339)
                 .transpose()?,
             completed_at: self
                 .completed_at
                 .as_deref()
-                .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
+                .map(decode_rfc3339)
                 .transpose()?,
         })
     }

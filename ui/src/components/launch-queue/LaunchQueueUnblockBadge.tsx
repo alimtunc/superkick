@@ -6,12 +6,6 @@ interface LaunchQueueUnblockBadgeProps {
 	refTime: number
 }
 
-/**
- * "Unblocked · <when>" affordance shown on downstream cards that transitioned
- * out of `Blocked` during the current session (SUP-81). Session-local:
- * disappears on reload by design — the workspace event feed remains the
- * authoritative audit trail.
- */
 export function LaunchQueueUnblockBadge({ resolvedAt, refTime }: LaunchQueueUnblockBadgeProps) {
 	if (!isWithinUnblockWindow(resolvedAt, refTime)) return null
 

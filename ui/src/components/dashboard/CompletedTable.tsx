@@ -13,6 +13,10 @@ function fmtRunDuration(r: Run): string {
 	return fmtDuration(new Date(r.finished_at).getTime() - new Date(r.started_at).getTime())
 }
 
+function finishedAtMs(r: Run): number {
+	return r.finished_at ? new Date(r.finished_at).getTime() : 0
+}
+
 export function CompletedTable({ completed }: CompletedTableProps) {
 	return (
 		<section className="fade-up delay-4">
@@ -33,11 +37,7 @@ export function CompletedTable({ completed }: CompletedTableProps) {
 						</thead>
 						<tbody>
 							{completed
-								.toSorted(
-									(a, b) =>
-										new Date(b.finished_at!).getTime() -
-										new Date(a.finished_at!).getTime()
-								)
+								.toSorted((a, b) => finishedAtMs(b) - finishedAtMs(a))
 								.slice(0, 15)
 								.map((run) => (
 									<tr

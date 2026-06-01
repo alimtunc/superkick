@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::IssueBlocker;
 
+use super::codec::decode_rfc3339;
 use crate::repo::IssueBlockerRepo;
 
 pub struct SqliteIssueBlockerRepo {
@@ -127,7 +128,7 @@ impl IssueBlockerRow {
             blocker_identifier: self.blocker_identifier,
             blocker_title: self.blocker_title,
             blocker_state_type: self.blocker_state_type,
-            recorded_at: chrono::DateTime::parse_from_rfc3339(&self.recorded_at)?.to_utc(),
+            recorded_at: decode_rfc3339(&self.recorded_at)?,
         })
     }
 }

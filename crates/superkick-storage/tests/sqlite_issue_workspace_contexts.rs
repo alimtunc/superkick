@@ -86,18 +86,18 @@ async fn insert_with_children_persists_parent_excerpts_and_links() -> Result<()>
 async fn list_by_issue_identifier_orders_by_captured_at_desc() -> Result<()> {
     let repo = setup().await?;
 
-    let (first, first_excerpts, first_links) =
+    // Pin `captured_at` deterministically so the DESC sort is unambiguous —
+    // no `Utc::now()` race and no sleep to space the inserts apart.
+    let base = chrono::Utc::now();
+    let (mut first, first_excerpts, first_links) =
         IssueWorkspaceContext::new(snapshot("SUP-200"), vec![], vec![])?;
+    first.captured_at = base;
     repo.insert_with_children(&first, &first_excerpts, &first_links)
         .await?;
 
-    // Two `Utc::now()` reads inside the same millisecond would tie the sort
-    // order; sleep a couple of milliseconds so `captured_at` strictly
-    // increases between the two inserts and the assertion below is stable.
-    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-
-    let (second, second_excerpts, second_links) =
+    let (mut second, second_excerpts, second_links) =
         IssueWorkspaceContext::new(snapshot("SUP-200"), vec![], vec![])?;
+    second.captured_at = base + chrono::Duration::seconds(1);
     repo.insert_with_children(&second, &second_excerpts, &second_links)
         .await?;
 

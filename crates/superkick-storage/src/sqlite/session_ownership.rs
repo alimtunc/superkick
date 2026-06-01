@@ -13,6 +13,7 @@ use superkick_core::{
     OwnershipTransitionReason, RunId, SuspendReason,
 };
 
+use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
 use crate::repo::{OwnershipSnapshot, SessionOwnershipRepo};
 
 /// SQLite-backed implementation of the ownership repository.
@@ -82,7 +83,7 @@ impl SessionOwnershipRepo for SqliteSessionOwnershipRepo {
         .bind(event.from.as_ref().map(serde_json::to_string).transpose()?)
         .bind(event.to.kind_str())
         .bind(serde_json::to_string(&event.to)?)
-        .bind(reason_str(event.reason))
+        .bind(serialize_enum(&event.reason)?)
         .bind(event.operator_id.as_ref().map(|o| o.0.clone()))
         .bind(event.created_at.to_rfc3339())
         .execute(&mut *tx)
@@ -204,31 +205,6 @@ fn deserialize_owner(
     }
 }
 
-fn reason_str(r: OwnershipTransitionReason) -> &'static str {
-    match r {
-        OwnershipTransitionReason::OperatorTakeover => "operator_takeover",
-        OwnershipTransitionReason::OperatorRelease => "operator_release",
-        OwnershipTransitionReason::HandoffPending => "handoff_pending",
-        OwnershipTransitionReason::HandoffResolved => "handoff_resolved",
-        OwnershipTransitionReason::AttentionRaised => "attention_raised",
-        OwnershipTransitionReason::AttentionResolved => "attention_resolved",
-        OwnershipTransitionReason::SessionEnded => "session_ended",
-    }
-}
-
-fn parse_reason(s: &str) -> Result<OwnershipTransitionReason> {
-    match s {
-        "operator_takeover" => Ok(OwnershipTransitionReason::OperatorTakeover),
-        "operator_release" => Ok(OwnershipTransitionReason::OperatorRelease),
-        "handoff_pending" => Ok(OwnershipTransitionReason::HandoffPending),
-        "handoff_resolved" => Ok(OwnershipTransitionReason::HandoffResolved),
-        "attention_raised" => Ok(OwnershipTransitionReason::AttentionRaised),
-        "attention_resolved" => Ok(OwnershipTransitionReason::AttentionResolved),
-        "session_ended" => Ok(OwnershipTransitionReason::SessionEnded),
-        other => Err(anyhow::anyhow!("unknown transition reason: {other}")),
-    }
-}
-
 #[derive(sqlx::FromRow)]
 struct OwnershipEventRow {
     id: String,
@@ -263,9 +239,9 @@ impl OwnershipEventRow {
             session_id: AgentSessionId(uuid::Uuid::parse_str(&self.session_id)?),
             from,
             to,
-            reason: parse_reason(&self.reason)?,
+            reason: deserialize_enum::<OwnershipTransitionReason>(&self.reason)?,
             operator_id: self.operator_id.map(OperatorId),
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
+            created_at: decode_rfc3339(&self.created_at)?,
         })
     }
 }
@@ -292,7 +268,7 @@ impl SnapshotRow {
         let since = self
             .ownership_since
             .as_deref()
-            .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
+            .map(decode_rfc3339)
             .transpose()?;
         Ok(OwnershipSnapshot {
             session_id: AgentSessionId(uuid::Uuid::parse_str(&self.id)?),

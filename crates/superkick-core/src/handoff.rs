@@ -266,10 +266,10 @@ impl Handoff {
 
     fn transition(&mut self, target: HandoffStatus) -> Result<(), CoreError> {
         if !self.status.can_transition_to(target) {
-            return Err(CoreError::InvalidInput(format!(
-                "invalid handoff transition: {} -> {}",
-                self.status, target
-            )));
+            return Err(CoreError::InvalidHandoffTransition {
+                from: self.status,
+                to: target,
+            });
         }
         self.status = target;
         Ok(())
@@ -310,9 +310,10 @@ impl Handoff {
     /// orchestrator can later reconcile the operator's reply.
     pub fn escalate(&mut self, attention_id: AttentionRequestId) -> Result<(), CoreError> {
         if self.status != HandoffStatus::Failed {
-            return Err(CoreError::InvalidInput(
-                "only a Failed handoff may be escalated".into(),
-            ));
+            return Err(CoreError::InvalidHandoffTransition {
+                from: self.status,
+                to: HandoffStatus::Escalated,
+            });
         }
         let failure = self.failure.get_or_insert_with(|| HandoffFailure {
             reason: "escalated without explicit reason".into(),
@@ -477,7 +478,13 @@ mod tests {
                 primary_artifact_kind: None,
             })
             .unwrap_err();
-        assert!(matches!(err, CoreError::InvalidInput(_)));
+        assert!(matches!(
+            err,
+            CoreError::InvalidHandoffTransition {
+                from: HandoffStatus::Pending,
+                to: HandoffStatus::Completed,
+            }
+        ));
     }
 
     #[test]
@@ -504,7 +511,13 @@ mod tests {
     fn cannot_escalate_non_failed() {
         let mut h = make_handoff();
         let err = h.escalate(AttentionRequestId::new()).unwrap_err();
-        assert!(matches!(err, CoreError::InvalidInput(_)));
+        assert!(matches!(
+            err,
+            CoreError::InvalidHandoffTransition {
+                from: HandoffStatus::Pending,
+                to: HandoffStatus::Escalated,
+            }
+        ));
     }
 
     #[test]
@@ -518,7 +531,14 @@ mod tests {
     fn supersede_terminal_rejected() {
         let mut h = make_handoff();
         h.supersede().unwrap();
-        assert!(h.supersede().is_err());
+        let err = h.supersede().unwrap_err();
+        assert!(matches!(
+            err,
+            CoreError::InvalidHandoffTransition {
+                from: HandoffStatus::Superseded,
+                to: HandoffStatus::Superseded,
+            }
+        ));
     }
 
     #[test]

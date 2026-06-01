@@ -16,25 +16,25 @@ use std::collections::VecDeque;
 use std::future::Future;
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use chrono::Utc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::time::{Instant, timeout};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
-use superkick_core::{
-    Cancelled, Failure, ProtocolEvent, ProtocolEventEnvelope, ResumeKey, TurnOutcome, TurnRequest,
-};
+use superkick_core::{Failure, ProtocolEvent, ResumeKey, TurnOutcome, TurnRequest};
 
 use super::codex_stream::{ParserState, parse_line};
+use super::process::{Termination, append_stderr_tail, emit_terminal, kill_with_grace, send_event};
 use super::{
     ProtocolAdapter, ProtocolEventSender, ProtocolStream, TurnHandle, protocol_event_channel,
 };
+
+const PROVIDER: &str = "codex";
 
 /// Sandbox posture forwarded to Codex via `--sandbox`. Defaults to
 /// `WorkspaceWrite`, which matches the operator-supervised posture the run
@@ -317,7 +317,7 @@ async fn pump(
             biased;
             _ = cancel.cancelled() => {
                 warn!("codex protocol turn cancelled by operator");
-                kill_with_grace(&mut child).await;
+                kill_with_grace(PROVIDER, &mut child).await;
                 drain_remaining_stdout(
                     &mut stdout_lines,
                     &mut state,
@@ -326,6 +326,7 @@ async fn pump(
                     &mut completion_outcome,
                 ).await;
                 let outcome = emit_terminal(
+                    PROVIDER,
                     &tx,
                     &seq,
                     Termination::Cancelled,
@@ -337,7 +338,7 @@ async fn pump(
             }
             _ = timeout_branch => {
                 warn!(?timeout_dur, "codex protocol turn timed out");
-                kill_with_grace(&mut child).await;
+                kill_with_grace(PROVIDER, &mut child).await;
                 drain_remaining_stdout(
                     &mut stdout_lines,
                     &mut state,
@@ -346,6 +347,7 @@ async fn pump(
                     &mut completion_outcome,
                 ).await;
                 let outcome = emit_terminal(
+                    PROVIDER,
                     &tx,
                     &seq,
                     Termination::Timeout,
@@ -425,6 +427,7 @@ async fn pump(
     }
 
     send_event(
+        PROVIDER,
         &tx,
         &seq,
         ProtocolEvent::Failure(Failure {
@@ -467,7 +470,7 @@ async fn process_stdout_line(
             _ => None,
         };
 
-        send_event(tx, seq, event).await;
+        send_event(PROVIDER, tx, seq, event).await;
 
         if let Some(outcome) = terminal_outcome {
             *completion_outcome = Some(outcome);
@@ -487,125 +490,6 @@ async fn drain_remaining_stdout(
         timeout(Duration::from_millis(50), stdout_lines.next_line()).await
     {
         process_stdout_line(&text, state, tx, seq, completion_outcome).await;
-    }
-}
-
-fn append_stderr_tail(tail: &mut VecDeque<String>, capacity: usize, line: String) {
-    if capacity == 0 {
-        return;
-    }
-    if tail.len() == capacity {
-        tail.pop_front();
-    }
-    tail.push_back(line);
-}
-
-#[derive(Debug)]
-enum Termination {
-    Cancelled,
-    Timeout,
-}
-
-const CANCEL_REASON_OPERATOR: &str = "operator";
-
-async fn emit_terminal(
-    tx: &ProtocolEventSender,
-    seq: &AtomicU64,
-    termination: Termination,
-    resume_key: Option<ResumeKey>,
-    timeout_dur: Option<Duration>,
-    stderr_tail: &VecDeque<String>,
-) -> TurnOutcome {
-    match termination {
-        Termination::Cancelled => {
-            send_event(
-                tx,
-                seq,
-                ProtocolEvent::Cancelled(Cancelled {
-                    reason: CANCEL_REASON_OPERATOR.to_string(),
-                }),
-            )
-            .await;
-            TurnOutcome::Cancelled {
-                resume_key,
-                reason: CANCEL_REASON_OPERATOR.to_string(),
-            }
-        }
-        Termination::Timeout => {
-            let mut message = match timeout_dur {
-                Some(d) => format!("codex turn timed out after {d:?}"),
-                None => "codex turn timed out".to_string(),
-            };
-            if !stderr_tail.is_empty() {
-                let tail = stderr_tail
-                    .iter()
-                    .map(String::as_str)
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                message.push_str(": ");
-                message.push_str(&tail);
-            }
-            let code = "timeout".to_string();
-            send_event(
-                tx,
-                seq,
-                ProtocolEvent::Failure(Failure {
-                    code: code.clone(),
-                    message: message.clone(),
-                    usage: None,
-                }),
-            )
-            .await;
-            TurnOutcome::Failed {
-                resume_key,
-                code,
-                message,
-            }
-        }
-    }
-}
-
-async fn kill_with_grace(child: &mut Child) {
-    let pid = match child.id() {
-        Some(pid) => pid,
-        None => return,
-    };
-
-    // SIGTERM first — gives Codex a chance to flush its final JSONL line.
-    // SAFETY: `libc::kill` with a non-negative pid sends a signal to a single
-    // process. The pid came straight from this child handle.
-    unsafe {
-        libc::kill(pid as i32, libc::SIGTERM);
-    }
-
-    if matches!(
-        timeout(Duration::from_secs(2), child.wait()).await,
-        Ok(Ok(_))
-    ) {
-        return;
-    }
-
-    debug!(
-        pid,
-        "codex child did not exit within 2s of SIGTERM, sending SIGKILL"
-    );
-    if let Err(err) = child.start_kill() {
-        warn!(error = %err, "codex start_kill failed");
-    }
-    let _ = timeout(Duration::from_secs(1), child.wait()).await;
-}
-
-async fn send_event(tx: &ProtocolEventSender, seq: &AtomicU64, event: ProtocolEvent) {
-    let envelope = ProtocolEventEnvelope {
-        seq: seq.fetch_add(1, Ordering::Relaxed),
-        at: Utc::now(),
-        event,
-    };
-    if let Err(err) = tx.send(envelope).await {
-        debug!(
-            error = %err,
-            "codex protocol consumer dropped the event receiver",
-        );
     }
 }
 

@@ -1,16 +1,11 @@
 import type { InterruptAction } from '@/types'
 
-import { BASE, throwGenericApiError } from './_shared'
+import { postVoid } from './_shared'
 
 export async function answerInterrupt(
 	runId: string,
 	interruptId: string,
 	action: InterruptAction
 ): Promise<void> {
-	const res = await fetch(`${BASE}/runs/${runId}/interrupts/${interruptId}/answer`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(action)
-	})
-	if (!res.ok) await throwGenericApiError(res, 'answer interrupt failed')
+	await postVoid(`/runs/${runId}/interrupts/${interruptId}/answer`, 'answer interrupt failed', action)
 }

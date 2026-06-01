@@ -76,17 +76,16 @@ describe('RunMetaStrip', () => {
 		expect(screen.getByText('not set')).toBeInTheDocument()
 	})
 
-	it('uses comfortable padding by default and compact padding when asked', () => {
-		const { container, rerender } = render(<RunMetaStrip run={buildRun()} sessions={[buildSession()]} />)
-		const comfortable = container.querySelector('[data-density="comfortable"]')
-		expect(comfortable).not.toBeNull()
-		expect(comfortable?.className).toContain('px-6')
-		expect(comfortable?.className).toContain('py-3')
+	it('renders the comfortable layout by default and the compact layout when asked', () => {
+		const { rerender } = render(<RunMetaStrip run={buildRun()} sessions={[buildSession()]} />)
+		// Comfortable surfaces Model + Worktree columns; compact swaps them for Mode.
+		expect(screen.getByText('Model')).toBeInTheDocument()
+		expect(screen.getByText('Worktree')).toBeInTheDocument()
+		expect(screen.queryByText('Mode')).not.toBeInTheDocument()
 
 		rerender(<RunMetaStrip run={buildRun()} sessions={[buildSession()]} density="compact" />)
-		const compact = container.querySelector('[data-density="compact"]')
-		expect(compact).not.toBeNull()
-		expect(compact?.className).toContain('px-4')
-		expect(compact?.className).toContain('py-2.5')
+		expect(screen.getByText('Mode')).toBeInTheDocument()
+		expect(screen.queryByText('Model')).not.toBeInTheDocument()
+		expect(screen.queryByText('Worktree')).not.toBeInTheDocument()
 	})
 })

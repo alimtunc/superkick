@@ -103,20 +103,21 @@ async fn try_load_workspace_context_returns_memory_entries_oldest_first() -> Res
     // Insert oldest → newest so the SQLite `created_at` ordering is
     // unambiguous; the loader is contract-bound to reverse the repo's
     // newest-first page to give the prompt renderer oldest → newest.
+    // Pin `created_at` per row so the cursor compare never ties — no sleep
+    // to space the appends apart.
+    let base = chrono::Utc::now();
     for (i, text) in ["plan first", "impl second", "review third"]
         .into_iter()
         .enumerate()
     {
-        let entry = MemoryEntry::new(
+        let mut entry = MemoryEntry::new(
             ctx.id,
             "plan".into(),
             Some("alice".into()),
             format!("{text} step={i}"),
         )?;
+        entry.created_at = base + chrono::Duration::seconds(i as i64);
         MemoryEntryRepo::append(&*h.memory_repo, &entry).await?;
-        // Force monotonic timestamps — `MemoryEntry::new()` calls `Utc::now()`
-        // so two appends in the same millisecond would tie on the cursor.
-        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     }
 
     let loaded = try_load_workspace_context(&h.context_dyn, &h.memory_dyn, "uuid-149a")

@@ -275,13 +275,9 @@ fn classify_issue(
     // to point at the run (one bucket per pair, no double-counting).
     if let Some(run) = find_active_run_for(runs, &issue.identifier) {
         let bucket = map_operator_bucket(run.operator_bucket);
-        return ClassifiedIssue {
-            id: issue.id,
-            identifier: issue.identifier,
-            bucket,
-            reason: run.reason.clone(),
-            linked_run_id: Some(run.run_id),
-        };
+        let reason = run.reason.clone();
+        let run_id = run.run_id;
+        return classified(issue, bucket, reason, Some(run_id));
     }
 
     // Precedence cascade — first match wins. Order justified in module
@@ -291,14 +287,8 @@ fn classify_issue(
     // issue belongs in `Done`, not `Blocked`, regardless of parent or
     // blocker state.
     if is_terminal_blocker_state(&issue.state_type) {
-        let state_name = issue.state_name.clone();
-        return ClassifiedIssue {
-            id: issue.id,
-            identifier: issue.identifier,
-            bucket: LaunchQueue::Done,
-            reason: format!("linear status is '{state_name}'"),
-            linked_run_id: None,
-        };
+        let reason = format!("linear status is '{}'", issue.state_name);
+        return classified(issue, LaunchQueue::Done, reason, None);
     }
 
     // Blocker gate: any non-terminal Linear "blocks" relation keeps the
@@ -332,61 +322,49 @@ fn classify_issue(
         } else {
             LaunchQueue::Todo
         };
-        let state_name = issue.state_name.clone();
-        return ClassifiedIssue {
-            id: issue.id,
-            identifier: issue.identifier,
-            bucket,
-            reason: format!("linear status is '{state_name}'"),
-            linked_run_id: None,
-        };
+        let reason = format!("linear status is '{}'", issue.state_name);
+        return classified(issue, bucket, reason, None);
     }
 
     if orchestration
         .approval_required_priorities
         .contains(&issue.priority_value)
     {
-        return ClassifiedIssue {
-            id: issue.id,
-            identifier: issue.identifier,
-            bucket: LaunchQueue::Waiting,
-            reason: format!("priority {} requires manual approval", issue.priority_value),
-            linked_run_id: None,
-        };
+        let reason = format!("priority {} requires manual approval", issue.priority_value);
+        return classified(issue, LaunchQueue::Waiting, reason, None);
     }
 
     if capacity_reached {
-        return ClassifiedIssue {
-            id: issue.id,
-            identifier: issue.identifier,
-            bucket: LaunchQueue::Waiting,
-            reason: format!(
-                "concurrency cap reached: {active_runs}/{}",
-                orchestration.max_concurrent_active_runs
-            ),
-            linked_run_id: None,
-        };
+        let reason = format!(
+            "concurrency cap reached: {active_runs}/{}",
+            orchestration.max_concurrent_active_runs
+        );
+        return classified(issue, LaunchQueue::Waiting, reason, None);
     }
 
-    ClassifiedIssue {
-        id: issue.id,
-        identifier: issue.identifier,
-        bucket: LaunchQueue::Launchable,
-        reason: format!(
-            "in-progress issue with no active run; capacity {active_runs}/{}",
-            orchestration.max_concurrent_active_runs
-        ),
-        linked_run_id: None,
-    }
+    let reason = format!(
+        "in-progress issue with no active run; capacity {active_runs}/{}",
+        orchestration.max_concurrent_active_runs
+    );
+    classified(issue, LaunchQueue::Launchable, reason, None)
 }
 
 fn blocked(issue: QueueIssueInput, reason: String) -> ClassifiedIssue {
+    classified(issue, LaunchQueue::Blocked, reason, None)
+}
+
+fn classified(
+    issue: QueueIssueInput,
+    bucket: LaunchQueue,
+    reason: String,
+    linked_run_id: Option<RunId>,
+) -> ClassifiedIssue {
     ClassifiedIssue {
         id: issue.id,
         identifier: issue.identifier,
-        bucket: LaunchQueue::Blocked,
+        bucket,
         reason,
-        linked_run_id: None,
+        linked_run_id,
     }
 }
 

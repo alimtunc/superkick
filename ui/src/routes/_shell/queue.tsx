@@ -24,10 +24,7 @@ function LaunchQueuePage() {
 	const refTime = useNow()
 	const { dispatch, isPending: dispatchPending } = useDispatchFromQueue()
 	usePageActions({ title: 'Launch Queue' })
-	// Anchor columns (Backlog / Todo / Launchable) stay visible even when
-	// empty so the operator's eye anchors on the intake side. Everything
-	// else collapses out when nothing's there — keeps the Kanban focused
-	// on actionable work (SUP-81).
+	// Anchor columns stay visible even when empty; everything else collapses out when it has no items.
 	const visibleQueues = LAUNCH_QUEUES.filter(
 		(q) => ALWAYS_VISIBLE_QUEUES.includes(q) || (groups[q]?.length ?? 0) > 0
 	)

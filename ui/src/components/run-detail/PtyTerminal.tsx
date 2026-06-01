@@ -133,7 +133,6 @@ export function PtyTerminal({ runId, isTerminal, wsUrl, loadHistoryOnTerminal = 
 					return
 				}
 				if (!mountedRef.current) return
-				// Attempt reconnect with exponential backoff.
 				const delay = reconnectDelay.current
 				reconnectDelay.current = Math.min(delay * 2, RECONNECT_MAX_MS)
 				reconnectTimer.current = setTimeout(() => {
@@ -145,7 +144,6 @@ export function PtyTerminal({ runId, isTerminal, wsUrl, loadHistoryOnTerminal = 
 				ws.close()
 			})
 
-			// Send terminal input to PTY via ref (no state dependency).
 			terminal.onData((data: string) => {
 				if (ws.readyState === WebSocket.OPEN && writableRef.current) {
 					const encoded = new TextEncoder().encode(data)
@@ -185,7 +183,6 @@ export function PtyTerminal({ runId, isTerminal, wsUrl, loadHistoryOnTerminal = 
 			connectWebSocket(terminal)
 		}
 
-		// Resize observer.
 		const resizeObserver = new ResizeObserver(() => {
 			fitRef.current?.fit()
 			if (wsRef.current?.readyState === WebSocket.OPEN && fitRef.current) {

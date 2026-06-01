@@ -117,14 +117,17 @@ impl PtySession {
 
     /// Get a snapshot of the scrollback buffer for reconnect.
     pub fn scrollback_snapshot(&self) -> Vec<u8> {
-        self.scrollback.lock().expect("scrollback lock").snapshot()
+        self.scrollback
+            .lock()
+            .expect("bug: scrollback lock poisoned")
+            .snapshot()
     }
 
     /// Append bytes to the scrollback buffer (called by the output reader).
     pub fn append_scrollback(&self, bytes: &[u8]) {
         self.scrollback
             .lock()
-            .expect("scrollback lock")
+            .expect("bug: scrollback lock poisoned")
             .append(bytes);
     }
 
@@ -134,7 +137,10 @@ impl PtySession {
     /// (handles page reload, React StrictMode double-mount, reconnect).
     /// A Browser cannot take over an External lease and vice versa.
     pub fn acquire_writer(&self, holder: WriterHolder) -> bool {
-        let mut lease = self.writer_lease.lock().expect("writer lease lock");
+        let mut lease = self
+            .writer_lease
+            .lock()
+            .expect("bug: writer lease lock poisoned");
         match lease.as_ref() {
             None => {
                 *lease = Some(WriterLease { holder });
@@ -150,7 +156,10 @@ impl PtySession {
 
     /// Release the writer lease if held by the given holder.
     pub fn release_writer(&self, holder: &WriterHolder) {
-        let mut lease = self.writer_lease.lock().expect("writer lease lock");
+        let mut lease = self
+            .writer_lease
+            .lock()
+            .expect("bug: writer lease lock poisoned");
         if lease
             .as_ref()
             .is_some_and(|current| &current.holder == holder)
@@ -163,7 +172,7 @@ impl PtySession {
     pub fn is_writer(&self, holder: &WriterHolder) -> bool {
         self.writer_lease
             .lock()
-            .expect("writer lease lock")
+            .expect("bug: writer lease lock poisoned")
             .as_ref()
             .is_some_and(|current| &current.holder == holder)
     }
@@ -173,7 +182,7 @@ impl PtySession {
     pub fn current_writer(&self) -> Option<WriterHolder> {
         self.writer_lease
             .lock()
-            .expect("writer lease lock")
+            .expect("bug: writer lease lock poisoned")
             .as_ref()
             .map(|l| l.holder.clone())
     }
@@ -182,7 +191,7 @@ impl PtySession {
     pub fn has_writer(&self) -> bool {
         self.writer_lease
             .lock()
-            .expect("writer lease lock")
+            .expect("bug: writer lease lock poisoned")
             .is_some()
     }
 
@@ -190,7 +199,7 @@ impl PtySession {
     pub fn write_input(&self, bytes: &[u8]) -> std::io::Result<()> {
         self.master_writer
             .lock()
-            .expect("master writer lock")
+            .expect("bug: master writer lock poisoned")
             .write_all(bytes)
     }
 
@@ -202,7 +211,12 @@ impl PtySession {
             pixel_width: 0,
             pixel_height: 0,
         };
-        if let Err(err) = self.resize_handle.lock().expect("resize lock").resize(size) {
+        if let Err(err) = self
+            .resize_handle
+            .lock()
+            .expect("bug: resize lock poisoned")
+            .resize(size)
+        {
             warn!("PTY resize failed: {err}");
         }
     }
@@ -253,7 +267,7 @@ impl PtySessionRegistry {
     pub fn register(&self, run_id: RunId, session: Arc<PtySession>) {
         self.sessions
             .lock()
-            .expect("registry lock")
+            .expect("bug: registry lock poisoned")
             .insert(run_id, session);
     }
 
@@ -261,21 +275,24 @@ impl PtySessionRegistry {
     pub fn get(&self, run_id: RunId) -> Option<Arc<PtySession>> {
         self.sessions
             .lock()
-            .expect("registry lock")
+            .expect("bug: registry lock poisoned")
             .get(&run_id)
             .cloned()
     }
 
     /// Remove a session (called after deferred cleanup).
     pub fn remove(&self, run_id: RunId) {
-        self.sessions.lock().expect("registry lock").remove(&run_id);
+        self.sessions
+            .lock()
+            .expect("bug: registry lock poisoned")
+            .remove(&run_id);
     }
 
     /// Register a takeover PTY session against a run.
     pub fn register_takeover(&self, entry: TakeoverEntry) {
         self.takeovers
             .lock()
-            .expect("takeover lock")
+            .expect("bug: takeover lock poisoned")
             .insert(entry.takeover_session_id, entry);
     }
 
@@ -283,7 +300,7 @@ impl PtySessionRegistry {
     pub fn get_takeover(&self, takeover_id: TakeoverSessionId) -> Option<TakeoverEntry> {
         self.takeovers
             .lock()
-            .expect("takeover lock")
+            .expect("bug: takeover lock poisoned")
             .get(&takeover_id)
             .cloned()
     }
@@ -292,7 +309,7 @@ impl PtySessionRegistry {
     pub fn unregister_takeover(&self, takeover_id: TakeoverSessionId) -> Option<TakeoverEntry> {
         self.takeovers
             .lock()
-            .expect("takeover lock")
+            .expect("bug: takeover lock poisoned")
             .remove(&takeover_id)
     }
 
@@ -300,7 +317,7 @@ impl PtySessionRegistry {
     pub fn list_takeovers_for_run(&self, run_id: RunId) -> Vec<TakeoverEntry> {
         self.takeovers
             .lock()
-            .expect("takeover lock")
+            .expect("bug: takeover lock poisoned")
             .values()
             .filter(|entry| entry.run_id == run_id)
             .cloned()

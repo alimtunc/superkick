@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{Interrupt, InterruptId, InterruptStatus, Run, RunId, StepId};
 
-use super::codec::{deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
 use super::ensure_updated;
 use crate::repo::{InterruptRepo, InterruptTxRepo};
 
@@ -164,11 +164,11 @@ impl InterruptRow {
                 .as_deref()
                 .map(serde_json::from_str)
                 .transpose()?,
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)?.to_utc(),
+            created_at: decode_rfc3339(&self.created_at)?,
             resolved_at: self
                 .resolved_at
                 .as_deref()
-                .map(|s| chrono::DateTime::parse_from_rfc3339(s).map(|d| d.to_utc()))
+                .map(decode_rfc3339)
                 .transpose()?,
         })
     }

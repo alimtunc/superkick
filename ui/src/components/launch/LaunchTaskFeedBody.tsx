@@ -1,14 +1,13 @@
 import { LaunchTaskCancelButton } from '@/components/issue-detail/launch-task-feed/LaunchTaskCancelButton'
-import { LaunchTaskCompletionSummary } from '@/components/issue-detail/launch-task-feed/LaunchTaskCompletionSummary'
 import { LaunchTaskNeedsHumanCallout } from '@/components/issue-detail/launch-task-feed/LaunchTaskNeedsHumanCallout'
 import { StepTimelineRow } from '@/components/issue-detail/launch-task-feed/StepTimelineRow'
 import { IssueContextPanel } from '@/components/issues/IssueContextPanel'
 import { InterventionComposer } from '@/components/launch/InterventionComposer'
-import { InterventionRow } from '@/components/launch/InterventionRow'
 import { LaunchPlanStrip } from '@/components/launch/LaunchPlanStrip'
-import { WorktreeActions } from '@/components/workspace/WorktreeActions'
+import { LaunchTaskTerminalSection } from '@/components/launch/LaunchTaskTerminalSection'
+import { InterventionList } from '@/components/task-cockpit/InterventionList'
 import { useLaunchTaskFeedState } from '@/hooks/useLaunchTaskFeedState'
-import type { LaunchTask, LaunchTaskIntervention, LaunchTaskStep } from '@/types'
+import type { LaunchTask, LaunchTaskStep } from '@/types'
 
 interface LaunchTaskFeedBodyProps {
 	task: LaunchTask
@@ -40,19 +39,15 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 				</div>
 			) : null}
 			<LaunchPlanStrip task={task} steps={steps} />
-			{terminalKind ? (
-				<LaunchTaskCompletionSummary
-					kind={terminalKind}
-					task={task}
-					finalStep={finalStep}
-					classification={finalClassification}
-					linkedRunId={linkedRunId}
-					worktreePath={worktreePath}
-					branchName={branchName}
-				/>
-			) : linkedRunId ? (
-				<WorktreeActions runId={linkedRunId} worktreePath={worktreePath} branchName={branchName} />
-			) : null}
+			<LaunchTaskTerminalSection
+				task={task}
+				terminalKind={terminalKind}
+				finalStep={finalStep}
+				finalClassification={finalClassification}
+				linkedRunId={linkedRunId}
+				worktreePath={worktreePath}
+				branchName={branchName}
+			/>
 			<InterventionComposer
 				linearIssueId={task.linear_issue_id}
 				taskId={task.id}
@@ -89,25 +84,6 @@ export function LaunchTaskFeedBody({ task, steps }: LaunchTaskFeedBodyProps) {
 					</div>
 				) : null}
 			</div>
-		</div>
-	)
-}
-
-interface InterventionListProps {
-	label: string
-	rows: LaunchTaskIntervention[]
-	variant: 'above' | 'below'
-}
-
-function InterventionList({ label, rows, variant }: InterventionListProps) {
-	if (rows.length === 0) return null
-	const spacing = variant === 'above' ? 'mb-4' : 'mt-4'
-	return (
-		<div className={spacing}>
-			<div className="font-data mb-2 text-[11px] tracking-wide text-fg-dim uppercase">{label}</div>
-			{rows.map((i) => (
-				<InterventionRow key={i.id} intervention={i} />
-			))}
 		</div>
 	)
 }

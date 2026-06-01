@@ -42,10 +42,7 @@ pub async fn get_ownership(
 ) -> Result<impl IntoResponse, AppError> {
     let run_id = RunId(run_id);
     let session_id = AgentSessionId(session_id);
-
-    if state.run_repo.get(run_id).await?.is_none() {
-        return Err(AppError::NotFound("run not found"));
-    }
+    validate_run(&state, run_id).await?;
 
     let current = state
         .ownership_service

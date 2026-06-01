@@ -1,4 +1,5 @@
 import { BoardCard } from '@/components/dashboard/BoardCard'
+import { EmptyState } from '@/components/ui/state-empty'
 import type { Run } from '@/types'
 
 interface BoardColProps {
@@ -24,7 +25,9 @@ export function BoardCol({ title, count, runs, refTime, accent }: BoardColProps)
 				<span className="font-data text-[11px] text-fg-dim">{count}</span>
 			</div>
 			{runs.length === 0 ? (
-				<p className="font-data px-3 py-4 text-[11px] text-fg-dim">Empty</p>
+				<div className="px-3 py-4">
+					<EmptyState title="Empty" density="compact" />
+				</div>
 			) : (
 				<div className="divide-y divide-border/50">
 					{runs.map((run) => (

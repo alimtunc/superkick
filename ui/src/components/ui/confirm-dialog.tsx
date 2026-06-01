@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { Icon } from '@/ui/Icon'
 import { AlertDialog } from '@base-ui/react/alert-dialog'
 
@@ -51,19 +52,20 @@ export function ConfirmDialog({
 						<span className="spacer" />
 						<AlertDialog.Close
 							render={
-								<button type="button" className="btn btn--ghost btn--sm" disabled={busy}>
+								<Button type="button" variant="ghost" size="sm" disabled={busy}>
 									{cancelLabel}
-								</button>
+								</Button>
 							}
 						/>
-						<button
+						<Button
 							type="button"
-							className={destructive ? 'btn btn--danger btn--sm' : 'btn btn--primary btn--sm'}
+							variant={destructive ? 'destructive' : 'default'}
+							size="sm"
 							onClick={onConfirm}
 							disabled={busy}
 						>
 							{busy ? '…' : confirmLabel}
-						</button>
+						</Button>
 					</div>
 				</AlertDialog.Popup>
 			</AlertDialog.Portal>
