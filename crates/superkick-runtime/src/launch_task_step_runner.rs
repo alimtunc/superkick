@@ -25,10 +25,10 @@ use tracing::{error, info, warn};
 
 use superkick_config::SuperkickConfig;
 use superkick_core::{
-    AgentCatalog, EventKind, EventLevel, FailureClassification, FailureDisposition, LaunchReason,
-    LaunchStepKind, LaunchTask, LaunchTaskId, LaunchTaskIntervention, LaunchTaskStep,
-    LaunchTaskStepId, MemoryEntryId, RoleRouter, Run, RunId, RunPolicy, RunState, RunStep, StepId,
-    StepKey, StepResult, StepStatus, TriggerSource,
+    AgentCatalog, AgentProvider, EventKind, EventLevel, FailureClassification, FailureDisposition,
+    LaunchReason, LaunchStepKind, LaunchTask, LaunchTaskId, LaunchTaskIntervention, LaunchTaskStep,
+    LaunchTaskStepId, MemoryEntryId, RoleRouter, Run, RunId, RunPolicy, RunState, RunStep,
+    RunnerMode, StepId, StepKey, StepResult, StepStatus, TriggerSource,
 };
 use superkick_storage::repo::{
     AgentSessionRepo, IssueWorkspaceContextRepoDyn, LaunchTaskInterventionRepo, LaunchTaskRepo,
@@ -44,7 +44,7 @@ use crate::launch_task_context::{
 use crate::launch_task_event_bus::{LaunchTaskEvent, LaunchTaskEventBus};
 use crate::launch_task_executor::{StepLinks, StepOutcome, StepRunner};
 use crate::linear_context::OptionalLinearClient;
-use crate::protocol_adapter::MarkerError;
+use crate::protocol_adapter::{CodexAdapterOptions, CodexProtocolAdapter, MarkerError};
 use crate::repo_cache::RepoCache;
 use crate::session_bus::SessionBus;
 use crate::step_engine::prompts::{PromptStepKind, step_body_for};
@@ -869,6 +869,17 @@ where
             context_block_for_prompt,
         );
 
+        // SUP-185: route Codex `ExecJson` steps through the structured adapter
+        // (codex exec --json) so Activity/Tools/Logs see real provider events.
+        // Every other (provider, mode) pair — including all Claude modes and
+        // Codex interactive takeover — keeps the unchanged PTY supervisor path.
+        let codex_structured = resolved.provider == AgentProvider::Codex
+            && resolved.runner_mode == RunnerMode::ExecJson;
+        // The structured path feeds the prompt to the adapter via stdin,
+        // separately from the launch config, so it needs its own copy; the PTY
+        // path moves the prompt straight into the config.
+        let structured_prompt = codex_structured.then(|| prompt.clone());
+
         let launch_cfg = build_launch_config(
             &spawn_plan,
             LaunchConfigInputs {
@@ -886,7 +897,21 @@ where
             },
         );
 
-        let (handle, join) = match self.supervisor.launch(launch_cfg).await {
+        let spawn_result = match structured_prompt {
+            Some(prompt) => {
+                let adapter = CodexProtocolAdapter::with_options(CodexAdapterOptions {
+                    codex_executable: Some(PathBuf::from(resolved.program.clone())),
+                    model: resolved.model.clone(),
+                    ..CodexAdapterOptions::default()
+                });
+                self.supervisor
+                    .launch_codex_structured(adapter, launch_cfg, prompt)
+                    .await
+            }
+            None => self.supervisor.launch(launch_cfg).await,
+        };
+
+        let (handle, join) = match spawn_result {
             Ok(pair) => pair,
             Err(e) => {
                 return Ok(StepOutcome::Failed {

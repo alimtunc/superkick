@@ -77,3 +77,12 @@ export {
 	ledgerDetail,
 	ledgerTone
 } from './ledger'
+export {
+	hasProtocolActivity,
+	isProtocolEvent,
+	protocolRows,
+	deriveProtocolToolCalls,
+	deriveProtocolLogRows,
+	toolInputSummary
+} from './protocol'
+export type { ProtocolRow, ProtocolLogRow } from './protocol'

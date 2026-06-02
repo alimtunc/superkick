@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 
 import { ToolPayloadBlock } from '@/components/run-detail/RunWorkspaceTabs/ToolPayloadBlock'
-import { fmtRelativeTime } from '@/lib/domain'
+import { fmtRelativeTime, toolInputSummary } from '@/lib/domain'
 import { stringifyForDisplay } from '@/lib/format/json'
 import type { RunToolCall } from '@/types'
 import { Icon } from '@/ui/Icon'
@@ -18,6 +18,7 @@ export function ToolCallRow({ call }: ToolCallRowProps) {
 		[expanded, call.output]
 	)
 	const pending = call.output === null
+	const preview = toolInputSummary(call.input)
 
 	return (
 		<div className="toolcall">
@@ -29,7 +30,13 @@ export function ToolCallRow({ call }: ToolCallRowProps) {
 			>
 				<Icon name="terminal" size={13} className="ic text-fg-dim" />
 				<span className="toolcall__name">{call.tool_name}</span>
-				<span className="spacer" />
+				{preview ? (
+					<span className="font-data min-w-0 flex-1 truncate pl-2 text-[11px] text-fg-dim">
+						{preview}
+					</span>
+				) : (
+					<span className="spacer" />
+				)}
 				{call.is_error ? <span className="font-data text-[11px] text-danger">error</span> : null}
 				{pending ? <span className="font-data text-[11px] text-fg-muted">running…</span> : null}
 				<span className="toolcall__dur">{fmtRelativeTime(call.at)}</span>

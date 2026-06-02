@@ -9,6 +9,7 @@ function buildEvent(overrides: Partial<RunEvent> = {}): RunEvent {
 		id: 'evt-1',
 		run_id: 'run-1',
 		run_step_id: null,
+		seq: 0,
 		ts: '2026-05-25T10:00:00.000Z',
 		kind: 'terminal_takeover_opened',
 		level: 'info',

@@ -110,6 +110,23 @@ impl CodexProtocolAdapter {
         &self.options
     }
 
+    /// Operator-facing preview of the argv this adapter actually spawns for a
+    /// fresh turn. The prompt is fed via stdin (`-`), so it never appears here
+    /// — callers use this to record an honest `agent_sessions.command` for the
+    /// structured path instead of an unused, prompt-inlined PTY-style argv.
+    pub(crate) fn command_preview(&self, workdir: &std::path::Path) -> String {
+        let executable = self
+            .options
+            .codex_executable
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "codex".to_string());
+        format!(
+            "{executable} {}",
+            build_argv(&self.options, None, workdir).join(" ")
+        )
+    }
+
     fn spawn(&self, request: TurnRequest, resume: Option<ResumeKey>) -> Result<ProtocolStream> {
         let argv = build_argv(&self.options, resume.as_ref(), &request.workdir);
         let executable = self

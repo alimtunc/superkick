@@ -30,6 +30,7 @@ function runStateChangeNotice(): WorkspaceRunEvent {
 		id: 'evt-1',
 		run_id: RUN_ID,
 		run_step_id: null,
+		seq: 0,
 		ts: '2026-05-25T00:00:00Z',
 		kind: 'state_change',
 		level: 'info',

@@ -10,6 +10,7 @@ import { ErrorState } from '@/components/ui/state-error'
 import { LoadingState } from '@/components/ui/state-loading'
 import { useEventStream } from '@/hooks/useEventStream'
 import { useRunDetail } from '@/hooks/useRunDetail'
+import { useStickToBottom } from '@/hooks/useStickToBottom'
 import { useRunDrawerStore } from '@/stores/runDrawer'
 import { Icon } from '@/ui/Icon'
 import { Link } from '@tanstack/react-router'
@@ -24,6 +25,9 @@ export function RunDrawerContent({ runId }: RunDrawerContentProps) {
 	const closeDrawer = useRunDrawerStore((s) => s.closeDrawer)
 	const detail = useRunDetail(runId)
 	const stream = useEventStream(runId, detail.syncRun)
+	// Follow the live feed to the newest event (per active tab) unless the
+	// reader has scrolled up to read history.
+	const body = useStickToBottom<HTMLDivElement>(`${tab}:${stream.events.length}`)
 
 	if (detail.loading) {
 		return (
@@ -91,7 +95,7 @@ export function RunDrawerContent({ runId }: RunDrawerContentProps) {
 			</div>
 			<RunMetaStrip run={run} sessions={sessions} density="compact" />
 			<RunDrawerTabs />
-			<div className="drawer__body">
+			<div className="drawer__body" ref={body.ref} onScroll={body.onScroll}>
 				{tab === 'activity' ? (
 					<ActivityTab
 						events={stream.events}
@@ -99,7 +103,7 @@ export function RunDrawerContent({ runId }: RunDrawerContentProps) {
 						attentionRequests={attentionRequests}
 					/>
 				) : null}
-				{tab === 'tools' ? <ToolsTab runId={run.id} /> : null}
+				{tab === 'tools' ? <ToolsTab runId={run.id} events={stream.events} /> : null}
 				{tab === 'files' ? <ChangesTab pr={pr} run={run} /> : null}
 				{tab === 'logs' ? (
 					<LogsTab events={stream.events} onOpenTerminal={() => setTab('terminal')} />

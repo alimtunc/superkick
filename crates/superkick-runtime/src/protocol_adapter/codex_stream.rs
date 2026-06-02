@@ -28,6 +28,8 @@ use superkick_core::{
     ToolCallResult, ToolCallStart, UsageSnapshot,
 };
 
+use crate::text::truncate_chars;
+
 /// Cross-line state the parser threads through every `parse_line` call.
 #[derive(Debug, Default)]
 pub(crate) struct ParserState {
@@ -51,8 +53,10 @@ impl ParserState {
 }
 
 /// Parse one JSONL line. Returns the canonical events the adapter should
-/// publish, in order. Empty `Vec` means a no-op (skipped variant or invalid
-/// JSON — both are logged at `debug!` level).
+/// publish, in order. A whitespace-only line is a silent no-op; any other line
+/// that fails to parse — or a known envelope that is malformed — yields a
+/// `Log(Warn)` diagnostic event instead of being silently dropped (SUP-185), so
+/// invalid Codex JSONL always surfaces in the run ledger rather than vanishing.
 pub(crate) fn parse_line(line: &str, state: &mut ParserState) -> Vec<ProtocolEvent> {
     let trimmed = line.trim();
     if trimmed.is_empty() {
@@ -62,8 +66,12 @@ pub(crate) fn parse_line(line: &str, state: &mut ParserState) -> Vec<ProtocolEve
     let value: Value = match serde_json::from_str(trimmed) {
         Ok(v) => v,
         Err(err) => {
-            tracing::debug!(error = %err, "skipping invalid codex jsonl line");
-            return Vec::new();
+            // Cap the echoed line so a diagnostic never logs a huge or
+            // sensitive payload verbatim.
+            return diagnostic(format!(
+                "codex: unparseable JSONL line ({err}): {}",
+                truncate_chars(trimmed, 160)
+            ));
         }
     };
 
@@ -78,38 +86,23 @@ pub(crate) fn parse_line(line: &str, state: &mut ParserState) -> Vec<ProtocolEve
         "turn.started" => Vec::new(),
         "turn.completed" => match serde_json::from_value::<RawTurnCompleted>(value) {
             Ok(tc) => turn_completed_to_events(tc),
-            Err(err) => {
-                tracing::debug!(error = %err, "skipping malformed turn.completed envelope");
-                Vec::new()
-            }
+            Err(err) => malformed("turn.completed", &err),
         },
         "turn.failed" => match serde_json::from_value::<RawTurnFailed>(value) {
             Ok(tf) => turn_failed_to_events(tf),
-            Err(err) => {
-                tracing::debug!(error = %err, "skipping malformed turn.failed envelope");
-                Vec::new()
-            }
+            Err(err) => malformed("turn.failed", &err),
         },
         "error" => match serde_json::from_value::<RawError>(value) {
             Ok(e) => error_to_events(e),
-            Err(err) => {
-                tracing::debug!(error = %err, "skipping malformed error envelope");
-                Vec::new()
-            }
+            Err(err) => malformed("error", &err),
         },
         "item.started" => match serde_json::from_value::<RawItemEnvelope>(value) {
             Ok(env) => item_started_to_events(env.item),
-            Err(err) => {
-                tracing::debug!(error = %err, "skipping malformed item.started");
-                Vec::new()
-            }
+            Err(err) => malformed("item.started", &err),
         },
         "item.completed" => match serde_json::from_value::<RawItemEnvelope>(value) {
             Ok(env) => item_completed_to_events(env.item, state),
-            Err(err) => {
-                tracing::debug!(error = %err, "skipping malformed item.completed");
-                Vec::new()
-            }
+            Err(err) => malformed("item.completed", &err),
         },
         "" => Vec::new(),
         other => vec![ProtocolEvent::Log(LogEntry {
@@ -117,6 +110,20 @@ pub(crate) fn parse_line(line: &str, state: &mut ParserState) -> Vec<ProtocolEve
             message: format!("codex.{other}"),
         })],
     }
+}
+
+/// A single `Log(Warn)` diagnostic for input the parser could not turn into a
+/// canonical event — surfaced in the ledger instead of being dropped.
+fn diagnostic(message: String) -> Vec<ProtocolEvent> {
+    tracing::warn!(%message, "codex jsonl diagnostic");
+    vec![ProtocolEvent::Log(LogEntry {
+        level: LogLevel::Warn,
+        message,
+    })]
+}
+
+fn malformed(envelope: &str, err: &serde_json::Error) -> Vec<ProtocolEvent> {
+    diagnostic(format!("codex: malformed {envelope} envelope: {err}"))
 }
 
 fn thread_started_to_events(value: &Value, state: &mut ParserState) -> Vec<ProtocolEvent> {
@@ -551,12 +558,39 @@ mod tests {
     }
 
     #[test]
-    fn invalid_json_line_is_logged_and_skipped() {
+    fn invalid_json_line_emits_diagnostic_not_silent_drop() {
         let fixture = format!("{THREAD_STARTED}\nnot json\n{AGENT_MESSAGE}");
         let (events, _) = parse_all(&fixture);
-        assert_eq!(events.len(), 2);
+        // SUP-185: the bad line must surface as a Warn diagnostic, not vanish.
+        assert_eq!(events.len(), 3);
         assert!(matches!(events[0], ProtocolEvent::SessionMeta(_)));
-        assert!(matches!(events[1], ProtocolEvent::TextBlock(_)));
+        match &events[1] {
+            ProtocolEvent::Log(l) => {
+                assert_eq!(l.level, LogLevel::Warn);
+                assert!(l.message.contains("unparseable"), "got: {}", l.message);
+            }
+            other => panic!("expected Log(Warn) diagnostic, got {other:?}"),
+        }
+        assert!(matches!(events[2], ProtocolEvent::TextBlock(_)));
+    }
+
+    #[test]
+    fn malformed_known_envelope_emits_diagnostic() {
+        // `type` is recognised but the body is the wrong shape — must not drop.
+        let line = r#"{"type":"item.completed","item":"not-an-object"}"#;
+        let (events, _) = parse_all(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            ProtocolEvent::Log(l) => {
+                assert_eq!(l.level, LogLevel::Warn);
+                assert!(
+                    l.message.contains("malformed item.completed"),
+                    "got: {}",
+                    l.message
+                );
+            }
+            other => panic!("expected Log(Warn) diagnostic, got {other:?}"),
+        }
     }
 
     #[test]

@@ -10,6 +10,8 @@ use superkick_core::{
 };
 use superkick_storage::repo::{IssueWorkspaceContextRepoDyn, MemoryEntryRepoDyn};
 
+use crate::text::truncate_chars;
+
 /// Number of ledger entries surfaced inline in the prompt block. Older
 /// entries stay queryable via the REST API; the prompt window is the bounded
 /// projection.
@@ -34,17 +36,6 @@ pub fn step_kind_to_memory_role(kind: LaunchStepKind) -> &'static str {
         LaunchStepKind::Implement => "coder",
         LaunchStepKind::Review => "reviewer",
     }
-}
-
-/// Keep the prefix; append `…` when shortened.
-fn head_truncate(s: &str, max_chars: usize) -> String {
-    let total = s.chars().count();
-    if total <= max_chars {
-        return s.to_string();
-    }
-    let mut out: String = s.chars().take(max_chars).collect();
-    out.push('…');
-    out
 }
 
 /// Keep the tail; prepend `…` when shortened. Used where the decision-bearing
@@ -78,7 +69,7 @@ pub fn render_workspace_block(
         context.captured_at.to_rfc3339()
     ));
     out.push_str("\n### Description\n\n");
-    out.push_str(&head_truncate(
+    out.push_str(&truncate_chars(
         &context.snapshot_body_md,
         SNAPSHOT_BODY_MAX_CHARS,
     ));
@@ -105,7 +96,7 @@ pub fn render_workspace_block(
         out.push_str("\n## Comment excerpts\n\n");
         for excerpt in excerpts {
             let author = excerpt.author.as_deref().unwrap_or("commenter");
-            let body = head_truncate(&excerpt.body_md, EXCERPT_BODY_MAX_CHARS);
+            let body = truncate_chars(&excerpt.body_md, EXCERPT_BODY_MAX_CHARS);
             out.push_str(&format!(
                 "### {author} · {ts}\n\n{body}\n\n",
                 author = author,

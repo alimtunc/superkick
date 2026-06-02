@@ -8,6 +8,7 @@ function event(id: string, ts = '2026-05-24T14:00:00.000Z'): RunEvent {
 		id,
 		run_id: 'run-1',
 		run_step_id: 'step-1',
+		seq: 0,
 		ts,
 		kind: 'step_started',
 		level: 'info',

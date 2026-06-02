@@ -1,15 +1,18 @@
 import { ToolCallRow } from '@/components/run-detail/RunWorkspaceTabs/ToolCallRow'
 import { TabEmptyState } from '@/components/ui/state-empty-tab'
-import { runToolCallsQuery } from '@/lib/queries'
-import { useQuery } from '@tanstack/react-query'
+import { useRunToolCalls } from '@/hooks/useRunToolCalls'
+import type { RunEvent } from '@/types'
 import { Wrench } from 'lucide-react'
 
 interface ToolsTabProps {
 	runId: string
+	events?: readonly RunEvent[]
 }
 
-export function ToolsTab({ runId }: ToolsTabProps) {
-	const { data, isLoading, error } = useQuery(runToolCallsQuery(runId))
+const NO_EVENTS: readonly RunEvent[] = []
+
+export function ToolsTab({ runId, events = NO_EVENTS }: ToolsTabProps) {
+	const { calls, isLoading, error } = useRunToolCalls(runId, events)
 
 	if (isLoading) {
 		return <TabEmptyState icon={Wrench} title="Loading tool calls…" />
@@ -25,7 +28,6 @@ export function ToolsTab({ runId }: ToolsTabProps) {
 		)
 	}
 
-	const calls = data ?? []
 	if (calls.length === 0) {
 		return (
 			<TabEmptyState

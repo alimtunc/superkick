@@ -57,6 +57,13 @@ pub enum EventKind {
     /// operator or because the spawned process exited. `payload_json` mirrors
     /// `TerminalTakeoverOpened` plus an optional `reason` string.
     TerminalTakeoverClosed,
+    /// SUP-185 — one structured provider event (a `ProtocolEventEnvelope`) from
+    /// a Codex Launch Task step. `payload_json` carries the full envelope; the
+    /// inner protocol kind (`tool_use`, `tool_result`, `text_block`, `usage`,
+    /// `log`, `completion`, …) lives inside it. This is the single discriminator
+    /// for provider evidence — `WHERE kind = 'agent_protocol'` selects it,
+    /// keeping the audit/lifecycle variants above free of provider output.
+    AgentProtocol,
 }
 
 /// Severity level for run events.
@@ -75,6 +82,10 @@ pub struct RunEvent {
     pub id: EventId,
     pub run_id: RunId,
     pub run_step_id: Option<StepId>,
+    /// Monotonic per-run ordering key. Assigned by the storage layer on insert
+    /// (`0` on an in-memory event before persistence); read back so replay /
+    /// backfill is deterministic regardless of timestamp ties. See SUP-185.
+    pub seq: u64,
     pub ts: DateTime<Utc>,
     pub kind: EventKind,
     pub level: EventLevel,
@@ -94,6 +105,7 @@ impl RunEvent {
             id: EventId::new(),
             run_id,
             run_step_id,
+            seq: 0,
             ts: Utc::now(),
             kind,
             level,
