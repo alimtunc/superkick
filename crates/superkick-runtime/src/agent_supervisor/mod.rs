@@ -12,6 +12,7 @@
 mod lifecycle;
 pub(crate) mod output;
 pub(crate) mod process;
+pub(crate) mod structured;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -136,14 +137,55 @@ impl AgentHandle {
         self.cancel_token.cancel();
     }
 
-    /// Construct a handle for unit tests that exercise registry/observation
-    /// logic without spawning a real process.
-    #[cfg(test)]
-    pub fn for_tests(session_id: AgentSessionId, cancel_token: CancellationToken) -> Self {
+    /// Construct a handle from its parts. Used by alternative spawn paths
+    /// (e.g. the Codex structured step runner) that drive a child without the
+    /// PTY supervisor but must return the same `(AgentHandle, JoinHandle)`
+    /// shape so the step runner is path-agnostic.
+    pub(crate) fn from_parts(session_id: AgentSessionId, cancel_token: CancellationToken) -> Self {
         Self {
             session_id,
             cancel_token,
         }
+    }
+
+    /// Construct a handle for unit tests that exercise registry/observation
+    /// logic without spawning a real process.
+    #[cfg(test)]
+    pub fn for_tests(session_id: AgentSessionId, cancel_token: CancellationToken) -> Self {
+        Self::from_parts(session_id, cancel_token)
+    }
+}
+
+/// Build the `AgentSession` row from a launch config. Shared by the PTY
+/// supervisor and the Codex structured step runner so the audit mapping
+/// (role, purpose, policy snapshot, runner mode, billing) can't drift between
+/// the two spawn paths. `provider_session_id` starts `None`; the structured
+/// path fills it once the provider emits `SessionMeta`.
+pub(crate) fn build_agent_session(config: &AgentLaunchConfig) -> AgentSession {
+    AgentSession {
+        id: AgentSessionId::new(),
+        run_id: config.run_id,
+        run_step_id: config.step_id,
+        provider: config.provider,
+        command: config.args.join(" "),
+        pid: None,
+        status: AgentStatus::Starting,
+        started_at: Utc::now(),
+        finished_at: None,
+        exit_code: None,
+        linear_context_mode: Some(config.linear_context_mode),
+        mcp_servers_used: config.policy_audit.mcp_servers_used.clone(),
+        tools_allow_snapshot: config.policy_audit.tools_allow_snapshot.clone(),
+        tool_approval_required: config.policy_audit.tool_approval_required,
+        tool_results_persisted: config.policy_audit.tool_results_persisted,
+        role: Some(config.session_launch.role.clone()),
+        purpose: Some(config.session_launch.purpose.clone()),
+        parent_session_id: config.session_launch.parent_session_id,
+        launch_reason: Some(config.session_launch.launch_reason),
+        handoff_id: config.session_launch.handoff_id,
+        provider_session_id: None,
+        runner_mode: Some(config.runner_mode),
+        billing_profile: Some(config.billing_profile),
     }
 }
 
@@ -201,34 +243,8 @@ where
         &self,
         config: AgentLaunchConfig,
     ) -> Result<(AgentHandle, tokio::task::JoinHandle<Result<AgentResult>>)> {
-        let session_id = AgentSessionId::new();
-        let command_str = config.args.join(" ");
-
-        let session = AgentSession {
-            id: session_id,
-            run_id: config.run_id,
-            run_step_id: config.step_id,
-            provider: config.provider,
-            command: command_str,
-            pid: None,
-            status: AgentStatus::Starting,
-            started_at: Utc::now(),
-            finished_at: None,
-            exit_code: None,
-            linear_context_mode: Some(config.linear_context_mode),
-            mcp_servers_used: config.policy_audit.mcp_servers_used.clone(),
-            tools_allow_snapshot: config.policy_audit.tools_allow_snapshot.clone(),
-            tool_approval_required: config.policy_audit.tool_approval_required,
-            tool_results_persisted: config.policy_audit.tool_results_persisted,
-            role: Some(config.session_launch.role.clone()),
-            purpose: Some(config.session_launch.purpose.clone()),
-            parent_session_id: config.session_launch.parent_session_id,
-            launch_reason: Some(config.session_launch.launch_reason),
-            handoff_id: config.session_launch.handoff_id,
-            provider_session_id: None,
-            runner_mode: Some(config.runner_mode),
-            billing_profile: Some(config.billing_profile),
-        };
+        let session = build_agent_session(&config);
+        let session_id = session.id;
 
         self.session_repo.insert(&session).await?;
 
@@ -272,6 +288,65 @@ where
             cancel_token,
             deps,
         ));
+
+        Ok((handle, join))
+    }
+
+    /// Launch a Codex step headlessly via `codex exec --json` (SUP-185).
+    ///
+    /// Symmetric with [`Self::launch`] — same `(AgentHandle, JoinHandle)`
+    /// shape so the step runner is path-agnostic — but drives the
+    /// [`CodexProtocolAdapter`](crate::protocol_adapter::CodexProtocolAdapter)
+    /// instead of a PTY, persisting structured provider events into
+    /// `run_events`. The returned task only mutates the `AgentSession` row and
+    /// `run_events`; `LaunchTaskStep` / `Run` transitions stay owned by the
+    /// executor that consumes the resulting `AgentResult`.
+    pub async fn launch_codex_structured(
+        &self,
+        adapter: crate::protocol_adapter::CodexProtocolAdapter,
+        config: AgentLaunchConfig,
+        prompt: String,
+    ) -> Result<(AgentHandle, tokio::task::JoinHandle<Result<AgentResult>>)> {
+        use crate::protocol_adapter::ProtocolAdapter;
+        use superkick_core::{TurnOptions, TurnRequest};
+
+        let mut session = build_agent_session(&config);
+        // Audit the real argv the adapter spawns (prompt is fed via stdin, so
+        // it never appears here) rather than the unused PTY-style argv that
+        // `build_launch_config` produced for this (Codex, ExecJson) step.
+        session.command = adapter.command_preview(&config.workdir);
+        let session_id = session.id;
+        self.session_repo.insert(&session).await?;
+        record_lifecycle(
+            self.lifecycle_bus.as_deref(),
+            &*self.event_repo,
+            &session,
+            SessionLifecyclePhase::Spawning,
+        )
+        .await;
+
+        let timeout = config.timeout;
+        let request = TurnRequest {
+            prompt,
+            workdir: config.workdir.clone(),
+            options: TurnOptions {
+                timeout: Some(timeout),
+                ..TurnOptions::default()
+            },
+        };
+
+        // `start_turn` spawns the `codex` child; a spawn failure surfaces here
+        // and the caller maps it via `classify_spawn_error`, mirroring `launch`.
+        let stream = adapter.start_turn(request).await?;
+        let handle = AgentHandle::from_parts(session_id, stream.handle.cancel_token());
+
+        let deps = structured::StructuredDeps {
+            session_repo: Arc::clone(&self.session_repo),
+            event_repo: Arc::clone(&self.event_repo),
+            transcript_repo: Arc::clone(&self.transcript_repo),
+            lifecycle_bus: self.lifecycle_bus.clone(),
+        };
+        let join = tokio::spawn(structured::consume(stream, session, timeout, deps));
 
         Ok((handle, join))
     }
@@ -436,9 +511,11 @@ mod tests {
     }
 
     impl RunEventRepo for CapturingRepo {
-        async fn insert(&self, event: &RunEvent) -> Result<()> {
-            self.events.lock().unwrap().push(event.clone());
-            Ok(())
+        async fn insert(&self, event: &RunEvent) -> Result<u64> {
+            let mut events = self.events.lock().unwrap();
+            let seq = events.len() as u64 + 1;
+            events.push(event.clone());
+            Ok(seq)
         }
 
         async fn get(&self, _id: EventId) -> Result<Option<RunEvent>> {

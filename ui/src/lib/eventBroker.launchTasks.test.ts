@@ -56,6 +56,7 @@ function runEvent(id: string): WorkspaceRunEvent {
 		id,
 		run_id: 'run-1',
 		run_step_id: 'step-1',
+		seq: 0,
 		ts: '2026-05-24T14:00:00.000Z',
 		kind: 'step_started',
 		level: 'info',

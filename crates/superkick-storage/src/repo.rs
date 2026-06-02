@@ -56,7 +56,11 @@ pub trait RunStepRepo: Send + Sync {
 
 /// Repository for `RunEvent` entities.
 pub trait RunEventRepo: Send + Sync {
-    fn insert(&self, event: &RunEvent) -> impl Future<Output = Result<()>> + Send;
+    /// Persist an event and return the per-run `seq` the storage layer assigned
+    /// it (SUP-185). The returned value lets the publishing wrapper broadcast a
+    /// live copy carrying the same `seq` the persisted row got, so the SSE
+    /// stream and the REST backfill agree on ordering.
+    fn insert(&self, event: &RunEvent) -> impl Future<Output = Result<u64>> + Send;
     fn get(&self, id: EventId) -> impl Future<Output = Result<Option<RunEvent>>> + Send;
     fn list_by_run(&self, run_id: RunId) -> impl Future<Output = Result<Vec<RunEvent>>> + Send;
     fn list_by_run_from_offset(

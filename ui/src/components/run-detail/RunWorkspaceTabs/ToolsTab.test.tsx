@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { ToolsTab } from '@/components/run-detail/RunWorkspaceTabs/ToolsTab'
-import type { RunToolCall } from '@/types'
+import type { ProtocolEvent, RunEvent, RunToolCall } from '@/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -103,4 +103,59 @@ describe('ToolsTab', () => {
 		await screen.findByRole('button', { name: /Edit/ })
 		expect(screen.getByText('error')).toBeInTheDocument()
 	})
+
+	it('derives paired tool calls from agent_protocol events without the conversations projection', async () => {
+		const user = userEvent.setup()
+		render(wrap(<ToolsTab runId="run-1" events={protocolEvents} />))
+
+		expect(mocks.fetchRunToolCalls).not.toHaveBeenCalled()
+
+		const row = await screen.findByRole('button', { name: /apply_patch/ })
+		await user.click(row)
+		expect(screen.getByText(/"path": "src\/x\.ts"/)).toBeInTheDocument()
+		expect(screen.getByText('applied')).toBeInTheDocument()
+	})
+
+	it('shows a still-running protocol tool call with no result', () => {
+		render(
+			wrap(
+				<ToolsTab
+					runId="run-1"
+					events={[
+						protocolEvent({
+							kind: 'tool_use',
+							call_id: 'pending',
+							tool_name: 'shell',
+							input: { cmd: 'ls' }
+						})
+					]}
+				/>
+			)
+		)
+		expect(screen.getByRole('button', { name: /shell/ })).toBeInTheDocument()
+		expect(screen.getByText('running…')).toBeInTheDocument()
+	})
 })
+
+let counter = 0
+
+function protocolEvent(event: ProtocolEvent): RunEvent {
+	counter += 1
+	const seq = counter
+	return {
+		id: `p-${seq}`,
+		run_id: 'run-1',
+		run_step_id: 'step-1',
+		seq,
+		ts: '2026-06-01T10:00:00.000Z',
+		kind: 'agent_protocol',
+		level: 'info',
+		message: 'protocol',
+		payload_json: { seq, at: '2026-06-01T10:00:00.000Z', ...event }
+	}
+}
+
+const protocolEvents: RunEvent[] = [
+	protocolEvent({ kind: 'tool_use', call_id: 'c1', tool_name: 'apply_patch', input: { path: 'src/x.ts' } }),
+	protocolEvent({ kind: 'tool_result', call_id: 'c1', output: 'applied', is_error: false })
+]

@@ -35,6 +35,7 @@ pub mod step_failure_classifier;
 pub mod terminal_takeover;
 #[doc(hidden)]
 pub mod test_support;
+mod text;
 pub mod turn_event_bus;
 pub mod workspace_bus;
 pub mod worktree;

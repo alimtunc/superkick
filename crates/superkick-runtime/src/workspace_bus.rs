@@ -100,10 +100,14 @@ impl<E> PublishingRunEventRepo<E> {
 }
 
 impl<E: RunEventRepo> RunEventRepo for PublishingRunEventRepo<E> {
-    async fn insert(&self, event: &RunEvent) -> Result<()> {
-        self.inner.insert(event).await?;
-        self.bus.publish(event.clone().into());
-        Ok(())
+    async fn insert(&self, event: &RunEvent) -> Result<u64> {
+        let seq = self.inner.insert(event).await?;
+        // Broadcast a copy carrying the seq the row was actually assigned, so
+        // live SSE consumers order events the same way a REST backfill does.
+        let mut published = event.clone();
+        published.seq = seq;
+        self.bus.publish(published.into());
+        Ok(seq)
     }
 
     async fn get(&self, id: EventId) -> Result<Option<RunEvent>> {
@@ -174,9 +178,13 @@ mod tests {
     }
 
     impl RunEventRepo for MemRepo {
-        async fn insert(&self, event: &RunEvent) -> Result<()> {
-            self.events.lock().unwrap().push(event.clone());
-            Ok(())
+        async fn insert(&self, event: &RunEvent) -> Result<u64> {
+            let mut events = self.events.lock().unwrap();
+            let seq = events.iter().filter(|e| e.run_id == event.run_id).count() as u64 + 1;
+            let mut stored = event.clone();
+            stored.seq = seq;
+            events.push(stored);
+            Ok(seq)
         }
 
         async fn get(&self, id: EventId) -> Result<Option<RunEvent>> {
@@ -237,5 +245,39 @@ mod tests {
         assert_eq!(got.run_id(), Some(run_id));
         assert_eq!(got.variant(), "run_event");
         assert_eq!(repo.inner().events.lock().unwrap().len(), 1);
+    }
+
+    // SUP-185: the broadcast copy must carry the seq the storage layer
+    // assigned, not the in-memory `0` — otherwise live SSE and REST backfill
+    // disagree on ordering and protocol surfaces sort incorrectly on reopen.
+    #[tokio::test]
+    async fn publishing_wrapper_broadcasts_with_assigned_seq() {
+        let bus = WorkspaceEventBus::new();
+        let mut rx = bus.subscribe();
+        let repo = PublishingRunEventRepo::new(MemRepo::default(), Arc::clone(&bus));
+        let run_id = RunId::new();
+
+        for expected_seq in 1..=3u64 {
+            let event = RunEvent::new(
+                run_id,
+                None,
+                EventKind::AgentProtocol,
+                EventLevel::Info,
+                "evt".into(),
+            );
+            assert_eq!(event.seq, 0, "in-memory event starts unsequenced");
+            let returned = repo.insert(&event).await.unwrap();
+            assert_eq!(returned, expected_seq);
+
+            match rx.recv().await.unwrap() {
+                WorkspaceRunEvent::RunEvent(published) => {
+                    assert_eq!(
+                        published.seq, expected_seq,
+                        "broadcast copy must carry the assigned per-run seq"
+                    );
+                }
+                other => panic!("expected RunEvent, got {other:?}"),
+            }
+        }
     }
 }

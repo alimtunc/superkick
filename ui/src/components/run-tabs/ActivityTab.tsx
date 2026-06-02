@@ -1,9 +1,10 @@
 import { LedgerList } from '@/components/run-detail/LedgerList'
+import { ProtocolActivityList } from '@/components/run-tabs/ProtocolActivityList'
 import { hasStructuredActivity } from '@/components/run-tabs/structuredActivity'
 import { StructuredActivityList } from '@/components/run-tabs/StructuredActivityList'
 import { Pill } from '@/components/ui/pill'
 import { TabEmptyState } from '@/components/ui/state-empty-tab'
-import { fmtRelativeTime, isLedgerEvent } from '@/lib/domain'
+import { fmtRelativeTime, hasProtocolActivity, isLedgerEvent } from '@/lib/domain'
 import { indexById } from '@/lib/utils'
 import type { AgentSession, AttentionRequest, RunEvent } from '@/types'
 import { Activity } from 'lucide-react'
@@ -19,9 +20,10 @@ export function ActivityTab({ events, sessions, attentionRequests }: ActivityTab
 	const attentionById = indexById(attentionRequests)
 	const ledgerEvents = events.filter(isLedgerEvent)
 	const pendingAttentions = attentionRequests.filter((r) => r.status === 'pending')
+	const protocol = hasProtocolActivity(events)
 	const structured = hasStructuredActivity(events)
 
-	if (ledgerEvents.length === 0 && pendingAttentions.length === 0) {
+	if (ledgerEvents.length === 0 && pendingAttentions.length === 0 && !protocol) {
 		return (
 			<TabEmptyState
 				icon={Activity}
@@ -29,6 +31,12 @@ export function ActivityTab({ events, sessions, attentionRequests }: ActivityTab
 				description="Steps, sessions, and handoffs will appear here as the run progresses."
 			/>
 		)
+	}
+
+	function renderActivity() {
+		if (protocol) return <ProtocolActivityList events={events} />
+		if (structured) return <StructuredActivityList events={events} />
+		return <LedgerList events={ledgerEvents} sessionById={sessionById} attentionById={attentionById} />
 	}
 
 	return (
@@ -50,11 +58,7 @@ export function ActivityTab({ events, sessions, attentionRequests }: ActivityTab
 					))}
 				</ul>
 			) : null}
-			{structured ? (
-				<StructuredActivityList events={events} />
-			) : (
-				<LedgerList events={ledgerEvents} sessionById={sessionById} attentionById={attentionById} />
-			)}
+			{renderActivity()}
 		</div>
 	)
 }

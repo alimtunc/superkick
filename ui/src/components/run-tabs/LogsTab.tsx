@@ -1,14 +1,21 @@
+import { useMemo } from 'react'
+
+import { buildLogRows } from '@/components/run-tabs/logRows'
 import { TabEmptyState } from '@/components/ui/state-empty-tab'
 import { fmtRelativeTime } from '@/lib/domain'
-import type { RunEvent } from '@/types'
+import type { EventLevel, RunEvent } from '@/types'
 import { Icon } from '@/ui/Icon'
 import { ScrollText } from 'lucide-react'
-
-const LOG_KINDS = new Set(['agent_output', 'command_output'])
 
 interface LogsTabProps {
 	events: RunEvent[]
 	onOpenTerminal?: () => void
+}
+
+function levelClass(level: EventLevel): string {
+	if (level === 'error') return 'c-danger'
+	if (level === 'warn') return 'c-warn'
+	return 'c-fg'
 }
 
 function TerminalTranscriptLink({ onOpenTerminal }: { onOpenTerminal: () => void }) {
@@ -30,7 +37,7 @@ function TerminalTranscriptLink({ onOpenTerminal }: { onOpenTerminal: () => void
 }
 
 export function LogsTab({ events, onOpenTerminal }: LogsTabProps) {
-	const logs = events.filter((event) => LOG_KINDS.has(event.kind))
+	const logs = useMemo(() => buildLogRows(events), [events])
 
 	if (logs.length === 0) {
 		return (
@@ -50,15 +57,11 @@ export function LogsTab({ events, onOpenTerminal }: LogsTabProps) {
 			{onOpenTerminal ? <TerminalTranscriptLink onOpenTerminal={onOpenTerminal} /> : null}
 			<div className="min-h-0 flex-1 overflow-y-auto p-4">
 				<div className="terminal">
-					{logs.map((event) => (
-						<div key={event.id}>
-							<span className="c-dim">[{fmtRelativeTime(event.ts)}] </span>
-							<span className="c-accent">
-								{event.kind === 'agent_output' ? 'agent' : 'shell'}
-							</span>{' '}
-							<span className={event.level === 'error' ? 'c-danger' : 'c-fg'}>
-								{event.message}
-							</span>
+					{logs.map((row) => (
+						<div key={row.id}>
+							<span className="c-dim">[{fmtRelativeTime(row.ts)}] </span>
+							<span className="c-accent">{row.source}</span>{' '}
+							<span className={levelClass(row.level)}>{row.message}</span>
 						</div>
 					))}
 				</div>

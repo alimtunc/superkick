@@ -572,6 +572,81 @@ async fn event_insert_and_list() -> Result<()> {
     Ok(())
 }
 
+// SUP-185: run_events carry a per-run monotonic `seq` assigned by the storage
+// layer, so replay/backfill order is deterministic and independent per run.
+#[tokio::test]
+async fn run_events_get_monotonic_per_run_seq() -> Result<()> {
+    let pool = setup().await?;
+    let run_repo = SqliteRunRepo::new(pool.clone());
+    let event_repo = SqliteRunEventRepo::new(pool);
+
+    let mk_run = |iid: &str| {
+        Run::new(
+            iid.into(),
+            iid.into(),
+            "o/r".into(),
+            TriggerSource::Manual,
+            ExecutionMode::FullAuto,
+            "main".into(),
+            true,
+            None,
+        )
+    };
+    let a = mk_run("SK-A");
+    let b = mk_run("SK-B");
+    run_repo.insert(&a).await?;
+    run_repo.insert(&b).await?;
+
+    // Interleave inserts across the two runs.
+    for (run_id, msg) in [
+        (a.id, "a1"),
+        (b.id, "b1"),
+        (a.id, "a2"),
+        (a.id, "a3"),
+        (b.id, "b2"),
+    ] {
+        event_repo
+            .insert(&RunEvent::new(
+                run_id,
+                None,
+                EventKind::AgentProtocol,
+                EventLevel::Info,
+                msg.into(),
+            ))
+            .await?;
+    }
+
+    let a_events = event_repo.list_by_run(a.id).await?;
+    assert_eq!(
+        a_events.iter().map(|e| e.seq).collect::<Vec<_>>(),
+        vec![1, 2, 3]
+    );
+    assert_eq!(
+        a_events
+            .iter()
+            .map(|e| e.message.as_str())
+            .collect::<Vec<_>>(),
+        vec!["a1", "a2", "a3"]
+    );
+
+    // Run B's counter is independent — it restarts at 1 despite A's interleaved
+    // inserts, so each run replays as a clean 1..N sequence.
+    let b_events = event_repo.list_by_run(b.id).await?;
+    assert_eq!(
+        b_events.iter().map(|e| e.seq).collect::<Vec<_>>(),
+        vec![1, 2]
+    );
+    assert_eq!(
+        b_events
+            .iter()
+            .map(|e| e.message.as_str())
+            .collect::<Vec<_>>(),
+        vec!["b1", "b2"]
+    );
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn agent_session_insert_and_list() -> Result<()> {
     let pool = setup().await?;

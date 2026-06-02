@@ -33,6 +33,7 @@ export type EventKind =
 	| 'approval_gate_entered'
 	| 'terminal_takeover_opened'
 	| 'terminal_takeover_closed'
+	| 'agent_protocol'
 
 export type EventLevel = 'debug' | 'info' | 'warn' | 'error'
 
@@ -40,6 +41,7 @@ export interface RunEvent {
 	id: string
 	run_id: string
 	run_step_id: string | null
+	seq: number
 	ts: string
 	kind: EventKind
 	level: EventLevel
