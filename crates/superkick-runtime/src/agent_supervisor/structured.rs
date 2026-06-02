@@ -52,6 +52,7 @@ pub(crate) async fn consume<S, E, T>(
     stream: ProtocolStream,
     mut session: AgentSession,
     timeout: Duration,
+    idle_timeout: Option<Duration>,
     deps: StructuredDeps<S, E, T>,
 ) -> Result<AgentResult>
 where
@@ -92,13 +93,48 @@ where
         session.id,
     );
 
-    while let Some(envelope) = events.recv().await {
-        sink.ingest(envelope).await;
+    // No-output watchdog: each event resets the idle window; a window that
+    // elapses with no event means a hung-but-alive turn → kill it.
+    let mut idle_tripped = false;
+    loop {
+        let next = match idle_timeout {
+            Some(idle) => match tokio::time::timeout(idle, events.recv()).await {
+                Ok(ev) => ev,
+                Err(_elapsed) => {
+                    idle_tripped = true;
+                    break;
+                }
+            },
+            None => events.recv().await,
+        };
+        match next {
+            Some(envelope) => sink.ingest(envelope).await,
+            None => break, // stream closed — child exited
+        }
     }
     sink.flush_text().await;
 
-    let outcome = handle.finish().await;
-    let (terminal_phase, timeout_after) = map_outcome(&outcome, timeout);
+    let (terminal_phase, timeout_after) = if idle_tripped {
+        let idle = idle_timeout.unwrap_or_default();
+        handle.cancel();
+        let _ = handle.finish().await; // reap the killed child
+        emit_event(
+            &*deps.event_repo,
+            run_id,
+            Some(run_step_id),
+            EventKind::Error,
+            EventLevel::Error,
+            format!(
+                "agent {} produced no output for {idle:?} — terminated as hung (no-output watchdog)",
+                session.provider
+            ),
+        )
+        .await;
+        (SessionLifecyclePhase::TimedOut, Some(idle))
+    } else {
+        let outcome = handle.finish().await;
+        map_outcome(&outcome, timeout)
+    };
 
     match &terminal_phase {
         SessionLifecyclePhase::Completed { exit_code } => {
@@ -464,6 +500,7 @@ mod tests {
             args: vec!["codex".into(), "exec".into()],
             workdir: std::env::temp_dir(),
             timeout: Duration::from_secs(5),
+            idle_timeout: None,
             linear_context_mode: LinearContextMode::None,
             policy_audit: PolicyAudit::default(),
             session_launch: SessionLaunchInfo {
@@ -493,7 +530,7 @@ mod tests {
             lifecycle_bus: None,
         };
 
-        let result = consume(stream, session, Duration::from_secs(5), deps)
+        let result = consume(stream, session, Duration::from_secs(5), None, deps)
             .await
             .expect("consume");
 
@@ -551,6 +588,101 @@ mod tests {
         assert!(
             !transcript.is_empty(),
             "structured turn should persist a raw transcript chunk"
+        );
+    }
+
+    #[tokio::test]
+    async fn no_output_watchdog_kills_a_silent_turn() {
+        let pool = connect_with_capacity("sqlite::memory:", 1)
+            .await
+            .expect("db");
+        let run_repo = SqliteRunRepo::new(pool.clone());
+        let step_repo = SqliteRunStepRepo::new(pool.clone());
+        let event_repo = Arc::new(SqliteRunEventRepo::new(pool.clone()));
+        let session_repo = Arc::new(SqliteAgentSessionRepo::new(pool.clone()));
+        let transcript_repo = Arc::new(SqliteTranscriptRepo::new(pool.clone()));
+
+        let run = Run::new(
+            "T-IDLE".into(),
+            "T-IDLE".into(),
+            "owner/repo".into(),
+            TriggerSource::LaunchTask,
+            ExecutionMode::FullAuto,
+            "main".into(),
+            true,
+            None,
+        );
+        let run_id = run.id;
+        run_repo.insert(&run).await.expect("insert run");
+        let mut step = RunStep::new(run_id, StepKey::Plan, 1);
+        step.status = StepStatus::Running;
+        step_repo.insert(&step).await.expect("insert step");
+
+        let idle = Duration::from_millis(200);
+        let config = AgentLaunchConfig {
+            run_id,
+            step_id: step.id,
+            provider: AgentProvider::Codex,
+            args: vec!["codex".into(), "exec".into()],
+            workdir: std::env::temp_dir(),
+            timeout: Duration::from_secs(30),
+            idle_timeout: Some(idle),
+            linear_context_mode: LinearContextMode::None,
+            policy_audit: PolicyAudit::default(),
+            session_launch: SessionLaunchInfo {
+                role: "coder".into(),
+                purpose: "idle watchdog test".into(),
+                parent_session_id: None,
+                launch_reason: LaunchReason::InitialStep,
+                handoff_id: None,
+            },
+            initial_stdin: None,
+            runner_mode: RunnerMode::ExecJson,
+            billing_profile: superkick_core::BillingProfile::default_for(
+                AgentProvider::Codex,
+                RunnerMode::ExecJson,
+            ),
+        };
+        let session = build_agent_session(&config);
+        session_repo.insert(&session).await.expect("insert session");
+
+        // A child that stays alive but emits nothing — the no-output watchdog
+        // must terminate it well before the 30s wall-clock.
+        let child = Command::new("sleep")
+            .arg("30")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("spawn sleep");
+        let stream = spawn_codex_pump_for_test(child, 64, Some(Duration::from_secs(30)), None);
+        let deps = StructuredDeps {
+            session_repo: Arc::clone(&session_repo),
+            event_repo: Arc::clone(&event_repo),
+            transcript_repo,
+            lifecycle_bus: None,
+        };
+
+        let result = consume(stream, session, Duration::from_secs(30), Some(idle), deps)
+            .await
+            .expect("consume");
+
+        assert!(
+            matches!(result.lifecycle_phase, SessionLifecyclePhase::TimedOut),
+            "a silent turn must hit the no-output watchdog, got {:?}",
+            result.lifecycle_phase
+        );
+        assert_eq!(
+            result.session.status,
+            AgentStatus::Failed,
+            "an idle-killed session is Failed"
+        );
+
+        let events = event_repo.list_by_run(run_id).await.expect("events");
+        assert!(
+            events
+                .iter()
+                .any(|e| e.level == EventLevel::Error && e.message.contains("no output")),
+            "a readable no-output watchdog event must be persisted"
         );
     }
 }

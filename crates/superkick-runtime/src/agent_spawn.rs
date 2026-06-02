@@ -293,6 +293,10 @@ pub fn build_launch_config(
         args,
         workdir,
         timeout: resolved.timeout.unwrap_or(default_timeout),
+        // Opt-in per spawn path; the Launch Task step runner overrides it from
+        // config after this returns. Left `None` here keeps every other caller
+        // (playbook engine) on the unchanged wall-clock-only behaviour.
+        idle_timeout: None,
         linear_context_mode: spawn_plan.effective_mode,
         policy_audit: spawn_plan.policy_audit.clone(),
         session_launch: SessionLaunchInfo {

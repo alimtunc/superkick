@@ -13,6 +13,7 @@ pub mod launch_queue_blockers;
 pub mod launch_task_context;
 pub mod launch_task_event_bus;
 pub mod launch_task_executor;
+pub mod launch_task_liveness;
 pub mod launch_task_registry;
 pub mod launch_task_step_runner;
 pub mod linear_context;
@@ -54,8 +55,12 @@ pub use interrupt_service::InterruptService;
 pub use launch_queue_blockers::reconcile_blockers;
 pub use launch_task_event_bus::{LaunchTaskEvent, LaunchTaskEventBus};
 pub use launch_task_executor::{
-    CancelOutcome, LaunchTaskExecutor, RetryError, RetryOutcome, StepLinks, StepOutcome,
-    StepRunner, StubStepRunner,
+    CancelOutcome, LaunchTaskExecutor, ReconcileOutcome, RetryError, RetryOutcome,
+    ShadowRunTerminal, StepLinks, StepOutcome, StepRunner, StubStepRunner,
+};
+pub use launch_task_liveness::{
+    DEFAULT_LIVENESS_SWEEP_INTERVAL, ReconcileReport, reconcile_launch_task_orphans,
+    spawn_launch_task_liveness_sweep,
 };
 pub use launch_task_registry::{CancelDecision, LaunchTaskRegistry, ReservedSlot};
 

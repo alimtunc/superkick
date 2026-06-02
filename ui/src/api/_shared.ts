@@ -71,7 +71,14 @@ interface JsonRequestInit {
 	body?: unknown
 }
 
-async function requestOk(path: string, errorContext: string, init?: JsonRequestInit): Promise<Response> {
+type ErrorThrower = (res: Response, fallbackLabel: string) => Promise<never>
+
+async function requestOk(
+	path: string,
+	errorContext: string,
+	init?: JsonRequestInit,
+	onError: ErrorThrower = throwGenericApiError
+): Promise<Response> {
 	const opts: RequestInit = {}
 	if (init?.method) opts.method = init.method
 	if (init?.body !== undefined) {
@@ -79,7 +86,7 @@ async function requestOk(path: string, errorContext: string, init?: JsonRequestI
 		opts.body = JSON.stringify(init.body)
 	}
 	const res = await fetch(`${BASE}${path}`, opts)
-	if (!res.ok) await throwGenericApiError(res, errorContext)
+	if (!res.ok) await onError(res, errorContext)
 	return res
 }
 
@@ -90,6 +97,12 @@ export async function getJson<T>(path: string, errorContext: string): Promise<T>
 
 export async function postJson<T>(path: string, errorContext: string, body?: unknown): Promise<T> {
 	const res = await requestOk(path, errorContext, { method: 'POST', body })
+	return res.json() as Promise<T>
+}
+
+/** POST that surfaces a typed `DuplicateRunError` on a 409 with `active_run_id`. Use on routes that can collide with an active run. */
+export async function postJsonChecked<T>(path: string, errorContext: string, body?: unknown): Promise<T> {
+	const res = await requestOk(path, errorContext, { method: 'POST', body }, throwApiError)
 	return res.json() as Promise<T>
 }
 

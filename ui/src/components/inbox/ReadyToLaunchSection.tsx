@@ -42,17 +42,14 @@ export function ReadyToLaunchSection() {
 				<LaunchDialog
 					open={launch.dialog.open}
 					profile={launchProfile}
-					instructions={launch.dialog.instructions}
 					useWorktree={launch.dialog.useWorktree}
-					executionMode={launch.dialog.executionMode}
 					isPending={launch.isPending}
+					canLaunch={launch.canLaunch}
 					agents={launch.agents}
 					selection={launch.selection}
 					agentsLoading={launch.agentsLoading}
 					onAgentChange={launch.setAgent}
-					onInstructionsChange={launch.dialog.setInstructions}
 					onUseWorktreeChange={launch.dialog.setUseWorktree}
-					onExecutionModeChange={launch.dialog.setExecutionMode}
 					onLaunch={launch.confirm}
 					onClose={launch.close}
 				/>

@@ -58,7 +58,10 @@ export function useExecutionLogState(issue: IssueDetailResponse): UseExecutionLo
 	const runDetail = useQuery(runDetailQuery(doneRunId))
 
 	const state = useMemo<ExecutionLogState>(() => {
-		if (!latest) return { kind: 'idle' }
+		if (!latest) {
+			const activeRun = issue.linked_runs.find(isActiveRun) ?? null
+			return activeRun ? { kind: 'run_only', run: activeRun } : { kind: 'idle' }
+		}
 
 		const phases = derivePhases(latest.steps)
 
@@ -91,7 +94,7 @@ export function useExecutionLogState(issue: IssueDetailResponse): UseExecutionLo
 			past,
 			worktree
 		}
-	}, [latest, blocking, isLatestTerminal, linkedRun, past, runDetail.data])
+	}, [latest, blocking, isLatestTerminal, linkedRun, past, runDetail.data, issue.linked_runs])
 
 	return { state, blocking, loading }
 }

@@ -10,7 +10,7 @@ import type {
 	RunStep
 } from '@/types'
 
-import { BASE, postJson, throwApiError } from './_shared'
+import { BASE, postJson, postJsonChecked } from './_shared'
 
 // Sentinel for `fetchRunDiff`: 404 → no_worktree, 422 → not_worktree_backed.
 export type RunDiffUnavailableReason = 'no_worktree' | 'not_worktree_backed'
@@ -23,13 +23,7 @@ export interface RunDiffUnavailable {
 export type RunDiffResult = { kind: 'ok'; value: RunDiffResponse } | RunDiffUnavailable
 
 export async function createRun(req: CreateRunRequest): Promise<Run> {
-	const res = await fetch(`${BASE}/runs`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(req)
-	})
-	if (!res.ok) await throwApiError(res, 'create run failed')
-	return res.json()
+	return postJsonChecked('/runs', 'create run failed', req)
 }
 
 export async function fetchRuns(): Promise<Run[]> {

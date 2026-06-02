@@ -9,10 +9,10 @@ import type {
 	RetryLaunchTaskResponse
 } from '@/types'
 
-import { getJson, postJson } from './_shared'
+import { getJson, postJson, postJsonChecked } from './_shared'
 
 export async function createLaunchTask(req: CreateLaunchTaskRequest): Promise<LaunchTaskWithSteps> {
-	return postJson('/launch-tasks', 'create launch task failed', req)
+	return postJsonChecked('/launch-tasks', 'create launch task failed', req)
 }
 
 export async function listLaunchTasksForIssue(linearIssueId: string): Promise<LaunchTask[]> {

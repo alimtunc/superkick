@@ -35,6 +35,12 @@ pub trait RunRepo: Send + Sync {
         &self,
         issue_identifier: &str,
     ) -> impl Future<Output = Result<Option<Run>>> + Send;
+    /// All non-terminal Launch Task shadow runs (`trigger_source='launch_task'`,
+    /// `state NOT IN (completed, failed, cancelled)`) — the exact rows that block
+    /// relaunch and read "live" in the UI. Liveness reconciliation enumerates
+    /// these; the complement of the recovery scheduler's `list_recovery_candidates`,
+    /// which deliberately excludes shadow runs.
+    fn list_active_launch_task_runs(&self) -> impl Future<Output = Result<Vec<Run>>> + Send;
     /// Stamp a fresh heartbeat without touching `state` / `updated_at` / pause
     /// fields. Skips terminal runs at the storage level so a late-arriving
     /// session lifecycle event for a finished run cannot revive its heartbeat

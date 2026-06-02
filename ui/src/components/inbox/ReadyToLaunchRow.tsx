@@ -10,7 +10,7 @@ import { Link } from '@tanstack/react-router'
 interface ReadyToLaunchRowProps {
 	item: Extract<LaunchQueueItem, { kind: 'issue' }>
 	dispatchPosition: number
-	onDispatch: (issueIdentifier: string) => void
+	onDispatch: (issueIdentifier: string, issueId?: string) => void
 	dispatchPending: boolean
 }
 
@@ -54,7 +54,7 @@ export function ReadyToLaunchRow({
 					size="sm"
 					icon="zap"
 					disabled={dispatchPending}
-					onClick={() => onDispatch(item.issue.identifier)}
+					onClick={() => onDispatch(item.issue.identifier, item.issue.id)}
 					aria-label={`${action.label} ${item.issue.identifier}`}
 				>
 					{dispatchPending ? `${pendingLabel(action.verb)}…` : action.label}

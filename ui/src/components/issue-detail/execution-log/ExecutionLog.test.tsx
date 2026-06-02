@@ -405,4 +405,52 @@ describe('ExecutionLog — state branches', () => {
 		await user.click(screen.getByRole('button', { name: /^diff$/i }))
 		expect(mocks.openDrawer).toHaveBeenCalledWith('run-running', 'files')
 	})
+
+	it('run_only: an active bare run with no launch task renders the Active run card and opens the drawer', async () => {
+		setTasks(null)
+		const bareRun: LinkedRunSummary = {
+			id: 'run-bare',
+			state: 'coding',
+			started_at: '2026-05-26T09:30:00.000Z',
+			finished_at: null
+		}
+		render(wrap(<ExecutionLog issue={buildIssue({ linked_runs: [bareRun] })} />))
+
+		expect(screen.getByText('Active run')).toBeInTheDocument()
+		expect(screen.getByText('Coding')).toBeInTheDocument()
+		expect(screen.queryByText('No execution yet on this issue.')).toBeNull()
+
+		const user = userEvent.setup()
+		await user.click(screen.getByRole('button', { name: /open run/i }))
+		expect(mocks.openDrawer).toHaveBeenCalledWith('run-bare', 'activity')
+	})
+
+	it('run_only: a terminal bare run with no launch task stays idle so the Launch task CTA is preserved', () => {
+		setTasks(null)
+		const terminalRun: LinkedRunSummary = {
+			id: 'run-old',
+			state: 'completed',
+			started_at: '2026-05-25T09:00:00.000Z',
+			finished_at: '2026-05-25T09:30:00.000Z'
+		}
+		render(wrap(<ExecutionLog issue={buildIssue({ linked_runs: [terminalRun] })} />))
+
+		expect(screen.getByText('No execution yet on this issue.')).toBeInTheDocument()
+		expect(screen.getByText('Launch task')).toBeInTheDocument()
+		expect(screen.queryByText('Active run')).toBeNull()
+	})
+
+	it('run_only: the loading skeleton wins over the Active run card while tasks first-fetch', () => {
+		setTasks(null, [], { loading: true })
+		const bareRun: LinkedRunSummary = {
+			id: 'run-bare',
+			state: 'coding',
+			started_at: '2026-05-26T09:30:00.000Z',
+			finished_at: null
+		}
+		render(wrap(<ExecutionLog issue={buildIssue({ linked_runs: [bareRun] })} />))
+
+		expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
+		expect(screen.queryByText('Active run')).toBeNull()
+	})
 })

@@ -7,6 +7,7 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use chrono::Utc;
 use portable_pty::CommandBuilder;
+use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
@@ -31,6 +32,9 @@ pub(crate) struct SupervisedDeps<S, E, T> {
     /// Optional bus — when attached, every state transition publishes a
     /// `SessionLifecycleEvent` (SUP-79 spawn-and-observe).
     pub lifecycle_bus: Option<Arc<SessionBus>>,
+    /// Kill the process after this much output silence (no-output watchdog),
+    /// reset on every chunk. `None` disables it.
+    pub idle_timeout: Option<Duration>,
 }
 
 /// Spawn the agent via PTY and supervise it to completion.
@@ -54,6 +58,7 @@ where
         transcript_repo,
         registry,
         lifecycle_bus,
+        idle_timeout,
     } = deps;
     let run_id = session.run_id;
     let step_id = session.run_step_id;
@@ -103,6 +108,15 @@ where
     // broadcasts and persists agent output; with nothing draining it, a large
     // prompt write deadlocks against the agent's startup banner (the PTY
     // buffers fill in both directions) and wedges the writing thread.
+    // The no-output watchdog watches this activity channel; the output reader
+    // pings it per chunk. Only created when the watchdog is armed.
+    let (activity_tx, activity_rx) = match idle_timeout {
+        Some(_) => {
+            let (tx, rx) = watch::channel(0u64);
+            (Some(tx), Some(rx))
+        }
+        None => (None, None),
+    };
     let output_pipeline = spawn_output_reader(
         spawned.master_reader,
         run_id,
@@ -110,6 +124,7 @@ where
         Arc::clone(&pty_session),
         broadcast_tx,
         transcript_repo,
+        activity_tx,
     );
     let crate::agent_supervisor::output::OutputPipeline {
         persist_join: output_task,
@@ -158,15 +173,30 @@ where
                 .context("agent wait task panicked")?
                 .context("failed to wait on agent process")?
         }
-        _ = tokio::time::sleep(timeout) => {
-            warn!(pid = ?pid, "agent timed out, killing");
+        kind = deadline_reached(timeout, idle_timeout, activity_rx) => {
+            // The wall-clock budget OR the no-output idle window tripped. Both
+            // kill the child and surface TimedOut, but the ledger message
+            // distinguishes a hung (silent) agent from one that ran out of time.
+            let (after, message) = match kind {
+                DeadlineKind::Wall => (
+                    timeout,
+                    format!("agent {} timed out after {timeout:?}", session.provider),
+                ),
+                DeadlineKind::Idle(idle) => (
+                    idle,
+                    format!(
+                        "agent {} produced no output for {idle:?} — terminated as hung (no-output watchdog)",
+                        session.provider
+                    ),
+                ),
+            };
+            warn!(pid = ?pid, "{message}");
             kill_by_pid(pid);
             session.status = AgentStatus::Failed;
             session.finished_at = Some(Utc::now());
             emit_event(
                 &*event_repo, run_id, Some(step_id),
-                EventKind::Error, EventLevel::Error,
-                format!("agent {} timed out after {timeout:?}", session.provider),
+                EventKind::Error, EventLevel::Error, message,
             ).await;
             let _ = output_task.await;
             let step_result = step_result_rx.await.unwrap_or(Ok(None));
@@ -184,7 +214,7 @@ where
                 session,
                 step_result,
                 lifecycle_phase: SessionLifecyclePhase::TimedOut,
-                timeout_after: Some(timeout),
+                timeout_after: Some(after),
                 transcript_hints,
             });
         }
@@ -252,6 +282,47 @@ where
         timeout_after: None,
         transcript_hints,
     })
+}
+
+/// Which deadline tripped — the total wall-clock budget, or the no-output (idle) window.
+enum DeadlineKind {
+    Wall,
+    Idle(Duration),
+}
+
+/// Resolve when either the total `wall` budget elapses or — when the watchdog
+/// is armed — `idle` passes with no output activity. Output chunks ping
+/// `activity`, resetting the idle window, so a busy-but-quiet-bursting agent is
+/// never killed early.
+async fn deadline_reached(
+    wall: Duration,
+    idle: Option<Duration>,
+    activity: Option<watch::Receiver<u64>>,
+) -> DeadlineKind {
+    match (idle, activity) {
+        (Some(idle_dur), Some(rx)) => tokio::select! {
+            _ = tokio::time::sleep(wall) => DeadlineKind::Wall,
+            _ = idle_deadline(rx, idle_dur) => DeadlineKind::Idle(idle_dur),
+        },
+        _ => {
+            tokio::time::sleep(wall).await;
+            DeadlineKind::Wall
+        }
+    }
+}
+
+/// Resolve once `idle` elapses with no activity ping. Each ping resets the
+/// window. Once the sender drops (the child's output stream closed on exit) it
+/// never resolves — the child-exit arm of the supervisor wins instead, so a
+/// clean exit is never misreported as a hang.
+async fn idle_deadline(mut activity: watch::Receiver<u64>, idle: Duration) {
+    loop {
+        match tokio::time::timeout(idle, activity.changed()).await {
+            Err(_elapsed) => return,
+            Ok(Ok(())) => continue,
+            Ok(Err(_closed)) => std::future::pending::<()>().await,
+        }
+    }
 }
 
 /// Open a PTY pair and spawn the child process on the slave side.
@@ -331,4 +402,58 @@ where
 
     session_repo.update(session).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Real (short) durations: timers fire at-or-after their deadline, never
+    // early, so every assertion here is a robust lower-bound / never-completes.
+
+    #[tokio::test]
+    async fn idle_deadline_trips_after_configured_silence() {
+        let (_tx, rx) = watch::channel(0u64);
+        let start = std::time::Instant::now();
+        // No activity ever arrives (sender stays alive) → the window elapses.
+        idle_deadline(rx, Duration::from_millis(80)).await;
+        assert!(
+            start.elapsed() >= Duration::from_millis(80),
+            "must wait the full idle window before tripping"
+        );
+    }
+
+    #[tokio::test]
+    async fn idle_deadline_resets_on_activity() {
+        let (tx, rx) = watch::channel(0u64);
+        let task = tokio::spawn(idle_deadline(rx, Duration::from_millis(120)));
+        // Bursts every 40ms (well inside the 120ms window) keep resetting it; a
+        // no-activity run would have tripped by now.
+        for _ in 0..3 {
+            tokio::time::sleep(Duration::from_millis(40)).await;
+            tx.send_modify(|n| *n += 1);
+            assert!(
+                !task.is_finished(),
+                "must not trip while output keeps arriving"
+            );
+        }
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn idle_deadline_defers_to_exit_when_output_stream_closes() {
+        let (tx, rx) = watch::channel(0u64);
+        let mut task = tokio::spawn(idle_deadline(rx, Duration::from_millis(30)));
+        // The child exited: the output reader finished and dropped the sender.
+        drop(tx);
+        // The watchdog must NOT trip — a clean exit is the supervisor's job to
+        // report, not the watchdog's. It stays pending well past the window.
+        assert!(
+            tokio::time::timeout(Duration::from_millis(120), &mut task)
+                .await
+                .is_err(),
+            "watchdog must defer to the exit arm once the output stream closes"
+        );
+        task.abort();
+    }
 }
