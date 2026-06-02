@@ -103,10 +103,18 @@ pub struct RunnerConfig {
     /// These run during the Prepare step, before any agent starts.
     #[serde(default)]
     pub setup_commands: Vec<String>,
+    /// Kill a Launch Task agent step that produces no output for this many
+    /// seconds (hung-but-alive), distinct from the per-step wall-clock `timeout`.
+    /// `None` disables it; default 300s.
+    #[serde(default = "default_agent_idle_timeout_secs")]
+    pub agent_idle_timeout_secs: Option<u64>,
 }
 
 fn default_repo_root() -> String {
     ".".into()
+}
+fn default_agent_idle_timeout_secs() -> Option<u64> {
+    Some(300)
 }
 fn default_base_branch() -> String {
     "main".into()

@@ -5,9 +5,10 @@ import { Btn, Icon } from '@/ui'
 
 interface ExecutionLogIdleProps {
 	issueIdentifier: string
+	issueId?: string
 }
 
-export function ExecutionLogIdle({ issueIdentifier }: ExecutionLogIdleProps) {
+export function ExecutionLogIdle({ issueIdentifier, issueId }: ExecutionLogIdleProps) {
 	const { config } = useConfig()
 	const launchProfile = config?.launch_profile
 	const launch = useLaunchFromInbox({ launchProfile })
@@ -38,7 +39,7 @@ export function ExecutionLogIdle({ issueIdentifier }: ExecutionLogIdleProps) {
 					size="sm"
 					icon="play"
 					disabled={!launchProfile}
-					onClick={() => launch.openFor(issueIdentifier)}
+					onClick={() => launch.openFor(issueIdentifier, issueId)}
 				>
 					Launch task
 				</Btn>
@@ -47,17 +48,14 @@ export function ExecutionLogIdle({ issueIdentifier }: ExecutionLogIdleProps) {
 				<LaunchDialog
 					open={launch.dialog.open}
 					profile={launchProfile}
-					instructions={launch.dialog.instructions}
 					useWorktree={launch.dialog.useWorktree}
-					executionMode={launch.dialog.executionMode}
 					isPending={launch.isPending}
+					canLaunch={launch.canLaunch}
 					agents={launch.agents}
 					selection={launch.selection}
 					agentsLoading={launch.agentsLoading}
 					onAgentChange={launch.setAgent}
-					onInstructionsChange={launch.dialog.setInstructions}
 					onUseWorktreeChange={launch.dialog.setUseWorktree}
-					onExecutionModeChange={launch.dialog.setExecutionMode}
 					onLaunch={launch.confirm}
 					onClose={launch.close}
 				/>

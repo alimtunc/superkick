@@ -34,7 +34,7 @@ use tracing::{info, warn};
 use superkick_core::{
     ConversationId, CoreError, FailureClassification, FailureDisposition, LaunchTask, LaunchTaskId,
     LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus, MemoryEntryId,
-    OrchestratorSessionId, RunId,
+    OrchestratorSessionId, Run, RunId, RunState,
 };
 use superkick_storage::repo::LaunchTaskRepo;
 
@@ -119,6 +119,55 @@ pub enum StepOutcome {
     Cancelled,
 }
 
+/// Terminal state to drive a shadow `Run` to when its owning `LaunchTask` dies,
+/// mirroring the task's own outcome so the run stops blocking relaunch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShadowRunTerminal {
+    Failed,
+    Cancelled,
+    Completed,
+}
+
+impl ShadowRunTerminal {
+    pub(crate) fn to_run_state(self) -> RunState {
+        match self {
+            ShadowRunTerminal::Failed => RunState::Failed,
+            ShadowRunTerminal::Cancelled => RunState::Cancelled,
+            ShadowRunTerminal::Completed => RunState::Completed,
+        }
+    }
+
+    /// The shadow terminal mirroring an already-terminal task status; `None` for non-terminal ones.
+    pub(crate) fn matching(task_status: LaunchTaskStatus) -> Option<Self> {
+        match task_status {
+            LaunchTaskStatus::Failed => Some(ShadowRunTerminal::Failed),
+            LaunchTaskStatus::Cancelled => Some(ShadowRunTerminal::Cancelled),
+            LaunchTaskStatus::Completed => Some(ShadowRunTerminal::Completed),
+            LaunchTaskStatus::Pending
+            | LaunchTaskStatus::Running
+            | LaunchTaskStatus::NeedsHuman => None,
+        }
+    }
+}
+
+/// What a single [`LaunchTaskExecutor::reconcile_shadow_run`] decision did,
+/// aggregated by the liveness pass for an operator-facing summary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReconcileOutcome {
+    /// Run was already terminal — nothing to do.
+    AlreadyTerminal,
+    /// Owning task is `NeedsHuman` (retryable park) — left untouched.
+    SkippedParked,
+    /// A live executor still owns the task — left untouched (periodic sweep).
+    SkippedAlive,
+    /// Owning task was active with no live executor — driven terminal (Failed).
+    OrphanReconciled,
+    /// Owning task already terminal but its shadow run was stranded — finalized.
+    StrandReconciled,
+    /// Shadow run with no resolvable owning task — finalized to Failed.
+    OrphanRunReconciled,
+}
+
 /// Pluggable substrate for executing one step. Tests stub this to drive the
 /// executor deterministically; production injects `RealStepRunner` (SUP-124),
 /// which spawns the agent process for each step via `AgentSupervisor::launch`
@@ -135,6 +184,20 @@ pub trait StepRunner: Send + Sync + 'static {
         step: &LaunchTaskStep,
         cancel: CancellationToken,
     ) -> impl Future<Output = Result<StepOutcome>> + Send;
+
+    /// Drive the shadow `Run` (plus its still-running steps and sessions)
+    /// backing `run_id` to a terminal state, emitting a ledger event. Idempotent.
+    /// This lets the executor (sole owner of task/step transitions) terminalize
+    /// the runner-owned shadow run without becoming a second `RunState` writer.
+    /// The default no-op keeps test fakes with no real shadow run unaffected.
+    fn finalize_shadow_run(
+        &self,
+        _run_id: RunId,
+        _terminal: ShadowRunTerminal,
+        _reason: &str,
+    ) -> impl Future<Output = Result<()>> + Send {
+        async { Ok(()) }
+    }
 }
 
 /// V1 stub runner — **test-only**.
@@ -268,6 +331,15 @@ where
                     }));
                 }
                 self.move_task_to_cancelled(&task, None).await?;
+                // No live executor (Reserved) means the in-process step-runner
+                // cancel arm never ran, so the shadow run is stranded — finalize
+                // it here so cancel is terminal everywhere.
+                self.finalize_task_shadow_run(
+                    &task,
+                    ShadowRunTerminal::Cancelled,
+                    "launch task cancelled",
+                )
+                .await;
                 Ok(Some(CancelOutcome {
                     status: LaunchTaskStatus::Cancelled,
                     signalled: false,
@@ -553,8 +625,196 @@ where
             failure_classification: Some(classification),
             memory_entry_ids: Vec::new(),
         });
-        self.move_task_to_status(task, task_status, Some(step.id), reason)
+        self.move_task_to_status(task, task_status, Some(step.id), reason.clone())
+            .await?;
+        // A terminal-Failed disposition is a dead task — drive its shadow run
+        // terminal so it stops blocking relaunch and reading "live". NeedsHuman
+        // is intentionally left non-terminal for retry.
+        if matches!(task_status, LaunchTaskStatus::Failed) {
+            self.finalize_task_shadow_run(task, ShadowRunTerminal::Failed, &reason)
+                .await;
+        }
+        Ok(())
+    }
+
+    /// Resolve the shadow `Run` backing a task via any step's `linked_run_id`. A
+    /// launch task shares one shadow run across its steps, so the first linked
+    /// step suffices. `None` before the first step has spawned.
+    async fn shadow_run_id_for_task(&self, task_id: LaunchTaskId) -> Result<Option<RunId>> {
+        Ok(self
+            .repo
+            .list_steps(task_id)
+            .await?
+            .into_iter()
+            .find_map(|s| s.linked_run_id))
+    }
+
+    /// Drive the shadow run backing `task` to a terminal state via the runner —
+    /// which owns shadow `Run`/`RunStep` writes, so the executor never touches
+    /// `RunState` directly. Best-effort: a failure is logged, not propagated, so
+    /// cleanup never blocks the authoritative task transition (the periodic sweep
+    /// is the safety net). Only dead dispositions call this — a parked/timeout run
+    /// must stay non-terminal for retry.
+    async fn finalize_task_shadow_run(
+        &self,
+        task: &LaunchTask,
+        terminal: ShadowRunTerminal,
+        reason: &str,
+    ) {
+        let run_id = match self.shadow_run_id_for_task(task.id).await {
+            Ok(Some(rid)) => rid,
+            Ok(None) => return,
+            Err(e) => {
+                warn!(task_id = %task.id, error = %e, "failed to resolve shadow run for finalize");
+                return;
+            }
+        };
+        self.finalize_shadow_run_id(run_id, terminal, reason).await;
+    }
+
+    /// Best-effort delegate to the runner's shadow-run finalizer. Logs on error
+    /// rather than propagating — the periodic sweep retries, and a stuck
+    /// cleanup must never block the authoritative task transition.
+    async fn finalize_shadow_run_id(
+        &self,
+        run_id: RunId,
+        terminal: ShadowRunTerminal,
+        reason: &str,
+    ) {
+        if let Err(e) = self
+            .step_runner
+            .finalize_shadow_run(run_id, terminal, reason)
             .await
+        {
+            warn!(%run_id, error = %e, "failed to finalize shadow run during reconciliation");
+        }
+    }
+
+    /// Reconcile one non-terminal Launch Task shadow run: classify by the owning
+    /// task and drive the dead ones terminal through the existing owners (task/step
+    /// via this executor, run via the runner). The single entry the liveness pass
+    /// dispatches to per enumerated run.
+    pub async fn reconcile_shadow_run(&self, run: &Run) -> Result<ReconcileOutcome> {
+        if run.state.is_terminal() {
+            return Ok(ReconcileOutcome::AlreadyTerminal);
+        }
+        let owning_task = match self.repo.find_step_by_linked_run(run.id).await? {
+            Some(step) => self.repo.get(step.launch_task_id).await?,
+            None => None,
+        };
+        let Some(task) = owning_task else {
+            // A shadow run with no resolvable launch task is itself an orphan.
+            self.finalize_shadow_run_id(
+                run.id,
+                ShadowRunTerminal::Failed,
+                "orphaned shadow run with no owning launch task",
+            )
+            .await;
+            return Ok(ReconcileOutcome::OrphanRunReconciled);
+        };
+
+        if matches!(task.status, LaunchTaskStatus::NeedsHuman) {
+            // Retryable park — retry reuses this live shadow run. Leave it.
+            return Ok(ReconcileOutcome::SkippedParked);
+        }
+        if let Some(terminal) = ShadowRunTerminal::matching(task.status) {
+            // Task already terminal but the run was stranded — finalize to match.
+            self.finalize_shadow_run_id(
+                run.id,
+                terminal,
+                &format!(
+                    "launch task {} is {} — reconciling stranded shadow run",
+                    task.id, task.status
+                ),
+            )
+            .await;
+            return Ok(ReconcileOutcome::StrandReconciled);
+        }
+
+        // Task is Pending/Running and non-terminal — an orphan unless a live
+        // executor still owns it.
+        self.reconcile_active_orphan(&task, run.id).await
+    }
+
+    /// Drive an active-but-orphaned task (`Pending`/`Running` with no live
+    /// executor) and its shadow run terminal. The atomic `try_register` gate is
+    /// what distinguishes a genuinely dead execution (boot, or a panicked
+    /// task — slot free) from a live one (slot held → skip).
+    async fn reconcile_active_orphan(
+        &self,
+        task: &LaunchTask,
+        run_id: RunId,
+    ) -> Result<ReconcileOutcome> {
+        let cancel = CancellationToken::new();
+        if self.registry.try_register(task.id, cancel).is_err() {
+            return Ok(ReconcileOutcome::SkippedAlive);
+        }
+        let _guard = RegistryGuard {
+            registry: Arc::clone(&self.registry),
+            task_id: task.id,
+        };
+
+        // Reload under the gate — the task may have moved between enumeration
+        // and acquiring the slot.
+        let Some(task) = self.repo.get(task.id).await? else {
+            return Ok(ReconcileOutcome::SkippedAlive);
+        };
+        if let Some(terminal) = ShadowRunTerminal::matching(task.status) {
+            self.finalize_shadow_run_id(run_id, terminal, "owning task became terminal")
+                .await;
+            return Ok(ReconcileOutcome::StrandReconciled);
+        }
+        if matches!(task.status, LaunchTaskStatus::NeedsHuman) {
+            return Ok(ReconcileOutcome::SkippedParked);
+        }
+
+        let reason = format!(
+            "launch task {} orphaned — no live executor (server restart or crashed run); \
+             reconciled to Failed",
+            task.id
+        );
+        // Fail the in-flight step before the task → Failed transition: leaving a
+        // Pending/Running current step under a Failed task would strand a
+        // non-terminal step. Later Pending steps stay Pending (normal V1 policy).
+        if let Some(step_id) = task.current_step_id
+            && let Some(step) = self
+                .repo
+                .list_steps(task.id)
+                .await?
+                .into_iter()
+                .find(|s| s.id == step_id)
+            && !step.status.is_terminal()
+        {
+            match self
+                .repo
+                .update_step_status(step_id, LaunchTaskStepStatus::Failed)
+                .await
+            {
+                Ok(()) => self.publish(LaunchTaskEvent::StepFinished {
+                    task_id: task.id,
+                    linear_issue_id: task.linear_issue_id.clone(),
+                    step_id,
+                    step_kind: step.step_kind,
+                    status: LaunchTaskStepStatus::Failed,
+                    summary: Some(reason.clone()),
+                    failure_classification: None,
+                    memory_entry_ids: Vec::new(),
+                }),
+                Err(e) => {
+                    warn!(task_id = %task.id, %step_id, error = %e, "failed to fail orphaned step")
+                }
+            }
+        }
+        self.move_task_to_status(
+            &task,
+            LaunchTaskStatus::Failed,
+            task.current_step_id,
+            reason.clone(),
+        )
+        .await?;
+        self.finalize_shadow_run_id(run_id, ShadowRunTerminal::Failed, &reason)
+            .await;
+        Ok(ReconcileOutcome::OrphanReconciled)
     }
 
     async fn record_step_links(&self, step: &LaunchTaskStep, links: &StepLinks) -> Result<()> {
@@ -571,7 +831,10 @@ where
 
     async fn halt_step_cancelled(&self, task: &LaunchTask, step: &LaunchTaskStep) -> Result<()> {
         self.cancel_step(task, step).await?;
-        self.move_task_to_cancelled(task, Some(step.id)).await
+        self.move_task_to_cancelled(task, Some(step.id)).await?;
+        self.finalize_task_shadow_run(task, ShadowRunTerminal::Cancelled, "launch task cancelled")
+            .await;
+        Ok(())
     }
 
     /// SUP-120 — operator-triggered retry of the step that put a task in

@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tracing::warn;
 
 use superkick_core::{AgentProvider, RunId, StepResult, TranscriptChunk};
@@ -38,6 +38,9 @@ pub(crate) fn spawn_output_reader<T>(
     session: Arc<PtySession>,
     broadcast_tx: broadcast::Sender<Vec<u8>>,
     transcript_repo: Arc<T>,
+    // Pinged once per output chunk so the supervisor's no-output watchdog can
+    // reset its idle window. `None` disables it.
+    activity_tx: Option<watch::Sender<u64>>,
 ) -> OutputPipeline
 where
     T: TranscriptRepo + 'static,
@@ -47,7 +50,12 @@ where
     let (step_result_tx, step_result_rx) = oneshot::channel();
     let (hints_tx, transcript_hints_rx) = oneshot::channel();
 
-    let persist_join = tokio::spawn(persist_chunks(persist_rx, run_id, transcript_repo));
+    let persist_join = tokio::spawn(persist_chunks(
+        persist_rx,
+        run_id,
+        transcript_repo,
+        activity_tx,
+    ));
     tokio::spawn(scan_chunks(scan_rx, provider, step_result_tx, hints_tx));
 
     tokio::task::spawn_blocking(move || {
@@ -70,13 +78,20 @@ where
 }
 
 /// Async loop that receives raw chunks and persists them as transcript chunks.
+/// Each chunk pings `activity_tx` so the no-output watchdog sees the agent is
+/// alive; when the child exits the channel closes, dropping `activity_tx`, and
+/// the watchdog defers to the exit arm.
 async fn persist_chunks<T: TranscriptRepo>(
     mut rx: mpsc::Receiver<Vec<u8>>,
     run_id: RunId,
     transcript_repo: Arc<T>,
+    activity_tx: Option<watch::Sender<u64>>,
 ) {
     let mut sequence: i64 = 0;
     while let Some(bytes) = rx.recv().await {
+        if let Some(tx) = &activity_tx {
+            tx.send_modify(|n| *n = n.wrapping_add(1));
+        }
         let chunk = TranscriptChunk::new(run_id, sequence, bytes);
         if let Err(err) = transcript_repo.insert(&chunk).await {
             warn!("failed to persist transcript chunk: {err}");

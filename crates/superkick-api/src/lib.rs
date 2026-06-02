@@ -573,6 +573,41 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         recovery_config,
     );
 
+    // Reconcile orphaned Launch Task shadow runs before serving, so a dead run
+    // (server restart / crashed executor) doesn't block relaunch or read "live".
+    // Bounded: on timeout we serve anyway and the periodic sweep reconciles.
+    const BOOT_RECONCILE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+    match tokio::time::timeout(
+        BOOT_RECONCILE_TIMEOUT,
+        superkick_runtime::reconcile_launch_task_orphans(
+            launch_task_executor.as_ref(),
+            run_repo.as_ref(),
+        ),
+    )
+    .await
+    {
+        Ok(Ok(report)) if report.reconciled > 0 => {
+            tracing::info!(
+                reconciled = report.reconciled,
+                scanned = report.scanned,
+                "boot reconciled orphaned launch-task shadow runs"
+            );
+        }
+        Ok(Ok(_)) => {}
+        Ok(Err(e)) => {
+            tracing::warn!(error = %e, "boot launch-task liveness reconciliation failed")
+        }
+        Err(_elapsed) => tracing::warn!(
+            "boot launch-task liveness reconciliation timed out after {BOOT_RECONCILE_TIMEOUT:?}; \
+             serving anyway — the periodic sweep will reconcile"
+        ),
+    }
+    superkick_runtime::spawn_launch_task_liveness_sweep(
+        Arc::clone(&launch_task_executor),
+        Arc::clone(&run_repo),
+        superkick_runtime::DEFAULT_LIVENESS_SWEEP_INTERVAL,
+    );
+
     // SUP-96 — populate the runtime registry once at boot in the background.
     // Best-effort: if a CLI hangs or detection fails for any reason, the
     // operator still gets a working API and can hit POST /runtimes/refresh

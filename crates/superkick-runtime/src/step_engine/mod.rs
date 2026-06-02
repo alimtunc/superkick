@@ -1385,6 +1385,7 @@ mod gate_tests {
                 base_branch: "main".into(),
                 worktree_prefix: "test".into(),
                 setup_commands: vec![],
+                agent_idle_timeout_secs: None,
             },
             agents: HashMap::new(),
             workflow: WorkflowConfig { steps: vec![] },

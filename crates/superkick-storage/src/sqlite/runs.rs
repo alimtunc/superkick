@@ -110,6 +110,16 @@ impl RunRepo for SqliteRunRepo {
         row.map(|r| r.into_domain()).transpose()
     }
 
+    async fn list_active_launch_task_runs(&self) -> Result<Vec<Run>> {
+        let rows = sqlx::query_as::<_, RunRow>(
+            "SELECT * FROM runs WHERE trigger_source = 'launch_task' AND state NOT IN ('completed', 'failed', 'cancelled') ORDER BY started_at ASC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("list active launch-task shadow runs")?;
+        rows.into_iter().map(|r| r.into_domain()).collect()
+    }
+
     async fn update(&self, run: &Run) -> Result<()> {
         let budget_json = serde_json::to_string(&run.budget).context("serialize run budget")?;
         let budget_grant_json =

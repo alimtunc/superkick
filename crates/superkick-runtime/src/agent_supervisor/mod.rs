@@ -61,6 +61,11 @@ pub struct AgentLaunchConfig {
     pub workdir: PathBuf,
     /// Maximum duration before the process is killed.
     pub timeout: Duration,
+    /// Kill the process after this much output silence (hung-but-alive), reset
+    /// on every output chunk and distinct from the total `timeout`. The Launch
+    /// Task step runner sets it from `runner.agent_idle_timeout_secs`; `None`
+    /// (every other spawn path) disables it.
+    pub idle_timeout: Option<Duration>,
     /// How Linear context was delivered to this spawn. Recorded on the
     /// `AgentSession` so the run log makes the decision inspectable.
     pub linear_context_mode: LinearContextMode,
@@ -277,6 +282,7 @@ where
             transcript_repo,
             registry,
             lifecycle_bus: self.lifecycle_bus.clone(),
+            idle_timeout: config.idle_timeout,
         };
 
         let join = tokio::spawn(lifecycle::run_supervised(
@@ -326,6 +332,7 @@ where
         .await;
 
         let timeout = config.timeout;
+        let idle_timeout = config.idle_timeout;
         let request = TurnRequest {
             prompt,
             workdir: config.workdir.clone(),
@@ -346,7 +353,13 @@ where
             transcript_repo: Arc::clone(&self.transcript_repo),
             lifecycle_bus: self.lifecycle_bus.clone(),
         };
-        let join = tokio::spawn(structured::consume(stream, session, timeout, deps));
+        let join = tokio::spawn(structured::consume(
+            stream,
+            session,
+            timeout,
+            idle_timeout,
+            deps,
+        ));
 
         Ok((handle, join))
     }

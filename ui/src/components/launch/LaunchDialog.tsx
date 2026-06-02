@@ -1,7 +1,7 @@
 import { AgentPicker } from '@/components/launch/AgentPicker'
 import { DialogPopup } from '@/components/ui/dialog-shell'
 import { LAUNCH_STEP_KIND_LABEL } from '@/lib/domain'
-import type { Agent, ExecutionMode, LaunchProfile, LaunchStepKind } from '@/types'
+import type { Agent, LaunchProfile, LaunchStepKind } from '@/types'
 import type { SKIconName } from '@/types/icons'
 import { Btn } from '@/ui/Btn'
 import { Icon } from '@/ui/Icon'
@@ -25,39 +25,29 @@ const RECIPE_STEPS: readonly RecipeStepDescriptor[] = [
 interface LaunchDialogProps {
 	open: boolean
 	profile: LaunchProfile
-	instructions: string
 	useWorktree: boolean
-	executionMode: ExecutionMode
 	isPending: boolean
+	canLaunch: boolean
 	agents: readonly Agent[]
 	selection: AgentSelection
 	agentsLoading?: boolean
 	onAgentChange: (kind: LaunchStepKind, name: string) => void
-	onInstructionsChange: (value: string) => void
 	onUseWorktreeChange: (value: boolean) => void
-	onExecutionModeChange: (value: ExecutionMode) => void
 	onLaunch: () => void
 	onClose: () => void
 }
 
-const PLACEHOLDER = `Ex: Read the full Linear issue before starting. Use a worktree.
-Run just check before finishing. Don't push, provide test instructions.
-Focus only on the API crate for this ticket.`
-
 export function LaunchDialog({
 	open,
 	profile,
-	instructions,
 	useWorktree,
-	executionMode,
 	isPending,
+	canLaunch,
 	agents,
 	selection,
 	agentsLoading,
 	onAgentChange,
-	onInstructionsChange,
 	onUseWorktreeChange,
-	onExecutionModeChange,
 	onLaunch,
 	onClose
 }: LaunchDialogProps) {
@@ -111,41 +101,6 @@ export function LaunchDialog({
 					</div>
 
 					<div className="field">
-						<span className="field__label">Execution mode</span>
-						<div className="seg">
-							<button
-								type="button"
-								className={executionMode === 'full_auto' ? 'on' : undefined}
-								onClick={() => onExecutionModeChange('full_auto')}
-							>
-								Full-auto
-							</button>
-							<button
-								type="button"
-								className={executionMode === 'semi_auto' ? 'on' : undefined}
-								onClick={() => onExecutionModeChange('semi_auto')}
-							>
-								Semi-auto
-							</button>
-						</div>
-						{executionMode === 'semi_auto' ? (
-							<div
-								style={{
-									display: 'flex',
-									alignItems: 'center',
-									gap: 'var(--space-3)',
-									marginTop: 'var(--space-2)',
-									fontSize: 'var(--text-12)',
-									color: 'var(--status-needs)'
-								}}
-							>
-								<Icon name="alert" size={13} className="ic" />
-								Pauses for your approval after each step
-							</div>
-						) : null}
-					</div>
-
-					<div className="field">
 						<Toggle
 							checked={useWorktree}
 							onChange={onUseWorktreeChange}
@@ -158,21 +113,6 @@ export function LaunchDialog({
 							}
 						/>
 					</div>
-
-					<div className="field">
-						<span className="field__label">
-							Operator instructions{' '}
-							<span style={{ color: 'var(--fg-dim)', fontWeight: 400 }}>· optional</span>
-						</span>
-						<textarea
-							className="textarea"
-							rows={4}
-							value={instructions}
-							onChange={(e) => onInstructionsChange(e.target.value)}
-							placeholder={PLACEHOLDER}
-							aria-label="Operator instructions"
-						/>
-					</div>
 				</div>
 
 				<div className="dialog__foot">
@@ -181,7 +121,13 @@ export function LaunchDialog({
 					<Btn kind="ghost" size="sm" onClick={onClose}>
 						Cancel
 					</Btn>
-					<Btn kind="primary" size="sm" icon="play" disabled={isPending} onClick={onLaunch}>
+					<Btn
+						kind="primary"
+						size="sm"
+						icon="play"
+						disabled={isPending || !canLaunch}
+						onClick={onLaunch}
+					>
 						{isPending ? 'Launching…' : 'Launch'}
 					</Btn>
 				</div>

@@ -47,6 +47,11 @@ interface ExecutionLogIdleState {
 	kind: 'idle'
 }
 
+interface ExecutionLogRunOnlyState {
+	kind: 'run_only'
+	run: LinkedRunSummary
+}
+
 interface ExecutionLogActiveState {
 	kind: 'running' | 'needs'
 	task: LaunchTaskWithSteps
@@ -65,4 +70,8 @@ interface ExecutionLogDoneState {
 	worktree: WorktreeFacts | null
 }
 
-export type ExecutionLogState = ExecutionLogIdleState | ExecutionLogActiveState | ExecutionLogDoneState
+export type ExecutionLogState =
+	| ExecutionLogIdleState
+	| ExecutionLogRunOnlyState
+	| ExecutionLogActiveState
+	| ExecutionLogDoneState

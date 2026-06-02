@@ -42,7 +42,8 @@ use crate::launch_task_context::{
     try_load_workspace_context,
 };
 use crate::launch_task_event_bus::{LaunchTaskEvent, LaunchTaskEventBus};
-use crate::launch_task_executor::{StepLinks, StepOutcome, StepRunner};
+use crate::launch_task_executor::{ShadowRunTerminal, StepLinks, StepOutcome, StepRunner};
+use crate::launch_task_liveness::{ShadowRunRepos, terminalize_shadow_run};
 use crate::linear_context::OptionalLinearClient;
 use crate::protocol_adapter::{CodexAdapterOptions, CodexProtocolAdapter, MarkerError};
 use crate::repo_cache::RepoCache;
@@ -138,6 +139,9 @@ where
     run_repo: Arc<R>,
     step_repo: Arc<ST>,
     event_repo: Arc<E>,
+    /// Kept alongside the supervisor's copy so reconciliation can finalize
+    /// orphaned sessions (Running with a dead pid) for a shadow run.
+    session_repo: Arc<A>,
     launch_task_repo: Arc<L>,
     issue_workspace_context_repo: Arc<dyn IssueWorkspaceContextRepoDyn>,
     memory_repo: Arc<dyn MemoryEntryRepoDyn>,
@@ -169,6 +173,7 @@ where
     I: LaunchTaskInterventionRepo + 'static,
 {
     pub fn new(deps: RealStepRunnerDeps<R, ST, E, A, T, L, I>) -> Self {
+        let session_repo = Arc::clone(&deps.session_repo);
         let mut supervisor = AgentSupervisor::new(
             deps.session_repo,
             Arc::clone(&deps.event_repo),
@@ -185,6 +190,7 @@ where
             run_repo: deps.run_repo,
             step_repo: deps.step_repo,
             event_repo: deps.event_repo,
+            session_repo,
             launch_task_repo: deps.launch_task_repo,
             issue_workspace_context_repo: deps.issue_workspace_context_repo,
             memory_repo: deps.memory_repo,
@@ -880,7 +886,7 @@ where
         // path moves the prompt straight into the config.
         let structured_prompt = codex_structured.then(|| prompt.clone());
 
-        let launch_cfg = build_launch_config(
+        let mut launch_cfg = build_launch_config(
             &spawn_plan,
             LaunchConfigInputs {
                 run_id: shadow_run_id,
@@ -896,6 +902,13 @@ where
                 launch_reason: LaunchReason::InitialStep,
             },
         );
+        // Arm the no-output watchdog on Launch Task steps (both spawn paths) so
+        // a hung-but-alive agent is killed before the full wall-clock.
+        launch_cfg.idle_timeout = self
+            .config
+            .runner
+            .agent_idle_timeout_secs
+            .map(Duration::from_secs);
 
         let spawn_result = match structured_prompt {
             Some(prompt) => {
@@ -998,6 +1011,31 @@ where
                 self.process_completion(task, &mut run, result, ctx).await
             }
         }
+    }
+
+    /// The runner owns shadow `Run`/`RunStep` state, so this is the single place
+    /// that write happens during reconciliation; the executor never touches
+    /// `RunState` itself.
+    async fn finalize_shadow_run(
+        &self,
+        run_id: RunId,
+        terminal: ShadowRunTerminal,
+        reason: &str,
+    ) -> Result<()> {
+        terminalize_shadow_run(
+            ShadowRunRepos {
+                run: &*self.run_repo,
+                step: &*self.step_repo,
+                session: &*self.session_repo,
+                event: &*self.event_repo,
+                launch_task: &*self.launch_task_repo,
+            },
+            &self.launch_task_bus,
+            run_id,
+            terminal,
+            reason,
+        )
+        .await
     }
 }
 
