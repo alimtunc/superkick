@@ -23,8 +23,9 @@ use superkick_storage::{
     SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssueWorkspaceContextRepo,
     SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo, SqliteMemoryEntryRepo,
     SqliteOrchestratorSessionRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo,
-    SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo, SqliteRuntimeRepo,
-    SqliteSessionOwnershipRepo, SqliteTranscriptRepo, SqliteTurnEventRepo, SqliteTurnRepo,
+    SqliteRunContextSnapshotRepo, SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
+    SqliteRuntimeRepo, SqliteSessionOwnershipRepo, SqliteTranscriptRepo, SqliteTurnEventRepo,
+    SqliteTurnRepo,
 };
 
 mod error;
@@ -175,6 +176,36 @@ pub fn run_diff_test_router(repo: Arc<SqliteRunRepo>, base_branch: String) -> Ro
         .with_state(state)
 }
 
+/// Test-only router builder for the SUP-187 `GET /launch-tasks/{id}/snapshot`
+/// route. Wires the snapshot handler against real in-memory SQLite repos —
+/// same pattern as `run_diff_test_router`. Tests seed a launch task (and
+/// optionally a run / workspace / events) through the repos, then assert the
+/// derived projection.
+#[cfg(feature = "test-support")]
+pub fn run_context_snapshot_test_router(
+    launch_task_repo: Arc<SqliteLaunchTaskRepo>,
+    run_repo: Arc<SqliteRunRepo>,
+    session_repo: Arc<SqliteAgentSessionRepo>,
+    event_repo: Arc<EventRepo>,
+    issue_workspace_context_repo: Arc<SqliteIssueWorkspaceContextRepo>,
+    snapshot_repo: Arc<SqliteRunContextSnapshotRepo>,
+) -> Router {
+    let state = handlers::snapshots::SnapshotState {
+        launch_task_repo,
+        run_repo,
+        session_repo,
+        event_repo,
+        issue_workspace_context_repo,
+        snapshot_repo,
+    };
+    Router::new()
+        .route(
+            "/launch-tasks/{id}/snapshot",
+            get(handlers::snapshots::get_launch_task_snapshot),
+        )
+        .with_state(state)
+}
+
 /// Re-export of the issue-context handler types tests need to assemble a
 /// router (`IssueLookup`, the two dyn-repo traits). Gated behind
 /// `test-support` so production callers cannot reach into the handler
@@ -311,6 +342,10 @@ pub(crate) struct AppState {
     /// running Launch Task. Sibling of `launch_task_repo`; the runtime
     /// reads it at every step start.
     pub launch_task_intervention_repo: Arc<SqliteLaunchTaskInterventionRepo>,
+    /// SUP-187 — persisted (regenerable) `RunContextSnapshot` projection store.
+    /// The snapshot handler derives a fresh redacted projection and upserts it
+    /// here; it is a cache/audit copy, never a source of truth.
+    pub run_context_snapshot_repo: Arc<SqliteRunContextSnapshotRepo>,
     /// SUP-118 — process-scope broadcast bus for launch-task transitions.
     /// SSE consumers subscribe through `/launch-tasks/events`.
     pub launch_task_event_bus: Arc<LaunchTaskEventBus>,
@@ -425,6 +460,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let issue_workspace_context_repo = Arc::new(SqliteIssueWorkspaceContextRepo::new(pool.clone()));
     let launch_task_intervention_repo =
         Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
+    let run_context_snapshot_repo = Arc::new(SqliteRunContextSnapshotRepo::new(pool.clone()));
     let launch_task_event_bus = LaunchTaskEventBus::new();
     let agent_catalog = Arc::new(config.agent_catalog());
     let runtime_repo = Arc::new(SqliteRuntimeRepo::new(pool.clone()));
@@ -633,6 +669,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         memory_repo,
         issue_workspace_context_repo,
         launch_task_intervention_repo,
+        run_context_snapshot_repo,
         launch_task_event_bus,
         launch_task_executor,
         agent_catalog,
@@ -830,6 +867,10 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
             "/launch-tasks/{id}/interventions",
             get(handlers::launch_tasks::list_launch_task_interventions)
                 .post(handlers::launch_tasks::create_launch_task_intervention),
+        )
+        .route(
+            "/launch-tasks/{id}/snapshot",
+            get(handlers::snapshots::get_launch_task_snapshot),
         )
         .route(
             "/conversations",

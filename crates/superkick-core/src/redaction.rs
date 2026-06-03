@@ -14,6 +14,7 @@
 //! the 422 body.
 
 use regex::Regex;
+use std::borrow::Cow;
 use std::sync::LazyLock;
 
 /// Ordered list of `(kind, regex)` pairs. Iteration stops at the first
@@ -49,6 +50,29 @@ pub fn scan(input: &str) -> Option<&'static str> {
     PATTERNS
         .iter()
         .find_map(|(kind, regex)| regex.is_match(input).then_some(*kind))
+}
+
+/// Mask every credential-shaped span in `input` with a stable
+/// `[redacted:<kind>]` placeholder, reusing the exact patterns [`scan`] uses.
+///
+/// `scan` *rejects* (the memory-entry write boundary refuses to persist a
+/// matching entry); `redact` *masks* and never fails. The split exists because
+/// a derived projection (SUP-187 `RunContextSnapshot`) aggregates free text
+/// from many canonical sources and must always build — refusing to render one
+/// summary because a fragment looks like a token would defeat the projection.
+/// Clean input is returned borrowed, so the common path allocates nothing.
+pub fn redact(input: &str) -> Cow<'_, str> {
+    if scan(input).is_none() {
+        return Cow::Borrowed(input);
+    }
+    let mut masked = input.to_owned();
+    for (kind, regex) in PATTERNS.iter() {
+        let placeholder = format!("[redacted:{kind}]");
+        masked = regex
+            .replace_all(&masked, placeholder.as_str())
+            .into_owned();
+    }
+    Cow::Owned(masked)
 }
 
 #[cfg(test)]
@@ -120,5 +144,62 @@ mod tests {
         let payload = "Plan: split this into three steps and ship behind a flag. \
                        Nothing here is sensitive -- just plain narrative text.";
         assert!(scan(payload).is_none());
+    }
+
+    #[test]
+    fn redact_returns_clean_text_borrowed() {
+        let clean = "Plan: split this into three steps and ship behind a flag.";
+        let out = redact(clean);
+        assert!(
+            matches!(out, Cow::Borrowed(_)),
+            "clean text must not allocate"
+        );
+        assert_eq!(out, clean);
+    }
+
+    #[test]
+    fn redact_masks_each_credential_kind() {
+        let cases = [
+            (
+                "Authorization: Bearer abcdef0123456789ghijklmn",
+                "bearer_token",
+            ),
+            ("key AKIAIOSFODNN7EXAMPLE here", "aws_access_key"),
+            ("use sk-proj-AbCdEfGhIjKlMnOpQrStUv now", "openai_api_key"),
+            (
+                "clone https://user:hunter2@example.com/repo.git",
+                "basic_auth_url",
+            ),
+            (
+                "token ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "github_pat",
+            ),
+        ];
+        for (input, kind) in cases {
+            let out = redact(input);
+            assert!(
+                out.contains(&format!("[redacted:{kind}]")),
+                "expected `{kind}` placeholder in `{out}`",
+            );
+        }
+    }
+
+    #[test]
+    fn redact_strips_the_secret_value() {
+        let secret = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        let input = format!("here is the token {secret} keep going");
+        let out = redact(&input);
+        assert!(!out.contains(secret), "secret leaked through: {out}");
+        assert!(out.contains("here is the token"));
+        assert!(out.contains("keep going"));
+    }
+
+    #[test]
+    fn redact_masks_multiple_occurrences() {
+        let out = redact("AKIAIOSFODNN7EXAMPLE and AKIA1234567890ABCDEF");
+        assert_eq!(
+            out,
+            "[redacted:aws_access_key] and [redacted:aws_access_key]"
+        );
     }
 }

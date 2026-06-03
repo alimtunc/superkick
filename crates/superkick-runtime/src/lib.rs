@@ -27,6 +27,7 @@ pub mod queue_triage_service;
 pub mod recovery_scheduler;
 pub mod release_validation;
 pub mod repo_cache;
+pub mod run_context_snapshot_builder;
 pub mod run_diff;
 pub mod run_service;
 pub mod runner_mode;
@@ -83,6 +84,9 @@ pub use queue_triage_service::{QueueTriageService, RunTriage};
 pub use recovery_scheduler::spawn_recovery_scheduler;
 pub use release_validation::{RunnerAvailability, requested_runners, runner_available};
 pub use repo_cache::RepoCache;
+pub use run_context_snapshot_builder::{
+    SnapshotError, build_run_context_snapshot, refresh_run_context_snapshot,
+};
 pub use run_diff::{DiffError, collect_run_diff};
 pub use run_service::{LaunchTaskCanceller, RunService, RunServiceError, RunSpawn};
 pub use session_bus::SessionBus;
