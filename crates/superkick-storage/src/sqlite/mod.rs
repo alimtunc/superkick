@@ -21,6 +21,7 @@ mod memory_entries;
 mod orchestrator_sessions;
 mod pull_requests;
 mod recovery;
+mod run_context_snapshots;
 mod runs;
 mod runtimes;
 mod session_lifecycle;
@@ -45,6 +46,7 @@ pub use pull_requests::SqlitePullRequestRepo;
 pub use recovery::{
     RecoveryEventKind, RecoveryEventRow, SqliteRecoveryEventRepo, list_recovery_candidates,
 };
+pub use run_context_snapshots::SqliteRunContextSnapshotRepo;
 pub use runs::SqliteRunRepo;
 pub use runtimes::{ProviderUpsert, SqliteRuntimeRepo};
 pub use session_lifecycle::SqliteSessionLifecycleRepo;

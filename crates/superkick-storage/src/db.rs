@@ -185,6 +185,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "033_run_events_seq",
             include_str!("../migrations/033_run_events_seq.sql"),
         ),
+        (
+            "034_run_context_snapshots",
+            include_str!("../migrations/034_run_context_snapshots.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

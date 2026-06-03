@@ -29,6 +29,7 @@ pub mod redaction;
 pub mod review;
 pub mod role_router;
 pub mod run;
+pub mod run_context_snapshot;
 pub mod run_diff;
 pub mod runner_mode;
 pub mod runtime;
@@ -114,6 +115,12 @@ pub use role_router::{
 pub use run::{
     ExecutionMode, LinkedRunSummary, PauseKind, Run, RunAgentOverrides, RunBudget, RunBudgetGrant,
     RunState, TriggerSource,
+};
+pub use run_context_snapshot::{
+    BlockingKind, PendingDecisionKind, RUN_CONTEXT_SNAPSHOT_VERSION, RunContextSnapshot,
+    SnapshotBlocking, SnapshotChangedFiles, SnapshotCurrentStep, SnapshotDiffRef,
+    SnapshotEventPointer, SnapshotIssue, SnapshotMemoryRef, SnapshotPendingDecision,
+    SnapshotProvider, SnapshotRun, SnapshotStep, SnapshotTask, SnapshotWorktree,
 };
 pub use run_diff::{FileDiff, FileDiffStatus, RunDiff};
 pub use runner_mode::{BillingProfile, RunnerMode, RunnerModeError};

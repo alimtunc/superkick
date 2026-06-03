@@ -14,9 +14,9 @@ use superkick_core::{
     LaunchTaskIntervention, LaunchTaskInterventionId, LaunchTaskStatus, LaunchTaskStep,
     LaunchTaskStepId, LaunchTaskStepStatus, MemoryCursor, MemoryEntry, MemoryPage,
     OrchestratorCheckpoint, OrchestratorCheckpointId, OrchestratorSession, OrchestratorSessionId,
-    OrchestratorStatus, OwnershipEvent, ProtocolEventEnvelope, PullRequest, Run, RunEvent, RunId,
-    RunStep, SessionLifecycleEvent, StepId, StepResult, TranscriptChunk, Turn, TurnEvent, TurnId,
-    UsageSnapshot,
+    OrchestratorStatus, OwnershipEvent, ProtocolEventEnvelope, PullRequest, Run,
+    RunContextSnapshot, RunEvent, RunId, RunStep, SessionLifecycleEvent, StepId, StepResult,
+    TranscriptChunk, Turn, TurnEvent, TurnId, UsageSnapshot,
 };
 
 /// Repository for `Run` entities.
@@ -791,6 +791,23 @@ impl<T: MemoryEntryRepo + ?Sized> MemoryEntryRepoDyn for T {
     ) -> Pin<Box<dyn Future<Output = Result<MemoryPage>> + Send + 'a>> {
         Box::pin(MemoryEntryRepo::list_page(self, context_id, cursor, limit))
     }
+}
+
+/// Repository for the derived `RunContextSnapshot` projection (SUP-187).
+///
+/// A regenerable cache, not a source of truth: `upsert` keeps one current
+/// snapshot per launch task, replacing any prior row.
+pub trait RunContextSnapshotRepo: Send + Sync {
+    /// Insert or replace the current snapshot for its launch task. Idempotent —
+    /// re-deriving and upserting the same task overwrites the prior row.
+    fn upsert(&self, snapshot: &RunContextSnapshot) -> impl Future<Output = Result<()>> + Send;
+
+    /// Read the persisted snapshot for a launch task, or `None` if one has
+    /// never been generated.
+    fn get_by_launch_task(
+        &self,
+        launch_task_id: LaunchTaskId,
+    ) -> impl Future<Output = Result<Option<RunContextSnapshot>>> + Send;
 }
 
 /// Repository for `LaunchTaskIntervention` rows (SUP-154).

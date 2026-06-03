@@ -3,7 +3,7 @@ use axum::response::{IntoResponse, Json};
 
 use superkick_core::{AgentProvider, CoreError};
 use superkick_integrations::linear::LinearError;
-use superkick_runtime::{ConversationRunnerError, RetryError, RunServiceError};
+use superkick_runtime::{ConversationRunnerError, RetryError, RunServiceError, SnapshotError};
 
 #[derive(Debug)]
 pub enum AppError {
@@ -71,6 +71,15 @@ impl From<RetryError> for AppError {
             RetryError::NotFound(_) => AppError::NotFound("launch task not found"),
             RetryError::Core(e) => AppError::from(e),
             RetryError::Other(e) => AppError::Internal(e),
+        }
+    }
+}
+
+impl From<SnapshotError> for AppError {
+    fn from(err: SnapshotError) -> Self {
+        match err {
+            SnapshotError::LaunchTaskNotFound(_) => AppError::NotFound("launch task not found"),
+            SnapshotError::Storage(e) => AppError::Internal(e),
         }
     }
 }
