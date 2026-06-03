@@ -81,6 +81,15 @@ describe('getFailureCopy', () => {
 		expect(getFailureCopy({ kind: 'timeout', after: 1_800_000 }).hint).toContain('30m')
 	})
 
+	it('only mentions auto-resume in the timeout hint when a resume was actually spent', () => {
+		const withoutResume = getFailureCopy({ kind: 'timeout', after: 45_000 }).hint
+		expect(withoutResume).not.toContain('Auto-resume')
+		expect(withoutResume).toContain('before timing out')
+
+		const withResume = getFailureCopy({ kind: 'timeout', after: 45_000 }, 2).hint
+		expect(withResume).toContain('Auto-resume stopped after 2×')
+	})
+
 	it('includes role + exit_code for agent_non_zero_exit', () => {
 		const copy = getFailureCopy({ kind: 'agent_non_zero_exit', exit_code: 137, role: 'implementer' })
 		expect(copy.headline).toContain('implementer')

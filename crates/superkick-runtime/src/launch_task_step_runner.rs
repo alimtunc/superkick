@@ -27,8 +27,8 @@ use superkick_config::SuperkickConfig;
 use superkick_core::{
     AgentCatalog, AgentProvider, EventKind, EventLevel, FailureClassification, FailureDisposition,
     LaunchReason, LaunchStepKind, LaunchTask, LaunchTaskId, LaunchTaskIntervention, LaunchTaskStep,
-    LaunchTaskStepId, MemoryEntryId, RoleRouter, Run, RunId, RunPolicy, RunState, RunStep,
-    RunnerMode, StepId, StepKey, StepResult, StepStatus, TriggerSource,
+    LaunchTaskStepId, MemoryEntryId, ResumeKey, RoleRouter, Run, RunId, RunPolicy, RunState,
+    RunStep, RunnerMode, StepId, StepKey, StepResult, StepStatus, TriggerSource,
 };
 use superkick_storage::repo::{
     AgentSessionRepo, IssueWorkspaceContextRepoDyn, LaunchTaskInterventionRepo, LaunchTaskRepo,
@@ -51,7 +51,7 @@ use crate::session_bus::SessionBus;
 use crate::step_engine::prompts::{PromptStepKind, step_body_for};
 use crate::step_engine::{build_full_prompt, emit_event};
 use crate::step_failure_classifier::{
-    ClassifyInputs, GitDiffProbe, classify, classify_spawn_error,
+    ClassifyInputs, GitDiffProbe, capture_diff_snapshot, classify, classify_spawn_error,
 };
 use crate::worktree::{WorktreeInfo, WorktreeManager, default_worktree_root};
 
@@ -645,6 +645,22 @@ where
                     memory_entry_ids,
                 })
             }
+            // SUP-191 — a mid-turn timeout becomes `TimedOut` (not a plain
+            // `NeedsHuman` park) so the executor can run the auto-resume loop.
+            // We capture the worktree diff snapshot for the no-progress gate
+            // and surface the Codex resume key the structured path recorded.
+            Some(classification @ FailureClassification::Timeout { .. }) => {
+                let reason = classification.human_summary();
+                self.finish_run_step(ctx.run_step_id, StepStatus::Failed, Some(reason))
+                    .await;
+                let diff_snapshot = capture_diff_snapshot(ctx.worktree.to_path_buf()).await;
+                Ok(StepOutcome::TimedOut {
+                    classification,
+                    links,
+                    resume_key: result.resume_key,
+                    diff_snapshot,
+                })
+            }
             Some(c) => {
                 // Mirror the verdict onto the shadow run_step so the runs
                 // dashboard shows the step as terminal-failed in either
@@ -723,6 +739,7 @@ where
         &self,
         task: &LaunchTask,
         step: &LaunchTaskStep,
+        resume: Option<ResumeKey>,
         cancel: CancellationToken,
     ) -> Result<StepOutcome> {
         let (shadow_run_id, worktree) = match self.ensure_shadow_run(task).await {
@@ -917,11 +934,26 @@ where
                     model: resolved.model.clone(),
                     ..CodexAdapterOptions::default()
                 });
+                // SUP-191: `resume` continues a prior timed-out segment via
+                // `codex exec resume <thread_id>` on this same structured path.
                 self.supervisor
-                    .launch_codex_structured(adapter, launch_cfg, prompt)
+                    .launch_codex_structured(adapter, launch_cfg, prompt, resume)
                     .await
             }
-            None => self.supervisor.launch(launch_cfg).await,
+            None => {
+                // Only the Codex structured path is resumable; the PTY path has
+                // no resume mechanic, so a stray resume key here is dropped
+                // (unreachable in practice — resume keys only come from this
+                // path's own timeouts).
+                if resume.is_some() {
+                    warn!(
+                        launch_task_id = %task.id,
+                        step_id = %step.id,
+                        "resume key supplied for a non-structured step — ignoring, running fresh"
+                    );
+                }
+                self.supervisor.launch(launch_cfg).await
+            }
         };
 
         let (handle, join) = match spawn_result {

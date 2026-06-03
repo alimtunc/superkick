@@ -120,6 +120,7 @@ impl StepRunner for SummaryEmittingRunner {
         &self,
         _task: &superkick_core::LaunchTask,
         step: &superkick_core::LaunchTaskStep,
+        _resume: Option<superkick_core::ResumeKey>,
         _cancel: CancellationToken,
     ) -> Result<StepOutcome> {
         let summary = format!("{} ok", step.step_kind);
@@ -191,6 +192,7 @@ impl StepRunner for AlwaysFailRunner {
         &self,
         _task: &superkick_core::LaunchTask,
         _step: &superkick_core::LaunchTaskStep,
+        _resume: Option<superkick_core::ResumeKey>,
         _cancel: CancellationToken,
     ) -> Result<StepOutcome> {
         Ok(StepOutcome::NeedsHuman {
@@ -266,6 +268,7 @@ impl StepRunner for ScriptedClassifierRunner {
         &self,
         _task: &superkick_core::LaunchTask,
         step: &superkick_core::LaunchTaskStep,
+        _resume: Option<superkick_core::ResumeKey>,
         _cancel: CancellationToken,
     ) -> Result<StepOutcome> {
         if matches!(step.step_kind, LaunchStepKind::Plan) {
@@ -479,6 +482,7 @@ async fn retry_clearing_classification_on_subsequent_completion() -> Result<()> 
             &self,
             _task: &superkick_core::LaunchTask,
             step: &superkick_core::LaunchTaskStep,
+            _resume: Option<superkick_core::ResumeKey>,
             _cancel: CancellationToken,
         ) -> Result<StepOutcome> {
             if !matches!(step.step_kind, LaunchStepKind::Plan) {

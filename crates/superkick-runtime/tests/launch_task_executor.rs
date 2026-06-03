@@ -15,12 +15,12 @@ use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
     CoreError, FailureClassification, LaunchStepKind, LaunchTask, LaunchTaskId, LaunchTaskStatus,
-    LaunchTaskStep, LaunchTaskStepStatus, RunId,
+    LaunchTaskStep, LaunchTaskStepStatus, ResumeKey, RunId,
 };
 use superkick_runtime::test_support::{agents, catalog, drain_events};
 use superkick_runtime::{
-    CancelDecision, LaunchTaskEvent, LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry,
-    RetryError, StepLinks, StepOutcome, StepRunner,
+    CancelDecision, DiffSnapshot, LaunchTaskEvent, LaunchTaskEventBus, LaunchTaskExecutor,
+    LaunchTaskRegistry, RetryError, StepLinks, StepOutcome, StepRunner,
 };
 use superkick_storage::repo::LaunchTaskRepo;
 use superkick_storage::{SqliteLaunchTaskRepo, connect};
@@ -61,6 +61,14 @@ enum ScriptedAction {
     FailWith {
         classification: FailureClassification,
     },
+    /// SUP-191 — a mid-turn timeout. `resume_key` is the Codex thread the
+    /// adapter captured (`None` simulates a pre-`SessionMeta` crash), and
+    /// `diff_token` seeds the worktree diff fingerprint so tests can script
+    /// progress (distinct tokens) vs. a stuck agent (same token twice).
+    TimeOut {
+        resume_key: Option<String>,
+        diff_token: String,
+    },
     /// Park forever until the supplied notify fires, then check the cancel
     /// token. Used by the cancellation test.
     WaitThenCheck {
@@ -76,6 +84,9 @@ struct FakeStepRunnerInner {
     /// Records every kind that the runner saw, in order. The cancellation
     /// test uses this to assert that downstream steps were never invoked.
     observed: Vec<LaunchStepKind>,
+    /// SUP-191 — the `resume` key the executor threaded into each call, so the
+    /// auto-resume tests can assert the loop resumes with the right thread.
+    resumes: Vec<(LaunchStepKind, Option<String>)>,
 }
 
 #[derive(Clone)]
@@ -102,6 +113,18 @@ impl FakeStepRunner {
     fn observed(&self) -> Vec<LaunchStepKind> {
         self.inner.lock().unwrap().observed.clone()
     }
+
+    /// Resume keys the executor passed in for a given step kind, in order.
+    fn resumes_for(&self, kind: LaunchStepKind) -> Vec<Option<String>> {
+        self.inner
+            .lock()
+            .unwrap()
+            .resumes
+            .iter()
+            .filter(|(k, _)| *k == kind)
+            .map(|(_, r)| r.clone())
+            .collect()
+    }
 }
 
 impl StepRunner for FakeStepRunner {
@@ -109,11 +132,16 @@ impl StepRunner for FakeStepRunner {
         &self,
         _task: &LaunchTask,
         step: &LaunchTaskStep,
+        resume: Option<ResumeKey>,
         cancel: CancellationToken,
     ) -> Result<StepOutcome> {
         let action = {
             let mut g = self.inner.lock().unwrap();
             g.observed.push(step.step_kind);
+            g.resumes.push((
+                step.step_kind,
+                resume.as_ref().map(|k| k.as_str().to_string()),
+            ));
             let queue = match step.step_kind {
                 LaunchStepKind::Plan => &mut g.plan,
                 LaunchStepKind::Implement => &mut g.implement,
@@ -169,6 +197,17 @@ impl StepRunner for FakeStepRunner {
                 };
                 Ok(outcome)
             }
+            ScriptedAction::TimeOut {
+                resume_key,
+                diff_token,
+            } => Ok(StepOutcome::TimedOut {
+                classification: FailureClassification::Timeout {
+                    after: Duration::from_secs(600),
+                },
+                links: StepLinks::default(),
+                resume_key: resume_key.map(ResumeKey::new),
+                diff_snapshot: DiffSnapshot::of(diff_token.as_bytes()),
+            }),
             ScriptedAction::WaitThenCheck { release } => {
                 tokio::select! {
                     _ = release.notified() => {
@@ -205,6 +244,56 @@ fn build_executor(
     let registry = Arc::new(LaunchTaskRegistry::new());
     let exec = LaunchTaskExecutor::new(repo, Arc::clone(&bus), Arc::clone(&registry), runner);
     (exec, bus, registry)
+}
+
+/// SUP-191 — executor with an explicit auto-resume ceiling so the auto-resume
+/// tests can drive a small `N` deterministically.
+fn build_executor_with_max(
+    repo: Arc<SqliteLaunchTaskRepo>,
+    runner: Arc<FakeStepRunner>,
+    max_auto_resumes: u32,
+) -> (
+    Arc<LaunchTaskExecutor<SqliteLaunchTaskRepo, FakeStepRunner>>,
+    Arc<LaunchTaskEventBus>,
+    Arc<LaunchTaskRegistry>,
+) {
+    let bus = LaunchTaskEventBus::new();
+    let registry = Arc::new(LaunchTaskRegistry::new());
+    let exec = LaunchTaskExecutor::with_max_auto_resumes(
+        repo,
+        Arc::clone(&bus),
+        Arc::clone(&registry),
+        runner,
+        max_auto_resumes,
+    );
+    (exec, bus, registry)
+}
+
+async fn step_resume_count(
+    repo: &SqliteLaunchTaskRepo,
+    task_id: LaunchTaskId,
+    kind: LaunchStepKind,
+) -> u32 {
+    let steps = repo.list_steps(task_id).await.unwrap();
+    steps
+        .into_iter()
+        .find(|s| s.step_kind == kind)
+        .unwrap()
+        .auto_resume_count
+}
+
+async fn step_summary(
+    repo: &SqliteLaunchTaskRepo,
+    task_id: LaunchTaskId,
+    kind: LaunchStepKind,
+) -> String {
+    let steps = repo.list_steps(task_id).await.unwrap();
+    steps
+        .into_iter()
+        .find(|s| s.step_kind == kind)
+        .unwrap()
+        .summary
+        .unwrap_or_default()
 }
 
 async fn step_status(
@@ -844,5 +933,271 @@ async fn run_is_idempotent_for_terminal_tasks() -> Result<()> {
     );
     let reloaded = repo.get(task.id).await?.unwrap();
     assert_eq!(reloaded.status, LaunchTaskStatus::Cancelled);
+    Ok(())
+}
+
+// ── SUP-191: auto-resume of timed-out steps ──────────────────────────────
+
+#[tokio::test]
+async fn timeout_auto_resumes_until_max_then_parks_needs_human() -> Result<()> {
+    let repo = fresh_repo().await?;
+    let (task, _) = create_task(&repo, "TEAM-191A").await?;
+
+    let runner = Arc::new(FakeStepRunner::new());
+    runner.script(
+        LaunchStepKind::Plan,
+        ScriptedAction::Complete { summary: None },
+    );
+    // Each timeout reports a *distinct* diff token (the agent keeps making
+    // progress), so only the segment ceiling can stop the loop.
+    for (key, token) in [
+        ("thread-0", "diff-0"),
+        ("thread-1", "diff-1"),
+        ("thread-2", "diff-2"),
+    ] {
+        runner.script(
+            LaunchStepKind::Implement,
+            ScriptedAction::TimeOut {
+                resume_key: Some(key.into()),
+                diff_token: token.into(),
+            },
+        );
+    }
+
+    let (exec, _bus, _) = build_executor_with_max(Arc::clone(&repo), Arc::clone(&runner), 2);
+    exec.run(task.id).await?;
+
+    // max=2 → initial segment + 2 resumes = 3 runner calls, then park.
+    assert_eq!(
+        runner.resumes_for(LaunchStepKind::Implement),
+        vec![None, Some("thread-0".into()), Some("thread-1".into())],
+        "executor resumes with each prior segment's captured thread id"
+    );
+    assert_eq!(
+        step_status(&repo, task.id, LaunchStepKind::Implement).await,
+        LaunchTaskStepStatus::NeedsHuman,
+        "an exhausted auto-resume budget parks the step at NeedsHuman"
+    );
+    assert_eq!(
+        step_resume_count(&repo, task.id, LaunchStepKind::Implement).await,
+        2
+    );
+    assert_eq!(
+        step_status(&repo, task.id, LaunchStepKind::Review).await,
+        LaunchTaskStepStatus::Pending,
+        "review stays untouched behind the parked implement step"
+    );
+
+    let reloaded = repo.get(task.id).await?.unwrap();
+    assert_eq!(reloaded.status, LaunchTaskStatus::NeedsHuman);
+    let summary = step_summary(&repo, task.id, LaunchStepKind::Implement).await;
+    assert!(
+        summary.contains("auto-resumed 2×/2"),
+        "park reason names the exhausted budget, got {summary:?}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn timeout_with_no_diff_progress_parks_immediately() -> Result<()> {
+    let repo = fresh_repo().await?;
+    let (task, _) = create_task(&repo, "TEAM-191B").await?;
+
+    let runner = Arc::new(FakeStepRunner::new());
+    runner.script(
+        LaunchStepKind::Plan,
+        ScriptedAction::Complete { summary: None },
+    );
+    // Same diff token twice → the resumed segment produced no new changes.
+    runner.script(
+        LaunchStepKind::Implement,
+        ScriptedAction::TimeOut {
+            resume_key: Some("thread-0".into()),
+            diff_token: "stuck".into(),
+        },
+    );
+    runner.script(
+        LaunchStepKind::Implement,
+        ScriptedAction::TimeOut {
+            resume_key: Some("thread-1".into()),
+            diff_token: "stuck".into(),
+        },
+    );
+
+    let (exec, _bus, _) = build_executor_with_max(Arc::clone(&repo), Arc::clone(&runner), 5);
+    exec.run(task.id).await?;
+
+    // Resumed once (count=1), then the diff gate stopped it before exhausting 5.
+    assert_eq!(
+        runner.resumes_for(LaunchStepKind::Implement),
+        vec![None, Some("thread-0".into())],
+        "the no-progress gate halts the loop after a single resume"
+    );
+    assert_eq!(
+        step_status(&repo, task.id, LaunchStepKind::Implement).await,
+        LaunchTaskStepStatus::NeedsHuman,
+    );
+    assert_eq!(
+        step_resume_count(&repo, task.id, LaunchStepKind::Implement).await,
+        1
+    );
+    let summary = step_summary(&repo, task.id, LaunchStepKind::Implement).await;
+    assert!(
+        summary.contains("no new changes"),
+        "park reason names the no-progress gate, got {summary:?}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn timeout_without_resume_key_parks_immediately() -> Result<()> {
+    let repo = fresh_repo().await?;
+    let (task, _) = create_task(&repo, "TEAM-191C").await?;
+
+    let runner = Arc::new(FakeStepRunner::new());
+    runner.script(
+        LaunchStepKind::Plan,
+        ScriptedAction::Complete { summary: None },
+    );
+    runner.script(
+        LaunchStepKind::Implement,
+        ScriptedAction::TimeOut {
+            resume_key: None,
+            diff_token: "diff-0".into(),
+        },
+    );
+
+    let (exec, _bus, _) = build_executor_with_max(Arc::clone(&repo), Arc::clone(&runner), 3);
+    exec.run(task.id).await?;
+
+    // No resume key → no resume attempt at all, immediate park (never a silent fresh run).
+    assert_eq!(
+        runner.resumes_for(LaunchStepKind::Implement),
+        vec![None],
+        "a missing resume key parks without ever resuming"
+    );
+    assert_eq!(
+        step_status(&repo, task.id, LaunchStepKind::Implement).await,
+        LaunchTaskStepStatus::NeedsHuman,
+    );
+    assert_eq!(
+        step_resume_count(&repo, task.id, LaunchStepKind::Implement).await,
+        0
+    );
+    let summary = step_summary(&repo, task.id, LaunchStepKind::Implement).await;
+    assert!(
+        summary.contains("no resumable"),
+        "park reason names the missing resume key, got {summary:?}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn timeout_then_resume_completes_and_continues_recipe() -> Result<()> {
+    let repo = fresh_repo().await?;
+    let (task, _) = create_task(&repo, "TEAM-191D").await?;
+
+    let runner = Arc::new(FakeStepRunner::new());
+    runner.script(
+        LaunchStepKind::Plan,
+        ScriptedAction::Complete { summary: None },
+    );
+    // First segment times out, the resumed segment finishes the work.
+    runner.script(
+        LaunchStepKind::Implement,
+        ScriptedAction::TimeOut {
+            resume_key: Some("thread-0".into()),
+            diff_token: "diff-0".into(),
+        },
+    );
+    runner.script(
+        LaunchStepKind::Implement,
+        ScriptedAction::Complete {
+            summary: Some("implemented after resume".into()),
+        },
+    );
+    runner.script(
+        LaunchStepKind::Review,
+        ScriptedAction::Complete { summary: None },
+    );
+
+    let (exec, _bus, _) = build_executor_with_max(Arc::clone(&repo), Arc::clone(&runner), 3);
+    exec.run(task.id).await?;
+
+    assert_eq!(
+        runner.resumes_for(LaunchStepKind::Implement),
+        vec![None, Some("thread-0".into())],
+        "the second implement call resumes the captured thread"
+    );
+    let reloaded = repo.get(task.id).await?.unwrap();
+    assert_eq!(
+        reloaded.status,
+        LaunchTaskStatus::Completed,
+        "a successful resume lets the recipe run to completion"
+    );
+    assert_eq!(
+        step_status(&repo, task.id, LaunchStepKind::Implement).await,
+        LaunchTaskStepStatus::Completed,
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn manual_retry_resumes_the_persisted_session() -> Result<()> {
+    let repo = fresh_repo().await?;
+    let (task, _) = create_task(&repo, "TEAM-191E").await?;
+
+    let runner = Arc::new(FakeStepRunner::new());
+    runner.script(
+        LaunchStepKind::Plan,
+        ScriptedAction::Complete { summary: None },
+    );
+    // Exhaust the budget (max=1): initial segment + 1 resume, then park with
+    // the last thread id ("thread-1") persisted on the step row.
+    runner.script(
+        LaunchStepKind::Implement,
+        ScriptedAction::TimeOut {
+            resume_key: Some("thread-0".into()),
+            diff_token: "diff-0".into(),
+        },
+    );
+    runner.script(
+        LaunchStepKind::Implement,
+        ScriptedAction::TimeOut {
+            resume_key: Some("thread-1".into()),
+            diff_token: "diff-1".into(),
+        },
+    );
+
+    let (exec, _bus, _) = build_executor_with_max(Arc::clone(&repo), Arc::clone(&runner), 1);
+    exec.run(task.id).await?;
+    assert_eq!(
+        step_status(&repo, task.id, LaunchStepKind::Implement).await,
+        LaunchTaskStepStatus::NeedsHuman,
+    );
+
+    // Operator retry: the parked step's persisted resume key ("thread-1") is
+    // resumed, and this time the agent finishes — the recipe continues.
+    runner.script(
+        LaunchStepKind::Implement,
+        ScriptedAction::Complete {
+            summary: Some("done on manual retry".into()),
+        },
+    );
+    runner.script(
+        LaunchStepKind::Review,
+        ScriptedAction::Complete { summary: None },
+    );
+
+    let outcome = exec.retry_needs_human_step(task.id).await?;
+    assert_eq!(outcome.task_status, LaunchTaskStatus::Completed);
+
+    // The first call after the retry resumed the persisted thread, not a fresh run.
+    let implement_resumes = runner.resumes_for(LaunchStepKind::Implement);
+    assert_eq!(
+        implement_resumes.last(),
+        Some(&Some("thread-1".into())),
+        "manual retry resumes the persisted session; full sequence: {implement_resumes:?}"
+    );
     Ok(())
 }

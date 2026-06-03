@@ -91,8 +91,9 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
                      provider, model, mode, status, \
                      linked_run_id, linked_conversation_id, linked_orchestrator_session_id, \
                      summary, structured_result, failure_classification, \
+                     auto_resume_count, resume_key, \
                      created_at, updated_at\
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
             )
             .bind(step.id.0.to_string())
             .bind(step.launch_task_id.0.to_string())
@@ -112,6 +113,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
             .bind(step.summary.clone())
             .bind(structured_json)
             .bind(classification_json)
+            .bind(i64::from(step.auto_resume_count))
+            .bind(step.resume_key.clone())
             .bind(step.created_at.to_rfc3339())
             .bind(step.updated_at.to_rfc3339())
             .execute(&mut *tx)
@@ -343,6 +346,30 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("set failure_classification for launch_task_step {}", id.0))?;
+        if outcome.rows_affected() == 0 {
+            return Err(anyhow!("launch_task_step {} not found", id.0));
+        }
+        Ok(())
+    }
+
+    async fn set_step_auto_resume(
+        &self,
+        id: LaunchTaskStepId,
+        auto_resume_count: u32,
+        resume_key: Option<String>,
+    ) -> Result<()> {
+        let now = chrono::Utc::now().to_rfc3339();
+        let outcome = sqlx::query(
+            "UPDATE launch_task_steps SET auto_resume_count = ?1, resume_key = ?2, updated_at = ?3 \
+             WHERE id = ?4",
+        )
+        .bind(i64::from(auto_resume_count))
+        .bind(resume_key)
+        .bind(now)
+        .bind(id.0.to_string())
+        .execute(&self.pool)
+        .await
+        .with_context(|| format!("set auto_resume state for launch_task_step {}", id.0))?;
         if outcome.rows_affected() == 0 {
             return Err(anyhow!("launch_task_step {} not found", id.0));
         }
@@ -594,6 +621,8 @@ struct LaunchTaskStepRow {
     summary: Option<String>,
     structured_result: Option<String>,
     failure_classification: Option<String>,
+    auto_resume_count: i64,
+    resume_key: Option<String>,
     created_at: String,
     updated_at: String,
 }
@@ -656,6 +685,13 @@ impl LaunchTaskStepRow {
             summary: self.summary,
             structured_result,
             failure_classification,
+            auto_resume_count: u32::try_from(self.auto_resume_count).with_context(|| {
+                format!(
+                    "launch_task_step auto_resume_count overflow: {}",
+                    self.auto_resume_count
+                )
+            })?,
+            resume_key: self.resume_key,
             created_at: decode_rfc3339(&self.created_at)?,
             updated_at: decode_rfc3339(&self.updated_at)?,
         })

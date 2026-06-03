@@ -8,7 +8,7 @@ export interface FailureCopy {
 	detail?: string
 }
 
-export function getFailureCopy(classification: FailureClassification): FailureCopy {
+export function getFailureCopy(classification: FailureClassification, autoResumeCount = 0): FailureCopy {
 	switch (classification.kind) {
 		case 'missing_marker':
 			return {
@@ -57,7 +57,7 @@ export function getFailureCopy(classification: FailureClassification): FailureCo
 		case 'timeout':
 			return {
 				headline: 'Step exceeded its wall-clock budget',
-				hint: `Ran for ${formatTimeoutSeconds(classification.after)} before timing out. Increase the agent's timeout or split the step, then retry.`
+				hint: timeoutHint(classification.after, autoResumeCount)
 			}
 		case 'no_diff':
 			return {
@@ -102,6 +102,14 @@ export function getDisposition(classification: FailureClassification): FailureDi
 		case 'agent_non_zero_exit':
 			return 'needs_human'
 	}
+}
+
+function timeoutHint(afterMs: number, autoResumeCount: number): string {
+	const ran = formatTimeoutSeconds(afterMs)
+	if (autoResumeCount > 0) {
+		return `Ran for ${ran} per segment. Auto-resume stopped after ${autoResumeCount}× without finishing — retry to resume the session, raise the agent's timeout, or split the step.`
+	}
+	return `Ran for ${ran} before timing out. Raise the agent's timeout or split the step, then retry.`
 }
 
 function formatTimeoutSeconds(ms: number): string {

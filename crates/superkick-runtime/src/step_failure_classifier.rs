@@ -7,6 +7,8 @@
 //! production path narrow. Production wires [`GitDiffProbe`], which shells
 //! out to `git diff --quiet HEAD` against the step's worktree.
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
@@ -120,6 +122,93 @@ impl DiffProbe for GitDiffProbe {
             }
         }
     }
+}
+
+/// Content fingerprint of a worktree's uncommitted changes (SUP-191).
+///
+/// Used by the auto-resume gate to decide whether a resumed segment made
+/// progress: two consecutive timed-out segments with the same `Known` digest
+/// mean the agent produced no new diff, so the step is parked instead of
+/// resumed again. `Unknown` is the fail-open value when the `git` probe could
+/// not run — it never compares equal to anything (not even another
+/// `Unknown`), so a probe error can never trigger a spurious "no progress"
+/// park, mirroring [`GitDiffProbe::has_changes`]'s error handling.
+#[derive(Debug, Clone)]
+pub enum DiffSnapshot {
+    Known(u64),
+    Unknown,
+}
+
+impl DiffSnapshot {
+    /// Hash an arbitrary byte payload into a `Known` snapshot. Used by tests
+    /// to mint deterministic progress / no-progress fingerprints.
+    pub fn of(bytes: &[u8]) -> Self {
+        let mut hasher = DefaultHasher::new();
+        bytes.hash(&mut hasher);
+        DiffSnapshot::Known(hasher.finish())
+    }
+
+    /// `true` only when both snapshots are `Known` and equal. `Unknown` on
+    /// either side means "treat as changed" so the gate fails open.
+    pub fn same_as(&self, other: &DiffSnapshot) -> bool {
+        matches!(
+            (self, other),
+            (DiffSnapshot::Known(a), DiffSnapshot::Known(b)) if a == b
+        )
+    }
+}
+
+/// Snapshot the worktree's uncommitted diff into a [`DiffSnapshot`]. Hashes
+/// `git diff HEAD` (tracked, staged + unstaged) plus the content of every
+/// untracked file so a brand-new file the agent created still registers as
+/// progress. Runs the blocking `git` shells on a blocking thread so the async
+/// step-completion path never stalls a tokio worker. Any `git` failure yields
+/// [`DiffSnapshot::Unknown`] (fail-open).
+pub(crate) async fn capture_diff_snapshot(worktree: PathBuf) -> DiffSnapshot {
+    tokio::task::spawn_blocking(move || compute_diff_snapshot(&worktree))
+        .await
+        .unwrap_or(DiffSnapshot::Unknown)
+}
+
+fn compute_diff_snapshot(worktree: &Path) -> DiffSnapshot {
+    let Ok(diff) = Command::new("git")
+        .args(["diff", "HEAD"])
+        .current_dir(worktree)
+        .output()
+    else {
+        return DiffSnapshot::Unknown;
+    };
+    if !diff.status.success() {
+        // Not a git repo / inaccessible cwd — fail open rather than parking.
+        return DiffSnapshot::Unknown;
+    }
+
+    let mut hasher = DefaultHasher::new();
+    diff.stdout.hash(&mut hasher);
+
+    if let Ok(untracked) = Command::new("git")
+        .args(["ls-files", "--others", "--exclude-standard", "-z"])
+        .current_dir(worktree)
+        .output()
+        && untracked.status.success()
+    {
+        let mut paths: Vec<&[u8]> = untracked
+            .stdout
+            .split(|b| *b == 0)
+            .filter(|s| !s.is_empty())
+            .collect();
+        paths.sort_unstable();
+        for path in paths {
+            path.hash(&mut hasher);
+            if let Ok(rel) = std::str::from_utf8(path)
+                && let Ok(contents) = std::fs::read(worktree.join(rel))
+            {
+                contents.hash(&mut hasher);
+            }
+        }
+    }
+
+    DiffSnapshot::Known(hasher.finish())
 }
 
 /// Classify the observed signals into a [`FailureClassification`].
@@ -257,6 +346,24 @@ mod tests {
     use super::*;
 
     use superkick_core::{FailureDisposition, LaunchStepKind};
+
+    #[test]
+    fn diff_snapshot_same_payload_compares_equal() {
+        assert!(DiffSnapshot::of(b"diff-a").same_as(&DiffSnapshot::of(b"diff-a")));
+    }
+
+    #[test]
+    fn diff_snapshot_distinct_payload_compares_unequal() {
+        assert!(!DiffSnapshot::of(b"diff-a").same_as(&DiffSnapshot::of(b"diff-b")));
+    }
+
+    #[test]
+    fn diff_snapshot_unknown_never_matches() {
+        // Fail-open: a probe error must never look like "no progress".
+        assert!(!DiffSnapshot::Unknown.same_as(&DiffSnapshot::Unknown));
+        assert!(!DiffSnapshot::Unknown.same_as(&DiffSnapshot::of(b"x")));
+        assert!(!DiffSnapshot::of(b"x").same_as(&DiffSnapshot::Unknown));
+    }
 
     #[derive(Debug, Default)]
     struct StubProbe {

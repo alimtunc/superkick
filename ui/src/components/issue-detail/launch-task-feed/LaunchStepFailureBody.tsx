@@ -12,7 +12,7 @@ interface LaunchStepFailureBodyProps {
 }
 
 export function LaunchStepFailureBody({ step, classification }: LaunchStepFailureBodyProps) {
-	const copy = getFailureCopy(classification)
+	const copy = getFailureCopy(classification, step.auto_resume_count)
 	const showLinks = Boolean(
 		step.linked_run_id || step.linked_conversation_id || step.linked_orchestrator_session_id
 	)

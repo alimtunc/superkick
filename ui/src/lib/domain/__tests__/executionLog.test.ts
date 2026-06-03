@@ -20,6 +20,7 @@ function step(overrides: Partial<LaunchTaskStep>): LaunchTaskStep {
 		summary: overrides.summary ?? null,
 		structured_result: overrides.structured_result ?? null,
 		failure_classification: null,
+		auto_resume_count: overrides.auto_resume_count ?? 0,
 		created_at: '2026-05-26T09:00:00.000Z',
 		updated_at: '2026-05-26T10:00:00.000Z'
 	}
