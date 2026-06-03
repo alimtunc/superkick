@@ -517,11 +517,12 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         repo_slug: repo_slug.clone(),
         base_branch: base_branch.clone(),
     }));
-    let launch_task_executor = LaunchTaskExecutor::new(
+    let launch_task_executor = LaunchTaskExecutor::with_max_auto_resumes(
         Arc::clone(&launch_task_repo),
         Arc::clone(&launch_task_event_bus),
         Arc::new(LaunchTaskRegistry::new()),
         real_step_runner,
+        config.budget.max_auto_resumes,
     );
 
     let engine = Arc::new(StepEngine::new(StepEngineDeps {

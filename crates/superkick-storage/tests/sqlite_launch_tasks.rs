@@ -520,3 +520,42 @@ async fn malformed_failure_classification_json_decodes_as_none() -> Result<()> {
     );
     Ok(())
 }
+
+#[tokio::test]
+async fn set_step_auto_resume_round_trips_count_and_key() -> Result<()> {
+    let repo = setup().await?;
+    let (task, steps) = LaunchTask::new_with_v1_recipe("SUP-191", agents(), &catalog())?;
+    repo.insert_with_steps(&task, &steps).await?;
+    let implement_id = steps[1].id;
+
+    // Fresh rows default to no auto-resume state.
+    let fresh = repo.list_steps(task.id).await?;
+    let implement = fresh.iter().find(|s| s.id == implement_id).unwrap();
+    assert_eq!(implement.auto_resume_count, 0);
+    assert!(implement.resume_key.is_none());
+
+    repo.set_step_auto_resume(implement_id, 2, Some("thread-xyz".into()))
+        .await?;
+
+    let reloaded = repo
+        .list_steps(task.id)
+        .await?
+        .into_iter()
+        .find(|s| s.id == implement_id)
+        .unwrap();
+    assert_eq!(reloaded.auto_resume_count, 2);
+    assert_eq!(reloaded.resume_key.as_deref(), Some("thread-xyz"));
+
+    // A fresh-run path clears the key while keeping the counter.
+    repo.set_step_auto_resume(implement_id, 2, None).await?;
+    let cleared = repo
+        .list_steps(task.id)
+        .await?
+        .into_iter()
+        .find(|s| s.id == implement_id)
+        .unwrap();
+    assert_eq!(cleared.auto_resume_count, 2);
+    assert!(cleared.resume_key.is_none());
+
+    Ok(())
+}

@@ -55,6 +55,7 @@ export function evidenceKindForStep(step: LaunchTaskStep): EvidenceKind {
 
 export function evidenceMetaForStep(step: LaunchTaskStep): string {
 	const provider = step.provider ? resolveProviderLabel(step.provider) : null
-	const parts = [provider, step.model].filter((p): p is string => Boolean(p))
+	const resumed = step.auto_resume_count > 0 ? `resumed ${step.auto_resume_count}×` : null
+	const parts = [provider, step.model, resumed].filter((p): p is string => Boolean(p))
 	return parts.join(' · ')
 }

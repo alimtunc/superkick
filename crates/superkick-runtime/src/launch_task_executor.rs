@@ -34,12 +34,19 @@ use tracing::{info, warn};
 use superkick_core::{
     ConversationId, CoreError, FailureClassification, FailureDisposition, LaunchTask, LaunchTaskId,
     LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus, MemoryEntryId,
-    OrchestratorSessionId, Run, RunId, RunState,
+    OrchestratorSessionId, ResumeKey, Run, RunId, RunState,
 };
 use superkick_storage::repo::LaunchTaskRepo;
 
 use crate::launch_task_event_bus::{LaunchTaskEvent, LaunchTaskEventBus};
 use crate::launch_task_registry::{CancelDecision, LaunchTaskRegistry};
+use crate::step_failure_classifier::DiffSnapshot;
+
+/// Fallback auto-resume ceiling used by [`LaunchTaskExecutor::new`] when the
+/// caller does not thread one in from `budget.max_auto_resumes` (SUP-191).
+/// Mirrors `superkick_config::BudgetConfig`'s default so test executors built
+/// via `new` behave like production.
+pub const DEFAULT_MAX_AUTO_RESUMES: u32 = 3;
 
 /// Substrate links recorded on a step once the runner has spawned (or
 /// attached to) the underlying execution. Each `Some` is appended via
@@ -110,6 +117,19 @@ pub enum StepOutcome {
         classification: FailureClassification,
         links: StepLinks,
     },
+    /// SUP-191 — the step's turn hit its wall-clock budget mid-work. The
+    /// executor runs the auto-resume loop on this outcome: it compares the
+    /// `diff_snapshot` against the previous segment and, if there is progress,
+    /// a `resume_key`, and budget left, resumes the Codex session; otherwise
+    /// it parks the step at `NeedsHuman`. `resume_key` is `None` when no
+    /// resumable session id was captured (e.g. PTY path or a pre-`SessionMeta`
+    /// crash), which forces an immediate park.
+    TimedOut {
+        classification: FailureClassification,
+        links: StepLinks,
+        resume_key: Option<ResumeKey>,
+        diff_snapshot: DiffSnapshot,
+    },
     /// Terminal failure — the executor flips both step and task to
     /// `Failed`. No in-place retry; recovery requires a fresh task.
     Failed {
@@ -168,6 +188,61 @@ pub enum ReconcileOutcome {
     OrphanRunReconciled,
 }
 
+/// Why a timed-out step's auto-resume loop gave up and parked it (SUP-191).
+/// Drives the operator-facing reason appended to the step summary.
+#[derive(Debug, Clone, Copy)]
+enum TimeoutParkReason {
+    /// Spent the full `max_auto_resumes` budget without the step finishing.
+    Exhausted,
+    /// The last resumed segment produced no new diff — the agent is stuck.
+    NoProgress,
+    /// No Codex resume key was captured, so the session cannot be continued.
+    NoResumeKey,
+}
+
+/// Outcome of the three-gate decision for a timed-out segment (SUP-191):
+/// continue the Codex session or park the step.
+enum ResumeDecision {
+    Resume(ResumeKey),
+    Park {
+        reason: TimeoutParkReason,
+        resume_key: Option<ResumeKey>,
+    },
+}
+
+/// Decide whether a timed-out segment may resume. A resume requires **all
+/// three** gates: budget remaining, the worktree diff moved since the previous
+/// segment, and a resume key was captured. The diff gate is what makes the
+/// retry safe — a stuck agent parks instead of burning the full budget. Pure
+/// so the gate logic is unit-testable without the async executor (SUP-191).
+fn decide_resume(
+    segments_used: u32,
+    max_auto_resumes: u32,
+    prev_diff: Option<&DiffSnapshot>,
+    diff_snapshot: &DiffSnapshot,
+    resume_key: Option<ResumeKey>,
+) -> ResumeDecision {
+    if segments_used >= max_auto_resumes {
+        return ResumeDecision::Park {
+            reason: TimeoutParkReason::Exhausted,
+            resume_key,
+        };
+    }
+    if prev_diff.is_some_and(|prev| prev.same_as(diff_snapshot)) {
+        return ResumeDecision::Park {
+            reason: TimeoutParkReason::NoProgress,
+            resume_key,
+        };
+    }
+    match resume_key {
+        Some(key) => ResumeDecision::Resume(key),
+        None => ResumeDecision::Park {
+            reason: TimeoutParkReason::NoResumeKey,
+            resume_key: None,
+        },
+    }
+}
+
 /// Pluggable substrate for executing one step. Tests stub this to drive the
 /// executor deterministically; production injects `RealStepRunner` (SUP-124),
 /// which spawns the agent process for each step via `AgentSupervisor::launch`
@@ -178,10 +253,15 @@ pub enum ReconcileOutcome {
 /// `AgentHandle::cancel`) and return `StepOutcome::Cancelled` promptly so the
 /// executor can finalise the launch task in a timely manner.
 pub trait StepRunner: Send + Sync + 'static {
+    /// Run (or resume) one step. `resume` carries the Codex `thread_id` from a
+    /// prior timed-out segment (SUP-191): `Some` continues that session via
+    /// `codex exec resume`, `None` starts fresh. Runners that have no resumable
+    /// substrate (the stub, non-Codex paths) ignore it.
     fn run_step(
         &self,
         task: &LaunchTask,
         step: &LaunchTaskStep,
+        resume: Option<ResumeKey>,
         cancel: CancellationToken,
     ) -> impl Future<Output = Result<StepOutcome>> + Send;
 
@@ -230,6 +310,7 @@ impl StepRunner for StubStepRunner {
         &self,
         task: &LaunchTask,
         step: &LaunchTaskStep,
+        _resume: Option<ResumeKey>,
         cancel: CancellationToken,
     ) -> Result<StepOutcome> {
         warn!(
@@ -264,6 +345,9 @@ where
     bus: Arc<LaunchTaskEventBus>,
     registry: Arc<LaunchTaskRegistry>,
     step_runner: Arc<S>,
+    /// Max automatic resume attempts per timed-out step (SUP-191). Threaded
+    /// from `budget.max_auto_resumes` by production wiring.
+    max_auto_resumes: u32,
 }
 
 impl<R, S> LaunchTaskExecutor<R, S>
@@ -271,17 +355,32 @@ where
     R: LaunchTaskRepo + 'static,
     S: StepRunner,
 {
+    /// Build an executor with the default auto-resume ceiling
+    /// ([`DEFAULT_MAX_AUTO_RESUMES`]). Production wiring uses
+    /// [`Self::with_max_auto_resumes`] to inject `budget.max_auto_resumes`.
     pub fn new(
         repo: Arc<R>,
         bus: Arc<LaunchTaskEventBus>,
         registry: Arc<LaunchTaskRegistry>,
         step_runner: Arc<S>,
     ) -> Arc<Self> {
+        Self::with_max_auto_resumes(repo, bus, registry, step_runner, DEFAULT_MAX_AUTO_RESUMES)
+    }
+
+    /// Build an executor with an explicit auto-resume ceiling (SUP-191).
+    pub fn with_max_auto_resumes(
+        repo: Arc<R>,
+        bus: Arc<LaunchTaskEventBus>,
+        registry: Arc<LaunchTaskRegistry>,
+        step_runner: Arc<S>,
+        max_auto_resumes: u32,
+    ) -> Arc<Self> {
         Arc::new(Self {
             repo,
             bus,
             registry,
             step_runner,
+            max_auto_resumes,
         })
     }
 
@@ -446,10 +545,10 @@ where
 
             self.start_pending_step(task, step).await?;
 
-            let runner_result = self.step_runner.run_step(task, step, cancel.clone()).await;
-
+            // Cold start: no resume key — the auto-resume loop handles any
+            // mid-turn timeout internally before this returns a halt.
             if !self
-                .handle_step_outcome(task, step, runner_result, cancel)
+                .run_step_with_auto_resume(task, step, None, cancel)
                 .await?
             {
                 return Ok(());
@@ -491,6 +590,147 @@ where
             sequence: step.sequence,
         });
         Ok(())
+    }
+
+    /// SUP-191 — run (or resume) a step, auto-resuming the Codex session on a
+    /// mid-turn timeout up to `max_auto_resumes` times before parking it.
+    /// Returns the same `Ok(true)`-to-continue / `Ok(false)`-to-halt contract
+    /// as [`Self::handle_step_outcome`], which it delegates to for every
+    /// non-timeout outcome.
+    ///
+    /// The loop is the heart of the gate: each timed-out segment must clear
+    /// **all three** gates to be resumed — budget remaining, the worktree diff
+    /// moved since the previous segment, and a resume key was captured.
+    /// Failing any gate parks the step at `NeedsHuman` with a reason; the diff
+    /// gate is what makes the auto-retry safe (a stuck agent parks instead of
+    /// burning the full budget).
+    ///
+    /// `initial_resume` seeds the first attempt: `None` for a cold start, the
+    /// step's persisted `resume_key` for an operator retry.
+    async fn run_step_with_auto_resume(
+        &self,
+        task: &LaunchTask,
+        step: &LaunchTaskStep,
+        initial_resume: Option<ResumeKey>,
+        cancel: &CancellationToken,
+    ) -> Result<bool> {
+        let mut resume = initial_resume;
+        let mut segments_used = step.auto_resume_count;
+        let mut prev_diff: Option<DiffSnapshot> = None;
+
+        loop {
+            let runner_result = self
+                .step_runner
+                .run_step(task, step, resume.take(), cancel.clone())
+                .await;
+
+            let (classification, links, resume_key, diff_snapshot) = match runner_result {
+                Ok(StepOutcome::TimedOut {
+                    classification,
+                    links,
+                    resume_key,
+                    diff_snapshot,
+                }) => (classification, links, resume_key, diff_snapshot),
+                // Completed / NeedsHuman / Failed / Cancelled / Err: terminal
+                // for this step — the existing handler owns the transition.
+                other => return self.handle_step_outcome(task, step, other, cancel).await,
+            };
+
+            self.record_step_links(step, &links).await?;
+
+            // Cancellation wins over any park decision — a cancel arriving
+            // during the timed-out turn finalises the step as Cancelled.
+            if cancel.is_cancelled() {
+                self.halt_step_cancelled(task, step).await?;
+                return Ok(false);
+            }
+
+            let key = match decide_resume(
+                segments_used,
+                self.max_auto_resumes,
+                prev_diff.as_ref(),
+                &diff_snapshot,
+                resume_key,
+            ) {
+                ResumeDecision::Resume(key) => key,
+                ResumeDecision::Park { reason, resume_key } => {
+                    self.park_timed_out(
+                        task,
+                        step,
+                        classification,
+                        segments_used,
+                        resume_key,
+                        reason,
+                    )
+                    .await?;
+                    return Ok(false);
+                }
+            };
+
+            segments_used += 1;
+            prev_diff = Some(diff_snapshot);
+            self.repo
+                .set_step_auto_resume(step.id, segments_used, Some(key.as_str().to_string()))
+                .await
+                .with_context(|| format!("step {} auto-resume persist", step.id))?;
+            info!(
+                task_id = %task.id,
+                step_id = %step.id,
+                attempt = segments_used,
+                max = self.max_auto_resumes,
+                "auto-resuming timed-out launch step"
+            );
+            // Re-pulse `StepStarted` so the feed/timeline refetch and pick up
+            // the bumped `auto_resume_count` without a dedicated event variant.
+            self.publish(LaunchTaskEvent::StepStarted {
+                task_id: task.id,
+                linear_issue_id: task.linear_issue_id.clone(),
+                step_id: step.id,
+                step_kind: step.step_kind,
+                agent_name: step.agent_name.clone(),
+                sequence: step.sequence,
+            });
+            resume = Some(key);
+        }
+    }
+
+    /// Persist the final auto-resume bookkeeping and park a timed-out step at
+    /// `NeedsHuman` with a reason that names why the loop stopped (SUP-191).
+    async fn park_timed_out(
+        &self,
+        task: &LaunchTask,
+        step: &LaunchTaskStep,
+        classification: FailureClassification,
+        segments_used: u32,
+        resume_key: Option<ResumeKey>,
+        reason: TimeoutParkReason,
+    ) -> Result<()> {
+        // Persist the count + last resume key so the UI shows "resumed N×" and
+        // an operator retry can resume the same session.
+        self.repo
+            .set_step_auto_resume(
+                step.id,
+                segments_used,
+                resume_key.as_ref().map(|k| k.as_str().to_string()),
+            )
+            .await
+            .with_context(|| format!("step {} auto-resume park persist", step.id))?;
+
+        let suffix = match reason {
+            TimeoutParkReason::Exhausted => format!(
+                "auto-resumed {segments_used}×/{} without converging",
+                self.max_auto_resumes
+            ),
+            TimeoutParkReason::NoProgress => format!(
+                "auto-resume stopped after {segments_used}× — last segment produced no new changes"
+            ),
+            TimeoutParkReason::NoResumeKey => {
+                "no resumable Codex session was captured — cannot continue".to_string()
+            }
+        };
+        let reason_text = format!("{}; {suffix}", classification.human_summary());
+        self.park_step_classified(task, step, classification, reason_text)
+            .await
     }
 
     /// Fold a runner result into persisted state + bus events. Returns
@@ -556,6 +796,19 @@ where
                     .await?;
                 Ok(false)
             }
+            // The auto-resume loop owns `TimedOut`; reaching here means it was
+            // handed straight to `handle_step_outcome` (no loop). Park it as a
+            // classified halt — its `Timeout` disposition is `NeedsHuman`.
+            Ok(StepOutcome::TimedOut {
+                classification,
+                links,
+                ..
+            }) => {
+                self.record_step_links(step, &links).await?;
+                self.route_classified_halt(task, step, classification, cancel)
+                    .await?;
+                Ok(false)
+            }
             Ok(StepOutcome::Failed {
                 classification,
                 links,
@@ -595,6 +848,24 @@ where
         if cancel.is_cancelled() {
             return self.halt_step_cancelled(task, step).await;
         }
+        let reason = classification.human_summary();
+        self.park_step_classified(task, step, classification, reason)
+            .await
+    }
+
+    /// Persist a classified halt with an explicit operator-facing `reason` and
+    /// drive the parent task to the disposition-matched status. Split out of
+    /// [`Self::route_classified_halt`] so the SUP-191 timeout-park path can
+    /// supply a richer reason ("…; auto-resumed N×/M without converging")
+    /// while sharing the persistence + event + shadow-run-finalize logic.
+    /// Callers are responsible for the cancellation check.
+    async fn park_step_classified(
+        &self,
+        task: &LaunchTask,
+        step: &LaunchTaskStep,
+        classification: FailureClassification,
+        reason: String,
+    ) -> Result<()> {
         let (step_status, task_status) = match classification.disposition() {
             FailureDisposition::NeedsHuman => (
                 LaunchTaskStepStatus::NeedsHuman,
@@ -602,7 +873,6 @@ where
             ),
             FailureDisposition::Failed => (LaunchTaskStepStatus::Failed, LaunchTaskStatus::Failed),
         };
-        let reason = classification.human_summary();
         self.repo
             .set_step_failure_classification(step.id, Some(classification.clone()))
             .await
@@ -916,13 +1186,14 @@ where
             sequence: steps[idx].sequence,
         });
 
-        let runner_result = self
-            .step_runner
-            .run_step(&task, &steps[idx], cancel.clone())
-            .await;
-
+        // SUP-191 — resume the parked Codex session when a resume key is
+        // persisted; fall back to a fresh run (`None`) when it is absent. The
+        // auto-resume loop honours the remaining `max_auto_resumes` budget
+        // (the step's `auto_resume_count` seeds it), so a manual retry after
+        // an exhausted auto-resume gets one resumed segment then re-parks.
+        let initial_resume = steps[idx].resume_key.clone().map(ResumeKey::new);
         let should_continue = self
-            .handle_step_outcome(&task, &steps[idx], runner_result, &cancel)
+            .run_step_with_auto_resume(&task, &steps[idx], initial_resume, &cancel)
             .await?;
 
         if should_continue {
@@ -1038,6 +1309,66 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    #[test]
+    fn decide_resume_continues_when_all_gates_pass() {
+        let decision = decide_resume(
+            1,
+            3,
+            Some(&DiffSnapshot::of(b"old")),
+            &DiffSnapshot::of(b"new"),
+            Some(ResumeKey::new("thread-1".to_string())),
+        );
+        assert!(matches!(decision, ResumeDecision::Resume(key) if key.as_str() == "thread-1"));
+    }
+
+    #[test]
+    fn decide_resume_parks_exhausted_at_budget() {
+        let decision = decide_resume(
+            3,
+            3,
+            None,
+            &DiffSnapshot::of(b"new"),
+            Some(ResumeKey::new("thread-1".to_string())),
+        );
+        assert!(matches!(
+            decision,
+            ResumeDecision::Park {
+                reason: TimeoutParkReason::Exhausted,
+                resume_key: Some(_),
+            }
+        ));
+    }
+
+    #[test]
+    fn decide_resume_parks_no_progress_on_identical_diff() {
+        let decision = decide_resume(
+            1,
+            3,
+            Some(&DiffSnapshot::of(b"same")),
+            &DiffSnapshot::of(b"same"),
+            Some(ResumeKey::new("thread-1".to_string())),
+        );
+        assert!(matches!(
+            decision,
+            ResumeDecision::Park {
+                reason: TimeoutParkReason::NoProgress,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn decide_resume_parks_when_no_resume_key() {
+        let decision = decide_resume(1, 3, None, &DiffSnapshot::of(b"new"), None);
+        assert!(matches!(
+            decision,
+            ResumeDecision::Park {
+                reason: TimeoutParkReason::NoResumeKey,
+                resume_key: None,
+            }
+        ));
+    }
+
     /// Minimal fake — counts calls and returns a fixed outcome. Useful for
     /// the unit tests in this module; integration tests in `tests/` use
     /// richer fakes that script per-step behaviour.
@@ -1050,6 +1381,7 @@ mod tests {
             &self,
             _task: &LaunchTask,
             step: &LaunchTaskStep,
+            _resume: Option<ResumeKey>,
             _cancel: CancellationToken,
         ) -> Result<StepOutcome> {
             self.calls.fetch_add(1, Ordering::SeqCst);
@@ -1094,12 +1426,14 @@ mod tests {
             summary: None,
             structured_result: None,
             failure_classification: None,
+            auto_resume_count: 0,
+            resume_key: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
 
         let outcome = StubStepRunner::new()
-            .run_step(&task, &step, CancellationToken::new())
+            .run_step(&task, &step, None, CancellationToken::new())
             .await
             .expect("stub runner must not error");
         match outcome {

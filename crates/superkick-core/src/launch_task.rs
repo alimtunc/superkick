@@ -240,6 +240,18 @@ pub struct LaunchTaskStep {
     /// legacy rows persisted before SUP-140.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure_classification: Option<FailureClassification>,
+    /// Number of automatic resume attempts spent on this step after a
+    /// mid-turn timeout (SUP-191). Capped by `budget.max_auto_resumes`; once
+    /// reached, the step parks at `NeedsHuman`. Surfaced to the UI as
+    /// "resumed N×". `0` for steps that never timed out.
+    #[serde(default)]
+    pub auto_resume_count: u32,
+    /// Opaque provider session id (Codex `thread_id`) captured at the last
+    /// timeout, used to `codex exec resume` the same conversation on the next
+    /// segment or an operator retry (SUP-191). DB-only state — never part of
+    /// the JSON/API contract, so it is skipped by serde.
+    #[serde(skip)]
+    pub resume_key: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -455,6 +467,8 @@ fn build_step(
         summary: None,
         structured_result: None,
         failure_classification: None,
+        auto_resume_count: 0,
+        resume_key: None,
         created_at: now,
         updated_at: now,
     })

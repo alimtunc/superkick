@@ -450,6 +450,13 @@ pub struct BudgetConfig {
     pub max_parallel_agents: u32,
     #[serde(default = "default_token_budget")]
     pub token_budget: TokenBudget,
+    /// Maximum number of automatic resume attempts for a Launch Task step that
+    /// times out mid-turn (SUP-191). The per-step wall-clock budget becomes a
+    /// per-segment budget: a timed-out segment is resumed (`codex exec resume`)
+    /// up to this many times, gated by the worktree diff, before the step is
+    /// parked at `NeedsHuman`. `0` disables auto-resume (legacy behaviour).
+    #[serde(default = "default_max_auto_resumes")]
+    pub max_auto_resumes: u32,
     /// Hard wall-clock ceiling in minutes. When set, the supervisor pauses
     /// the run for operator review once the elapsed time exceeds the value.
     /// Omit to disable the tripwire.
@@ -471,6 +478,7 @@ impl Default for BudgetConfig {
             max_retries_per_step: default_max_retries(),
             max_parallel_agents: default_max_parallel(),
             token_budget: default_token_budget(),
+            max_auto_resumes: default_max_auto_resumes(),
             duration_mins_per_run: None,
             retries_max_per_run: None,
             token_ceiling: None,
@@ -497,6 +505,9 @@ fn default_max_retries() -> u32 {
     2
 }
 fn default_max_parallel() -> u32 {
+    3
+}
+fn default_max_auto_resumes() -> u32 {
     3
 }
 fn default_token_budget() -> TokenBudget {

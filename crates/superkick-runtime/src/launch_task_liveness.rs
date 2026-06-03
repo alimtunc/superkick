@@ -301,6 +301,7 @@ mod tests {
             &self,
             _task: &LaunchTask,
             _step: &LaunchTaskStep,
+            _resume: Option<superkick_core::ResumeKey>,
             _cancel: CancellationToken,
         ) -> Result<StepOutcome> {
             Ok(StepOutcome::Completed {

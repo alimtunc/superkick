@@ -26,8 +26,8 @@ use tracing::warn;
 
 use superkick_core::{
     AgentSession, AgentSessionId, AgentStatus, EventKind, EventLevel, LogLevel, ProtocolEvent,
-    ProtocolEventEnvelope, RunEvent, RunId, SessionLifecyclePhase, StepId, StepResult, TextBlock,
-    TranscriptChunk, TurnOutcome,
+    ProtocolEventEnvelope, ResumeKey, RunEvent, RunId, SessionLifecyclePhase, StepId, StepResult,
+    TextBlock, TranscriptChunk, TurnOutcome,
 };
 use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
 
@@ -161,7 +161,7 @@ where
     )
     .await;
 
-    let (step_result, transcript) = sink.finish();
+    let (step_result, transcript, resume_key) = sink.finish();
     if !transcript.is_empty() {
         let chunk = TranscriptChunk::new(run_id, 0, transcript.into_bytes());
         if let Err(e) = deps.transcript_repo.insert(&chunk).await {
@@ -177,6 +177,7 @@ where
         // Codex transcript-hint patterns are stubbed (TODO SUP-140); the
         // classifier falls back to the marker outcome + terminal phase.
         transcript_hints: TranscriptHints::default(),
+        resume_key,
     })
 }
 
@@ -231,6 +232,10 @@ struct StructuredEventSink<E, A> {
     run_step_id: StepId,
     session_id: AgentSessionId,
     provider_session_set: bool,
+    /// First `SessionMeta` resume key (Codex `thread_id`) seen on the stream,
+    /// surfaced on the `AgentResult` so the executor can resume after a
+    /// timeout (SUP-191).
+    resume_key: Option<ResumeKey>,
     marker: StepResultScanner,
     transcript: String,
     pending: Option<PendingText>,
@@ -255,6 +260,7 @@ where
             run_step_id,
             session_id,
             provider_session_set: false,
+            resume_key: None,
             marker: StepResultScanner::new(),
             transcript: String::new(),
             pending: None,
@@ -291,6 +297,7 @@ where
                 {
                     warn!(session_id = %self.session_id, error = %e, "failed to persist provider_session_id");
                 }
+                self.resume_key = Some(meta.resume_key.clone());
                 self.provider_session_set = true;
             }
             ProtocolEvent::TextBlock(block) => self.feed_text(&block.text),
@@ -351,9 +358,16 @@ where
     }
 
     /// Consume the sink, returning the extracted `StepResult` (via the shared
-    /// marker scanner) and the accumulated raw transcript.
-    fn finish(self) -> (Result<Option<StepResult>, MarkerError>, String) {
-        (self.marker.finish(), self.transcript)
+    /// marker scanner), the accumulated raw transcript, and the captured
+    /// resume key (Codex `thread_id`) if a `SessionMeta` was observed.
+    fn finish(
+        self,
+    ) -> (
+        Result<Option<StepResult>, MarkerError>,
+        String,
+        Option<ResumeKey>,
+    ) {
+        (self.marker.finish(), self.transcript, self.resume_key)
     }
 }
 

@@ -44,7 +44,8 @@ export function LaunchTaskCompletionSummary({
 	const visibleFiles = changedFiles.slice(0, CHANGED_FILES_VISIBLE)
 	const hiddenCount = Math.max(0, changedFiles.length - visibleFiles.length)
 
-	const failureCopy = isFailure && classification ? getFailureCopy(classification) : null
+	const failureCopy =
+		isFailure && classification ? getFailureCopy(classification, finalStep?.auto_resume_count ?? 0) : null
 	// When a classification is set, its copy is the user-facing message — raw summaries may leak provider noise.
 	const summaryText = failureCopy
 		? ''

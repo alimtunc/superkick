@@ -24,6 +24,7 @@ function blockingStep(overrides: Partial<LaunchTaskStep> = {}): LaunchTaskStep {
 		summary: null,
 		structured_result: null,
 		failure_classification: null,
+		auto_resume_count: 0,
 		created_at: '2026-05-19T00:00:00Z',
 		updated_at: '2026-05-19T00:00:00Z',
 		...overrides

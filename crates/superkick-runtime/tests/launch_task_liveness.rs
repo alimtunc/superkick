@@ -44,6 +44,7 @@ impl StepRunner for RecordingRunner {
         &self,
         _task: &LaunchTask,
         step: &LaunchTaskStep,
+        _resume: Option<superkick_core::ResumeKey>,
         _cancel: CancellationToken,
     ) -> Result<StepOutcome> {
         if matches!(step.step_kind, LaunchStepKind::Plan)

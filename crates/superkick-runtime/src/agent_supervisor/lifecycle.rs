@@ -216,6 +216,7 @@ where
                 lifecycle_phase: SessionLifecyclePhase::TimedOut,
                 timeout_after: Some(after),
                 transcript_hints,
+                resume_key: None,
             });
         }
         _ = cancel_token.cancelled() => {
@@ -246,6 +247,7 @@ where
                 lifecycle_phase: SessionLifecyclePhase::Cancelled,
                 timeout_after: None,
                 transcript_hints,
+                resume_key: None,
             });
         }
     };
@@ -281,6 +283,7 @@ where
         lifecycle_phase: terminal_phase,
         timeout_after: None,
         transcript_hints,
+        resume_key: None,
     })
 }
 

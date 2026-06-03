@@ -24,7 +24,7 @@ use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
     AgentProvider, AgentSession, AgentSessionId, AgentStatus, BillingProfile, EventKind,
-    EventLevel, HandoffId, LaunchReason, LinearContextMode, RunEvent, RunId, RunnerMode,
+    EventLevel, HandoffId, LaunchReason, LinearContextMode, ResumeKey, RunEvent, RunId, RunnerMode,
     SessionLifecycleEvent, SessionLifecyclePhase, StepId, StepResult,
 };
 use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
@@ -123,6 +123,12 @@ pub struct AgentResult {
     ///
     /// [`FailureHintScanner`]: crate::protocol_adapter::FailureHintScanner
     pub transcript_hints: TranscriptHints,
+    /// Codex `thread_id` (resume key) observed for this session, when the
+    /// structured path captured a `SessionMeta` (SUP-191). Lets the Launch
+    /// Task executor `codex exec resume` the same conversation after a
+    /// mid-turn timeout. Always `None` on the PTY path, which has no
+    /// resumable structured session.
+    pub resume_key: Option<ResumeKey>,
 }
 
 /// Handle to a running agent session, used for cancellation.
@@ -307,11 +313,16 @@ where
     /// `run_events`. The returned task only mutates the `AgentSession` row and
     /// `run_events`; `LaunchTaskStep` / `Run` transitions stay owned by the
     /// executor that consumes the resulting `AgentResult`.
+    ///
+    /// `resume` carries the Codex `thread_id` from a prior timed-out segment
+    /// (SUP-191): when `Some`, the turn is launched via `codex exec resume
+    /// <id>` to continue the same conversation instead of starting fresh.
     pub async fn launch_codex_structured(
         &self,
         adapter: crate::protocol_adapter::CodexProtocolAdapter,
         config: AgentLaunchConfig,
         prompt: String,
+        resume: Option<ResumeKey>,
     ) -> Result<(AgentHandle, tokio::task::JoinHandle<Result<AgentResult>>)> {
         use crate::protocol_adapter::ProtocolAdapter;
         use superkick_core::{TurnOptions, TurnRequest};
@@ -342,9 +353,14 @@ where
             },
         };
 
-        // `start_turn` spawns the `codex` child; a spawn failure surfaces here
-        // and the caller maps it via `classify_spawn_error`, mirroring `launch`.
-        let stream = adapter.start_turn(request).await?;
+        // `start_turn`/`resume_turn` spawn the `codex` child; a spawn failure
+        // surfaces here and the caller maps it via `classify_spawn_error`,
+        // mirroring `launch`. `resume_turn` continues an existing thread via
+        // `codex exec resume <id>` instead of starting a fresh session.
+        let stream = match resume {
+            Some(key) => adapter.resume_turn(key, request).await?,
+            None => adapter.start_turn(request).await?,
+        };
         let handle = AgentHandle::from_parts(session_id, stream.handle.cancel_token());
 
         let deps = structured::StructuredDeps {

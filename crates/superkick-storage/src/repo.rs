@@ -581,6 +581,18 @@ pub trait LaunchTaskRepo: Send + Sync {
         id: LaunchTaskStepId,
         classification: Option<FailureClassification>,
     ) -> impl Future<Output = Result<()>> + Send;
+
+    /// SUP-191 — persist the auto-resume counter and the Codex `resume_key`
+    /// (thread_id) for a timed-out step. Idempotent, no status guard: the
+    /// executor calls this before each resume and at the park point so an
+    /// operator retry can `codex exec resume` the same conversation. `None`
+    /// `resume_key` clears the column (a fresh run path).
+    fn set_step_auto_resume(
+        &self,
+        id: LaunchTaskStepId,
+        auto_resume_count: u32,
+        resume_key: Option<String>,
+    ) -> impl Future<Output = Result<()>> + Send;
 }
 
 /// Repository for `IssueWorkspaceContext` aggregates (SUP-147).

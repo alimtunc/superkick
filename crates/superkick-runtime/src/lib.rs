@@ -56,8 +56,8 @@ pub use interrupt_service::InterruptService;
 pub use launch_queue_blockers::reconcile_blockers;
 pub use launch_task_event_bus::{LaunchTaskEvent, LaunchTaskEventBus};
 pub use launch_task_executor::{
-    CancelOutcome, LaunchTaskExecutor, ReconcileOutcome, RetryError, RetryOutcome,
-    ShadowRunTerminal, StepLinks, StepOutcome, StepRunner, StubStepRunner,
+    CancelOutcome, DEFAULT_MAX_AUTO_RESUMES, LaunchTaskExecutor, ReconcileOutcome, RetryError,
+    RetryOutcome, ShadowRunTerminal, StepLinks, StepOutcome, StepRunner, StubStepRunner,
 };
 pub use launch_task_liveness::{
     DEFAULT_LIVENESS_SWEEP_INTERVAL, ReconcileReport, reconcile_launch_task_orphans,
@@ -92,7 +92,7 @@ pub use run_service::{LaunchTaskCanceller, RunService, RunServiceError, RunSpawn
 pub use session_bus::SessionBus;
 pub use step_engine::{StepEngine, StepEngineDeps};
 pub use step_failure_classifier::{
-    ClassifyInputs, DiffProbe, GitDiffProbe, classify, classify_spawn_error,
+    ClassifyInputs, DiffProbe, DiffSnapshot, GitDiffProbe, classify, classify_spawn_error,
 };
 pub use terminal_takeover::{SpawnedTakeover, TerminalTakeoverService};
 pub use turn_event_bus::TurnEventBus;

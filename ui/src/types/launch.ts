@@ -89,6 +89,8 @@ export interface LaunchTaskStep {
 	summary?: string | null
 	structured_result?: StepResult | null
 	failure_classification?: FailureClassification | null
+	/** SUP-191 — automatic resume attempts spent after a mid-turn timeout. */
+	auto_resume_count: number
 	created_at: string
 	updated_at: string
 }

@@ -189,6 +189,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "034_run_context_snapshots",
             include_str!("../migrations/034_run_context_snapshots.sql"),
         ),
+        (
+            "035_launch_task_steps_auto_resume",
+            include_str!("../migrations/035_launch_task_steps_auto_resume.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

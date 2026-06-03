@@ -46,7 +46,7 @@ export function findBlockingContext(
 		const kind = stepNeedsHuman.step_kind
 		const classification = stepNeedsHuman.failure_classification ?? null
 		if (classification) {
-			const copy = getFailureCopy(classification)
+			const copy = getFailureCopy(classification, stepNeedsHuman.auto_resume_count)
 			return {
 				step: stepNeedsHuman,
 				stepKind: kind,
