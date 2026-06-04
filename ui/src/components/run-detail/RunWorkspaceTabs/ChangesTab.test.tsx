@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { ChangesTab } from '@/components/run-detail/RunWorkspaceTabs/ChangesTab'
+import { multiFileDiffSmokeFiles } from '@/components/run-detail/RunWorkspaceTabs/ChangesTab.fixture'
 import type { FileDiff, Run, RunDiffResponse } from '@/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
@@ -87,32 +88,25 @@ describe('ChangesTab', () => {
 		expect(await screen.findByText(/did not use a worktree/i)).toBeInTheDocument()
 	})
 
-	it('renders +X −Y and expands the patch on a modified row', async () => {
+	it('renders a multi-file summary and expands the patch on a modified row', async () => {
 		mocks.fetchRunDiff.mockResolvedValue({
 			kind: 'ok',
-			value: buildResponse([
-				{
-					path: 'src/foo.ts',
-					status: 'modified',
-					additions: 5,
-					deletions: 2,
-					binary: false,
-					truncated: false,
-					patch: '@@ -1 +1 @@\n-old\n+new'
-				}
-			])
+			value: buildResponse(multiFileDiffSmokeFiles)
 		})
 
 		const user = userEvent.setup()
 		render(wrap(<ChangesTab run={buildRun()} pr={null} />))
 
-		const row = await screen.findByRole('button', { name: /src\/foo\.ts/ })
-		expect(screen.getByText('+5')).toBeInTheDocument()
-		expect(screen.getByText('−2')).toBeInTheDocument()
+		const row = await screen.findByRole('button', { name: /ChangesTab\.test\.tsx/ })
+		expect(screen.getByText('3 files')).toBeInTheDocument()
+		expect(screen.getByRole('button', { name: /ChangesTab\.fixture\.ts/ })).toBeInTheDocument()
+		expect(screen.getByRole('button', { name: /diff-viewer-smoke\.md/ })).toBeInTheDocument()
+		expect(screen.getByText('+9')).toBeInTheDocument()
+		expect(screen.getByText('−3')).toBeInTheDocument()
 
 		await user.click(row)
-		expect(screen.getByText(/-old/)).toBeInTheDocument()
-		expect(screen.getByText(/\+new/)).toBeInTheDocument()
+		expect(screen.getByText(/-\s*expect\(screen\.getByText\("\+5"\)/)).toBeInTheDocument()
+		expect(screen.getByText(/\+\s*expect\(screen\.getByText\("\+9"\)/)).toBeInTheDocument()
 	})
 
 	it('renders a binary file row without a patch toggle', async () => {
