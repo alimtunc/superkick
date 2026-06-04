@@ -71,7 +71,6 @@ describe('WorktreeActions', () => {
 		const opened: OpenedTakeover = {
 			takeover_session_id: 'tk-1',
 			mode: 'inspect',
-			resume_attempted: false,
 			terminal_ws: 'ws://example/api/runs/run-1/terminal/tk-1'
 		}
 		mocks.openTakeover.mockResolvedValue(opened)

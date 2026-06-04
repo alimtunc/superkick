@@ -61,6 +61,24 @@ pub enum TakeoverModeKind {
     ForceTakeover,
 }
 
+/// How a takeover actually connected to the agent. Where [`TakeoverMode`] is
+/// what the operator *asked* for, this is the honest outcome of the
+/// `attach → resume → fresh` strategy — so the UI never claims a resume that
+/// did not happen or an attach to a process with no PTY.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TakeoverPath {
+    /// Attached to an already-live interactive PTY for the run. No new process
+    /// is spawned and no context is injected — the operator joins the stream.
+    Attach,
+    /// Spawned the provider CLI with a resume key (`--resume`), restoring the
+    /// provider-side conversation.
+    Resume,
+    /// Spawned a fresh interactive process, seeding it with the redacted
+    /// `RunContextSnapshot` as opening context.
+    Fresh,
+}
+
 impl TakeoverMode {
     /// Project a `TakeoverMode` onto its kind tag.
     pub fn kind(&self) -> TakeoverModeKind {
@@ -105,11 +123,9 @@ pub struct ActiveTakeover {
 pub struct OpenedTakeover {
     pub takeover_session_id: TakeoverSessionId,
     pub mode: TakeoverModeKind,
-    /// `true` when the spawned process was launched with a provider resume
-    /// key. `false` for `Inspect`, and for `InteractiveContinuation` when the
-    /// adapter does not support resume on this provider.
-    pub resume_attempted: bool,
-    /// Relative WebSocket URL the UI should connect to in order to attach to
-    /// the freshly spawned PTY.
+    /// Which strategy actually connected the operator: attach, resume, or fresh.
+    pub takeover_path: TakeoverPath,
+    /// Relative WebSocket URL the UI should connect to. For `Fresh`/`Resume`
+    /// this is the takeover PTY; for `Attach` it is the run's primary terminal.
     pub terminal_ws: String,
 }

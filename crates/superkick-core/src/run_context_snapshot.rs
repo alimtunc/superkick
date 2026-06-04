@@ -242,6 +242,125 @@ pub struct SnapshotMemoryRef {
     pub ledger_pointer: Option<String>,
 }
 
+/// Render caps applied when projecting the snapshot into an interactive
+/// opening prompt — tighter than the persisted snapshot's own caps so the
+/// injected block stays readable and the prompt cost bounded.
+const RENDER_MAX_FILES: usize = 20;
+const RENDER_MAX_EVENTS: usize = 8;
+
+impl RunContextSnapshot {
+    /// Render the snapshot into the opening-context block injected into a
+    /// **fresh** interactive takeover. All free text is already redacted at
+    /// build time, so this only formats — it never reaches back into canonical
+    /// state. The layout is stable and human-readable so the agent can parse it
+    /// by inspection.
+    pub fn render_for_takeover(&self) -> String {
+        let mut out = String::new();
+        out.push_str("--- Superkick takeover context (redacted, read-only) ---\n");
+        out.push_str(&format!("Issue: {}\n", self.issue_label()));
+        out.push_str(&format!(
+            "Task: {} · {}\n",
+            self.task.recipe, self.task.status
+        ));
+        if let Some(objective) = &self.task.objective {
+            out.push_str(&format!("Objective: {}\n", objective.trim()));
+        }
+        if let Some(step) = &self.current_step {
+            out.push_str(&format!(
+                "Current step: {} #{} ({})\n",
+                step.kind, step.sequence, step.status
+            ));
+        }
+        if let Some(wt) = &self.worktree {
+            let branch = wt.run_branch.as_deref().unwrap_or("(no run branch)");
+            out.push_str(&format!("Branch: {branch} (base {})\n", wt.base_branch));
+            if let Some(path) = &wt.path {
+                out.push_str(&format!("Worktree: {path}\n"));
+            }
+        }
+        if let Some(provider) = &self.provider.provider {
+            let model = self.provider.model.as_deref().unwrap_or("?");
+            out.push_str(&format!("Prior agent: {provider}/{model}\n"));
+        }
+        if let Some(blocking) = &self.blocking {
+            out.push_str(&format!(
+                "Blocked: {:?} — {}\n",
+                blocking.kind,
+                blocking.reason.trim()
+            ));
+        }
+        if !self.changed_files.paths.is_empty() {
+            let total = self.changed_files.paths.len();
+            let extra = if self.changed_files.truncated {
+                "+"
+            } else {
+                ""
+            };
+            out.push_str(&format!("Changed files ({total}{extra}):\n"));
+            for path in self.changed_files.paths.iter().take(RENDER_MAX_FILES) {
+                out.push_str(&format!("  - {path}\n"));
+            }
+            if total > RENDER_MAX_FILES {
+                out.push_str(&format!("  … and {} more\n", total - RENDER_MAX_FILES));
+            }
+        }
+        if !self.pending_decisions.is_empty() {
+            out.push_str("Pending decisions:\n");
+            for d in &self.pending_decisions {
+                match d.step_sequence {
+                    Some(seq) => out.push_str(&format!(
+                        "  - [{:?} @ step {seq}] {}\n",
+                        d.kind,
+                        d.detail.trim()
+                    )),
+                    None => out.push_str(&format!("  - [{:?}] {}\n", d.kind, d.detail.trim())),
+                }
+            }
+        }
+        if !self.recent_events.is_empty() {
+            let start = self.recent_events.len().saturating_sub(RENDER_MAX_EVENTS);
+            out.push_str("Recent activity:\n");
+            for e in &self.recent_events[start..] {
+                out.push_str(&format!("  - [{:?}] {}\n", e.kind, e.message.trim()));
+            }
+        }
+        out.push_str(&format!(
+            "Snapshot generated at {}\n",
+            self.generated_at.to_rfc3339()
+        ));
+        out.push_str(
+            "You are taking over this task interactively. The prior agent process is not \
+             attached; use the context above to continue the work in this worktree.\n",
+        );
+        out.push_str("--- end takeover context ---");
+        out
+    }
+
+    /// One-line header for the **resume** path: the provider restores the
+    /// conversation, so the operator only needs a reminder of which task this
+    /// terminal belongs to.
+    pub fn render_takeover_header(&self) -> String {
+        format!(
+            "[Superkick] Resumed takeover for {} · {} ({}). Snapshot at {}.",
+            self.issue_label(),
+            self.task.recipe,
+            self.task.status,
+            self.generated_at.to_rfc3339()
+        )
+    }
+
+    /// Best available human label for the issue: identifier — title, falling
+    /// back to whichever is present, then the raw Linear id.
+    fn issue_label(&self) -> String {
+        match (&self.issue.identifier, &self.issue.title) {
+            (Some(id), Some(title)) => format!("{id} — {}", title.trim()),
+            (Some(id), None) => id.clone(),
+            (None, Some(title)) => title.trim().to_string(),
+            (None, None) => self.issue.linear_issue_id.clone(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,5 +510,67 @@ mod tests {
         };
         let json = serde_json::to_string(&blocking).expect("serialize");
         assert!(json.contains("\"run_waiting_human\""), "got {json}");
+    }
+
+    #[test]
+    fn render_for_takeover_includes_key_context() {
+        let rendered = sample().render_for_takeover();
+        assert!(
+            rendered.contains("SUP-187 — RunContextSnapshot"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("Task: plan_implement_review"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("Current step: implement #2"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("Branch: alimtunc/sup-187 (base main)"),
+            "{rendered}"
+        );
+        assert!(rendered.contains("Prior agent: codex/gpt"), "{rendered}");
+        assert!(rendered.contains("- a.rs"), "{rendered}");
+        assert!(rendered.contains("which crate?"), "{rendered}");
+        assert!(
+            rendered.contains("taking over this task interactively"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.ends_with("--- end takeover context ---"),
+            "{rendered}"
+        );
+    }
+
+    #[test]
+    fn render_passes_already_redacted_text_through_verbatim() {
+        // The builder redacts free text; the renderer must only format, never
+        // re-introduce or alter content. A pre-redacted marker survives intact.
+        let mut snap = sample();
+        snap.blocking = Some(SnapshotBlocking {
+            kind: BlockingKind::RunFailed,
+            reason: "token [REDACTED] leaked".into(),
+        });
+        let rendered = snap.render_for_takeover();
+        assert!(rendered.contains("token [REDACTED] leaked"), "{rendered}");
+    }
+
+    #[test]
+    fn render_takeover_header_is_single_line() {
+        let header = sample().render_takeover_header();
+        assert!(!header.contains('\n'), "{header}");
+        assert!(header.contains("SUP-187"), "{header}");
+        assert!(header.contains("Resumed takeover"), "{header}");
+    }
+
+    #[test]
+    fn render_falls_back_to_linear_id_when_issue_unlabelled() {
+        let mut snap = sample();
+        snap.issue.identifier = None;
+        snap.issue.title = None;
+        let rendered = snap.render_for_takeover();
+        assert!(rendered.contains("Issue: issue-uuid"), "{rendered}");
     }
 }

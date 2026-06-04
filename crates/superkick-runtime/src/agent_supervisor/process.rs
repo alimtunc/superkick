@@ -85,3 +85,40 @@ pub(crate) fn open_pty_and_spawn(
         broadcast_tx,
     })
 }
+
+/// Inject an opening payload into a freshly-spawned PTY after a short delay,
+/// then submit it with a carriage return.
+///
+/// Runs on a detached task because `write_input` is a blocking `write_all`:
+/// doing it inline on the async runtime would let an agent that is slow to
+/// drain its stdin wedge a tokio worker (freezing the HTTP API) and bypass any
+/// timeout. The PTY reader the caller started drains concurrently so the write
+/// cannot deadlock; on kill the blocked write errors out and the task unwinds.
+/// Best-effort: a failure is logged, not propagated — the operator can retype.
+pub(crate) fn spawn_initial_input_injection(
+    session: Arc<PtySession>,
+    payload: String,
+    run_id: RunId,
+) {
+    tokio::spawn(async move {
+        // Both `claude` and `codex` print a welcome banner before accepting
+        // input; without this brief pause the injected prefix lands inside the
+        // banner instead of the prompt box.
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        let injected = tokio::task::spawn_blocking(move || {
+            session.write_input(payload.as_bytes())?;
+            // `\r` is the canonical Enter in raw mode; submits the line.
+            session.write_input(b"\r")
+        })
+        .await;
+        match injected {
+            Ok(Ok(())) => {}
+            Ok(Err(err)) => warn!(
+                run_id = %run_id,
+                error = %err,
+                "failed to inject opening input into PTY — operator must retype"
+            ),
+            Err(err) => warn!(run_id = %run_id, error = %err, "PTY input injection task panicked"),
+        }
+    });
+}

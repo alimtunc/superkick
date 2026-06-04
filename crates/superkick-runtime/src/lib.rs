@@ -94,7 +94,7 @@ pub use step_engine::{StepEngine, StepEngineDeps};
 pub use step_failure_classifier::{
     ClassifyInputs, DiffProbe, DiffSnapshot, GitDiffProbe, classify, classify_spawn_error,
 };
-pub use terminal_takeover::{SpawnedTakeover, TerminalTakeoverService};
+pub use terminal_takeover::{OpenTakeoverParams, SpawnedTakeover, TerminalTakeoverService};
 pub use turn_event_bus::TurnEventBus;
 pub use workspace_bus::{PublishingRunEventRepo, WorkspaceEventBus};
 pub use worktree::{WorktreeInfo, WorktreeManager};

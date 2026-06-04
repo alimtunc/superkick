@@ -11,6 +11,13 @@ export type TakeoverModeKind = 'inspect' | 'interactive_continuation' | 'force_t
 export type ForceTakeoverSubMode = 'inspect' | 'interactive_continuation'
 
 /**
+ * How a takeover actually connected, independent of the mode the operator asked
+ * for. `attach` joined a live PTY, `resume` restored the provider session,
+ * `fresh` spawned a new process seeded with the run snapshot.
+ */
+export type TakeoverPath = 'attach' | 'resume' | 'fresh'
+
+/**
  * Open-takeover request body. The backend deserialises with `#[serde(flatten)]`
  * so the discriminator (`mode`), force-mode payload, and `operator_id` all sit
  * at the top level of the JSON object.
@@ -39,7 +46,12 @@ export interface TakeoverModesResponse {
 export interface OpenedTakeover {
 	takeover_session_id: string
 	mode: TakeoverModeKind
-	resume_attempted: boolean
+	/**
+	 * Honest outcome of the attach → resume → fresh strategy. Optional only
+	 * because the UI synthesises an `OpenedTakeover` when re-anchoring to a
+	 * persisted takeover (which carries no path).
+	 */
+	takeover_path?: TakeoverPath
 	terminal_ws: string
 }
 

@@ -10,7 +10,7 @@ import {
 	useOpenTakeover,
 	useTakeoverModes
 } from '@/hooks/useTerminalTakeover'
-import type { ForceTakeoverSubMode, OpenedTakeover, TakeoverModeKind } from '@/types'
+import type { ForceTakeoverSubMode, OpenedTakeover, TakeoverModeKind, TakeoverPath } from '@/types'
 import { useLocation } from '@tanstack/react-router'
 import { ChevronDown, ChevronRight, Eye, MessageCircle, Power, TerminalSquare } from 'lucide-react'
 
@@ -37,6 +37,18 @@ function modeLabel(mode: TakeoverModeKind): string {
 	if (mode === 'inspect') return 'Inspect'
 	if (mode === 'interactive_continuation') return 'Continue'
 	return 'Force takeover'
+}
+
+const PATH_LABEL: Record<TakeoverPath, string> = {
+	attach: 'Attached',
+	resume: 'Resumed',
+	fresh: 'Fresh + snapshot'
+}
+
+const PATH_COPY: Record<TakeoverPath, string> = {
+	attach: 'Joined the live agent session — you share its terminal. Detaching does not stop the agent.',
+	resume: 'Provider session resumed via --resume. The prior conversation was restored.',
+	fresh: 'Fresh interactive session in the worktree, seeded with the redacted run-context snapshot.'
 }
 
 export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
@@ -73,7 +85,6 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 		setActiveTakeover({
 			takeover_session_id: latestPersistedId,
 			mode: latestPersistedMode,
-			resume_attempted: false,
 			terminal_ws: takeoverWsUrl(runId, latestPersistedId)
 		})
 	}, [activeTakeover, latestPersistedId, latestPersistedMode, runId])
@@ -157,6 +168,11 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 								<span className="font-data text-[10px] text-fg-dim">
 									· {modeLabel(activeTakeover.mode)}
 								</span>
+								{activeTakeover.takeover_path ? (
+									<span className="font-data text-evergreen text-[10px] tracking-wider uppercase">
+										· {PATH_LABEL[activeTakeover.takeover_path]}
+									</span>
+								) : null}
 								<Button
 									type="button"
 									variant="outline"
@@ -165,15 +181,26 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 									disabled={closing}
 									className="font-data hover:border-rust/40 hover:text-rust focus-visible:ring-rust/40 ml-auto h-auto rounded-sm border-border bg-surface/40 px-2 py-1 text-[10px] tracking-wider text-fg-muted uppercase focus-visible:ring-2"
 								>
-									Close takeover
+									{activeTakeover.takeover_path === 'attach' ? 'Detach' : 'Close takeover'}
 								</Button>
 							</div>
-							<PtyTerminal
-								runId={runId}
-								isTerminal={false}
-								wsUrl={wsUrl}
-								loadHistoryOnTerminal={false}
-							/>
+							{activeTakeover.takeover_path ? (
+								<p className="font-data text-[10px] text-fg-dim">
+									{PATH_COPY[activeTakeover.takeover_path]}
+								</p>
+							) : null}
+							{activeTakeover.takeover_path === 'attach' ? (
+								<p className="font-data text-[10px] text-fg-dim italic">
+									Streaming the run-primary PTY below.
+								</p>
+							) : (
+								<PtyTerminal
+									runId={runId}
+									isTerminal={false}
+									wsUrl={wsUrl}
+									loadHistoryOnTerminal={false}
+								/>
+							)}
 						</div>
 					) : null}
 
