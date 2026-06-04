@@ -13,7 +13,8 @@ export function RunDrawer() {
 			onClose={closeDrawer}
 			title="Run"
 			closeAriaLabel="Close run drawer"
-			width="compact"
+			width="half"
+			resizable
 			bare
 		>
 			{runId ? <RunDrawerContent runId={runId} /> : null}

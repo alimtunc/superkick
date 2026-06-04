@@ -16,6 +16,15 @@ vi.mock('@/api', async () => {
 	return { ...actual, fetchRunDiff: mocks.fetchRunDiff }
 })
 
+// Stub the heavy @git-diff-view renderer; assert the data it receives instead.
+vi.mock('@/components/diff/DiffPatchView', () => ({
+	DiffPatchView: ({ patch, mode }: { patch: string; mode: string }) => (
+		<div data-testid="diff" data-mode={mode}>
+			{patch}
+		</div>
+	)
+}))
+
 function buildRun(overrides: Partial<Run> = {}): Run {
 	return {
 		id: 'run-1',
@@ -87,7 +96,34 @@ describe('ChangesTab', () => {
 		expect(await screen.findByText(/did not use a worktree/i)).toBeInTheDocument()
 	})
 
-	it('renders +X −Y and expands the patch on a modified row', async () => {
+	it('renders +X −Y and shows the patch expanded by default', async () => {
+		mocks.fetchRunDiff.mockResolvedValue({
+			kind: 'ok',
+			value: buildResponse([
+				{
+					path: 'src/foo.ts',
+					status: 'modified',
+					additions: 5,
+					deletions: 2,
+					binary: false,
+					truncated: false,
+					patch: '@@ -1 +1 @@\n-old\n+new'
+				}
+			])
+		})
+
+		render(wrap(<ChangesTab run={buildRun()} pr={null} />))
+
+		expect(await screen.findByText('+5')).toBeInTheDocument()
+		expect(screen.getByText('−2')).toBeInTheDocument()
+
+		const diff = await screen.findByTestId('diff')
+		expect(diff).toHaveTextContent('-old')
+		expect(diff).toHaveTextContent('+new')
+		expect(diff).toHaveAttribute('data-mode', 'unified')
+	})
+
+	it('toggles all files to split layout via the single header control', async () => {
 		mocks.fetchRunDiff.mockResolvedValue({
 			kind: 'ok',
 			value: buildResponse([
@@ -106,13 +142,9 @@ describe('ChangesTab', () => {
 		const user = userEvent.setup()
 		render(wrap(<ChangesTab run={buildRun()} pr={null} />))
 
-		const row = await screen.findByRole('button', { name: /src\/foo\.ts/ })
-		expect(screen.getByText('+5')).toBeInTheDocument()
-		expect(screen.getByText('−2')).toBeInTheDocument()
-
-		await user.click(row)
-		expect(screen.getByText(/-old/)).toBeInTheDocument()
-		expect(screen.getByText(/\+new/)).toBeInTheDocument()
+		expect(await screen.findByTestId('diff')).toHaveAttribute('data-mode', 'unified')
+		await user.click(screen.getByRole('button', { name: 'Split' }))
+		expect(screen.getByTestId('diff')).toHaveAttribute('data-mode', 'split')
 	})
 
 	it('renders a binary file row without a patch toggle', async () => {

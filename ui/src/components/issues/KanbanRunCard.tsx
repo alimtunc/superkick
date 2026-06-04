@@ -1,4 +1,5 @@
 import { LaunchRunBadges } from '@/components/launch-queue/LaunchRunBadges'
+import { PrBadge } from '@/components/pr/PrBadge'
 import { Pill } from '@/components/ui/pill'
 import { fmtElapsed, stepLabel } from '@/lib/domain'
 import type { LaunchQueueItem } from '@/types'
@@ -34,6 +35,7 @@ export function KanbanRunCard({ item, refTime }: KanbanRunCardProps) {
 			<div className="kcard__foot">
 				<span className="truncate font-mono text-[10.5px] text-fg-muted">{run.repo_slug}</span>
 				<LaunchRunBadges item={item} />
+				{item.pr ? <PrBadge pr={item.pr} /> : null}
 				<span className="spacer" />
 				<span className="font-mono text-[10.5px] text-fg-dim">
 					{fmtElapsed(run.started_at, refTime)}

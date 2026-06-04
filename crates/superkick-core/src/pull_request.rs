@@ -31,6 +31,31 @@ impl std::fmt::Display for PrState {
     }
 }
 
+/// Operator-chosen ship action for a completed run's worktree.
+///
+/// The operator owns the final decision — Superkick never auto-ships. `PushOnly`
+/// publishes the branch without opening a PR; `Draft`/`Ready` additionally open a
+/// pull request (draft requires no review, ready is a deliberate "review this").
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShipMode {
+    PushOnly,
+    Draft,
+    Ready,
+}
+
+impl ShipMode {
+    /// Whether this mode opens a pull request (draft or ready).
+    pub fn opens_pr(self) -> bool {
+        matches!(self, Self::Draft | Self::Ready)
+    }
+
+    /// Whether the opened PR should be a draft.
+    pub fn is_draft(self) -> bool {
+        matches!(self, Self::Draft)
+    }
+}
+
 /// A GitHub pull request linked to a Superkick run.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PullRequest {
@@ -131,6 +156,29 @@ mod tests {
         assert_eq!(
             parse_pr_number("https://github.com/acme/repo/commit/123"),
             None
+        );
+    }
+
+    #[test]
+    fn ship_mode_classifies_pr_and_draft() {
+        assert!(ShipMode::Draft.opens_pr());
+        assert!(ShipMode::Ready.opens_pr());
+        assert!(!ShipMode::PushOnly.opens_pr());
+
+        assert!(ShipMode::Draft.is_draft());
+        assert!(!ShipMode::Ready.is_draft());
+        assert!(!ShipMode::PushOnly.is_draft());
+    }
+
+    #[test]
+    fn ship_mode_serializes_snake_case() {
+        assert_eq!(
+            serde_json::to_string(&ShipMode::PushOnly).unwrap(),
+            "\"push_only\""
+        );
+        assert_eq!(
+            serde_json::from_str::<ShipMode>("\"draft\"").unwrap(),
+            ShipMode::Draft
         );
     }
 }

@@ -7,7 +7,9 @@ import type {
 	Run,
 	RunDiffResponse,
 	RunEvent,
-	RunStep
+	RunStep,
+	ShipRunRequest,
+	ShipRunResponse
 } from '@/types'
 
 import { BASE, postJson, postJsonChecked } from './_shared'
@@ -53,6 +55,12 @@ export async function fetchRunEvents(id: string): Promise<RunEvent[]> {
 
 export async function cancelRun(id: string): Promise<Run> {
 	return postJson(`/runs/${id}/cancel`, 'cancel run failed')
+}
+
+/** Operator-triggered ship: push the branch and (for draft/ready) open a PR.
+ *  Surfaces the backend's 422 message verbatim (gh not authed, nothing to ship…). */
+export async function shipRun(id: string, body: ShipRunRequest): Promise<ShipRunResponse> {
+	return postJson(`/runs/${id}/ship`, 'ship failed', body)
 }
 
 export async function fetchRunDiff(id: string): Promise<RunDiffResult> {

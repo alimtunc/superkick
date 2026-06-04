@@ -9,9 +9,9 @@ use serde::{Deserialize, Serialize};
 
 use superkick_core::{
     AgentSession, AttentionRequest, ExecutionMode, Interrupt, PullRequest, Run, RunAgentOverrides,
-    RunDiff, RunEvent, RunId, RunStep, SessionOwnership, TriggerSource,
+    RunDiff, RunEvent, RunId, RunStep, SessionOwnership, ShipMode, TriggerSource,
 };
-use superkick_runtime::{DiffError, collect_run_diff};
+use superkick_runtime::{DiffError, ShipError, collect_run_diff};
 use superkick_storage::SqliteRunRepo;
 use superkick_storage::repo::{
     AgentSessionRepo, AttentionRequestRepo, InterruptRepo, RunEventRepo, RunRepo, RunStepRepo,
@@ -358,4 +358,68 @@ pub async fn get_run_diff(
         },
         diff,
     }))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShipRunRequest {
+    /// Operator-chosen action: push the branch only, or open a draft / ready PR.
+    pub mode: ShipMode,
+    /// PR title. Required (non-empty) for `draft`/`ready`; ignored for `push_only`.
+    #[serde(default)]
+    pub title: String,
+    /// PR body (ignored for `push_only`).
+    #[serde(default)]
+    pub body: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ShipRunResponse {
+    pushed_branch: String,
+    pr: Option<PullRequest>,
+}
+
+/// `POST /runs/{id}/ship` — operator-triggered publish of a run's worktree.
+/// Pushes the branch and, for draft/ready modes, opens a PR. No auto-PR: the
+/// caller always picks the mode explicitly.
+///
+/// Status mapping mirrors the diff endpoint: missing worktree → 404, operator-
+/// actionable refusals (not worktree-backed, no branch, nothing to ship, `gh`
+/// not authenticated, `gh pr create` rejected) → 422, internal git/persist
+/// faults → 500.
+pub async fn ship_run(
+    State(state): State<AppState>,
+    Path(id): Path<uuid::Uuid>,
+    Json(req): Json<ShipRunRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let run_id = RunId(id);
+    let Some(run) = state.run_repo.get(run_id).await? else {
+        return Err(AppError::NotFound("run not found"));
+    };
+
+    let outcome = state
+        .pr_service
+        .ship(&run, req.mode, &req.title, &req.body)
+        .await
+        .map_err(map_ship_error)?;
+
+    Ok(Json(ShipRunResponse {
+        pushed_branch: outcome.pushed_branch,
+        pr: outcome.pr,
+    }))
+}
+
+fn map_ship_error(err: ShipError) -> AppError {
+    match err {
+        ShipError::RunNotShippable
+        | ShipError::EmptyTitle
+        | ShipError::NotWorktreeBacked
+        | ShipError::NoBranch
+        | ShipError::NoChanges
+        | ShipError::GhAuth(_)
+        | ShipError::GitHub(_) => AppError::Unprocessable(err.to_string()),
+        ShipError::WorktreeMissing => AppError::NotFound("worktree"),
+        ShipError::Git(e) | ShipError::Persist(e) => AppError::Internal(e),
+    }
 }

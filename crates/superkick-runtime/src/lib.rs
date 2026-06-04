@@ -7,6 +7,7 @@ pub mod cli_resume;
 pub mod conversation_runner;
 pub mod detector;
 pub mod git;
+pub mod git_ship;
 pub mod heartbeat;
 pub mod interrupt_service;
 pub mod launch_queue_blockers;
@@ -79,7 +80,9 @@ pub use protocol_adapter::{
     TurnHandle, protocol_event_channel,
 };
 pub use pty_session::{PtySession, PtySessionRegistry, TakeoverEntry, WriterHolder};
-pub use pull_request_service::{PR_SYNC_STALENESS_THRESHOLD, PullRequestService};
+pub use pull_request_service::{
+    PR_SYNC_STALENESS_THRESHOLD, PullRequestService, ShipError, ShipOutcome,
+};
 pub use queue_triage_service::{QueueTriageService, RunTriage};
 pub use recovery_scheduler::spawn_recovery_scheduler;
 pub use release_validation::{RunnerAvailability, requested_runners, runner_available};
