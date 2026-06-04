@@ -5,7 +5,7 @@ import { HistoryTruncatedFooter } from '@/components/issue-detail/HistoryTruncat
 import { IssueCommentCard } from '@/components/issue-detail/IssueCommentCard'
 import { IssueTimelineEvent } from '@/components/issue-detail/IssueTimelineEvent'
 import { OpenRunButton } from '@/components/issue-detail/OpenRunButton'
-import { RunPrBadge } from '@/components/issue-detail/RunPrBadge'
+import { PrBadge } from '@/components/pr/PrBadge'
 import { buildIssueActivity, fmtRelativeTime, isAgentName, runNarrative } from '@/lib/domain'
 import type {
 	ActivityNodeKind,
@@ -66,7 +66,16 @@ function RunCompletedBody({ run }: { run: LinkedRunSummary }) {
 	return (
 		<span className="inline-flex items-center gap-x-2 align-middle text-fg-muted">
 			{completionPhrase(run.state)}
-			{run.state === 'completed' && run.pr ? <RunPrBadge pr={run.pr} /> : null}
+			{run.state === 'completed' && run.pr ? (
+				<a
+					href={run.pr.url}
+					target="_blank"
+					rel="noopener noreferrer"
+					className="inline-flex shrink-0 rounded-md hover:opacity-80 focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:outline-none"
+				>
+					<PrBadge pr={run.pr} />
+				</a>
+			) : null}
 			<OpenRunButton runId={run.id} />
 		</span>
 	)

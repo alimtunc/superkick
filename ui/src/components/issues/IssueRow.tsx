@@ -4,6 +4,7 @@ import { HoverCard } from '@/components/issues/HoverCard'
 import { IssuePreview } from '@/components/issues/IssuePreview'
 import { ProjectTag } from '@/components/issues/ProjectTag'
 import { TaskDot } from '@/components/issues/TaskDot'
+import { PrBadge } from '@/components/pr/PrBadge'
 import { fmtRelativeShort } from '@/lib/domain/formatters'
 import { subIssueCount } from '@/lib/issues/subIssues'
 import { taskBadgeKindFor } from '@/lib/issues/taskBadge'
@@ -28,6 +29,7 @@ export function IssueRow({ wrapper, bucket, focused = false, now }: IssueRowProp
 	const extraLabels = issue.labels.length - visibleLabels.length
 	const subCount = subIssueCount(issue.children)
 	const assignee = issue.assignee
+	const pr = wrapper.linkedRun?.pr ?? null
 
 	return (
 		<HoverCard openDelay={350} content={<IssuePreview wrapper={wrapper} bucket={bucket} />}>
@@ -74,6 +76,7 @@ export function IssueRow({ wrapper, bucket, focused = false, now }: IssueRowProp
 				</span>
 
 				<span className="row__meta">
+					{pr ? <PrBadge pr={pr} /> : null}
 					{issue.project ? <ProjectTag name={issue.project.name} /> : null}
 					<span className="row__updated">
 						{fmtRelativeShort(issue.updated_at, (now ?? new Date()).getTime())}

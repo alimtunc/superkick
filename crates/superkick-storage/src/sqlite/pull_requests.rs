@@ -22,6 +22,8 @@ impl PullRequestRepo for SqlitePullRequestRepo {
             "INSERT INTO pull_requests (id, run_id, number, repo_slug, url, state, title, head_branch, created_at, updated_at, merged_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
              ON CONFLICT(run_id) DO UPDATE SET
+                number = excluded.number,
+                url = excluded.url,
                 state = excluded.state,
                 title = excluded.title,
                 head_branch = excluded.head_branch,

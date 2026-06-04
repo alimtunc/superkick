@@ -1,12 +1,17 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 
 import { FileDiffRow } from '@/components/run-detail/RunWorkspaceTabs/FileDiffRow'
 import { PullRequestHeader } from '@/components/run-detail/RunWorkspaceTabs/PullRequestHeader'
 import { TabEmptyState } from '@/components/ui/state-empty-tab'
 import { runDiffQuery } from '@/lib/queries'
-import type { PullRequest, Run, RunState } from '@/types'
+import type { DiffViewMode, PullRequest, Run, RunState } from '@/types'
+import { Toggle } from '@base-ui/react/toggle'
+import { ToggleGroup } from '@base-ui/react/toggle-group'
 import { useQuery } from '@tanstack/react-query'
 import { FileDiff as FileDiffIcon } from 'lucide-react'
+
+const TOGGLE_CLASS =
+	'rounded-[3px] px-2 py-0.5 text-[11px] text-fg-dim hover:text-fg data-[pressed]:bg-surface data-[pressed]:text-fg'
 
 interface ChangesTabProps {
 	run: Run
@@ -18,6 +23,7 @@ const NON_DIFFABLE_STATES: ReadonlySet<RunState> = new Set<RunState>(['queued', 
 export function ChangesTab({ run, pr }: ChangesTabProps) {
 	const enabled = !NON_DIFFABLE_STATES.has(run.state)
 	const { data, isLoading, error } = useQuery(runDiffQuery(run.id, enabled))
+	const [mode, setMode] = useState<DiffViewMode>('unified')
 
 	const header = pr ? <PullRequestHeader pr={pr} /> : null
 
@@ -77,10 +83,26 @@ export function ChangesTab({ run, pr }: ChangesTabProps) {
 					{diff.fileCount} file{diff.fileCount === 1 ? '' : 's'}
 				</span>
 				{diff.overflow ? <span>· capped</span> : null}
+				<ToggleGroup<DiffViewMode>
+					value={[mode]}
+					onValueChange={(value) => {
+						const next = value[0]
+						if (next) setMode(next)
+					}}
+					aria-label="Diff layout"
+					className="ml-auto flex items-center gap-1"
+				>
+					<Toggle value="unified" className={TOGGLE_CLASS}>
+						Unified
+					</Toggle>
+					<Toggle value="split" className={TOGGLE_CLASS}>
+						Split
+					</Toggle>
+				</ToggleGroup>
 			</div>
 			<div>
 				{diff.files.map((file) => (
-					<FileDiffRow key={file.path} file={file} />
+					<FileDiffRow key={file.path} file={file} mode={mode} />
 				))}
 			</div>
 		</ChangesTabShell>

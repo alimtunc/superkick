@@ -1,9 +1,14 @@
-//! Thin GitHub adapter — fetches PR state via `gh api` CLI.
+//! Thin GitHub adapter — fetches PR state and opens PRs via the `gh` CLI.
+//!
+//! Stays policy-free: which branch, draft-vs-ready, and whether to push first are
+//! decided by the runtime ship service, not here.
+
+use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use tokio::process::Command;
-use tracing::debug;
+use tracing::{debug, info};
 
 use superkick_core::PrState;
 
@@ -69,4 +74,65 @@ pub async fn fetch_pr_state(repo_slug: &str, pr_number: u32) -> Result<GitHubPrS
         title: raw.title,
         merged_at,
     })
+}
+
+/// Verify `gh` is installed and authenticated. Returns an actionable error so the
+/// ship modal can tell the operator to run `gh auth login` rather than failing
+/// opaquely mid-push.
+pub async fn check_gh_auth() -> Result<()> {
+    let output = Command::new("gh")
+        .args(["auth", "status"])
+        .output()
+        .await
+        .context("`gh` CLI not found — install GitHub CLI and run `gh auth login`")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!(
+            "GitHub CLI is not authenticated — run `gh auth login` ({})",
+            stderr.trim()
+        );
+    }
+    Ok(())
+}
+
+/// Open a pull request for an already-pushed branch via `gh pr create`. Returns
+/// the PR URL on success. Runs inside `worktree` so `gh` infers the repo from the
+/// `origin` remote (mirrors the proven legacy invocation).
+pub async fn create_pr(
+    worktree: &Path,
+    head: &str,
+    base: &str,
+    title: &str,
+    body: &str,
+    draft: bool,
+) -> Result<String> {
+    let mut args = vec![
+        "pr", "create", "--head", head, "--base", base, "--title", title, "--body", body,
+    ];
+    if draft {
+        args.push("--draft");
+    }
+
+    debug!(%head, %base, draft, "opening PR via `gh pr create`");
+
+    let output = Command::new("gh")
+        .args(&args)
+        .current_dir(worktree)
+        .output()
+        .await
+        .context("failed to run `gh pr create`")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("`gh pr create` failed: {}", stderr.trim());
+    }
+
+    let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if url.is_empty() {
+        bail!("`gh pr create` succeeded but produced no URL on stdout");
+    }
+
+    info!(pr_url = %url, draft, "PR created");
+    Ok(url)
 }

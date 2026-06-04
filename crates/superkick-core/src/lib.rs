@@ -98,7 +98,7 @@ pub use protocol::{
     ResumeKey, SessionMeta, TextBlock, TextDelta, Thinking, ToolCallResult, ToolCallStart,
     TurnOptions, TurnOutcome, TurnRequest, UsageSnapshot,
 };
-pub use pull_request::{LinkedPrSummary, PrState, PullRequest, parse_pr_number};
+pub use pull_request::{LinkedPrSummary, PrState, PullRequest, ShipMode, parse_pr_number};
 pub use queue::{
     DONE_COLUMN_LIMIT, OperatorQueue, QueueInputs, classify as classify_queue, has_pending_handoff,
     queue_card_reason, trim_for_queue,

@@ -58,15 +58,7 @@ where
         run: &superkick_core::Run,
         worktree: &std::path::Path,
     ) -> Result<()> {
-        let clone_url = crate::worktree::github_clone_url(&run.repo_slug);
-        let remote_check = crate::git::git_raw(worktree, &["remote", "get-url", "origin"]).await;
-        if !matches!(remote_check, Ok(output) if output.status.success()) {
-            crate::git::git(worktree, &["remote", "add", "origin", &clone_url])
-                .await
-                .context("failed to add origin remote to worktree")?;
-        }
-        let _ = crate::git::git(worktree, &["fetch", "origin", &run.base_branch]).await;
-        Ok(())
+        crate::git_ship::ensure_origin_remote(worktree, &run.repo_slug, &run.base_branch).await
     }
 
     async fn commit_staged_changes(
@@ -75,15 +67,9 @@ where
         step: &RunStep,
         worktree: &std::path::Path,
     ) -> Result<()> {
-        let status_out = crate::git::git_raw(worktree, &["status", "--porcelain"])
-            .await
-            .context("failed to run git status")?;
-        let has_changes = status_out.status.success()
-            && !String::from_utf8_lossy(&status_out.stdout)
-                .trim()
-                .is_empty();
-
-        if has_changes {
+        let commit_msg = crate::git_ship::default_commit_message(&run.issue_identifier);
+        let committed = crate::git_ship::commit_all_if_dirty(worktree, &commit_msg).await?;
+        if committed {
             self.emit(
                 run,
                 Some(step.id),
@@ -92,17 +78,7 @@ where
                 "$ git add -A && git commit".to_string(),
             )
             .await;
-
-            crate::git::git(worktree, &["add", "-A"])
-                .await
-                .context("failed to stage changes")?;
-
-            let commit_msg = format!("feat({}): implement changes", run.issue_identifier);
-            crate::git::git(worktree, &["commit", "-m", &commit_msg])
-                .await
-                .context("failed to commit staged changes")?;
         }
-
         Ok(())
     }
 
@@ -112,25 +88,13 @@ where
         worktree: &std::path::Path,
         branch: &str,
     ) -> Result<()> {
-        let base_sha = crate::git::git(
-            worktree,
-            &["rev-parse", &format!("origin/{}", run.base_branch)],
-        )
-        .await
-        .with_context(|| format!("failed to resolve base sha for origin/{}", run.base_branch))?;
-
-        let head_sha = crate::git::git(worktree, &["rev-parse", "HEAD"])
-            .await
-            .context("failed to get HEAD sha")?;
-
-        if head_sha.trim() == base_sha.trim() {
+        if !crate::git_ship::has_commits_against_base(worktree, &run.base_branch).await? {
             bail!(
                 "no commits between '{}' and '{}' — the coding agent produced no changes",
                 run.base_branch,
                 branch
             );
         }
-
         Ok(())
     }
 
@@ -150,11 +114,7 @@ where
         )
         .await;
 
-        crate::git::git(worktree, &["push", "-u", "origin", branch])
-            .await
-            .with_context(|| format!("failed to push branch '{branch}' to origin"))?;
-
-        Ok(())
+        crate::git_ship::push_branch(worktree, branch).await
     }
 
     async fn open_pr(

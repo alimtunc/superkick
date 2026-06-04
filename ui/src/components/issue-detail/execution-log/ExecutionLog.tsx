@@ -6,6 +6,7 @@ import { NeedsBanner } from '@/components/issue-detail/execution-log/NeedsBanner
 import { PastRunsSection } from '@/components/issue-detail/execution-log/PastRunsSection'
 import { PhaseStrip } from '@/components/issue-detail/execution-log/PhaseStrip'
 import { RecentActivitySection } from '@/components/issue-detail/execution-log/RecentActivitySection'
+import { ReviewReadySection } from '@/components/issue-detail/execution-log/ReviewReadySection'
 import { RunOnlyCard } from '@/components/issue-detail/execution-log/RunOnlyCard'
 import { useExecutionLogState } from '@/components/issue-detail/execution-log/useExecutionLogState'
 import { WorktreeSection } from '@/components/issue-detail/execution-log/WorktreeSection'
@@ -34,6 +35,15 @@ export function ExecutionLog({ issue }: ExecutionLogProps) {
 
 	return (
 		<>
+			{state.kind === 'done' ? (
+				<ReviewReadySection
+					issue={issue}
+					task={task}
+					run={run}
+					runDetail={state.runDetail}
+					worktree={state.worktree}
+				/>
+			) : null}
 			<section aria-label="Execution log" className="execlog">
 				<ExecutionLogHeader kind={state.kind} currentStep={currentStep} run={run} />
 				<PhaseStrip phases={phases} />

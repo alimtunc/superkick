@@ -74,6 +74,10 @@ export interface LinkedRunSummary {
 // Mirrors `superkick_core::run_diff::FileDiffStatus` (snake_case serde).
 export type FileDiffStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'type_change' | 'untracked'
 
+// UI-only: how the diff viewer lays out hunks. `split` falls back to `unified`
+// per-file when there are no deletions (a side-by-side view adds nothing).
+export type DiffViewMode = 'unified' | 'split'
+
 // Mirrors `superkick_core::run_diff::FileDiff` (camelCase serde).
 export interface FileDiff {
 	path: string

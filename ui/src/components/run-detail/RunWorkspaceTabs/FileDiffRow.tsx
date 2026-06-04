@@ -1,8 +1,13 @@
-import { useState } from 'react'
+import { Suspense, lazy, useRef, useState } from 'react'
 
+import { useInView } from '@/hooks/useInView'
 import { splitPath } from '@/lib/path'
-import type { FileDiff, FileDiffStatus } from '@/types'
+import type { DiffViewMode, FileDiff, FileDiffStatus } from '@/types'
 import { Icon } from '@/ui/Icon'
+
+const DiffPatchView = lazy(() =>
+	import('@/components/diff/DiffPatchView').then((m) => ({ default: m.DiffPatchView }))
+)
 
 const STATUS_LABEL: Record<FileDiffStatus, string> = {
 	added: 'A',
@@ -24,10 +29,13 @@ const STATUS_COLOR: Record<FileDiffStatus, string> = {
 
 interface FileDiffRowProps {
 	file: FileDiff
+	mode: DiffViewMode
 }
 
-export function FileDiffRow({ file }: FileDiffRowProps) {
-	const [expanded, setExpanded] = useState(false)
+export function FileDiffRow({ file, mode }: FileDiffRowProps) {
+	const [expanded, setExpanded] = useState(true)
+	const patchRef = useRef<HTMLDivElement>(null)
+	const inView = useInView(patchRef)
 	const canExpand = !file.binary && !file.truncated && typeof file.patch === 'string'
 	const renderedPath =
 		file.status === 'renamed' && file.oldPath ? `${file.oldPath} → ${file.path}` : file.path
@@ -72,7 +80,25 @@ export function FileDiffRow({ file }: FileDiffRowProps) {
 				<p className="px-7 pb-3 text-[11px] text-fg-muted">patch truncated</p>
 			) : null}
 			{expanded && canExpand && file.patch ? (
-				<pre className="terminal mx-4 mb-3 overflow-x-auto whitespace-pre">{file.patch}</pre>
+				<div ref={patchRef} className="mx-4 mb-3">
+					{inView ? (
+						<Suspense
+							fallback={
+								<pre className="terminal overflow-x-auto whitespace-pre">{file.patch}</pre>
+							}
+						>
+							<DiffPatchView
+								patch={file.patch}
+								path={file.path}
+								oldPath={file.oldPath}
+								mode={mode}
+								deletions={file.deletions}
+							/>
+						</Suspense>
+					) : (
+						<pre className="terminal overflow-x-auto whitespace-pre">{file.patch}</pre>
+					)}
+				</div>
 			) : null}
 		</div>
 	)
