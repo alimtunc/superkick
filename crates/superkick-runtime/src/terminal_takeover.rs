@@ -20,11 +20,13 @@ use tracing::warn;
 
 use superkick_core::{
     ActiveTakeover, EventKind, EventLevel, OpenedTakeover, RunEvent, RunId, TakeoverModeKind,
-    TakeoverSessionId,
+    TakeoverPath, TakeoverSessionId,
 };
 use superkick_storage::repo::RunEventRepo;
 
-use crate::agent_supervisor::process::{SpawnedPty, open_pty_and_spawn};
+use crate::agent_supervisor::process::{
+    SpawnedPty, open_pty_and_spawn, spawn_initial_input_injection,
+};
 use crate::pty_io::read_pty_raw;
 use crate::pty_session::{PtySessionRegistry, TakeoverEntry};
 
@@ -32,22 +34,39 @@ use crate::pty_session::{PtySessionRegistry, TakeoverEntry};
 pub struct SpawnedTakeover {
     pub takeover_session_id: TakeoverSessionId,
     pub mode: TakeoverModeKind,
-    pub resume_attempted: bool,
+    pub takeover_path: TakeoverPath,
 }
 
 impl SpawnedTakeover {
-    /// Build the wire-shaped response (the `terminal_ws` URL is constructed
-    /// here from the run id + takeover id so callers don't reinvent the
-    /// path).
+    /// Build the wire-shaped response. The `terminal_ws` URL depends on the
+    /// path: `Attach` joins the run's primary terminal (no takeover PTY was
+    /// spawned), while `Resume`/`Fresh` point at the dedicated takeover PTY.
     pub fn into_opened(self, run_id: RunId) -> OpenedTakeover {
-        let terminal_ws = format!("/api/runs/{}/terminal/{}", run_id, self.takeover_session_id);
+        let terminal_ws = match self.takeover_path {
+            TakeoverPath::Attach => format!("/api/runs/{run_id}/terminal"),
+            TakeoverPath::Resume | TakeoverPath::Fresh => {
+                format!("/api/runs/{}/terminal/{}", run_id, self.takeover_session_id)
+            }
+        };
         OpenedTakeover {
             takeover_session_id: self.takeover_session_id,
             mode: self.mode,
-            resume_attempted: self.resume_attempted,
+            takeover_path: self.takeover_path,
             terminal_ws,
         }
     }
+}
+
+/// Inputs for spawning a takeover PTY, bundled so the spawn path takes one
+/// argument instead of a long positional list.
+pub struct OpenTakeoverParams<'a> {
+    pub run_id: RunId,
+    pub cwd: &'a Path,
+    pub command: CommandBuilder,
+    pub mode: TakeoverModeKind,
+    pub takeover_path: TakeoverPath,
+    pub opening_context: Option<String>,
+    pub operator_id: Option<String>,
 }
 
 /// Thin facade around the `PtySessionRegistry` + `RunEventRepo` for takeover
@@ -73,20 +92,27 @@ where
     /// `TerminalTakeoverOpened`. The caller is responsible for building the
     /// `CommandBuilder` (typically via the helpers in `cli_resume`) so the
     /// service stays provider-agnostic.
-    pub async fn open(
-        &self,
-        run_id: RunId,
-        cwd: &Path,
-        command: CommandBuilder,
-        mode: TakeoverModeKind,
-        resume_attempted: bool,
-        operator_id: Option<String>,
-    ) -> Result<SpawnedTakeover> {
+    ///
+    /// `takeover_path` records the honest outcome (`Resume` vs `Fresh`);
+    /// `opening_context`, when present, is injected into the PTY after spawn as
+    /// the opening message — the redacted `RunContextSnapshot` block on the
+    /// fresh path. Reads/writes no run/step/queue state.
+    pub async fn open(&self, params: OpenTakeoverParams<'_>) -> Result<SpawnedTakeover> {
+        let OpenTakeoverParams {
+            run_id,
+            cwd,
+            command,
+            mode,
+            takeover_path,
+            opening_context,
+            operator_id,
+        } = params;
         let takeover_id = TakeoverSessionId::new();
         let now = Utc::now();
 
         let spawn = spawn_takeover_pty(run_id, cwd, command)?;
         let pty_session = spawn.session;
+        let inject_session = Arc::clone(&pty_session);
 
         let operator_closed = Arc::new(AtomicBool::new(false));
         let registry = Arc::clone(&self.registry);
@@ -160,21 +186,56 @@ where
             run_id,
             EventKind::TerminalTakeoverOpened,
             EventLevel::Info,
-            format!("takeover {takeover_id} opened ({mode:?})"),
+            format!("takeover {takeover_id} opened ({mode:?}, {takeover_path:?})"),
             serde_json::json!({
                 "mode": mode,
                 "takeover_session_id": takeover_id,
                 "operator_id": operator_id,
-                "resume_attempted": resume_attempted,
+                "takeover_path": takeover_path,
             }),
         )
         .await;
 
+        // Seed the fresh interactive process with the redacted snapshot,
+        // best-effort — mirrors the supervisor's initial-prompt injection.
+        if let Some(payload) = opening_context {
+            spawn_initial_input_injection(inject_session, payload, run_id);
+        }
+
         Ok(SpawnedTakeover {
             takeover_session_id: takeover_id,
             mode,
-            resume_attempted,
+            takeover_path,
         })
+    }
+
+    /// Attach to an already-live interactive session. No PTY is spawned: the
+    /// operator joins the run's **primary** terminal stream. We still write a
+    /// `TerminalTakeoverOpened` event so the ledger and UI reflect the takeover,
+    /// and we deliberately do **not** register a takeover entry — closing an
+    /// attach must never kill the agent's primary PTY (that would mutate run
+    /// state), and `close()` on an unregistered id is a no-op by construction.
+    pub async fn attach(&self, run_id: RunId, operator_id: Option<String>) -> SpawnedTakeover {
+        let takeover_id = TakeoverSessionId::new();
+        emit_takeover_event(
+            &*self.event_repo,
+            run_id,
+            EventKind::TerminalTakeoverOpened,
+            EventLevel::Info,
+            format!("takeover {takeover_id} attached to live session"),
+            serde_json::json!({
+                "mode": TakeoverModeKind::InteractiveContinuation,
+                "takeover_session_id": takeover_id,
+                "operator_id": operator_id,
+                "takeover_path": TakeoverPath::Attach,
+            }),
+        )
+        .await;
+        SpawnedTakeover {
+            takeover_session_id: takeover_id,
+            mode: TakeoverModeKind::InteractiveContinuation,
+            takeover_path: TakeoverPath::Attach,
+        }
     }
 
     /// Close a takeover by id. The PTY child receives SIGHUP via the

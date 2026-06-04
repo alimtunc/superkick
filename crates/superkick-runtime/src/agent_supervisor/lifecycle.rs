@@ -17,7 +17,7 @@ use superkick_core::{
 use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
 
 use super::output::spawn_output_reader;
-use super::process::{SpawnedPty, kill_by_pid, open_pty_and_spawn};
+use super::process::{SpawnedPty, kill_by_pid, open_pty_and_spawn, spawn_initial_input_injection};
 use super::{AgentResult, record_lifecycle};
 use crate::pty_session::PtySessionRegistry;
 use crate::session_bus::SessionBus;
@@ -133,35 +133,7 @@ where
     } = output_pipeline;
 
     if let Some(payload) = initial_stdin {
-        // Inject the prompt on a detached task: `write_input` is a blocking
-        // `write_all`, so running it inline on the async runtime would let a
-        // slow or unready agent (one not draining its stdin) wedge a tokio
-        // worker — freezing the HTTP API — and bypass the timeout below. The
-        // reader started above drains the PTY concurrently so the write does
-        // not deadlock; on timeout/cancel the agent is killed, the blocked
-        // write returns an error, and the spawn_blocking thread unwinds.
-        let writer = Arc::clone(&pty_session);
-        tokio::spawn(async move {
-            // Tuned-by-hand: both `claude` and `codex` print a welcome banner
-            // before accepting input. Without this brief sleep the injected
-            // prefix lands inside the banner instead of the prompt box.
-            tokio::time::sleep(Duration::from_millis(150)).await;
-            let injected = tokio::task::spawn_blocking(move || {
-                writer.write_input(payload.as_bytes())?;
-                // `\r` is the canonical Enter in raw mode; submits the line.
-                writer.write_input(b"\r")
-            })
-            .await;
-            match injected {
-                Ok(Ok(())) => {}
-                Ok(Err(e)) => warn!(
-                    run_id = %run_id,
-                    error = %e,
-                    "failed to inject initial prompt into PTY — operator must retype"
-                ),
-                Err(e) => warn!(run_id = %run_id, error = %e, "prompt injection task panicked"),
-            }
-        });
+        spawn_initial_input_injection(Arc::clone(&pty_session), payload, run_id);
     }
 
     // child.wait() is blocking (portable-pty API), so wrap in spawn_blocking.

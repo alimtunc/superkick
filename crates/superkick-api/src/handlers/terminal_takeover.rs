@@ -17,12 +17,15 @@ use serde::{Deserialize, Serialize};
 use std::path::Path as StdPath;
 
 use superkick_core::{
-    ActiveTakeover, ForceTakeoverSubMode, OpenedTakeover, Run, RunId, TakeoverMode,
-    TakeoverModeAvailability, TakeoverModeKind, TakeoverSessionId,
+    ActiveTakeover, ForceTakeoverSubMode, OpenedTakeover, Run, RunContextSnapshot, RunId,
+    TakeoverMode, TakeoverModeAvailability, TakeoverModeKind, TakeoverPath, TakeoverSessionId,
 };
-use superkick_runtime::RunChatSnapshot;
-use superkick_runtime::cli_resume::{inspect_shell_command, interactive_command, resume_supported};
-use superkick_storage::repo::RunRepo;
+use superkick_runtime::cli_resume::{
+    inspect_shell_command, interactive_command, resolve_resume_target, resume_supported,
+};
+use superkick_runtime::{OpenTakeoverParams, RunChatSnapshot, refresh_run_context_snapshot};
+use superkick_storage::repo::{LaunchTaskRepo, RunRepo};
+use tracing::warn;
 
 use crate::AppState;
 use crate::error::AppError;
@@ -75,11 +78,11 @@ pub async fn open_takeover(
 ) -> Result<Json<OpenedTakeover>, AppError> {
     let run_id = RunId(id);
     let run = require_run(&state, run_id).await?;
-    let snapshot = state.conversation_runner.run_chat_snapshot(run_id).await?;
 
     let spawn_kind = resolve_spawn_kind(&body.mode)?;
+    let is_force = matches!(body.mode, TakeoverMode::ForceTakeover { .. });
 
-    if matches!(body.mode, TakeoverMode::ForceTakeover { .. }) {
+    if is_force {
         // Cancels (and synchronously marks terminal) the active protocol
         // turn. Returns `NoActiveTurn → 409` when nothing is in flight.
         state
@@ -88,37 +91,68 @@ pub async fn open_takeover(
             .await?;
     }
 
-    let worktree = require_worktree(&run)?;
-    let provider = snapshot.provider;
-    let resume_session_id = snapshot.provider_session_id.as_deref();
+    // Join an already-live interactive PTY rather than spawn a second CLI. Only
+    // interactive runs register a primary session, so headless never matches.
+    if matches!(spawn_kind, SpawnKind::Continuation)
+        && !is_force
+        && state.pty_registry.get(run_id).is_some()
+    {
+        let spawned = state
+            .terminal_takeover_service
+            .attach(run_id, body.operator_id)
+            .await;
+        return Ok(Json(spawned.into_opened(run_id)));
+    }
 
-    let (command, resume_attempted) = match spawn_kind {
-        SpawnKind::Inspect => (inspect_shell_command(worktree), false),
+    let worktree = require_worktree(&run)?;
+
+    let (command, takeover_path, opening_context) = match spawn_kind {
+        SpawnKind::Inspect => (inspect_shell_command(worktree), TakeoverPath::Fresh, None),
         SpawnKind::Continuation => {
+            // The launch-task snapshot is the honest resume target + injection
+            // source; a plain chat run has none (falls back to its conversation).
+            let chat = state.conversation_runner.run_chat_snapshot(run_id).await?;
+            let snapshot = load_run_snapshot(&state, run_id).await;
+            let (provider, resume_session_id) =
+                resolve_resume_target(&chat, snapshot.as_ref().map(|s| &s.provider));
             let allow_resume = resume_supported(provider) && resume_session_id.is_some();
-            interactive_command(
+            let (command, resumed) = interactive_command(
                 provider,
                 worktree,
                 if allow_resume {
-                    resume_session_id
+                    resume_session_id.as_deref()
                 } else {
                     None
                 },
-            )
+            );
+            if resumed {
+                // Provider restores history on resume; inject only a short header
+                // so the operator still sees which task this terminal is.
+                let header = snapshot
+                    .as_ref()
+                    .map(RunContextSnapshot::render_takeover_header);
+                (command, TakeoverPath::Resume, header)
+            } else {
+                // Fresh spawn: inject the full redacted snapshot when one exists.
+                let block = snapshot
+                    .as_ref()
+                    .map(RunContextSnapshot::render_for_takeover);
+                (command, TakeoverPath::Fresh, block)
+            }
         }
     };
 
-    let mode_kind = body.mode.kind();
     let spawned = state
         .terminal_takeover_service
-        .open(
+        .open(OpenTakeoverParams {
             run_id,
-            worktree,
+            cwd: worktree,
             command,
-            mode_kind,
-            resume_attempted,
-            body.operator_id,
-        )
+            mode: body.mode.kind(),
+            takeover_path,
+            opening_context,
+            operator_id: body.operator_id,
+        })
         .await
         .map_err(AppError::Internal)?;
 
@@ -152,6 +186,40 @@ pub async fn list_active(
 }
 
 // ── Internal helpers ─────────────────────────────────────────────────
+
+/// Load the redacted `RunContextSnapshot` for the launch task backing this
+/// shadow run. A plain chat run (no linked launch task) yields `None`. On a
+/// lookup or refresh error this logs and returns `None` so the takeover still
+/// opens — injected context is best-effort, never a gate on the operator's
+/// escape hatch. The only write is the regenerable snapshot cache upsert.
+async fn load_run_snapshot(state: &AppState, run_id: RunId) -> Option<RunContextSnapshot> {
+    let step = match state.launch_task_repo.find_step_by_linked_run(run_id).await {
+        Ok(Some(step)) => step,
+        Ok(None) => return None,
+        Err(err) => {
+            warn!(%run_id, error = %err, "takeover: launch-task lookup failed; opening without snapshot context");
+            return None;
+        }
+    };
+    match refresh_run_context_snapshot(
+        state.launch_task_repo.as_ref(),
+        state.run_repo.as_ref(),
+        state.session_repo.as_ref(),
+        state.event_repo.as_ref(),
+        state.issue_workspace_context_repo.as_ref(),
+        state.run_context_snapshot_repo.as_ref(),
+        step.launch_task_id,
+        chrono::Utc::now(),
+    )
+    .await
+    {
+        Ok(snapshot) => Some(snapshot),
+        Err(err) => {
+            warn!(%run_id, error = %err, "takeover: snapshot refresh failed; opening without context");
+            None
+        }
+    }
+}
 
 fn resolve_spawn_kind(mode: &TakeoverMode) -> Result<SpawnKind, AppError> {
     match mode {

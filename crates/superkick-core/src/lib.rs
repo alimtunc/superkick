@@ -141,7 +141,7 @@ pub use step_result::{
 };
 pub use terminal_takeover::{
     ActiveTakeover, ForceTakeoverSubMode, OpenedTakeover, TakeoverMode, TakeoverModeAvailability,
-    TakeoverModeKind,
+    TakeoverModeKind, TakeoverPath,
 };
 pub use transcript::TranscriptChunk;
 pub use workspace_event::{RunRecoveredPayload, RunStalledPayload, WorkspaceRunEvent};

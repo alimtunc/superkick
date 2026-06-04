@@ -49,6 +49,19 @@ impl std::fmt::Display for AgentProvider {
     }
 }
 
+impl AgentProvider {
+    /// Parse the CLI name written by [`Display`] back into a provider. Inverse
+    /// of `Display`; used where a provider was snapshotted as a string (e.g.
+    /// `RunContextSnapshot`). Unknown names yield `None`.
+    pub fn from_cli_name(name: &str) -> Option<Self> {
+        match name {
+            "claude" => Some(Self::Claude),
+            "codex" => Some(Self::Codex),
+            _ => None,
+        }
+    }
+}
+
 /// Status of an agent subprocess.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -118,4 +131,20 @@ pub struct AgentSession {
     pub runner_mode: Option<RunnerMode>,
     /// Which credit pool this session consumed. `None` for legacy rows.
     pub billing_profile: Option<BillingProfile>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_cli_name_round_trips_display() {
+        for provider in [AgentProvider::Claude, AgentProvider::Codex] {
+            assert_eq!(
+                AgentProvider::from_cli_name(&provider.to_string()),
+                Some(provider)
+            );
+        }
+        assert_eq!(AgentProvider::from_cli_name("unknown"), None);
+    }
 }
