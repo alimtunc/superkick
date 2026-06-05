@@ -55,6 +55,58 @@ pub struct SuperkickConfig {
     pub mcp_servers: HashMap<String, McpServerSpec>,
 }
 
+impl SuperkickConfig {
+    /// Product defaults used when no `superkick.yaml` is present.
+    /// App-managed settings (providers / skills / launch profiles) live in
+    /// SQLite now; this supplies only the minimal config the runtime still
+    /// reads at boot — Linear as the issue source, a local process runner on
+    /// `main`, and the builtin Plan → Code → Review → PR playbook over the
+    /// default agent catalog. Dynamic launches read DB profiles, not this.
+    #[must_use]
+    pub fn bootstrap() -> Self {
+        Self {
+            version: 1,
+            issue_source: IssueSourceConfig {
+                provider: IssueProvider::Linear,
+                trigger: IssueTrigger::InProgress,
+            },
+            runner: RunnerConfig {
+                mode: ProcessRunnerMode::Local,
+                repo_root: default_repo_root(),
+                base_branch: default_base_branch(),
+                worktree_prefix: default_worktree_prefix(),
+                setup_commands: Vec::new(),
+                agent_idle_timeout_secs: default_agent_idle_timeout_secs(),
+            },
+            agents: HashMap::new(),
+            workflow: WorkflowConfig {
+                steps: vec![
+                    WorkflowStep::Plan {
+                        agent: crate::builtin_agents::CODEX_PLAN.into(),
+                    },
+                    WorkflowStep::Code {
+                        agent: crate::builtin_agents::CODEX_IMPLEMENT.into(),
+                    },
+                    WorkflowStep::ReviewSwarm {
+                        agents: vec![crate::builtin_agents::CODEX_REVIEW.into()],
+                        findings_threshold: default_findings_threshold(),
+                    },
+                    WorkflowStep::Pr {
+                        create: true,
+                        generate_description: true,
+                    },
+                ],
+            },
+            interrupts: InterruptsConfig::default(),
+            budget: BudgetConfig::default(),
+            launch_profile: LaunchProfileConfig::default(),
+            orchestration: OrchestrationConfig::default(),
+            recovery: RecoverySettings::default(),
+            mcp_servers: HashMap::new(),
+        }
+    }
+}
+
 // ── Issue source ────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

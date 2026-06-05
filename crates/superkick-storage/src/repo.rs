@@ -5,6 +5,7 @@ use std::pin::Pin;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use superkick_core::{AgentProvider, LaunchProfile, ProviderSettings, SkillDefinition};
 use superkick_core::{
     AgentSession, AgentSessionId, Artifact, ArtifactId, AttentionRequest, AttentionRequestId,
     Conversation, ConversationId, ConversationStatus, ConversationSubject, EventId,
@@ -868,4 +869,42 @@ pub trait LaunchTaskInterventionRepo: Send + Sync {
         ids: &[LaunchTaskInterventionId],
         at: DateTime<Utc>,
     ) -> impl Future<Output = Result<Vec<LaunchTaskInterventionId>>> + Send;
+}
+
+/// App-managed provider settings (one editable row per provider).
+pub trait ProviderSettingsRepo: Send + Sync {
+    fn list(&self) -> impl Future<Output = Result<Vec<ProviderSettings>>> + Send;
+    fn get(
+        &self,
+        provider: AgentProvider,
+    ) -> impl Future<Output = Result<Option<ProviderSettings>>> + Send;
+    /// Full upsert — used by the PATCH endpoint. Overwrites the editable columns.
+    fn upsert(&self, settings: &ProviderSettings) -> impl Future<Output = Result<()>> + Send;
+    /// Insert only if the provider row is absent. Used by `seed_defaults` so a
+    /// reboot never clobbers operator edits.
+    fn insert_if_absent(
+        &self,
+        settings: &ProviderSettings,
+    ) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// App-managed, editable skill definitions.
+pub trait SkillDefinitionRepo: Send + Sync {
+    fn list(&self) -> impl Future<Output = Result<Vec<SkillDefinition>>> + Send;
+    fn get(&self, id: &str) -> impl Future<Output = Result<Option<SkillDefinition>>> + Send;
+    fn upsert(&self, skill: &SkillDefinition) -> impl Future<Output = Result<()>> + Send;
+    fn insert_if_absent(&self, skill: &SkillDefinition) -> impl Future<Output = Result<()>> + Send;
+    fn delete(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// Editable launch profiles plus their ordered steps. `upsert`/`get`/
+/// `list` carry the steps; the repo writes profile + steps atomically.
+pub trait LaunchProfileRepo: Send + Sync {
+    fn list(&self) -> impl Future<Output = Result<Vec<LaunchProfile>>> + Send;
+    fn get(&self, id: &str) -> impl Future<Output = Result<Option<LaunchProfile>>> + Send;
+    /// Replace the profile row and its full step list in one transaction.
+    fn upsert(&self, profile: &LaunchProfile) -> impl Future<Output = Result<()>> + Send;
+    /// Insert profile + steps only if the profile id is absent (seed path).
+    fn insert_if_absent(&self, profile: &LaunchProfile) -> impl Future<Output = Result<()>> + Send;
+    fn delete(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
 }

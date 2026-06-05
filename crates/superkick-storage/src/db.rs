@@ -32,6 +32,7 @@ pub async fn connect_with_capacity(database_url: &str, max_connections: u32) -> 
         .await?;
 
     run_migrations(&pool).await?;
+    crate::seed::seed_defaults(&pool).await?;
 
     tracing::info!("database ready (WAL mode)");
     Ok(pool)
@@ -192,6 +193,22 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
         (
             "035_launch_task_steps_auto_resume",
             include_str!("../migrations/035_launch_task_steps_auto_resume.sql"),
+        ),
+        (
+            "036_provider_settings",
+            include_str!("../migrations/036_provider_settings.sql"),
+        ),
+        (
+            "037_skill_definitions",
+            include_str!("../migrations/037_skill_definitions.sql"),
+        ),
+        (
+            "038_launch_profiles",
+            include_str!("../migrations/038_launch_profiles.sql"),
+        ),
+        (
+            "039_launch_task_profile_snapshot",
+            include_str!("../migrations/039_launch_task_profile_snapshot.sql"),
         ),
     ];
 

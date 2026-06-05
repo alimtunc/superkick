@@ -48,6 +48,16 @@ export const queryKeys = {
 	},
 	linearOptions: {
 		all: ['linear-options'] as const
+	},
+	providerSettings: {
+		all: ['provider-settings'] as const
+	},
+	skills: {
+		all: ['skills'] as const
+	},
+	launchProfiles: {
+		all: ['launch-profiles'] as const,
+		detail: (id: string) => ['launch-profiles', id] as const
 	}
 }
 

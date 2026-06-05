@@ -3,6 +3,8 @@ import type { SettingsNavItem } from '@/types'
 export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
 	{ id: 'general', label: 'General' },
 	{ id: 'providers', label: 'Providers' },
+	{ id: 'skills', label: 'Skills' },
+	{ id: 'profiles', label: 'Launch profiles' },
 	{ id: 'runtimes', label: 'Runtimes' },
 	{ id: 'sandboxes', label: 'Sandboxes' },
 	{ id: 'rules', label: 'Rules & guardrails' },

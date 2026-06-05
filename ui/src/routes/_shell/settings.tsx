@@ -3,8 +3,11 @@ import { useMemo, useState } from 'react'
 import { SETTINGS_NAV_ITEMS } from '@/components/settings/settingsNav'
 import { SettingsPaneComingSoon } from '@/components/settings/SettingsPaneComingSoon'
 import { SettingsPaneGeneral } from '@/components/settings/SettingsPaneGeneral'
+import { SettingsPaneProfiles } from '@/components/settings/SettingsPaneProfiles'
+import { SettingsPaneProviders } from '@/components/settings/SettingsPaneProviders'
 import { SettingsPaneRules } from '@/components/settings/SettingsPaneRules'
 import { SettingsPaneRuntimes } from '@/components/settings/SettingsPaneRuntimes'
+import { SettingsPaneSkills } from '@/components/settings/SettingsPaneSkills'
 import { SettingsShell } from '@/components/settings/SettingsShell'
 import { usePageActions } from '@/shell/usePageActions'
 import type { SettingsPaneId } from '@/types'
@@ -42,6 +45,9 @@ function SettingsPage() {
 
 function renderPane(id: SettingsPaneId, label: string) {
 	if (id === 'general') return <SettingsPaneGeneral />
+	if (id === 'providers') return <SettingsPaneProviders />
+	if (id === 'skills') return <SettingsPaneSkills />
+	if (id === 'profiles') return <SettingsPaneProfiles />
 	if (id === 'rules') return <SettingsPaneRules />
 	if (id === 'runtimes') return <SettingsPaneRuntimes />
 	return <SettingsPaneComingSoon label={label} />

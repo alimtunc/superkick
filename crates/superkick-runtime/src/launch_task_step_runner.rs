@@ -25,10 +25,12 @@ use tracing::{error, info, warn};
 
 use superkick_config::SuperkickConfig;
 use superkick_core::{
-    AgentCatalog, AgentProvider, EventKind, EventLevel, FailureClassification, FailureDisposition,
-    LaunchReason, LaunchStepKind, LaunchTask, LaunchTaskId, LaunchTaskIntervention, LaunchTaskStep,
-    LaunchTaskStepId, MemoryEntryId, ResumeKey, RoleRouter, Run, RunId, RunPolicy, RunState,
-    RunStep, RunnerMode, StepId, StepKey, StepResult, StepStatus, TriggerSource,
+    AgentCatalog, AgentOrigin, AgentProvider, CoreAgentDefinition, EventKind, EventLevel,
+    FailureClassification, FailureDisposition, LaunchReason, LaunchStepKind, LaunchTask,
+    LaunchTaskId, LaunchTaskIntervention, LaunchTaskStep, LaunchTaskStepId, LinearContextMode,
+    MemoryEntryId, ResolvedAgent, ResolvedMcpPolicy, ResolvedToolPolicy, ResumeKey, RoleRouter,
+    Run, RunId, RunPolicy, RunState, RunStep, RunnerMode, SkillSource, StepExecutor, StepId,
+    StepKey, StepResult, StepStatus, TriggerSource,
 };
 use superkick_storage::repo::{
     AgentSessionRepo, IssueWorkspaceContextRepoDyn, LaunchTaskInterventionRepo, LaunchTaskRepo,
@@ -64,6 +66,76 @@ const DEFAULT_AGENT_TIMEOUT: Duration = Duration::from_secs(600);
 /// inline so longer payloads are mostly noise; the full transcript lives in
 /// the agent session anyway.
 const SUMMARY_MAX_CHARS: usize = 512;
+
+/// Resolve a step's agent recipe. Dynamic steps carry their own
+/// provider/model/executor snapshot and resolve through a transient single-entry
+/// catalog so the existing router still applies runner-mode validation and the
+/// the paid-SDK billing invariant. Legacy v1-recipe steps (`executor == None`) resolve by
+/// `agent_name` against the project catalog.
+fn resolve_step_agent(
+    step: &LaunchTaskStep,
+    catalog: &AgentCatalog,
+    policy: &RunPolicy,
+) -> Result<ResolvedAgent, String> {
+    match step.executor {
+        Some(executor) => resolve_dynamic_agent(step, executor),
+        None => RoleRouter::new(catalog, policy)
+            .resolve(&step.agent_name)
+            .map_err(|e| format!("agent role '{}' resolution failed: {e}", step.agent_name)),
+    }
+}
+
+fn resolve_dynamic_agent(
+    step: &LaunchTaskStep,
+    executor: StepExecutor,
+) -> Result<ResolvedAgent, String> {
+    let provider = step
+        .provider
+        .as_deref()
+        .and_then(AgentProvider::from_cli_name)
+        .ok_or_else(|| {
+            format!(
+                "dynamic step '{}' has no recognised provider",
+                step.agent_name
+            )
+        })?;
+    let runner_mode = executor.runner_mode().ok_or_else(|| {
+        format!(
+            "dynamic step '{}' uses an unimplemented executor ({executor})",
+            step.agent_name
+        )
+    })?;
+    // A custom skill's prompt template rides in as the system prompt; builtin
+    // (installed) skills use the existing per-step-kind prompt path.
+    let system_prompt = match &step.skill_source {
+        Some(SkillSource::Prompt(template)) => Some(template.clone()),
+        _ => None,
+    };
+    let def = CoreAgentDefinition {
+        name: step.agent_name.clone(),
+        provider,
+        role: step.label.clone(),
+        model: step.model.clone(),
+        system_prompt,
+        tools: None,
+        timeout_secs: None,
+        max_turns: None,
+        origin: AgentOrigin::Custom,
+        linear_context: LinearContextMode::default(),
+        mcp_policy: ResolvedMcpPolicy::default(),
+        tool_policy: ResolvedToolPolicy::default(),
+        backend: None,
+        runner_mode: Some(runner_mode),
+        // `None` lets `RoleRouter::resolve` apply the forced
+        // claude+print_stream_json → agent_sdk_credits invariant.
+        billing_profile: None,
+    };
+    let catalog = AgentCatalog::from_definitions([def]);
+    let policy = RunPolicy::allow_all();
+    RoleRouter::new(&catalog, &policy)
+        .resolve(&step.agent_name)
+        .map_err(|e| format!("dynamic step '{}' resolution failed: {e}", step.agent_name))
+}
 
 /// Map a Launch Task kind to its playbook-engine-equivalent prompt body.
 fn prompt_kind_for(kind: LaunchStepKind) -> PromptStepKind {
@@ -813,14 +885,11 @@ where
             }
         };
 
-        let router = RoleRouter::new(&self.catalog, &self.policy);
-        let resolved = match router.resolve(&step.agent_name) {
+        let resolved = match resolve_step_agent(step, &self.catalog, &self.policy) {
             Ok(r) => r,
-            Err(e) => {
+            Err(detail) => {
                 return Ok(StepOutcome::Failed {
-                    classification: FailureClassification::SpawnError {
-                        detail: format!("agent role '{}' resolution failed: {e}", step.agent_name),
-                    },
+                    classification: FailureClassification::SpawnError { detail },
                     links: links_with_shadow.clone(),
                 });
             }
@@ -1089,6 +1158,8 @@ mod tests {
             summary: None,
             base_branch: None,
             use_worktree: None,
+            profile_id: None,
+            profile_snapshot: None,
             created_at: now,
             updated_at: now,
         }

@@ -10,6 +10,7 @@ pub mod git;
 pub mod git_ship;
 pub mod heartbeat;
 pub mod interrupt_service;
+pub mod launch_profile_service;
 pub mod launch_queue_blockers;
 pub mod launch_task_context;
 pub mod launch_task_event_bus;
@@ -72,6 +73,7 @@ pub use launch_task_registry::{CancelDecision, LaunchTaskRegistry, ReservedSlot}
 pub mod launch_task {
     pub use crate::launch_task_step_runner::{RealStepRunner, RealStepRunnerDeps};
 }
+pub use launch_profile_service::{LaunchCompositionError, LaunchProfileService};
 pub use ownership_service::{OwnershipService, ServiceError as OwnershipServiceError};
 pub use protocol_adapter::{
     ClaudeAdapterOptions, ClaudePermissionMode, ClaudeProtocolAdapter, CodexAdapterOptions,

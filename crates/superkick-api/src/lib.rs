@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use axum::Router;
-use axum::routing::{get, post};
+use axum::routing::{get, patch, post};
 
 use superkick_config::{IssueTrigger, LaunchProfileConfig, OrchestrationConfig};
 use superkick_core::AgentCatalog;
@@ -12,20 +12,21 @@ use superkick_integrations::linear::LinearClient;
 use superkick_runtime::launch_task::{RealStepRunner, RealStepRunnerDeps};
 use superkick_runtime::{
     AttentionService, ConversationAdapters, ConversationRunner, InterruptService,
-    LaunchTaskCanceller, LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry,
-    OwnershipService, PtySessionRegistry, PublishingRunEventRepo, PullRequestService,
-    QueueTriageService, RepoCache, RunService, RuntimeDetector, SessionBus, StepEngine,
-    StepEngineDeps, TerminalTakeoverService, TurnEventBus, WorkspaceEventBus,
+    LaunchProfileService, LaunchTaskCanceller, LaunchTaskEventBus, LaunchTaskExecutor,
+    LaunchTaskRegistry, OwnershipService, PtySessionRegistry, PublishingRunEventRepo,
+    PullRequestService, QueueTriageService, RepoCache, RunService, RuntimeDetector, SessionBus,
+    StepEngine, StepEngineDeps, TerminalTakeoverService, TurnEventBus, WorkspaceEventBus,
     boot_refresh as runtime_boot_refresh, spawn_heartbeat_listener,
 };
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo,
     SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssueWorkspaceContextRepo,
-    SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo, SqliteMemoryEntryRepo,
-    SqliteOrchestratorSessionRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo,
-    SqliteRunContextSnapshotRepo, SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
-    SqliteRuntimeRepo, SqliteSessionOwnershipRepo, SqliteTranscriptRepo, SqliteTurnEventRepo,
-    SqliteTurnRepo,
+    SqliteLaunchProfileRepo, SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo,
+    SqliteMemoryEntryRepo, SqliteOrchestratorSessionRepo, SqliteProviderSettingsRepo,
+    SqlitePullRequestRepo, SqliteRecoveryEventRepo, SqliteRunContextSnapshotRepo,
+    SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo, SqliteRuntimeRepo,
+    SqliteSessionOwnershipRepo, SqliteSkillDefinitionRepo, SqliteTranscriptRepo,
+    SqliteTurnEventRepo, SqliteTurnRepo,
 };
 
 mod error;
@@ -120,6 +121,9 @@ pub fn launch_task_test_router(
         catalog,
         bus,
         executor,
+        // The test router exercises only the legacy triplet path; dynamic
+        // composition is covered at the runtime layer.
+        launch_profile_service: None,
         // Tests assert against synchronous create-time state; the executor
         // itself is covered at the runtime layer.
         auto_trigger_executor: false,
@@ -313,6 +317,10 @@ type TriageService = QueueTriageService<
 
 type ProdRunService = RunService<SqliteRunRepo, SqliteLaunchTaskRepo, EventRepo>;
 
+/// Concrete launch-profile composition service held in `AppState`.
+pub(crate) type ProdLaunchProfileService =
+    LaunchProfileService<SqliteLaunchProfileRepo, SqliteSkillDefinitionRepo, SqliteLaunchTaskRepo>;
+
 #[derive(Clone)]
 pub(crate) struct AppState {
     pub run_repo: Arc<SqliteRunRepo>,
@@ -330,6 +338,13 @@ pub(crate) struct AppState {
     /// create from the API today; the execution loop in SUP-118 will mutate
     /// step state through this same repo.
     pub launch_task_repo: Arc<SqliteLaunchTaskRepo>,
+    /// App-managed runtime config: provider settings, editable
+    /// skills, and launch profiles. Seeded with builtins at boot; the handlers
+    /// read/write them directly, the composer resolves launches via the service.
+    pub provider_settings_repo: Arc<SqliteProviderSettingsRepo>,
+    pub skill_repo: Arc<SqliteSkillDefinitionRepo>,
+    pub launch_profile_repo: Arc<SqliteLaunchProfileRepo>,
+    pub launch_profile_service: Arc<ProdLaunchProfileService>,
     /// SUP-148 — append-only ledger entries scoped to an
     /// `IssueWorkspaceContext`. Reads and writes from the issue-context
     /// handlers; Launch Tasks and chat surfaces will append through this
@@ -419,7 +434,20 @@ pub struct ServerConfig {
 // ── Public entry point ────────────────────────────────────────────────
 
 pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
-    let config = superkick_config::load_file(std::path::Path::new(&cfg.config_path))?;
+    // `superkick.yaml` is no longer required. App-managed settings
+    // (providers / skills / launch profiles) live in SQLite; when no config
+    // file is present we boot from product defaults. An existing file is still
+    // read as-is for the legacy playbook / runner settings.
+    let config_path = std::path::Path::new(&cfg.config_path);
+    let config = if config_path.exists() {
+        superkick_config::load_file(config_path)?
+    } else {
+        tracing::info!(
+            path = %cfg.config_path,
+            "no superkick.yaml found — booting from product defaults (SUP-194)"
+        );
+        superkick_config::SuperkickConfig::bootstrap()
+    };
     let base_branch = config.runner.base_branch.clone();
     let launch_profile = config.launch_profile.clone();
     let orchestration = config.orchestration.clone();
@@ -456,6 +484,14 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let recovery_event_repo = Arc::new(SqliteRecoveryEventRepo::new(pool.clone()));
     let orchestrator_session_repo = Arc::new(SqliteOrchestratorSessionRepo::new(pool.clone()));
     let launch_task_repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
+    let provider_settings_repo = Arc::new(SqliteProviderSettingsRepo::new(pool.clone()));
+    let skill_repo = Arc::new(SqliteSkillDefinitionRepo::new(pool.clone()));
+    let launch_profile_repo = Arc::new(SqliteLaunchProfileRepo::new(pool.clone()));
+    let launch_profile_service = Arc::new(LaunchProfileService::new(
+        SqliteLaunchProfileRepo::new(pool.clone()),
+        SqliteSkillDefinitionRepo::new(pool.clone()),
+        SqliteLaunchTaskRepo::new(pool.clone()),
+    ));
     let memory_repo = Arc::new(SqliteMemoryEntryRepo::new(pool.clone()));
     let issue_workspace_context_repo = Arc::new(SqliteIssueWorkspaceContextRepo::new(pool.clone()));
     let launch_task_intervention_repo =
@@ -667,6 +703,10 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         issue_blocker_repo,
         orchestrator_session_repo,
         launch_task_repo,
+        provider_settings_repo,
+        skill_repo,
+        launch_profile_repo,
+        launch_profile_service,
         memory_repo,
         issue_workspace_context_repo,
         launch_task_intervention_repo,
@@ -873,6 +913,37 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         .route(
             "/launch-tasks/{id}/snapshot",
             get(handlers::snapshots::get_launch_task_snapshot),
+        )
+        .route(
+            "/provider-settings",
+            get(handlers::provider_settings::list_provider_settings),
+        )
+        .route(
+            "/provider-settings/{provider}",
+            patch(handlers::provider_settings::patch_provider_settings),
+        )
+        .route(
+            "/skills",
+            get(handlers::skills::list_skills).post(handlers::skills::create_skill),
+        )
+        .route(
+            "/skills/{id}",
+            patch(handlers::skills::patch_skill).delete(handlers::skills::delete_skill),
+        )
+        .route(
+            "/launch-profiles",
+            get(handlers::launch_profiles::list_profiles)
+                .post(handlers::launch_profiles::create_profile),
+        )
+        .route(
+            "/launch-profiles/preview",
+            post(handlers::launch_profiles::preview_profile),
+        )
+        .route(
+            "/launch-profiles/{id}",
+            get(handlers::launch_profiles::get_profile)
+                .patch(handlers::launch_profiles::patch_profile)
+                .delete(handlers::launch_profiles::delete_profile),
         )
         .route(
             "/conversations",

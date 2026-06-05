@@ -4,6 +4,8 @@ import { AgentPicker } from '@/components/launch/AgentPicker'
 import { BaseBranchChip } from '@/components/launch/BaseBranchChip'
 import { ExecutionDestination } from '@/components/launch/ExecutionDestination'
 import { IssueChipPicker } from '@/components/launch/IssueChipPicker'
+import { LaunchProfilePicker } from '@/components/launch/LaunchProfilePicker'
+import { LaunchStepListEditor } from '@/components/launch/LaunchStepListEditor'
 import { pickDefaultAgent } from '@/components/launch/pickDefaultAgent'
 import { SuggestedStarts } from '@/components/launch/SuggestedStarts'
 import { WorktreeStrategyChip } from '@/components/launch/WorktreeStrategyChip'
@@ -13,6 +15,7 @@ import { useConfig } from '@/hooks/useConfig'
 import { useCreateLaunchTask } from '@/hooks/useCreateLaunchTask'
 import { errorMessageOr } from '@/lib/errors'
 import { bodyFromIssue, selectionFromDetail, selectionFromListItem } from '@/lib/launch/composerSelection'
+import { useLaunchComposerState } from '@/stores/launchComposerState'
 import type {
 	IssueChipPickerValue,
 	IssueDetailResponse,
@@ -37,6 +40,12 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 	const agentsQuery = useAgents()
 	const agentsData = agentsQuery.data
 	const agents = agentsData ?? []
+
+	const profileId = useLaunchComposerState((state) => state.profileId)
+	const composerSteps = useLaunchComposerState((state) => state.steps)
+	const resetComposer = useLaunchComposerState((state) => state.reset)
+	const profileMode = profileId !== null
+	const enabledStepCount = composerSteps.filter((step) => step.enabled).length
 
 	const configBase = config?.base_branch?.trim() || DEFAULT_BASE_BRANCH
 	const configStrategy: LaunchWorktreeStrategy =
@@ -91,6 +100,8 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 		})
 	}, [agentsData])
 
+	useEffect(() => () => resetComposer(), [resetComposer])
+
 	const createLaunchTask = useCreateLaunchTask({
 		issueIdentifier: selectedIssue?.identifier ?? '',
 		issueId: selectedIssue?.id,
@@ -103,9 +114,10 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 	const implementAgent = selection.implement
 	const reviewAgent = selection.review
 	const allAgentsPicked = planAgent !== null && implementAgent !== null && reviewAgent !== null
+	const stepsReady = profileMode ? enabledStepCount > 0 : allAgentsPicked
 	const canSubmit =
 		selectedIssue !== null &&
-		allAgentsPicked &&
+		stepsReady &&
 		body.trim().length > 0 &&
 		baseBranch.trim().length > 0 &&
 		!createLaunchTask.isPending &&
@@ -113,7 +125,19 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 	const submitError = createLaunchTask.error ? errorMessageOr(createLaunchTask.error) : null
 
 	function handleSubmit() {
-		if (!selectedIssue || planAgent === null || implementAgent === null || reviewAgent === null) return
+		if (!selectedIssue) return
+		if (profileMode && profileId !== null) {
+			if (enabledStepCount === 0) return
+			createLaunchTask.mutate({
+				linear_issue_id: selectedIssue.identifier,
+				profile_id: profileId,
+				step_overrides: composerSteps,
+				base_branch: baseBranch.trim(),
+				use_worktree: strategy === 'new_worktree'
+			})
+			return
+		}
+		if (planAgent === null || implementAgent === null || reviewAgent === null) return
 		createLaunchTask.mutate({
 			linear_issue_id: selectedIssue.identifier,
 			planner_agent: planAgent,
@@ -164,34 +188,45 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 							if (body.trim().length === 0) setBody(item.title)
 						}}
 					/>
-					<AgentPicker
-						value={selection.plan}
-						agents={agents}
-						onChange={(next) => setSelection((s) => ({ ...s, plan: next }))}
-						recommendedFor="plan"
-						icon="doc"
-						label="planner"
-						disabled={agentsQuery.isLoading}
-					/>
-					<AgentPicker
-						value={selection.implement}
-						agents={agents}
-						onChange={(next) => setSelection((s) => ({ ...s, implement: next }))}
-						recommendedFor="implement"
-						icon="bot"
-						label="coder"
-						disabled={agentsQuery.isLoading}
-					/>
-					<AgentPicker
-						value={selection.review}
-						agents={agents}
-						onChange={(next) => setSelection((s) => ({ ...s, review: next }))}
-						recommendedFor="review"
-						icon="check"
-						label="reviewer"
-						disabled={agentsQuery.isLoading}
-					/>
+					<LaunchProfilePicker />
+					{profileMode ? null : (
+						<>
+							<AgentPicker
+								value={selection.plan}
+								agents={agents}
+								onChange={(next) => setSelection((s) => ({ ...s, plan: next }))}
+								recommendedFor="plan"
+								icon="doc"
+								label="planner"
+								disabled={agentsQuery.isLoading}
+							/>
+							<AgentPicker
+								value={selection.implement}
+								agents={agents}
+								onChange={(next) => setSelection((s) => ({ ...s, implement: next }))}
+								recommendedFor="implement"
+								icon="bot"
+								label="coder"
+								disabled={agentsQuery.isLoading}
+							/>
+							<AgentPicker
+								value={selection.review}
+								agents={agents}
+								onChange={(next) => setSelection((s) => ({ ...s, review: next }))}
+								recommendedFor="review"
+								icon="check"
+								label="reviewer"
+								disabled={agentsQuery.isLoading}
+							/>
+						</>
+					)}
 				</div>
+
+				{profileMode ? (
+					<div className="mt-3 border-t border-border pt-3">
+						<LaunchStepListEditor />
+					</div>
+				) : null}
 
 				<div className="mt-3 flex flex-col gap-2.5 border-t border-border pt-3">
 					<div className="flex flex-wrap items-center gap-1.5">

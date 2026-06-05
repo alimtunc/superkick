@@ -14,6 +14,10 @@ use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
+    AgentProvider, OutputExpectation, ProfileKind, ProfileSnapshot, ReasoningEffort, SessionPolicy,
+    SkillSource, StepExecutor, StepSnapshot,
+};
+use superkick_core::{
     CoreError, FailureClassification, LaunchStepKind, LaunchTask, LaunchTaskId, LaunchTaskStatus,
     LaunchTaskStep, LaunchTaskStepStatus, ResumeKey, RunId,
 };
@@ -35,6 +39,54 @@ async fn create_task(
     linear_issue_id: &str,
 ) -> Result<(LaunchTask, Vec<LaunchTaskStep>)> {
     let (task, steps) = LaunchTask::new_with_v1_recipe(linear_issue_id, agents(), &catalog())?;
+    repo.insert_with_steps(&task, &steps).await?;
+    Ok((task, steps))
+}
+
+/// A dynamic task whose middle (Implement) step is disabled, so the
+/// executor must skip it without spawning and still drive Plan → Review.
+fn dyn_step(
+    ordering: u32,
+    kind: LaunchStepKind,
+    output: OutputExpectation,
+    enabled: bool,
+) -> StepSnapshot {
+    StepSnapshot {
+        ordering,
+        label: kind.to_string(),
+        skill_ref: kind.to_string(),
+        skill_source: SkillSource::Installed(kind.to_string()),
+        step_kind: kind,
+        provider: AgentProvider::Codex,
+        model: None,
+        reasoning: ReasoningEffort::Medium,
+        executor: StepExecutor::CodexStructured,
+        session_policy: SessionPolicy::Fresh,
+        output_expectation: output,
+        enabled,
+    }
+}
+
+async fn create_dynamic_task_disabled_implement(
+    repo: &SqliteLaunchTaskRepo,
+    linear_issue_id: &str,
+) -> Result<(LaunchTask, Vec<LaunchTaskStep>)> {
+    let snapshot = ProfileSnapshot {
+        profile_id: "standard".into(),
+        profile_name: "Standard".into(),
+        profile_kind: ProfileKind::Standard,
+        steps: vec![
+            dyn_step(1, LaunchStepKind::Plan, OutputExpectation::Plan, true),
+            dyn_step(
+                2,
+                LaunchStepKind::Implement,
+                OutputExpectation::Patch,
+                false,
+            ),
+            dyn_step(3, LaunchStepKind::Review, OutputExpectation::Review, true),
+        ],
+    };
+    let (task, steps) = LaunchTask::new_dynamic(linear_issue_id, snapshot)?;
     repo.insert_with_steps(&task, &steps).await?;
     Ok((task, steps))
 }
@@ -310,6 +362,50 @@ async fn step_status(
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn disabled_step_is_skipped_without_spawning() -> Result<()> {
+    let repo = fresh_repo().await?;
+    let (task, _) = create_dynamic_task_disabled_implement(&repo, "TEAM-DYN").await?;
+
+    let runner = Arc::new(FakeStepRunner::new());
+    runner.script(
+        LaunchStepKind::Plan,
+        ScriptedAction::Complete {
+            summary: Some("plan ok".into()),
+        },
+    );
+    runner.script(
+        LaunchStepKind::Review,
+        ScriptedAction::Complete {
+            summary: Some("review ok".into()),
+        },
+    );
+    // No Implement script — the disabled step must never reach the runner.
+
+    let (exec, _bus, _registry) = build_executor(Arc::clone(&repo), Arc::clone(&runner));
+    exec.run(task.id).await?;
+
+    let reloaded = repo.get(task.id).await?.unwrap();
+    assert_eq!(reloaded.status, LaunchTaskStatus::Completed);
+    assert_eq!(
+        step_status(&repo, task.id, LaunchStepKind::Implement).await,
+        LaunchTaskStepStatus::Skipped
+    );
+    assert_eq!(
+        step_status(&repo, task.id, LaunchStepKind::Plan).await,
+        LaunchTaskStepStatus::Completed
+    );
+    assert_eq!(
+        step_status(&repo, task.id, LaunchStepKind::Review).await,
+        LaunchTaskStepStatus::Completed
+    );
+    assert_eq!(
+        runner.observed(),
+        vec![LaunchStepKind::Plan, LaunchStepKind::Review]
+    );
+    Ok(())
+}
 
 #[tokio::test]
 async fn happy_path_three_steps_complete_drives_task_to_completed() -> Result<()> {

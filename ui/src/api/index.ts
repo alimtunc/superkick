@@ -27,6 +27,16 @@ export {
 } from './terminalTakeover'
 export { fetchRuntimes, prepareSessionAttach, refreshRuntimes } from './runtimes'
 export { listAgents } from './agents'
+export { fetchProviderSettings, patchProviderSettings } from './providerSettings'
+export { createSkill, deleteSkill, fetchSkills, updateSkill } from './skills'
+export {
+	createLaunchProfile,
+	deleteLaunchProfile,
+	fetchLaunchProfile,
+	fetchLaunchProfiles,
+	previewLaunchProfile,
+	updateLaunchProfile
+} from './launchProfiles'
 export {
 	cancelLaunchTask,
 	createLaunchTask,
