@@ -75,4 +75,20 @@ mod tests {
         assert_eq!(parse_repo_slug("not-a-url"), None);
         assert_eq!(parse_repo_slug("https://gitlab.com/owner/repo"), None);
     }
+
+    #[test]
+    fn http_prefix_and_trailing_slash() {
+        assert_eq!(
+            parse_repo_slug("http://github.com/owner/repo"),
+            Some("owner/repo".into())
+        );
+        assert_eq!(
+            parse_repo_slug("https://github.com/owner/repo/"),
+            Some("owner/repo".into())
+        );
+        assert_eq!(
+            parse_repo_slug("http://github.com/owner/repo.git"),
+            Some("owner/repo".into())
+        );
+    }
 }
