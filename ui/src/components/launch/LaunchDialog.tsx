@@ -1,7 +1,7 @@
 import { AgentPicker } from '@/components/launch/AgentPicker'
 import { DialogPopup } from '@/components/ui/dialog-shell'
 import { LAUNCH_STEP_KIND_LABEL } from '@/lib/domain'
-import type { Agent, LaunchProfile, LaunchStepKind } from '@/types'
+import type { Agent, LaunchProfileSettings, LaunchStepKind } from '@/types'
 import type { SKIconName } from '@/types/icons'
 import { Btn } from '@/ui/Btn'
 import { Icon } from '@/ui/Icon'
@@ -24,7 +24,7 @@ const RECIPE_STEPS: readonly RecipeStepDescriptor[] = [
 
 interface LaunchDialogProps {
 	open: boolean
-	profile: LaunchProfile
+	profile: LaunchProfileSettings
 	useWorktree: boolean
 	isPending: boolean
 	canLaunch: boolean

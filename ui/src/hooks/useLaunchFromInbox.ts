@@ -5,11 +5,11 @@ import { pickDefaultAgent } from '@/components/launch/pickDefaultAgent'
 import { useAgents } from '@/hooks/useAgents'
 import { useCreateLaunchTask } from '@/hooks/useCreateLaunchTask'
 import { useLaunchDialog } from '@/hooks/useLaunchDialog'
-import type { Agent, LaunchProfile, LaunchStepKind } from '@/types'
+import type { Agent, LaunchProfileSettings, LaunchStepKind } from '@/types'
 import { toast } from 'sonner'
 
 interface UseLaunchFromInboxOptions {
-	launchProfile: LaunchProfile | null | undefined
+	launchProfile: LaunchProfileSettings | null | undefined
 }
 
 type AgentSelection = Record<LaunchStepKind, string | null>

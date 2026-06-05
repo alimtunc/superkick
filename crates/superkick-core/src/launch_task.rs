@@ -20,21 +20,32 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::CoreError;
 use crate::id::{ConversationId, LaunchTaskId, LaunchTaskStepId, OrchestratorSessionId, RunId};
+use crate::launch_profile::ProfileSnapshot;
+use crate::output_expectation::OutputExpectation;
+use crate::reasoning::ReasoningEffort;
 use crate::role_router::AgentCatalog;
+use crate::session_policy::SessionPolicy;
+use crate::skill::SkillSource;
+use crate::step_executor::StepExecutor;
 use crate::step_result::{FailureClassification, StepResult};
 
-/// Recipe identifier. Stored as a string column so adding a new recipe later
-/// does not need a SQL migration. V1 only ships `PlanImplementReview`.
+/// Recipe identifier. Stored as a string discriminant so adding a recipe needs
+/// no SQL migration. `Dynamic` tasks carry their ordered step list in the
+/// `profile_id` + `profile_snapshot` columns rather than in this enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LaunchRecipe {
     PlanImplementReview,
+    /// The ordered step list is the persisted profile snapshot, not a
+    /// hardcoded vec. Legacy rows keep `PlanImplementReview`.
+    Dynamic,
 }
 
 impl std::fmt::Display for LaunchRecipe {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             Self::PlanImplementReview => "plan_implement_review",
+            Self::Dynamic => "dynamic",
         };
         f.write_str(s)
     }
@@ -185,6 +196,21 @@ pub enum LaunchStepKind {
     Review,
 }
 
+impl LaunchStepKind {
+    /// Map an output expectation onto the runtime step-kind used for prompt
+    /// construction. Lets a custom skill that only declares an
+    /// [`OutputExpectation`] still drive the existing per-kind prompt path.
+    pub const fn for_output(output: OutputExpectation) -> Self {
+        match output {
+            OutputExpectation::Plan => Self::Plan,
+            OutputExpectation::Patch => Self::Implement,
+            OutputExpectation::Review | OutputExpectation::Comment | OutputExpectation::NoOp => {
+                Self::Review
+            }
+        }
+    }
+}
+
 impl std::fmt::Display for LaunchStepKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
@@ -224,6 +250,24 @@ pub struct LaunchTaskStep {
     pub provider: Option<String>,
     pub model: Option<String>,
     pub mode: Option<String>,
+    /// Dynamic-step snapshot fields. `None` / default on legacy and
+    /// v1-recipe rows, which the runtime interprets via `step_kind` as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skill_source: Option<SkillSource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<ReasoningEffort>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub executor: Option<StepExecutor>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_policy: Option<SessionPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_expectation: Option<OutputExpectation>,
+    /// Disabled steps are persisted but transitioned straight to `Skipped` by
+    /// the executor (no run spawned). Defaults to `true` for legacy rows.
+    #[serde(default = "crate::skill::default_true")]
+    pub enabled: bool,
     pub status: LaunchTaskStepStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub linked_run_id: Option<RunId>,
@@ -311,6 +355,14 @@ pub struct LaunchTask {
     /// `None` inherits the runner's hardcoded worktree strategy (legacy rows).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub use_worktree: Option<bool>,
+    /// The launch profile this task was composed from. `None` on
+    /// legacy rows, which revert to the hardcoded 3-step interpretation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile_id: Option<String>,
+    /// Immutable replay record of the resolved profile + step list. `None` for
+    /// legacy / v1-recipe tasks.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile_snapshot: Option<ProfileSnapshot>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -378,11 +430,89 @@ impl LaunchTask {
             summary: None,
             base_branch: None,
             use_worktree: None,
+            profile_id: None,
+            profile_snapshot: None,
             created_at: now,
             updated_at: now,
         };
 
         Ok((task, vec![plan_step, implement_step, review_step]))
+    }
+
+    /// Build a dynamic task from a resolved [`ProfileSnapshot`]. One step row is
+    /// created per snapshot step (including disabled ones, which the executor
+    /// transitions straight to `Skipped`); the snapshot is persisted verbatim as
+    /// the immutable replay record. Sequence follows each step's `ordering`.
+    pub fn new_dynamic(
+        linear_issue_id: impl Into<String>,
+        snapshot: ProfileSnapshot,
+    ) -> Result<(Self, Vec<LaunchTaskStep>), CoreError> {
+        let linear_issue_id = linear_issue_id.into();
+        if linear_issue_id.trim().is_empty() {
+            return Err(CoreError::InvalidInput(
+                "launch task linear_issue_id must not be empty".into(),
+            ));
+        }
+        if !snapshot.steps.iter().any(|s| s.enabled) {
+            return Err(CoreError::InvalidInput(
+                "launch profile has no enabled steps to run".into(),
+            ));
+        }
+
+        let now = Utc::now();
+        let task_id = LaunchTaskId::new();
+
+        let mut sorted = snapshot.steps.clone();
+        sorted.sort_by_key(|s| s.ordering);
+
+        let steps = sorted
+            .iter()
+            .map(|s| LaunchTaskStep {
+                id: LaunchTaskStepId::new(),
+                launch_task_id: task_id,
+                sequence: s.ordering,
+                step_kind: s.step_kind,
+                agent_name: s.skill_ref.clone(),
+                provider: Some(s.provider.to_string()),
+                model: s.model.clone(),
+                mode: s.executor.runner_mode().map(|m| m.audit_tag().to_string()),
+                label: Some(s.label.clone()),
+                skill_source: Some(s.skill_source.clone()),
+                reasoning: Some(s.reasoning),
+                executor: Some(s.executor),
+                session_policy: Some(s.session_policy),
+                output_expectation: Some(s.output_expectation),
+                enabled: s.enabled,
+                status: LaunchTaskStepStatus::Pending,
+                linked_run_id: None,
+                linked_conversation_id: None,
+                linked_orchestrator_session_id: None,
+                summary: None,
+                structured_result: None,
+                failure_classification: None,
+                auto_resume_count: 0,
+                resume_key: None,
+                created_at: now,
+                updated_at: now,
+            })
+            .collect();
+
+        let task = LaunchTask {
+            id: task_id,
+            linear_issue_id,
+            recipe_kind: LaunchRecipe::Dynamic,
+            status: LaunchTaskStatus::Pending,
+            current_step_id: None,
+            summary: None,
+            base_branch: None,
+            use_worktree: None,
+            profile_id: Some(snapshot.profile_id.clone()),
+            profile_snapshot: Some(snapshot),
+            created_at: now,
+            updated_at: now,
+        };
+
+        Ok((task, steps))
     }
 
     /// Overlay operator overrides; trims `base_branch` and rejects an empty value.
@@ -460,6 +590,13 @@ fn build_step(
         provider: Some(def.provider.to_string()),
         model: def.model.clone(),
         mode: None,
+        label: None,
+        skill_source: None,
+        reasoning: None,
+        executor: None,
+        session_policy: None,
+        output_expectation: None,
+        enabled: true,
         status: LaunchTaskStepStatus::Pending,
         linked_run_id: None,
         linked_conversation_id: None,

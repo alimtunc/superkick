@@ -114,6 +114,15 @@ export async function patchVoid(path: string, errorContext: string, body: unknow
 	await requestOk(path, errorContext, { method: 'PATCH', body })
 }
 
+export async function patchJson<T>(path: string, errorContext: string, body: unknown): Promise<T> {
+	const res = await requestOk(path, errorContext, { method: 'PATCH', body })
+	return res.json() as Promise<T>
+}
+
+export async function deleteVoid(path: string, errorContext: string): Promise<void> {
+	await requestOk(path, errorContext, { method: 'DELETE' })
+}
+
 export function subscribeToSse<T>(path: string, eventName: string, handlers: SseHandlers<T>): () => void {
 	const es = new EventSource(`${BASE}${path}`)
 

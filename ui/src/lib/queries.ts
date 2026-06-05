@@ -5,9 +5,11 @@ import {
 	fetchIssueMemoryEntries,
 	fetchIssues,
 	fetchIssueWorkspaceContext,
+	fetchLaunchProfiles,
 	fetchLaunchQueue,
 	fetchLaunchTask,
 	fetchLaunchTaskSteps,
+	fetchProviderSettings,
 	fetchRun,
 	fetchRunDiff,
 	fetchRunEvents,
@@ -15,6 +17,7 @@ import {
 	fetchRunToolCalls,
 	fetchRuntimes,
 	fetchSearch,
+	fetchSkills,
 	listAgents,
 	listLaunchTaskInterventions
 } from '@/api'
@@ -155,4 +158,25 @@ export const launchTaskInterventionsQuery = (taskId: string | null) =>
 			: ['launch-tasks', 'pending', 'interventions'],
 		queryFn: taskId ? () => listLaunchTaskInterventions(taskId) : skipToken,
 		staleTime: 3_000
+	})
+
+export const providerSettingsQuery = () =>
+	queryOptions({
+		queryKey: queryKeys.providerSettings.all,
+		queryFn: fetchProviderSettings,
+		staleTime: 30_000
+	})
+
+export const skillsQuery = () =>
+	queryOptions({
+		queryKey: queryKeys.skills.all,
+		queryFn: fetchSkills,
+		staleTime: 30_000
+	})
+
+export const launchProfilesQuery = () =>
+	queryOptions({
+		queryKey: queryKeys.launchProfiles.all,
+		queryFn: fetchLaunchProfiles,
+		staleTime: 30_000
 	})

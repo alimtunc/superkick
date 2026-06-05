@@ -18,7 +18,8 @@ use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 use superkick_core::{
     ConversationId, FailureClassification, LaunchRecipe, LaunchStepKind, LaunchTask, LaunchTaskId,
     LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus,
-    OrchestratorSessionId, RunId, StepResult,
+    OrchestratorSessionId, OutputExpectation, ProfileSnapshot, ReasoningEffort, RunId,
+    SessionPolicy, SkillSource, StepExecutor, StepResult,
 };
 
 use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
@@ -53,12 +54,18 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
             .await
             .context("begin transaction for insert_with_steps")?;
 
+        let profile_snapshot_json = task
+            .profile_snapshot
+            .as_ref()
+            .map(serde_json::to_string)
+            .transpose()
+            .with_context(|| format!("encode profile_snapshot for launch_task {}", task.id.0))?;
         sqlx::query(
             "INSERT INTO launch_tasks (\
                  id, linear_issue_id, recipe_kind, status, current_step_id, summary, \
-                 base_branch, use_worktree, \
+                 base_branch, use_worktree, profile_id, profile_snapshot, \
                  created_at, updated_at\
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
         )
         .bind(task.id.0.to_string())
         .bind(&task.linear_issue_id)
@@ -68,6 +75,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         .bind(task.summary.clone())
         .bind(task.base_branch.clone())
         .bind(task.use_worktree.map(i64::from))
+        .bind(task.profile_id.clone())
+        .bind(profile_snapshot_json)
         .bind(task.created_at.to_rfc3339())
         .bind(task.updated_at.to_rfc3339())
         .execute(&mut *tx)
@@ -85,6 +94,18 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
                 "failure_classification",
                 step.failure_classification.as_ref(),
             )?;
+            let reasoning = step.reasoning.map(|r| serialize_enum(&r)).transpose()?;
+            let executor = step.executor.map(|e| serialize_enum(&e)).transpose()?;
+            let session_policy = step
+                .session_policy
+                .map(|s| serialize_enum(&s))
+                .transpose()?;
+            let output_expectation = step
+                .output_expectation
+                .map(|o| serialize_enum(&o))
+                .transpose()?;
+            let skill_source_kind = step.skill_source.as_ref().map(|s| s.kind_tag());
+            let skill_source_value = step.skill_source.as_ref().map(|s| s.value().to_string());
             sqlx::query(
                 "INSERT INTO launch_task_steps (\
                      id, launch_task_id, sequence, step_kind, agent_name, \
@@ -92,8 +113,11 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
                      linked_run_id, linked_conversation_id, linked_orchestrator_session_id, \
                      summary, structured_result, failure_classification, \
                      auto_resume_count, resume_key, \
+                     label, skill_source_kind, skill_source_value, reasoning_effort, executor, \
+                     session_policy, output_expectation, enabled, \
                      created_at, updated_at\
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, \
+                     ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27)",
             )
             .bind(step.id.0.to_string())
             .bind(step.launch_task_id.0.to_string())
@@ -115,6 +139,14 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
             .bind(classification_json)
             .bind(i64::from(step.auto_resume_count))
             .bind(step.resume_key.clone())
+            .bind(step.label.clone())
+            .bind(skill_source_kind)
+            .bind(skill_source_value)
+            .bind(reasoning)
+            .bind(executor)
+            .bind(session_policy)
+            .bind(output_expectation)
+            .bind(i64::from(step.enabled))
             .bind(step.created_at.to_rfc3339())
             .bind(step.updated_at.to_rfc3339())
             .execute(&mut *tx)
@@ -578,12 +610,20 @@ struct LaunchTaskRow {
     summary: Option<String>,
     base_branch: Option<String>,
     use_worktree: Option<i64>,
+    profile_id: Option<String>,
+    profile_snapshot: Option<String>,
     created_at: String,
     updated_at: String,
 }
 
 impl LaunchTaskRow {
     fn into_domain(self) -> Result<LaunchTask> {
+        let profile_snapshot = self
+            .profile_snapshot
+            .as_deref()
+            .map(serde_json::from_str::<ProfileSnapshot>)
+            .transpose()
+            .with_context(|| format!("decode profile_snapshot for launch_task {}", self.id))?;
         Ok(LaunchTask {
             id: LaunchTaskId(uuid::Uuid::parse_str(&self.id)?),
             linear_issue_id: self.linear_issue_id,
@@ -598,6 +638,8 @@ impl LaunchTaskRow {
             summary: self.summary,
             base_branch: self.base_branch,
             use_worktree: self.use_worktree.map(|v| v != 0),
+            profile_id: self.profile_id,
+            profile_snapshot,
             created_at: decode_rfc3339(&self.created_at)?,
             updated_at: decode_rfc3339(&self.updated_at)?,
         })
@@ -623,6 +665,14 @@ struct LaunchTaskStepRow {
     failure_classification: Option<String>,
     auto_resume_count: i64,
     resume_key: Option<String>,
+    label: Option<String>,
+    skill_source_kind: Option<String>,
+    skill_source_value: Option<String>,
+    reasoning_effort: Option<String>,
+    executor: Option<String>,
+    session_policy: Option<String>,
+    output_expectation: Option<String>,
+    enabled: i64,
     created_at: String,
     updated_at: String,
 }
@@ -652,6 +702,30 @@ impl LaunchTaskStepRow {
                 }
             }
         });
+        let skill_source = match (self.skill_source_kind, self.skill_source_value) {
+            (Some(kind), Some(value)) => Some(SkillSource::from_parts(&kind, value)?),
+            _ => None,
+        };
+        let reasoning = self
+            .reasoning_effort
+            .as_deref()
+            .map(deserialize_enum::<ReasoningEffort>)
+            .transpose()?;
+        let executor = self
+            .executor
+            .as_deref()
+            .map(deserialize_enum::<StepExecutor>)
+            .transpose()?;
+        let session_policy = self
+            .session_policy
+            .as_deref()
+            .map(deserialize_enum::<SessionPolicy>)
+            .transpose()?;
+        let output_expectation = self
+            .output_expectation
+            .as_deref()
+            .map(deserialize_enum::<OutputExpectation>)
+            .transpose()?;
         Ok(LaunchTaskStep {
             id: LaunchTaskStepId(uuid::Uuid::parse_str(&self.id)?),
             launch_task_id: LaunchTaskId(uuid::Uuid::parse_str(&self.launch_task_id)?),
@@ -663,6 +737,13 @@ impl LaunchTaskStepRow {
             provider: self.provider,
             model: self.model,
             mode: self.mode,
+            label: self.label,
+            skill_source,
+            reasoning,
+            executor,
+            session_policy,
+            output_expectation,
+            enabled: self.enabled != 0,
             status: deserialize_enum::<LaunchTaskStepStatus>(&self.status)?,
             linked_run_id: self
                 .linked_run_id

@@ -34,7 +34,7 @@ use tracing::{info, warn};
 use superkick_core::{
     ConversationId, CoreError, FailureClassification, FailureDisposition, LaunchTask, LaunchTaskId,
     LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus, MemoryEntryId,
-    OrchestratorSessionId, ResumeKey, Run, RunId, RunState,
+    OrchestratorSessionId, ResumeKey, Run, RunId, RunState, StepExecutor,
 };
 use superkick_storage::repo::LaunchTaskRepo;
 
@@ -524,6 +524,12 @@ where
             if step.status.is_terminal() {
                 continue;
             }
+            if !step.enabled {
+                // Disabled steps are persisted for an immutable replay
+                // record but never spawned — transition straight to Skipped.
+                self.skip_disabled_step(task, step).await?;
+                continue;
+            }
             if !matches!(step.status, LaunchTaskStepStatus::Pending) {
                 // Running orphan from a prior process (crash recovery hors
                 // scope V1). Fail-safe: NeedsHuman with a clear reason, no
@@ -592,6 +598,27 @@ where
         Ok(())
     }
 
+    /// Transition a disabled step (`enabled = false`) straight to
+    /// `Skipped` without spawning a run, then publish a `StepFinished` so the
+    /// plan strip reflects the skip. The current-step pointer is left untouched.
+    async fn skip_disabled_step(&self, task: &LaunchTask, step: &LaunchTaskStep) -> Result<()> {
+        self.repo
+            .update_step_status(step.id, LaunchTaskStepStatus::Skipped)
+            .await
+            .with_context(|| format!("step {} → Skipped (disabled in profile)", step.id))?;
+        self.publish(LaunchTaskEvent::StepFinished {
+            task_id: task.id,
+            linear_issue_id: task.linear_issue_id.clone(),
+            step_id: step.id,
+            step_kind: step.step_kind,
+            status: LaunchTaskStepStatus::Skipped,
+            summary: Some("step disabled in launch profile".into()),
+            failure_classification: None,
+            memory_entry_ids: Vec::new(),
+        });
+        Ok(())
+    }
+
     /// SUP-191 — run (or resume) a step, auto-resuming the Codex session on a
     /// mid-turn timeout up to `max_auto_resumes` times before parking it.
     /// Returns the same `Ok(true)`-to-continue / `Ok(false)`-to-halt contract
@@ -614,6 +641,15 @@ where
         initial_resume: Option<ResumeKey>,
         cancel: &CancellationToken,
     ) -> Result<bool> {
+        // Only Codex-structured steps capture a resume key (the
+        // `provider_session_id` comes solely from Codex SessionMeta), so
+        // auto-resume is meaningful only for them. Dynamic steps on any other
+        // executor get a zero budget; legacy catalog steps (`executor == None`)
+        // keep the configured budget so SUP-191 behaviour is unchanged.
+        let max_auto_resumes = match step.executor {
+            Some(StepExecutor::CodexStructured) | None => self.max_auto_resumes,
+            Some(_) => 0,
+        };
         let mut resume = initial_resume;
         let mut segments_used = step.auto_resume_count;
         let mut prev_diff: Option<DiffSnapshot> = None;
@@ -647,7 +683,7 @@ where
 
             let key = match decide_resume(
                 segments_used,
-                self.max_auto_resumes,
+                max_auto_resumes,
                 prev_diff.as_ref(),
                 &diff_snapshot,
                 resume_key,
@@ -677,7 +713,7 @@ where
                 task_id = %task.id,
                 step_id = %step.id,
                 attempt = segments_used,
-                max = self.max_auto_resumes,
+                max = max_auto_resumes,
                 "auto-resuming timed-out launch step"
             );
             // Re-pulse `StepStarted` so the feed/timeline refetch and pick up
@@ -1407,6 +1443,8 @@ mod tests {
             summary: None,
             base_branch: None,
             use_worktree: None,
+            profile_id: None,
+            profile_snapshot: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -1419,6 +1457,13 @@ mod tests {
             provider: None,
             model: None,
             mode: None,
+            label: None,
+            skill_source: None,
+            reasoning: None,
+            executor: None,
+            session_policy: None,
+            output_expectation: None,
+            enabled: true,
             status: LaunchTaskStepStatus::Pending,
             linked_run_id: None,
             linked_conversation_id: None,

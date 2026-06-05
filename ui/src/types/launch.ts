@@ -1,9 +1,14 @@
 // SUP-117 — Launch Task types mirror `superkick_core::launch_task`.
 // Hand-maintained because the backend does not emit a TS schema today.
 import type { AgentProvider } from './agents'
+import type { ProfileSnapshot, ProfileStep } from './profiles'
 import type { ExecutionMode } from './runs'
+import type { SkillSource } from './skills'
 
-export interface LaunchProfile {
+// Legacy `launch_profile` config block, renamed from `LaunchProfile` (that name
+// now belongs to the app-managed launch profile in `./profiles`). Still served
+// via `/config` for the legacy launch flow.
+export interface LaunchProfileSettings {
 	use_worktree: boolean
 	live_mode: boolean
 	skills: string[]
@@ -14,7 +19,7 @@ export interface LaunchProfile {
 export interface ServerConfigResponse {
 	repo_slug: string
 	base_branch: string
-	launch_profile: LaunchProfile
+	launch_profile: LaunchProfileSettings
 }
 
 export interface LaunchParams {
@@ -32,9 +37,19 @@ export interface LaunchParams {
 // Mirror the snake_case JSON emitted by the Rust API verbatim — the rest
 // of the TS codebase (runs.ts, issues.ts) follows the same convention.
 
-export type LaunchRecipe = 'plan_implement_review'
+export type LaunchRecipe = 'plan_implement_review' | 'dynamic'
 
 export type LaunchStepKind = 'plan' | 'implement' | 'review'
+
+// ── shared launch-config enums (mirror superkick-core) ────────
+
+export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'ultra_code'
+
+export type StepExecutor = 'codex_structured' | 'claude_workflow' | 'interactive_pty' | 'future'
+
+export type SessionPolicy = 'fresh' | 'resume' | 'same_session' | 'same_workflow' | 'takeover'
+
+export type OutputExpectation = 'plan' | 'patch' | 'review' | 'comment' | 'no_op'
 
 export type LaunchTaskStatus = 'pending' | 'running' | 'needs_human' | 'completed' | 'failed' | 'cancelled'
 
@@ -82,6 +97,15 @@ export interface LaunchTaskStep {
 	provider: AgentProvider | null
 	model: string | null
 	mode: ExecutionMode | null
+	/** Dynamic-step snapshot fields; null on legacy / v1-recipe rows. */
+	label?: string | null
+	skill_source?: SkillSource | null
+	reasoning?: ReasoningEffort | null
+	executor?: StepExecutor | null
+	session_policy?: SessionPolicy | null
+	output_expectation?: OutputExpectation | null
+	/** Undefined on legacy rows (implicitly enabled); `false` only for skipped dynamic steps. */
+	enabled?: boolean
 	status: LaunchTaskStepStatus
 	linked_run_id?: string | null
 	linked_conversation_id?: string | null
@@ -102,6 +126,9 @@ export interface LaunchTask {
 	status: LaunchTaskStatus
 	current_step_id?: string | null
 	summary?: string | null
+	/** The launch profile this task was composed from. */
+	profile_id?: string | null
+	profile_snapshot?: ProfileSnapshot | null
 	created_at: string
 	updated_at: string
 }
@@ -113,9 +140,13 @@ export interface LaunchTaskWithSteps {
 
 export interface CreateLaunchTaskRequest {
 	linear_issue_id: string
-	planner_agent: string
-	coder_agent: string
-	reviewer_agent: string
+	/** Dynamic path: launch from a profile, optionally with edits. */
+	profile_id?: string
+	step_overrides?: ProfileStep[]
+	/** Legacy v1-recipe path; required only when `profile_id` is absent. */
+	planner_agent?: string
+	coder_agent?: string
+	reviewer_agent?: string
 	base_branch?: string
 	use_worktree?: boolean
 }

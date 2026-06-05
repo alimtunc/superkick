@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use superkick_api::ServerConfig;
 
 #[derive(clap::Args)]
@@ -26,14 +24,8 @@ pub struct ServeArgs {
 }
 
 pub async fn run(args: ServeArgs) -> anyhow::Result<()> {
-    if !Path::new(&args.config).exists() {
-        anyhow::bail!(
-            "Config file not found: {}\n\
-             Run `superkick init` first, or pass --config <path>.",
-            args.config
-        );
-    }
-
+    // `superkick.yaml` is optional — the server boots from product
+    // defaults when the file is absent, so no preflight existence check here.
     let addr = format!("0.0.0.0:{}", args.port);
     let listener = tokio::net::TcpListener::bind(&addr)
         .await

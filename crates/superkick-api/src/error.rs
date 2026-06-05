@@ -3,7 +3,9 @@ use axum::response::{IntoResponse, Json};
 
 use superkick_core::{AgentProvider, CoreError};
 use superkick_integrations::linear::LinearError;
-use superkick_runtime::{ConversationRunnerError, RetryError, RunServiceError, SnapshotError};
+use superkick_runtime::{
+    ConversationRunnerError, LaunchCompositionError, RetryError, RunServiceError, SnapshotError,
+};
 
 #[derive(Debug)]
 pub enum AppError {
@@ -118,6 +120,22 @@ impl From<ConversationRunnerError> for AppError {
                 })
             }
             ConversationRunnerError::Storage(inner) => AppError::Internal(inner),
+        }
+    }
+}
+
+impl From<LaunchCompositionError> for AppError {
+    fn from(err: LaunchCompositionError) -> Self {
+        match err {
+            LaunchCompositionError::ProfileNotFound(_) => {
+                AppError::NotFound("launch profile not found")
+            }
+            other @ (LaunchCompositionError::IncompatibleStep { .. }
+            | LaunchCompositionError::UnsupportedExecutor { .. }) => {
+                AppError::Unprocessable(other.to_string())
+            }
+            LaunchCompositionError::Core(e) => AppError::from(e),
+            LaunchCompositionError::Storage(e) => AppError::Internal(e),
         }
     }
 }

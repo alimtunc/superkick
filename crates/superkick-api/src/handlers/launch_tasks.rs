@@ -21,7 +21,8 @@ use tokio::sync::broadcast::error::RecvError;
 
 use superkick_core::{
     AgentCatalog, LaunchTask, LaunchTaskId, LaunchTaskIntervention, LaunchTaskOverrides,
-    LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, PlanImplementReviewAgents, RunId,
+    LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, PlanImplementReviewAgents, ProfileStep,
+    RunId,
 };
 use superkick_runtime::launch_task::RealStepRunner;
 use superkick_runtime::{LaunchTaskEvent, LaunchTaskEventBus, LaunchTaskExecutor, StepRunner};
@@ -35,6 +36,17 @@ use crate::error::AppError;
 use crate::{AppState, EventRepo};
 
 const TASK_NOT_FOUND: &str = "launch task not found";
+
+/// Require a non-empty agent name for the legacy v1-recipe path.
+fn require_agent(value: Option<&str>, field: &str) -> Result<String, AppError> {
+    value
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| {
+            AppError::BadRequest(format!("{field} is required when profile_id is absent"))
+        })
+}
 
 /// Production wiring of the executor. SUP-124 swapped the V1 `StubStepRunner`
 /// for `RealStepRunner`, which spawns a real agent process per step. Held as
@@ -68,6 +80,9 @@ pub struct LaunchTaskState<S: StepRunner> {
     pub catalog: Arc<AgentCatalog>,
     pub bus: Arc<LaunchTaskEventBus>,
     pub executor: Arc<LaunchTaskExecutor<SqliteLaunchTaskRepo, S>>,
+    /// Composes dynamic launches from a profile + step overrides.
+    /// `None` in the test router (which exercises only the legacy triplet path).
+    pub launch_profile_service: Option<Arc<crate::ProdLaunchProfileService>>,
     /// Whether `create_launch_task` should auto-spawn the executor in the
     /// background. Always `true` in production wiring; the test router opts
     /// out so that SUP-116 status assertions (e.g. "freshly created tasks
@@ -88,6 +103,7 @@ impl<S: StepRunner> Clone for LaunchTaskState<S> {
             catalog: Arc::clone(&self.catalog),
             bus: Arc::clone(&self.bus),
             executor: Arc::clone(&self.executor),
+            launch_profile_service: self.launch_profile_service.clone(),
             auto_trigger_executor: self.auto_trigger_executor,
         }
     }
@@ -102,6 +118,7 @@ impl FromRef<AppState> for LaunchTaskState<ProdRealStepRunner> {
             catalog: Arc::clone(&state.agent_catalog),
             bus: Arc::clone(&state.launch_task_event_bus),
             executor: Arc::clone(&state.launch_task_executor),
+            launch_profile_service: Some(Arc::clone(&state.launch_profile_service)),
             auto_trigger_executor: true,
         }
     }
@@ -110,9 +127,19 @@ impl FromRef<AppState> for LaunchTaskState<ProdRealStepRunner> {
 #[derive(Deserialize)]
 pub struct CreateLaunchTaskRequest {
     pub linear_issue_id: String,
-    pub planner_agent: String,
-    pub coder_agent: String,
-    pub reviewer_agent: String,
+    /// Dynamic path: launch from an app-managed profile, optionally with
+    /// composer step edits. When set, the legacy agent triplet is ignored.
+    #[serde(default)]
+    pub profile_id: Option<String>,
+    #[serde(default)]
+    pub step_overrides: Option<Vec<ProfileStep>>,
+    /// Legacy v1-recipe path. Required only when `profile_id` is absent.
+    #[serde(default)]
+    pub planner_agent: Option<String>,
+    #[serde(default)]
+    pub coder_agent: Option<String>,
+    #[serde(default)]
+    pub reviewer_agent: Option<String>,
     #[serde(default)]
     pub base_branch: Option<String>,
     #[serde(default)]
@@ -132,18 +159,41 @@ pub async fn create_launch_task<S: StepRunner>(
     let linear_issue_id = body.linear_issue_id.trim().to_string();
     crate::handlers::runs::guard_no_active_run(&state.run_repo, &linear_issue_id).await?;
 
-    let agents = PlanImplementReviewAgents {
-        planner: body.planner_agent.trim().to_string(),
-        coder: body.coder_agent.trim().to_string(),
-        reviewer: body.reviewer_agent.trim().to_string(),
+    let (task, steps) = if let Some(profile_id) = body.profile_id.as_deref() {
+        // Dynamic path — compose from the chosen profile + overrides.
+        let service = state
+            .launch_profile_service
+            .as_ref()
+            .ok_or(AppError::ServiceUnavailable(
+                "launch profile composer unavailable",
+            ))?;
+        service
+            .compose_launch_task(
+                &linear_issue_id,
+                profile_id,
+                body.step_overrides,
+                LaunchTaskOverrides {
+                    base_branch: body.base_branch,
+                    use_worktree: body.use_worktree,
+                },
+            )
+            .await?
+    } else {
+        // Legacy v1-recipe path — requires the agent triplet.
+        let agents = PlanImplementReviewAgents {
+            planner: require_agent(body.planner_agent.as_deref(), "planner_agent")?,
+            coder: require_agent(body.coder_agent.as_deref(), "coder_agent")?,
+            reviewer: require_agent(body.reviewer_agent.as_deref(), "reviewer_agent")?,
+        };
+        let (mut task, steps) =
+            LaunchTask::new_with_v1_recipe(linear_issue_id, agents, state.catalog.as_ref())?;
+        task.apply_overrides(LaunchTaskOverrides {
+            base_branch: body.base_branch,
+            use_worktree: body.use_worktree,
+        })?;
+        state.repo.insert_with_steps(&task, &steps).await?;
+        (task, steps)
     };
-    let (mut task, steps) =
-        LaunchTask::new_with_v1_recipe(linear_issue_id, agents, state.catalog.as_ref())?;
-    task.apply_overrides(LaunchTaskOverrides {
-        base_branch: body.base_branch,
-        use_worktree: body.use_worktree,
-    })?;
-    state.repo.insert_with_steps(&task, &steps).await?;
 
     // SUP-118: trigger the executor in the background. A crash before the
     // task reaches a terminal state leaves it `Pending`; recovery is hors

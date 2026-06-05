@@ -35,14 +35,14 @@ fn get_repo_slug() -> anyhow::Result<String> {
 }
 
 fn load_base_branch() -> anyhow::Result<String> {
+    // `superkick.yaml` is optional. Fall back to the bootstrap default
+    // base branch when no config file is present rather than hard-failing.
     let config_path = Path::new(superkick_config::CONFIG_FILENAME);
-    if !config_path.exists() {
-        anyhow::bail!(
-            "No {} found. Run 'superkick init' first.",
-            superkick_config::CONFIG_FILENAME,
-        );
-    }
-    let config = superkick_config::load_file(config_path)?;
+    let config = if config_path.exists() {
+        superkick_config::load_file(config_path)?
+    } else {
+        superkick_config::SuperkickConfig::bootstrap()
+    };
     Ok(config.runner.base_branch)
 }
 

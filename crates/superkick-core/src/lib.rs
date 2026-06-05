@@ -13,6 +13,7 @@ pub mod id;
 pub mod interrupt;
 pub mod issue_event;
 pub mod issue_workspace_context;
+pub mod launch_profile;
 pub mod launch_queue;
 pub mod launch_task;
 pub mod launch_task_intervention;
@@ -20,10 +21,13 @@ pub mod linear_context;
 pub mod mcp_policy;
 pub mod memory_entry;
 pub mod orchestrator_session;
+pub mod output_expectation;
 pub mod ownership;
 pub mod protocol;
+pub mod provider_settings;
 pub mod pull_request;
 pub mod queue;
+pub mod reasoning;
 pub mod recovery;
 pub mod redaction;
 pub mod review;
@@ -35,7 +39,10 @@ pub mod runner_mode;
 pub mod runtime;
 pub mod search;
 pub mod session_lifecycle;
+pub mod session_policy;
+pub mod skill;
 pub mod step;
+pub mod step_executor;
 pub mod step_result;
 pub mod terminal_takeover;
 pub mod transcript;
@@ -70,6 +77,7 @@ pub use issue_workspace_context::{
     NewCommentExcerpt as IssueWorkspaceContextNewCommentExcerpt,
     NewLink as IssueWorkspaceContextNewLink,
 };
+pub use launch_profile::{LaunchProfile, ProfileKind, ProfileSnapshot, ProfileStep, StepSnapshot};
 pub use launch_queue::{
     ClassifiedIssue, ClassifiedRun, LaunchQueue, LaunchQueueClassification, OrchestrationInputs,
     QueueIssueBlocker, QueueIssueInput, QueueRunInput, classify_launch_queue,
@@ -88,6 +96,7 @@ pub use memory_entry::{MemoryCursor, MemoryEntry, MemoryPage};
 pub use orchestrator_session::{
     OrchestratorCheckpoint, OrchestratorScope, OrchestratorSession, OrchestratorStatus,
 };
+pub use output_expectation::OutputExpectation;
 pub use ownership::{
     OperatorId, OrchestrationOwner, OwnershipError, OwnershipEvent, OwnershipTransitionReason,
     SessionOwnership, SuspendReason, WriterLeaseInfo, transition_release, transition_resume,
@@ -98,11 +107,16 @@ pub use protocol::{
     ResumeKey, SessionMeta, TextBlock, TextDelta, Thinking, ToolCallResult, ToolCallStart,
     TurnOptions, TurnOutcome, TurnRequest, UsageSnapshot,
 };
+pub use provider_settings::{
+    AuthState, InstallState, PermissionPolicy, ProviderAvailability, ProviderSettings,
+    SandboxPolicy,
+};
 pub use pull_request::{LinkedPrSummary, PrState, PullRequest, ShipMode, parse_pr_number};
 pub use queue::{
     DONE_COLUMN_LIMIT, OperatorQueue, QueueInputs, classify as classify_queue, has_pending_handoff,
     queue_card_reason, trim_for_queue,
 };
+pub use reasoning::ReasoningEffort;
 pub use recovery::{
     LatestEventTag, RecoveryAction, RecoveryCandidate, RecoveryConfig, RecoveryStatus,
     StalledReason, classify as classify_recovery, decide_action as decide_recovery_action,
@@ -134,7 +148,10 @@ pub use search::{
     find_ascii_ci,
 };
 pub use session_lifecycle::{SessionLifecycleEvent, SessionLifecyclePhase};
+pub use session_policy::{SessionPolicy, SessionPolicyError};
+pub use skill::{SkillDefinition, SkillKind, SkillOrigin, SkillSource};
 pub use step::{RunStep, StepKey, StepStatus};
+pub use step_executor::StepExecutor;
 pub use step_result::{
     FailureClassification, FailureDisposition, STEP_RESULT_BEGIN, STEP_RESULT_END, StepResult,
     StepResultStatus,
