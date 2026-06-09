@@ -15,6 +15,16 @@ export { extractFormError, parseAnswer } from './parsers'
 export { watchButtonClass, watchButtonTitle } from './watch'
 export { classifyRuns } from './classify'
 export { toRunGroups } from './runGroups'
+export {
+	PHASE_ORDER,
+	PHASE_LABEL,
+	PHASE_DESCRIPTION,
+	PHASE_TEXT_CLASS,
+	PHASE_BORDER_CLASS,
+	boardNeedsYou,
+	phaseForRun,
+	toPhaseColumns
+} from './phaseBoard'
 export { pickRunReason, fmtRunElapsed } from './runCard'
 export { isTerminalRunState, isActiveRun, pickLatestRun } from './runState'
 export { PRIORITY_META, priorityColor } from './priorityMeta'
@@ -42,13 +52,7 @@ export {
 	pickTerminalKind
 } from './launchTaskBlocking'
 export { pickLinkedRunId, pickRunForTask } from './launchTaskRuns'
-export {
-	PHASE_ORDER,
-	derivePhases,
-	deriveActivityRows,
-	deriveChangedFiles,
-	pickRepresentativeStep
-} from './executionLog'
+export { derivePhases, deriveActivityRows, deriveChangedFiles, pickRepresentativeStep } from './executionLog'
 export { runNeedsHuman } from './runNeedsHuman'
 export { getDisposition, getFailureCopy } from './failureClassification'
 export type { FailureCopy } from './failureClassification'

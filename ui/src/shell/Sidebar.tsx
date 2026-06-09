@@ -21,6 +21,7 @@ interface PrimaryNavItem {
 
 const PRIMARY: PrimaryNavItem[] = [
 	{ id: 'inbox', to: '/', icon: 'inbox', label: 'Inbox' },
+	{ id: 'board', to: '/board', icon: 'layers', label: 'Board' },
 	{ id: 'issues', to: '/issues', icon: 'issue', label: 'Issues' },
 	{ id: 'agents', to: '/agents', icon: 'agent', label: 'Agents' },
 	{ id: 'settings', to: '/settings', icon: 'settings', label: 'Settings' }

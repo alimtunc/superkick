@@ -17,6 +17,7 @@ import { RunDock } from './RunDock'
 
 const SECTION_ICON: Record<Exclude<ShellNavId, null>, SKIconName> = {
 	inbox: 'inbox',
+	board: 'layers',
 	issues: 'issue',
 	agents: 'agent',
 	settings: 'settings'
