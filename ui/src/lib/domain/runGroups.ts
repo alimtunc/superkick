@@ -1,6 +1,6 @@
 import type { OperatorQueue, QueueRunSummary, RunGroups } from '@/types'
 
-const RECENT_CAP = 20
+export const RECENT_CAP = 20
 
 /**
  * Collapse the 6 server-side operator queues into the 4 user-facing groups
@@ -30,7 +30,7 @@ export function toRunGroups(groups: Record<OperatorQueue, QueueRunSummary[]>): R
 	}
 }
 
-function terminalSortKey(run: QueueRunSummary): number {
+export function terminalSortKey(run: QueueRunSummary): number {
 	const finished = run.finished_at ? new Date(run.finished_at).getTime() : 0
 	if (finished > 0) return finished
 	return new Date(run.updated_at).getTime()

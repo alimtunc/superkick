@@ -4,6 +4,7 @@ const HOME: ShellTitle = { active: 'inbox', title: 'Inbox' }
 
 const ROOT_TITLES: Partial<Record<string, ShellTitle>> = {
 	'/': HOME,
+	'/board': { active: 'board', title: 'Board' },
 	'/issues': { active: 'issues', title: 'Issues' },
 	'/queue': { active: null, title: 'Launch queue' },
 	'/tasks': { active: null, title: 'Tasks' },
