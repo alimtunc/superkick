@@ -23,6 +23,16 @@ build:
     cargo build
     cd ui && pnpm build
 
+# Build UI + an embedded-ui server, then run the Tauri desktop shell. Leaves `dev` untouched. macOS: needs Xcode CLT.
+tauri-dev:
+    cd ui && pnpm build
+    cargo build -p superkick-api --features embedded-ui
+    cargo run -p superkick-desktop
+
+# Compile the desktop shell only (no bundler/signing yet).
+tauri-build:
+    cargo build -p superkick-desktop
+
 # Format everything
 fmt:
     cargo fmt

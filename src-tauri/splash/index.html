@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Superkick</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: grid;
+        place-items: center;
+        background: #0b0b0f;
+        color: #e7e7ea;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      .stage { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+      .mark { font-size: 22px; font-weight: 650; letter-spacing: -0.01em; }
+      .hint { font-size: 13px; color: #9a9aa2; }
+      .spinner {
+        width: 26px; height: 26px; border-radius: 50%;
+        border: 2px solid #2a2a33; border-top-color: #6d8bff;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="spinner"></div>
+      <div class="mark">Superkick</div>
+      <div class="hint">Starting the local server…</div>
+    </div>
+  </body>
+</html>
