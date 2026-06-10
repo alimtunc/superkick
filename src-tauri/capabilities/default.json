@@ -1,0 +1,21 @@
+{
+  "identifier": "default",
+  "description": "Picker page + remotely-served dashboard: project registry commands, boot events, folder dialog.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:*"]
+  },
+  "permissions": [
+    "core:default",
+    "dialog:allow-open",
+    "allow-list-projects",
+    "allow-boot-state",
+    "allow-add-project",
+    "allow-select-project",
+    "allow-remove-project",
+    "allow-configure-project",
+    "allow-report-attention",
+    "allow-retry-boot",
+    "allow-show-picker"
+  ]
+}

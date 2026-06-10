@@ -1,50 +1,41 @@
-import { useMemo, useState } from 'react'
-
-import { SETTINGS_NAV_ITEMS } from '@/components/settings/settingsNav'
+import { SettingsLayout } from '@/components/settings/SettingsLayout'
+import { isSettingsPaneId, SETTINGS_NAV_ITEMS } from '@/components/settings/settingsNav'
 import { SettingsPaneComingSoon } from '@/components/settings/SettingsPaneComingSoon'
 import { SettingsPaneGeneral } from '@/components/settings/SettingsPaneGeneral'
+import { SettingsPaneIntegrations } from '@/components/settings/SettingsPaneIntegrations'
 import { SettingsPaneProfiles } from '@/components/settings/SettingsPaneProfiles'
 import { SettingsPaneProviders } from '@/components/settings/SettingsPaneProviders'
 import { SettingsPaneRules } from '@/components/settings/SettingsPaneRules'
 import { SettingsPaneRuntimes } from '@/components/settings/SettingsPaneRuntimes'
 import { SettingsPaneSkills } from '@/components/settings/SettingsPaneSkills'
-import { SettingsShell } from '@/components/settings/SettingsShell'
-import { usePageActions } from '@/shell/usePageActions'
 import type { SettingsPaneId } from '@/types'
-import { createRoute } from '@tanstack/react-router'
+import { createRoute, type SearchSchemaInput } from '@tanstack/react-router'
 
-import { Route as shellRoute } from './route'
+import { Route as rootRoute } from './__root'
+
+interface SettingsSearch {
+	pane: SettingsPaneId
+}
 
 export const Route = createRoute({
-	getParentRoute: () => shellRoute,
+	getParentRoute: () => rootRoute,
 	path: '/settings',
+	validateSearch: (raw: Partial<SettingsSearch> & SearchSchemaInput): SettingsSearch => ({
+		pane: isSettingsPaneId(raw.pane) ? raw.pane : 'general'
+	}),
 	component: SettingsPage
 })
 
 function SettingsPage() {
-	const [active, setActive] = useState<SettingsPaneId>('general')
-	const activeLabel = SETTINGS_NAV_ITEMS.find((item) => item.id === active)?.label ?? 'Settings'
+	const { pane } = Route.useSearch()
+	const label = SETTINGS_NAV_ITEMS.find((item) => item.id === pane)?.label ?? 'Settings'
 
-	usePageActions({
-		title: useMemo(
-			() => (
-				<>
-					Settings <span className="text-fg-dim">·</span> {activeLabel}
-				</>
-			),
-			[activeLabel]
-		)
-	})
-
-	return (
-		<SettingsShell activeId={active} onSelect={setActive}>
-			{renderPane(active, activeLabel)}
-		</SettingsShell>
-	)
+	return <SettingsLayout activeId={pane}>{renderPane(pane, label)}</SettingsLayout>
 }
 
 function renderPane(id: SettingsPaneId, label: string) {
 	if (id === 'general') return <SettingsPaneGeneral />
+	if (id === 'integrations') return <SettingsPaneIntegrations />
 	if (id === 'providers') return <SettingsPaneProviders />
 	if (id === 'skills') return <SettingsPaneSkills />
 	if (id === 'profiles') return <SettingsPaneProfiles />

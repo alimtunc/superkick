@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from 'react'
 
+import { SidebarTrigger } from '@/components/ui/sidebar'
 import type { SKIconName } from '@/types/icons'
 import { Icon } from '@/ui/Icon'
 
@@ -18,6 +19,7 @@ export function Topbar({ title, icon, crumbs, sub, right, back }: TopbarProps) {
 	const hasCrumbs = crumbs && crumbs.length > 0
 	return (
 		<div className="topbar">
+			<SidebarTrigger className="-ml-1.5" />
 			{back ? <div className="-ml-1 flex shrink-0 items-center">{back}</div> : null}
 			<div className="crumbs">
 				{icon && !hasCrumbs ? <Icon name={icon} size={15} className="shrink-0 text-fg-dim" /> : null}

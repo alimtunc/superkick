@@ -65,6 +65,9 @@ export const queryKeys = {
 	launchProfiles: {
 		all: ['launch-profiles'] as const,
 		detail: (id: string) => ['launch-profiles', id] as const
+	},
+	desktopProjects: {
+		all: ['desktop', 'projects'] as const
 	}
 }
 

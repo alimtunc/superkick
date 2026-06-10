@@ -1,10 +1,28 @@
+import {
+	SidebarContent,
+	SidebarFooter,
+	SidebarGroup,
+	SidebarGroupContent,
+	SidebarGroupLabel,
+	SidebarHeader,
+	SidebarMenu,
+	SidebarMenuBadge,
+	SidebarMenuButton,
+	SidebarMenuItem,
+	SidebarMenuLabel,
+	SidebarRail,
+	Sidebar as SidebarRoot
+} from '@/components/ui/sidebar'
+import { isDesktopShell } from '@/lib/desktop'
 import { cn } from '@/lib/utils'
 import type { ShellNavId } from '@/types'
 import type { SKIconName } from '@/types/icons'
 import type { TaskBadgeKind } from '@/types/lifecycle'
-import { Avatar } from '@/ui/Avatar'
 import { Icon } from '@/ui/Icon'
 import { Link } from '@tanstack/react-router'
+
+import { ProjectSwitcher } from './ProjectSwitcher'
+import { UserMenu } from './UserMenu'
 
 interface SidebarProps {
 	active: ShellNavId
@@ -23,8 +41,7 @@ const PRIMARY: PrimaryNavItem[] = [
 	{ id: 'inbox', to: '/', icon: 'inbox', label: 'Inbox' },
 	{ id: 'board', to: '/board', icon: 'layers', label: 'Board' },
 	{ id: 'issues', to: '/issues', icon: 'issue', label: 'Issues' },
-	{ id: 'agents', to: '/agents', icon: 'agent', label: 'Agents' },
-	{ id: 'settings', to: '/settings', icon: 'settings', label: 'Settings' }
+	{ id: 'agents', to: '/agents', icon: 'agent', label: 'Agents' }
 ]
 
 interface SavedView {
@@ -51,55 +68,91 @@ interface NavRowProps {
 
 function NavRow({ to, icon, label, active = false, count, dot }: NavRowProps) {
 	return (
-		<Link to={to} className={cn('navitem', active && 'navitem--active')}>
-			<Icon name={icon} size={16} className="ic" />
-			<span className="flex-1">{label}</span>
-			{typeof count === 'number' ? <span className="navitem__count">{count}</span> : null}
-			{dot ? <span className={cn('navitem__dot agdot', `agdot--${dot}`)} /> : null}
-		</Link>
+		<SidebarMenuItem>
+			<SidebarMenuButton
+				isActive={active}
+				tooltip={label}
+				render={<Link to={to} />}
+				className={active ? 'bg-accent-soft' : undefined}
+			>
+				<Icon
+					name={icon}
+					size={16}
+					className={cn('flex-none', active ? 'text-accent' : 'text-fg-dim')}
+				/>
+				<SidebarMenuLabel className="min-w-0 flex-1">{label}</SidebarMenuLabel>
+				{typeof count === 'number' ? (
+					<SidebarMenuBadge className={active ? 'text-fg-muted' : undefined}>
+						{count}
+					</SidebarMenuBadge>
+				) : null}
+			</SidebarMenuButton>
+			{dot ? (
+				<span
+					aria-hidden="true"
+					className={cn('agdot pointer-events-none absolute top-1 right-1', `agdot--${dot}`)}
+				/>
+			) : null}
+		</SidebarMenuItem>
 	)
 }
 
 export function Sidebar({ active, counts, agentActive = false }: SidebarProps) {
 	return (
-		<aside className="sidebar">
-			<div className="sidebar__brand">
-				<div className="sidebar__logo">S</div>
-				<div className="sidebar__brandname">
-					Superkick <span className="meta">· local</span>
+		<SidebarRoot collapsible="icon">
+			<SidebarHeader className="h-(--topbar-h) justify-center border-b border-(--border-faint)">
+				<div className="flex items-center gap-2 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+					<div className="flex size-5.5 flex-none items-center justify-center rounded-sm bg-accent text-[12px] font-semibold text-white">
+						S
+					</div>
+					{isDesktopShell() ? (
+						<div className="flex min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+							<ProjectSwitcher />
+						</div>
+					) : (
+						<SidebarMenuLabel className="text-[13px] font-semibold text-fg">
+							Superkick <span className="font-normal text-fg-dim">· local</span>
+						</SidebarMenuLabel>
+					)}
 				</div>
-			</div>
+			</SidebarHeader>
 
-			<div className="sidebar__scroll">
-				<div className="navgroup">
-					{PRIMARY.map((item) => (
-						<NavRow
-							key={item.id}
-							to={item.to}
-							icon={item.icon}
-							label={item.label}
-							active={active === item.id}
-							count={counts?.[item.id]}
-							dot={item.id === 'agents' && agentActive ? 'running' : undefined}
-						/>
-					))}
-				</div>
+			<SidebarContent>
+				<SidebarGroup>
+					<SidebarGroupContent>
+						<SidebarMenu>
+							{PRIMARY.map((item) => (
+								<NavRow
+									key={item.id}
+									to={item.to}
+									icon={item.icon}
+									label={item.label}
+									active={active === item.id}
+									count={counts?.[item.id]}
+									dot={item.id === 'agents' && agentActive ? 'running' : undefined}
+								/>
+							))}
+						</SidebarMenu>
+					</SidebarGroupContent>
+				</SidebarGroup>
 
-				<div className="navgroup">
-					<div className="navgroup__label">Saved views</div>
-					{SAVED_VIEWS.map((view) => (
-						<NavRow key={view.label} to={view.to} icon={view.icon} label={view.label} />
-					))}
-				</div>
-			</div>
+				<SidebarGroup>
+					<SidebarGroupLabel>Saved views</SidebarGroupLabel>
+					<SidebarGroupContent>
+						<SidebarMenu>
+							{SAVED_VIEWS.map((view) => (
+								<NavRow key={view.label} to={view.to} icon={view.icon} label={view.label} />
+							))}
+						</SidebarMenu>
+					</SidebarGroupContent>
+				</SidebarGroup>
+			</SidebarContent>
 
-			<div className="sidebar__footer">
-				<div className="navitem">
-					<Avatar name="You" id="local-operator" size={20} />
-					<span className="flex-1">You</span>
-					<Icon name="chevDown" size={14} className="ic" />
-				</div>
-			</div>
-		</aside>
+			<SidebarFooter className="border-t border-(--border-faint)">
+				<UserMenu />
+			</SidebarFooter>
+
+			<SidebarRail />
+		</SidebarRoot>
 	)
 }

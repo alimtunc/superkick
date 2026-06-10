@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-report-attention"
+description = "Enables the report_attention command without any pre-configured scope."
+commands.allow = ["report_attention"]
+
+[[permission]]
+identifier = "deny-report-attention"
+description = "Denies the report_attention command without any pre-configured scope."
+commands.deny = ["report_attention"]

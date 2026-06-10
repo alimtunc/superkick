@@ -1,3 +1,6 @@
+use std::path::PathBuf;
+
+use anyhow::Context;
 use tracing_subscriber::EnvFilter;
 
 use superkick_api::ServerConfig;
@@ -24,8 +27,15 @@ async fn main() -> anyhow::Result<()> {
     let (listener, actual_port) = bind_with_fallback(port, 10).await?;
 
     // Write the actual port so the frontend dev server can discover it.
-    let port_file = superkick_config::port_file_path(&config_path);
-    std::fs::write(&port_file, actual_port.to_string())?;
+    let port_file = std::env::var(superkick_config::ENV_PORT_FILE)
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| superkick_config::port_file_path(&config_path));
+    if let Some(parent) = port_file.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("creating port-file directory {}", parent.display()))?;
+    }
+    std::fs::write(&port_file, actual_port.to_string())
+        .with_context(|| format!("writing port file {}", port_file.display()))?;
 
     let result = superkick_api::run_server(ServerConfig {
         config_path,

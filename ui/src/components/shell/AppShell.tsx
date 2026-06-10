@@ -1,5 +1,6 @@
 import { CommandBar } from '@/components/command/CommandBar'
 import { SessionWatchRail } from '@/components/dashboard/SessionWatchRail'
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { useDashboardRuns } from '@/hooks/useDashboardRuns'
 import { FEATURES } from '@/lib/features'
 import { ConnectionBanner } from '@/shell/ConnectionBanner'
@@ -11,16 +12,15 @@ import { usePageActionsStore } from '@/shell/usePageActions'
 import type { ShellNavId } from '@/types'
 import type { SKIconName } from '@/types/icons'
 import { Outlet, useMatches } from '@tanstack/react-router'
-import { Toaster } from 'sonner'
 
+import { AppFrame } from './AppFrame'
 import { RunDock } from './RunDock'
 
 const SECTION_ICON: Record<Exclude<ShellNavId, null>, SKIconName> = {
 	inbox: 'inbox',
 	board: 'layers',
 	issues: 'issue',
-	agents: 'agent',
-	settings: 'settings'
+	agents: 'agent'
 }
 
 export function AppShell() {
@@ -35,39 +35,29 @@ export function AppShell() {
 	const pageBack = usePageActionsStore((s) => s.back)
 
 	return (
-		<div className="flex h-screen bg-canvas">
-			<Sidebar active={active} agentActive={dashboard.active.length > 0} />
-			<div className="flex min-w-0 flex-1 flex-col">
-				<Topbar
-					title={pageTitle ?? title}
-					icon={active ? SECTION_ICON[active] : undefined}
-					crumbs={pageCrumbs ?? crumbs}
-					sub={pageSub ?? undefined}
-					right={pageRight ?? <TopbarStatus />}
-					back={pageBack ?? undefined}
-				/>
-				<ConnectionBanner />
-				{FEATURES.sessionWatchRail ? (
-					<SessionWatchRail refTime={dashboard.refTime} mode="overview" />
-				) : null}
-				<main className="min-h-0 flex-1 overflow-y-auto">
-					<Outlet />
-				</main>
-				{FEATURES.globalRunDock ? <RunDock /> : null}
-			</div>
+		<AppFrame>
+			<SidebarProvider className="w-auto min-w-0 flex-1">
+				<Sidebar active={active} agentActive={dashboard.active.length > 0} />
+				<SidebarInset>
+					<Topbar
+						title={pageTitle ?? title}
+						icon={active ? SECTION_ICON[active] : undefined}
+						crumbs={pageCrumbs ?? crumbs}
+						sub={pageSub ?? undefined}
+						right={pageRight ?? <TopbarStatus />}
+						back={pageBack ?? undefined}
+					/>
+					<ConnectionBanner />
+					{FEATURES.sessionWatchRail ? (
+						<SessionWatchRail refTime={dashboard.refTime} mode="overview" />
+					) : null}
+					<div className="min-h-0 flex-1 overflow-y-auto">
+						<Outlet />
+					</div>
+					{FEATURES.globalRunDock ? <RunDock /> : null}
+				</SidebarInset>
+			</SidebarProvider>
 			<CommandBar />
-			<Toaster
-				position="top-right"
-				duration={1500}
-				toastOptions={{
-					style: {
-						background: 'var(--color-surface)',
-						border: '1px solid var(--color-border)',
-						color: 'var(--color-fg)',
-						fontSize: '12px'
-					}
-				}}
-			/>
-		</div>
+		</AppFrame>
 	)
 }

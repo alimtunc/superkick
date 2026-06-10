@@ -1,28 +1,55 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type Theme = 'dark' | 'light'
+export type ThemeMode = 'light' | 'dark' | 'system'
 
 interface ThemeState {
-	theme: Theme
-	setTheme: (theme: Theme) => void
-	toggleTheme: () => void
+	mode: ThemeMode
+	setMode: (mode: ThemeMode) => void
+}
+
+// jsdom has no matchMedia; the guard keeps any test importing this store from crashing at import time.
+const darkQuery =
+	typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null
+
+function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
+	if (mode === 'system') return darkQuery?.matches ? 'dark' : 'light'
+	return mode
+}
+
+function isThemeMode(value: unknown): value is ThemeMode {
+	return value === 'light' || value === 'dark' || value === 'system'
+}
+
+function migrateMode(persisted: unknown): ThemeMode {
+	if (typeof persisted !== 'object' || persisted === null) return 'system'
+	const record = persisted as Record<string, unknown>
+	if (isThemeMode(record.mode)) return record.mode
+	if (record.theme === 'light' || record.theme === 'dark') return record.theme
+	return 'system'
 }
 
 export const useThemeStore = create<ThemeState>()(
 	persist(
 		(set) => ({
-			theme: 'dark',
-			setTheme: (theme: Theme) => set({ theme }),
-			toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' }))
+			mode: 'system',
+			setMode: (mode: ThemeMode) => set({ mode })
 		}),
-		{ name: 'superkick:theme' }
+		{
+			name: 'superkick:theme',
+			version: 1,
+			partialize: (s) => ({ mode: s.mode }),
+			migrate: (persisted) => ({ mode: migrateMode(persisted) })
+		}
 	)
 )
 
-function applyTheme(theme: Theme) {
-	document.documentElement.setAttribute('data-theme', theme)
+function applyTheme() {
+	document.documentElement.setAttribute('data-theme', resolveTheme(useThemeStore.getState().mode))
 }
 
-applyTheme(useThemeStore.getState().theme)
-useThemeStore.subscribe((s) => applyTheme(s.theme))
+applyTheme()
+useThemeStore.subscribe(applyTheme)
+darkQuery?.addEventListener('change', () => {
+	if (useThemeStore.getState().mode === 'system') applyTheme()
+})

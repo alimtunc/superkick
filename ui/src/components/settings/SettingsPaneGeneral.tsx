@@ -2,13 +2,14 @@ import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSection } from '@/components/settings/SettingsSection'
 import { Button } from '@/components/ui/button'
 import { Pill } from '@/components/ui/pill'
+import { THEME_OPTIONS } from '@/lib/themeOptions'
 import { useThemeStore } from '@/stores/theme'
 import { Icon } from '@/ui/Icon'
 import { Toggle } from '@/ui/Toggle'
 
 export function SettingsPaneGeneral() {
-	const theme = useThemeStore((s) => s.theme)
-	const setTheme = useThemeStore((s) => s.setTheme)
+	const mode = useThemeStore((s) => s.mode)
+	const setMode = useThemeStore((s) => s.setMode)
 
 	return (
 		<section>
@@ -60,22 +61,17 @@ export function SettingsPaneGeneral() {
 			<SettingsSection title="Appearance">
 				<SettingsRow label="Theme" hint="Live preview — flips the whole app" last>
 					<div className="seg" role="group" aria-label="Theme">
-						<button
-							type="button"
-							aria-pressed={theme === 'dark'}
-							className={theme === 'dark' ? 'on' : undefined}
-							onClick={() => setTheme('dark')}
-						>
-							Dark
-						</button>
-						<button
-							type="button"
-							aria-pressed={theme === 'light'}
-							className={theme === 'light' ? 'on' : undefined}
-							onClick={() => setTheme('light')}
-						>
-							Light
-						</button>
+						{THEME_OPTIONS.map((option) => (
+							<button
+								key={option.mode}
+								type="button"
+								aria-pressed={mode === option.mode}
+								className={mode === option.mode ? 'on' : undefined}
+								onClick={() => setMode(option.mode)}
+							>
+								{option.label}
+							</button>
+						))}
 					</div>
 				</SettingsRow>
 			</SettingsSection>
