@@ -10,8 +10,6 @@ import type { SkillSource } from './skills'
 // via `/config` for the legacy launch flow.
 export interface LaunchProfileSettings {
 	use_worktree: boolean
-	live_mode: boolean
-	skills: string[]
 	default_instructions: string
 	handoff_instructions: string
 }

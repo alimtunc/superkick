@@ -127,3 +127,33 @@ fn spawn_reports_missing_binary_before_touching_the_port_file() {
         Err(ServerError::BinaryMissing { .. })
     ));
 }
+
+#[cfg(unix)]
+#[test]
+fn shutdown_terminates_a_cooperative_child_within_the_grace_window() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let script = dir.path().join("long-lived.sh");
+    std::fs::write(&script, "#!/bin/sh\nsleep 60\n").expect("write script");
+    let mut perms = std::fs::metadata(&script).expect("stat").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut perms, 0o755);
+    std::fs::set_permissions(&script, perms).expect("chmod");
+    let config = SpawnConfig {
+        binary: script,
+        project_root: dir.path().to_path_buf(),
+        config_path: "superkick.yaml".to_string(),
+        database_url: "sqlite::memory:".to_string(),
+        cache_dir: ".superkick-cache".to_string(),
+        start_port: 3100,
+    };
+    let server = ServerProcess::spawn(config).expect("spawn sleep child");
+    std::fs::write(server.port_file(), "3100").expect("seed port file");
+    let port_file = server.port_file().to_path_buf();
+
+    let started = std::time::Instant::now();
+    server.shutdown().expect("shutdown should succeed");
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "cooperative child must exit within the grace window"
+    );
+    assert!(!port_file.exists(), "shutdown must clean the port file");
+}

@@ -15,17 +15,17 @@
 
 use std::sync::{Arc, Mutex};
 
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
-use http_body_util::BodyExt;
-use serde_json::{Value, json};
+mod common;
+use common::{get_json as get, post_json as post};
+
+use axum::http::StatusCode;
+use serde_json::json;
 use superkick_api::issue_context_test_router;
 use superkick_api::test_handlers::{IssueLookup, IssueWorkspaceContextRepoDyn, MemoryEntryRepoDyn};
 use superkick_core::{IssueWorkspaceContext, IssueWorkspaceContextSnapshot, MemoryEntry};
 use superkick_integrations::linear::LinearError;
 use superkick_storage::repo::{IssueWorkspaceContextRepo, MemoryEntryRepo};
 use superkick_storage::{SqliteIssueWorkspaceContextRepo, SqliteMemoryEntryRepo, connect};
-use tower::ServiceExt;
 
 const TEST_ISSUE_ID: &str = "11111111-1111-1111-1111-111111111111";
 const TEST_IDENTIFIER: &str = "SUP-148";
@@ -107,27 +107,6 @@ async fn harness() -> Harness {
     }
 }
 
-async fn json_body(body: Body) -> Value {
-    let bytes = body.collect().await.expect("collect").to_bytes();
-    serde_json::from_slice(&bytes).expect("json body")
-}
-
-async fn get(router: &axum::Router, uri: &str) -> (StatusCode, Value) {
-    let res = router
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri(uri)
-                .body(Body::empty())
-                .expect("request"),
-        )
-        .await
-        .expect("send");
-    let status = res.status();
-    (status, json_body(res.into_body()).await)
-}
-
 /// Convenience: query the underlying SqliteIssueWorkspaceContextRepo through
 /// the concrete trait. The handler dyn-shim re-exposes the same method name
 /// so we disambiguate here once instead of at every call site.
@@ -135,23 +114,6 @@ async fn list_contexts(h: &Harness) -> Vec<IssueWorkspaceContext> {
     IssueWorkspaceContextRepo::list_by_issue_identifier(&*h.context_repo, TEST_IDENTIFIER)
         .await
         .expect("list")
-}
-
-async fn post(router: &axum::Router, uri: &str, body: Value) -> (StatusCode, Value) {
-    let res = router
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(uri)
-                .header("content-type", "application/json")
-                .body(Body::from(body.to_string()))
-                .expect("request"),
-        )
-        .await
-        .expect("send");
-    let status = res.status();
-    (status, json_body(res.into_body()).await)
 }
 
 #[tokio::test]

@@ -22,8 +22,13 @@ pub async fn connect_with_capacity(database_url: &str, max_connections: u32) -> 
         .create_if_missing(true)
         .foreign_keys(true);
     // WAL journaling requires a real disk file — skip it for in-memory tests.
+    // `synchronous = NORMAL` is the recommended pairing with WAL: the WAL is
+    // synced on checkpoint rather than every commit, without losing
+    // durability beyond the last checkpoint on power loss.
     if !database_url.contains(":memory:") {
-        options = options.journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
+        options = options
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+            .synchronous(sqlx::sqlite::SqliteSynchronous::Normal);
     }
 
     let pool = SqlitePoolOptions::new()
@@ -222,13 +227,9 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
         if !already_applied {
             let mut tx = pool.begin().await?;
 
-            // Execute each statement separately (sqlx doesn't support multi-statement by default).
-            for statement in sql.split(';') {
-                let trimmed = statement.trim();
-                if !trimmed.is_empty() {
-                    sqlx::query(trimmed).execute(&mut *tx).await?;
-                }
-            }
+            sqlx::raw_sql(sqlx::AssertSqlSafe(sql.to_string()))
+                .execute(&mut *tx)
+                .await?;
 
             sqlx::query("INSERT INTO _migrations (name) VALUES (?1)")
                 .bind(name)

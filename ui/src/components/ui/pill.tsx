@@ -1,6 +1,7 @@
 import type { ComponentProps, CSSProperties, ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
+import type { PillTone } from '@/types/ui'
 import { cva, type VariantProps } from 'class-variance-authority'
 
 const pillVariants = cva(
@@ -40,7 +41,12 @@ const pillVariants = cva(
 	}
 )
 
-export type PillTone = NonNullable<VariantProps<typeof pillVariants>['tone']>
+type CvaTone = NonNullable<VariantProps<typeof pillVariants>['tone']>
+// Compile-time sync: the shared domain union must match the cva variants.
+type AssertTonesMatch = [CvaTone] extends [PillTone] ? ([PillTone] extends [CvaTone] ? true : never) : never
+const _assertTonesMatch: AssertTonesMatch = true
+void _assertTonesMatch
+export type { PillTone }
 export type PillSize = NonNullable<VariantProps<typeof pillVariants>['size']>
 
 const DOT_BG: Record<PillTone, string> = {

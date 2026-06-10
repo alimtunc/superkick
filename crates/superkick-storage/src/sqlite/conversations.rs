@@ -9,7 +9,7 @@ use superkick_core::{
     UsageSnapshot,
 };
 
-use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, decode_rfc3339_opt, deserialize_enum, serialize_enum};
 use super::ensure_updated;
 use crate::repo::{ConversationRepo, TurnEventRepo, TurnRepo};
 
@@ -256,11 +256,7 @@ impl ConversationRow {
             provider_session_id: self.provider_session_id,
             created_at: decode_rfc3339(&self.created_at)?,
             updated_at: decode_rfc3339(&self.updated_at)?,
-            last_turn_at: self
-                .last_turn_at
-                .as_deref()
-                .map(decode_rfc3339)
-                .transpose()?,
+            last_turn_at: decode_rfc3339_opt(self.last_turn_at.as_deref())?,
         })
     }
 }
@@ -511,12 +507,8 @@ impl TurnRow {
             error,
             cancel_reason: self.cancel_reason,
             created_at: decode_rfc3339(&self.created_at)?,
-            started_at: self.started_at.as_deref().map(decode_rfc3339).transpose()?,
-            finished_at: self
-                .finished_at
-                .as_deref()
-                .map(decode_rfc3339)
-                .transpose()?,
+            started_at: decode_rfc3339_opt(self.started_at.as_deref())?,
+            finished_at: decode_rfc3339_opt(self.finished_at.as_deref())?,
         })
     }
 }

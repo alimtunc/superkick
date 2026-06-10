@@ -84,3 +84,11 @@ export function fmtRelativeShort(value: number | string | Date, refTime: number 
 	const years = Math.floor(day / 365)
 	return `${years}y`
 }
+
+export function lastRefreshedLabel(at: Date | number | null, loading?: boolean): string | null {
+	if (at == null) return null
+	if (loading) return 'refreshing…'
+
+	const iso = typeof at === 'number' ? new Date(at).toISOString() : at.toISOString()
+	return fmtRelativeTime(iso)
+}

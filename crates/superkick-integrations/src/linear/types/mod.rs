@@ -13,7 +13,6 @@ pub(crate) use graphql::{
     GqlCommentCreateResponse, GqlCommentsResponse, GqlDetailResponse, GqlIssueCreateResponse,
     GqlIssueTeamResponse, GqlIssueUpdateResponse, GqlOptionsResponse, GqlRecentComment,
     GqlResponse, GqlSearchResponse, GqlTeamStatesResponse, GqlViewerResponse,
-    classify_graphql_errors,
 };
 
 #[cfg(test)]

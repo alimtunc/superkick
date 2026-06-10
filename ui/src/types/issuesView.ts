@@ -1,7 +1,7 @@
-import type { PillTone } from '@/components/ui/pill'
-
+import type { IssueLabel, IssuePriority } from './issues'
 import type { IssueWithState } from './issueWithState'
 import type { LifecycleBucket, StatusIconKind } from './lifecycle'
+import type { PillTone } from './ui'
 
 /** Saved-view tab. `mine` is the default landing — the other two are pinned. */
 export type IssueViewTab = 'mine' | 'all-open' | 'shipped'
@@ -77,4 +77,13 @@ export interface IssueTabCounts {
 	mine: number
 	'all-open': number
 	shipped: number
+}
+
+export interface FilterOptionSet {
+	assignees: { id: string; name: string }[]
+	statuses: { state_type: string; name: string }[]
+	priorities: IssuePriority[]
+	labels: IssueLabel[]
+	projects: string[]
+	repos: string[]
 }

@@ -101,3 +101,7 @@ export function issueStateFor(
 	if (bucket !== undefined) return mapLaunchQueueToIssueState(bucket)
 	return issueStateFromLinear(issue.status.state_type)
 }
+
+export function isIssueState(id: string | number): id is IssueState {
+	return typeof id === 'string' && (ISSUE_STATE_ORDER as readonly string[]).includes(id)
+}

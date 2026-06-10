@@ -76,15 +76,3 @@ pub struct RunDiff {
     pub file_count: u32,
     pub overflow: bool,
 }
-
-impl RunDiff {
-    pub fn empty(base_ref: impl Into<String>, head_ref: impl Into<String>) -> Self {
-        Self {
-            base_ref: base_ref.into(),
-            head_ref: head_ref.into(),
-            files: Vec::new(),
-            file_count: 0,
-            overflow: false,
-        }
-    }
-}

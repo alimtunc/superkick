@@ -1,6 +1,6 @@
 //! SQLite persistence for app-managed skill definitions.
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
 use superkick_core::{
@@ -9,6 +9,7 @@ use superkick_core::{
 };
 
 use super::codec::{deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::repo::SkillDefinitionRepo;
 
 pub struct SqliteSkillDefinitionRepo {
@@ -100,10 +101,7 @@ impl SkillDefinitionRepo for SqliteSkillDefinitionRepo {
             .execute(&self.pool)
             .await
             .with_context(|| format!("delete skill_definition {id}"))?;
-        if result.rows_affected() == 0 {
-            return Err(anyhow!("skill_definition {id} not found"));
-        }
-        Ok(())
+        ensure_updated(result, "skill_definition", id)
     }
 }
 

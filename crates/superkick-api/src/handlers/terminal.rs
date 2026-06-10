@@ -18,8 +18,9 @@ use tokio::sync::broadcast;
 
 use superkick_core::{RunId, TakeoverSessionId};
 use superkick_runtime::{PtySession, WriterHolder};
-use superkick_storage::repo::{RunRepo, TranscriptRepo};
+use superkick_storage::repo::TranscriptRepo;
 
+use super::require_run;
 use crate::AppState;
 use crate::error::AppError;
 
@@ -30,9 +31,7 @@ pub async fn get_terminal_history(
 ) -> Result<impl IntoResponse, AppError> {
     let run_id = RunId(id);
 
-    let Some(_run) = state.run_repo.get(run_id).await? else {
-        return Err(AppError::NotFound("run not found"));
-    };
+    require_run(&state, run_id).await?;
 
     let chunks = state.transcript_repo.list_by_run(run_id).await?;
 
@@ -56,9 +55,7 @@ pub async fn attach_terminal(
 ) -> Result<impl IntoResponse, AppError> {
     let run_id = RunId(id);
 
-    let Some(_run) = state.run_repo.get(run_id).await? else {
-        return Err(AppError::NotFound("run not found"));
-    };
+    require_run(&state, run_id).await?;
 
     let Some(session) = state.pty_registry.get(run_id) else {
         return Err(AppError::NotFound("no live PTY session for this run"));

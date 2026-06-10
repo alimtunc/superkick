@@ -10,23 +10,21 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    let config_path = std::env::var("SUPERKICK_CONFIG").unwrap_or_else(|_| "superkick.yaml".into());
-    let database_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:superkick.db".into());
-    let port: u16 = std::env::var("PORT")
+    let config_path = std::env::var(superkick_config::ENV_CONFIG)
+        .unwrap_or_else(|_| superkick_config::CONFIG_FILENAME.into());
+    let database_url = std::env::var(superkick_config::ENV_DATABASE_URL)
+        .unwrap_or_else(|_| superkick_config::DEFAULT_DATABASE_URL.into());
+    let port: u16 = std::env::var(superkick_config::ENV_PORT)
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(3100);
-    let cache_dir =
-        std::env::var("SUPERKICK_CACHE_DIR").unwrap_or_else(|_| ".superkick-cache".into());
+        .unwrap_or(superkick_config::DEFAULT_PORT);
+    let cache_dir = std::env::var(superkick_config::ENV_CACHE_DIR)
+        .unwrap_or_else(|_| superkick_config::DEFAULT_CACHE_DIR.into());
 
     let (listener, actual_port) = bind_with_fallback(port, 10).await?;
 
     // Write the actual port so the frontend dev server can discover it.
-    let port_file = std::path::Path::new(&config_path)
-        .parent()
-        .unwrap_or(std::path::Path::new("."))
-        .join(".superkick-port");
+    let port_file = superkick_config::port_file_path(&config_path);
     std::fs::write(&port_file, actual_port.to_string())?;
 
     let result = superkick_api::run_server(ServerConfig {

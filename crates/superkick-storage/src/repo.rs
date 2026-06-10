@@ -25,6 +25,9 @@ pub trait RunRepo: Send + Sync {
     fn insert(&self, run: &Run) -> impl Future<Output = Result<()>> + Send;
     fn get(&self, id: RunId) -> impl Future<Output = Result<Option<Run>>> + Send;
     fn list_all(&self) -> impl Future<Output = Result<Vec<Run>>> + Send;
+    /// Most recently started runs, bounded — for surfaces (search, dashboards)
+    /// that must not scan the whole monotonically-growing table.
+    fn list_recent(&self, limit: u32) -> impl Future<Output = Result<Vec<Run>>> + Send;
     fn update(&self, run: &Run) -> impl Future<Output = Result<()>> + Send;
     fn list_by_issue_id(&self, issue_id: &str) -> impl Future<Output = Result<Vec<Run>>> + Send;
     fn list_by_issue_identifier(

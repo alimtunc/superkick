@@ -8,14 +8,15 @@ import {
 	watchButtonClass,
 	watchButtonTitle
 } from '@/lib/domain'
-import { useWatchedSessionsStore } from '@/stores/watchedSessions'
+import { useWatchedSessionsStore, selectMaxReached } from '@/stores/watchedSessions'
 import type { Run } from '@/types'
 import { Link } from '@tanstack/react-router'
 import { Eye, EyeOff } from 'lucide-react'
 
 export function BoardCard({ run, refTime }: { run: Run; refTime: number }) {
 	const sig = healthSignal(run, refTime)
-	const { isWatched, toggleWatch, maxReached } = useWatchedSessionsStore()
+	const { isWatched, toggleWatch } = useWatchedSessionsStore()
+	const maxReached = useWatchedSessionsStore(selectMaxReached)
 	const watched = isWatched(run.id)
 
 	return (

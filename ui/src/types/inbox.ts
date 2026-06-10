@@ -1,4 +1,7 @@
-import type { LaunchQueueItem, LinearIssueListItem, QueueRunSummary, Run } from '@/types'
+import type { QueueRunSummary } from './dashboard'
+import type { LinearIssueListItem } from './issues'
+import type { LaunchQueueItem } from './launchQueue'
+import type { Run } from './runs'
 
 export type NeedsHumanReasonKind =
 	| 'awaiting_approval'

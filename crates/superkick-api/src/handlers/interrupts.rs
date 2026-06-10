@@ -3,8 +3,9 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json};
 
 use superkick_core::{InterruptAction, InterruptId, RunId};
-use superkick_storage::repo::{InterruptRepo, RunRepo};
+use superkick_storage::repo::InterruptRepo;
 
+use super::require_run;
 use crate::AppState;
 use crate::error::AppError;
 
@@ -13,10 +14,7 @@ pub async fn list_interrupts(
     Path(id): Path<uuid::Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     let run_id = RunId(id);
-    let run = state.run_repo.get(run_id).await?;
-    if run.is_none() {
-        return Err(AppError::NotFound("run not found"));
-    }
+    require_run(&state, run_id).await?;
     let interrupts = state.interrupt_repo.list_by_run(run_id).await?;
     Ok(Json(interrupts))
 }

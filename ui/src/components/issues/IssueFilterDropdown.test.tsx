@@ -1,5 +1,6 @@
-import { IssueFilterDropdown, type FilterOptionSet } from '@/components/issues/IssueFilterDropdown'
+import { IssueFilterDropdown } from '@/components/issues/IssueFilterDropdown'
 import { EMPTY_FILTERS } from '@/lib/issues/searchParams'
+import type { FilterOptionSet } from '@/types'
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 

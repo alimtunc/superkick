@@ -33,246 +33,17 @@ mod error;
 mod handlers;
 mod run_seams;
 mod search_state;
+#[cfg(feature = "test-support")]
+mod test_routers;
 #[cfg(feature = "embedded-ui")]
 mod ui_assets;
 
-/// Test-only helpers. Hidden behind the `test-support` feature so the public
-/// API surface stays clean in production builds.
 #[cfg(feature = "test-support")]
-pub mod tests_only {
-    use superkick_core::CoreError;
-
-    use crate::error::AppError;
-
-    /// Run the `CoreError → AppError` mapping that handlers rely on, for
-    /// integration tests that need to assert HTTP status pinning without
-    /// going through a full handler invocation.
-    pub fn map_core_error(err: CoreError) -> AppError {
-        AppError::from(err)
-    }
-}
-
-/// Test-only router builder for the SUP-102 orchestrator session routes.
-///
-/// Production wires these routes onto the full `AppState` in `run_server`;
-/// this helper builds the same five routes against the `SqliteOrchestratorSessionRepo`
-/// alone so integration tests don't have to rebuild the entire app state.
-/// Gated behind the `test-support` feature so it never reaches production
-/// callers — only the integration tests in this crate enable it.
-#[cfg(feature = "test-support")]
-pub fn orchestrator_session_test_router(repo: Arc<SqliteOrchestratorSessionRepo>) -> Router {
-    Router::new()
-        .route(
-            "/orchestrator-sessions",
-            post(handlers::orchestrator_sessions::create_session)
-                .get(handlers::orchestrator_sessions::list_sessions),
-        )
-        .route(
-            "/orchestrator-sessions/{id}",
-            get(handlers::orchestrator_sessions::get_session)
-                .patch(handlers::orchestrator_sessions::patch_session),
-        )
-        .route(
-            "/orchestrator-sessions/{id}/checkpoints",
-            post(handlers::orchestrator_sessions::create_checkpoint)
-                .get(handlers::orchestrator_sessions::list_checkpoints),
-        )
-        .with_state(repo)
-}
-
-/// Test-only router builder for the SUP-117 `GET /agents` route. Wires the
-/// single endpoint against an `AgentsState` built directly from the supplied
-/// catalog so integration tests don't have to materialise the full
-/// `AppState`.
-#[cfg(feature = "test-support")]
-pub fn agents_test_router(catalog: Arc<AgentCatalog>) -> Router {
-    let state = handlers::agents::AgentsState { catalog };
-    Router::new()
-        .route("/agents", get(handlers::agents::list_agents))
-        .with_state(state)
-}
-
-/// Test-only router builder for the SUP-116 + SUP-118 launch-task routes.
-/// Wires the read/create endpoints plus the SUP-118 cancel + SSE endpoints
-/// against a freshly-built `LaunchTaskState` so integration tests don't have
-/// to materialise the full `AppState`. The bus, registry, and executor are
-/// constructed in-memory with the production stub runner — sufficient for
-/// HTTP-shape tests; behavioural tests of the executor live in
-/// `superkick-runtime/tests`.
-#[cfg(feature = "test-support")]
-pub fn launch_task_test_router(
-    repo: Arc<SqliteLaunchTaskRepo>,
-    intervention_repo: Arc<SqliteLaunchTaskInterventionRepo>,
-    run_repo: Arc<SqliteRunRepo>,
-    catalog: Arc<AgentCatalog>,
-) -> Router {
-    use superkick_runtime::StubStepRunner;
-    let bus = LaunchTaskEventBus::new();
-    let executor = LaunchTaskExecutor::new(
-        Arc::clone(&repo),
-        Arc::clone(&bus),
-        Arc::new(LaunchTaskRegistry::new()),
-        Arc::new(StubStepRunner::new()),
-    );
-    let state = handlers::launch_tasks::LaunchTaskState::<StubStepRunner> {
-        repo,
-        intervention_repo,
-        run_repo,
-        catalog,
-        bus,
-        executor,
-        // The test router exercises only the legacy triplet path; dynamic
-        // composition is covered at the runtime layer.
-        launch_profile_service: None,
-        // Tests assert against synchronous create-time state; the executor
-        // itself is covered at the runtime layer.
-        auto_trigger_executor: false,
-    };
-    Router::new()
-        .route(
-            "/launch-tasks",
-            post(handlers::launch_tasks::create_launch_task)
-                .get(handlers::launch_tasks::list_launch_tasks),
-        )
-        .route(
-            "/launch-tasks/{id}",
-            get(handlers::launch_tasks::get_launch_task),
-        )
-        .route(
-            "/launch-tasks/{id}/steps",
-            get(handlers::launch_tasks::list_launch_task_steps),
-        )
-        .route(
-            "/launch-tasks/{id}/cancel",
-            post(handlers::launch_tasks::cancel_launch_task),
-        )
-        .route(
-            "/launch-tasks/{id}/retry",
-            post(handlers::launch_tasks::retry_launch_task),
-        )
-        .route(
-            "/launch-tasks/{id}/interventions",
-            get(handlers::launch_tasks::list_launch_task_interventions)
-                .post(handlers::launch_tasks::create_launch_task_intervention),
-        )
-        .route(
-            "/launch-tasks/events",
-            get(handlers::launch_tasks::launch_task_events_sse),
-        )
-        .with_state(state)
-}
-
-/// Test-only router builder for the SUP-172 `GET /runs/{id}/diff` route.
-///
-/// Wires the single endpoint against a `RunDiffState` built from the
-/// supplied repo and the workspace's default branch — same pattern as
-/// `agents_test_router` and `launch_task_test_router`. Tests pre-seed
-/// runs through the repo and point `worktree_path` at a temp git repo
-/// they control.
-#[cfg(feature = "test-support")]
-pub fn run_diff_test_router(repo: Arc<SqliteRunRepo>, base_branch: String) -> Router {
-    let state = handlers::runs::RunDiffState {
-        run_repo: repo,
-        base_branch,
-    };
-    Router::new()
-        .route("/runs/{id}/diff", get(handlers::runs::get_run_diff))
-        .with_state(state)
-}
-
-/// Test-only router builder for the SUP-187 `GET /launch-tasks/{id}/snapshot`
-/// route. Wires the snapshot handler against real in-memory SQLite repos —
-/// same pattern as `run_diff_test_router`. Tests seed a launch task (and
-/// optionally a run / workspace / events) through the repos, then assert the
-/// derived projection.
-#[cfg(feature = "test-support")]
-pub fn run_context_snapshot_test_router(
-    launch_task_repo: Arc<SqliteLaunchTaskRepo>,
-    run_repo: Arc<SqliteRunRepo>,
-    session_repo: Arc<SqliteAgentSessionRepo>,
-    event_repo: Arc<EventRepo>,
-    issue_workspace_context_repo: Arc<SqliteIssueWorkspaceContextRepo>,
-    snapshot_repo: Arc<SqliteRunContextSnapshotRepo>,
-) -> Router {
-    let state = handlers::snapshots::SnapshotState {
-        launch_task_repo,
-        run_repo,
-        session_repo,
-        event_repo,
-        issue_workspace_context_repo,
-        snapshot_repo,
-    };
-    Router::new()
-        .route(
-            "/launch-tasks/{id}/snapshot",
-            get(handlers::snapshots::get_launch_task_snapshot),
-        )
-        .with_state(state)
-}
-
-/// Re-export of the issue-context handler types tests need to assemble a
-/// router (`IssueLookup`, the two dyn-repo traits). Gated behind
-/// `test-support` so production callers cannot reach into the handler
-/// internals.
-#[cfg(feature = "test-support")]
-pub mod test_handlers {
-    pub use crate::handlers::issue_context::{IssueContextState, IssueLookup};
-    pub use crate::handlers::issues::{IssueWritesState, LinearFuture, LinearWriter};
-    pub use superkick_storage::repo::{IssueWorkspaceContextRepoDyn, MemoryEntryRepoDyn};
-}
-
-/// Test-only router for the Linear write paths (`POST /issues`,
-/// `PATCH /issues/{id}`, `POST /issues/{id}/comments`, `GET /linear/options`).
-#[cfg(feature = "test-support")]
-pub fn linear_writes_test_router(writer: Option<Arc<dyn test_handlers::LinearWriter>>) -> Router {
-    let state = test_handlers::IssueWritesState {
-        linear_writer: writer,
-    };
-    Router::new()
-        .route("/issues", post(handlers::issues::create_issue))
-        .route(
-            "/issues/{id}",
-            axum::routing::patch(handlers::issues::patch_issue),
-        )
-        .route(
-            "/issues/{id}/comments",
-            post(handlers::issues::create_comment),
-        )
-        .route(
-            "/linear/options",
-            get(handlers::linear_options::get_options),
-        )
-        .with_state(state)
-}
-
-/// Test-only router builder for the SUP-148 issue-context + memory routes.
-///
-/// Wires the three endpoints against a `IssueContextState` built from the
-/// supplied repos and an injected [`handlers::issue_context::IssueLookup`]
-/// stub. Tests pre-seed contexts via the repo directly and provide a
-/// canned-snapshot lookup so the suite does not hit Linear.
-#[cfg(feature = "test-support")]
-pub fn issue_context_test_router(
-    context_repo: Arc<dyn test_handlers::IssueWorkspaceContextRepoDyn>,
-    memory_repo: Arc<dyn test_handlers::MemoryEntryRepoDyn>,
-    issue_lookup: Option<Arc<dyn test_handlers::IssueLookup>>,
-) -> Router {
-    let state = test_handlers::IssueContextState {
-        context_repo,
-        memory_repo,
-        issue_lookup,
-    };
-    Router::new()
-        .route(
-            "/issues/{id}/context",
-            get(handlers::issue_context::get_or_create_context),
-        )
-        .route(
-            "/issues/{id}/context/memory",
-            get(handlers::issue_context::list_memory).post(handlers::issue_context::append_memory),
-        )
-        .with_state(state)
-}
+pub use test_routers::{
+    agents_test_router, issue_context_test_router, launch_task_test_router,
+    linear_writes_test_router, orchestrator_session_test_router, run_context_snapshot_test_router,
+    run_diff_test_router, test_handlers, tests_only,
+};
 
 // ── App state ──────────────────────────────────────────────────────────
 
@@ -379,18 +150,8 @@ pub(crate) struct AppState {
     pub interrupt_service: Arc<IntService>,
     pub attention_service: Arc<AttnService>,
     pub ownership_service: Arc<OwnService>,
-    /// Theme-1 — PR resolution + GitHub sync service. Owns the get-or-create
-    /// from PrUrl artifact policy and the staleness window that previously
-    /// lived inline in the `runs` handler.
     pub pr_service: Arc<PrService>,
-    /// Theme-1 — shared per-run triage fan-out for the dashboard and launch
-    /// queue. Owns the trim-for-queue horizon, per-run signal aggregation, and
-    /// stall annotation that previously lived in the `queue_common` handler.
     pub queue_triage_service: Arc<TriageService>,
-    /// Theme-1 — run lifecycle service. Owns the spawn persistence + dedup-race
-    /// path and the cancel orchestration that previously lived inline in the
-    /// `runs` handler. The engine spawn and launch-task cancel are injected as
-    /// object-safe seams so the engine generics never reach `AppState`.
     pub run_service: Arc<ProdRunService>,
     pub pty_registry: Arc<PtySessionRegistry>,
     pub workspace_bus: Arc<WorkspaceEventBus>,
@@ -417,6 +178,18 @@ pub(crate) struct AppState {
     pub run_budget: superkick_core::RunBudget,
 }
 
+pub(crate) const LINEAR_NOT_CONFIGURED: &str = "LINEAR_API_KEY not configured";
+
+impl AppState {
+    /// Linear client guard shared by every handler that requires the
+    /// integration: 503 with a stable message when the key is absent.
+    pub(crate) fn linear(&self) -> Result<&Arc<LinearClient>, error::AppError> {
+        self.linear_client
+            .as_ref()
+            .ok_or(error::AppError::ServiceUnavailable(LINEAR_NOT_CONFIGURED))
+    }
+}
+
 // ── Server config ─────────────────────────────────────────────────────
 
 pub struct ServerConfig {
@@ -434,27 +207,44 @@ pub struct ServerConfig {
 // ── Public entry point ────────────────────────────────────────────────
 
 pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
-    // `superkick.yaml` is no longer required. App-managed settings
-    // (providers / skills / launch profiles) live in SQLite; when no config
-    // file is present we boot from product defaults. An existing file is still
-    // read as-is for the legacy playbook / runner settings.
     let config_path = std::path::Path::new(&cfg.config_path);
-    let config = if config_path.exists() {
-        superkick_config::load_file(config_path)?
-    } else {
+    if !config_path.exists() {
         tracing::info!(
             path = %cfg.config_path,
-            "no superkick.yaml found — booting from product defaults (SUP-194)"
+            "no superkick.yaml found — booting from product defaults"
         );
-        superkick_config::SuperkickConfig::bootstrap()
-    };
+    }
+    let config = superkick_config::load_or_bootstrap(config_path)?;
+
+    let state = build_app_state(&cfg, config).await?;
+    let app = Router::new().nest("/api", api_router(state));
+    let app = attach_ui(app, cfg.serve_ui);
+
+    let local_addr = cfg.listener.local_addr()?;
+    tracing::info!(
+        "Superkick server running on http://127.0.0.1:{}",
+        local_addr.port()
+    );
+    tracing::info!("Press Ctrl+C to stop.");
+
+    axum::serve(cfg.listener, app).await?;
+
+    Ok(())
+}
+
+/// Construct every repo, service, and background task the server needs, then
+/// assemble the shared `AppState`. Pure wiring — no routing concerns.
+async fn build_app_state(
+    cfg: &ServerConfig,
+    config: superkick_config::SuperkickConfig,
+) -> anyhow::Result<AppState> {
     let base_branch = config.runner.base_branch.clone();
     let launch_profile = config.launch_profile.clone();
     let orchestration = config.orchestration.clone();
     let issue_trigger = config.issue_source.trigger;
     let run_budget = config.budget.run_budget_snapshot();
     let recovery_config = config.recovery.to_recovery_config();
-    let repo_slug = detect_repo_slug().unwrap_or_else(|| {
+    let repo_slug = superkick_config::detect_repo_slug().unwrap_or_else(|| {
         tracing::warn!("could not detect repo_slug from git remote — /config will return empty");
         String::new()
     });
@@ -692,7 +482,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         });
     }
 
-    let state = AppState {
+    Ok(AppState {
         run_repo,
         step_repo,
         event_repo,
@@ -738,9 +528,12 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         orchestration,
         issue_trigger,
         run_budget,
-    };
+    })
+}
 
-    let api = Router::new()
+/// The full API route table. Pure routing — no wiring concerns.
+fn api_router(state: AppState) -> Router {
+    Router::new()
         .route("/health", get(handlers::health::health))
         .route("/config", get(handlers::health::get_config))
         .route("/dashboard/queue", get(handlers::dashboard::get_queue))
@@ -814,7 +607,6 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
             "/runs/{run_id}/attention-requests/{request_id}/cancel",
             post(handlers::attention::cancel_attention_request),
         )
-        // Console endpoint removed (SUP-75): operator input now goes directly via PTY terminal.
         .route(
             "/runs/{id}/terminal",
             get(handlers::terminal::attach_terminal),
@@ -966,21 +758,7 @@ pub async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
             "/turns/{turn_id}/events",
             get(handlers::conversations::turn_events_stream),
         )
-        .with_state(state);
-
-    let app = Router::new().nest("/api", api);
-    let app = attach_ui(app, cfg.serve_ui);
-
-    let local_addr = cfg.listener.local_addr()?;
-    tracing::info!(
-        "Superkick server running on http://127.0.0.1:{}",
-        local_addr.port()
-    );
-    tracing::info!("Press Ctrl+C to stop.");
-
-    axum::serve(cfg.listener, app).await?;
-
-    Ok(())
+        .with_state(state)
 }
 
 #[cfg(feature = "embedded-ui")]
@@ -1023,16 +801,4 @@ fn spawn_session_lifecycle_forwarder(
             }
         }
     });
-}
-
-fn detect_repo_slug() -> Option<String> {
-    let output = std::process::Command::new("git")
-        .args(["remote", "get-url", "origin"])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let url = String::from_utf8_lossy(&output.stdout);
-    superkick_config::parse_repo_slug(url.trim())
 }

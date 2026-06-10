@@ -17,6 +17,14 @@ pub fn validate(config: &SuperkickConfig) -> anyhow::Result<()> {
         !config.workflow.steps.is_empty(),
         "workflow must have at least one step"
     );
+    ensure!(
+        config.budget.max_parallel_agents >= 1,
+        "budget.max_parallel_agents must be at least 1 — 0 would deadlock every review swarm"
+    );
+    ensure!(
+        config.orchestration.max_concurrent_active_runs >= 1,
+        "orchestration.max_concurrent_active_runs must be at least 1 — 0 parks every issue at waiting-capacity"
+    );
 
     let known_agents: HashSet<String> = builtin_names()
         .into_iter()
@@ -70,7 +78,19 @@ fn step_kind(step: &WorkflowStep) -> &'static str {
     }
 }
 
-fn assert_role_allowed(config: &SuperkickConfig, agent: &str, index: usize) -> anyhow::Result<()> {
+/// One agent reference check: the name must exist in the catalog and, when
+/// `launch_profile.allowed_agents` is set, be part of that allowlist.
+fn assert_agent_ref(
+    config: &SuperkickConfig,
+    known_agents: &HashSet<String>,
+    agent: &str,
+    index: usize,
+) -> anyhow::Result<()> {
+    if !known_agents.contains(agent) {
+        bail!(
+            "workflow step {index}: agent \"{agent}\" is not defined in the agents section or built-in catalog"
+        );
+    }
     if let Some(allowed) = &config.launch_profile.allowed_agents
         && !allowed.iter().any(|a| a == agent)
     {
@@ -87,12 +107,7 @@ fn validate_step(
 ) -> anyhow::Result<()> {
     match step {
         WorkflowStep::Plan { agent } | WorkflowStep::Code { agent } => {
-            if !known_agents.contains(agent) {
-                bail!(
-                    "workflow step {index}: agent \"{agent}\" is not defined in the agents section or built-in catalog"
-                );
-            }
-            assert_role_allowed(config, agent, index)?;
+            assert_agent_ref(config, known_agents, agent, index)?;
         }
         WorkflowStep::Commands { run } => {
             if run.is_empty() {
@@ -101,17 +116,20 @@ fn validate_step(
                 );
             }
         }
-        WorkflowStep::ReviewSwarm { agents, .. } => {
+        WorkflowStep::ReviewSwarm {
+            agents,
+            findings_threshold,
+            ..
+        } => {
             if agents.is_empty() {
                 bail!("workflow step {index}: review_swarm must have at least one agent");
             }
+            ensure!(
+                *findings_threshold >= 1,
+                "workflow step {index}: review_swarm findings_threshold must be at least 1 — 0 makes the gate fail even with zero findings"
+            );
             for agent in agents {
-                if !known_agents.contains(agent) {
-                    bail!(
-                        "workflow step {index}: agent \"{agent}\" is not defined in the agents section or built-in catalog"
-                    );
-                }
-                assert_role_allowed(config, agent, index)?;
+                assert_agent_ref(config, known_agents, agent, index)?;
             }
         }
         WorkflowStep::Pr { .. } => {}

@@ -10,7 +10,6 @@ use tauri::{Manager, RunEvent};
 use server_process::{ServerProcess, SpawnConfig, wait_for_port_file};
 
 const PORT_FILE_TIMEOUT: Duration = Duration::from_secs(30);
-const DEFAULT_START_PORT: u16 = 3100;
 
 #[derive(Default)]
 struct ServerState {
@@ -83,15 +82,16 @@ fn spawn_config() -> SpawnConfig {
             .join("debug")
             .join(api_binary_name()),
         project_root,
-        config_path: std::env::var("SUPERKICK_CONFIG").unwrap_or_else(|_| "superkick.yaml".into()),
-        database_url: std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "sqlite:superkick.db".into()),
-        cache_dir: std::env::var("SUPERKICK_CACHE_DIR")
-            .unwrap_or_else(|_| ".superkick-cache".into()),
-        start_port: std::env::var("PORT")
+        config_path: std::env::var(superkick_config::ENV_CONFIG)
+            .unwrap_or_else(|_| superkick_config::CONFIG_FILENAME.into()),
+        database_url: std::env::var(superkick_config::ENV_DATABASE_URL)
+            .unwrap_or_else(|_| superkick_config::DEFAULT_DATABASE_URL.into()),
+        cache_dir: std::env::var(superkick_config::ENV_CACHE_DIR)
+            .unwrap_or_else(|_| superkick_config::DEFAULT_CACHE_DIR.into()),
+        start_port: std::env::var(superkick_config::ENV_PORT)
             .ok()
             .and_then(|value| value.parse().ok())
-            .unwrap_or(DEFAULT_START_PORT),
+            .unwrap_or(superkick_config::DEFAULT_PORT),
     }
 }
 
@@ -118,29 +118,27 @@ fn store_server(handle: &tauri::AppHandle, server: ServerProcess) -> Option<Serv
         tracing::error!("managed server state was not registered");
         return Some(server);
     };
-    match state.0.lock() {
-        Ok(mut guard) => {
-            if guard.shutting_down {
-                Some(server)
-            } else {
-                guard.server = Some(server);
-                None
-            }
-        }
-        Err(_) => {
-            tracing::error!("server state lock was poisoned");
-            Some(server)
-        }
+    // ServerState holds no invariant a panicking thread can corrupt, so a
+    // poisoned lock is recovered rather than orphaning the child.
+    let mut guard = state
+        .0
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if guard.shutting_down {
+        Some(server)
+    } else {
+        guard.server = Some(server);
+        None
     }
 }
 
 fn take_server(handle: &tauri::AppHandle) -> Option<ServerProcess> {
     let state = handle.try_state::<ManagedServer>()?;
-    state
+    let mut guard = state
         .0
         .lock()
-        .ok()
-        .and_then(|mut guard| guard.server.take())
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    guard.server.take()
 }
 
 fn shutdown_server(server: ServerProcess) {
@@ -150,7 +148,7 @@ fn shutdown_server(server: ServerProcess) {
 }
 
 fn navigate_to_server(handle: &tauri::AppHandle, port: u16) {
-    let url = match format!("http://localhost:{port}").parse::<tauri::Url>() {
+    let url = match format!("http://127.0.0.1:{port}").parse::<tauri::Url>() {
         Ok(url) => url,
         Err(err) => {
             tracing::error!("constructed an invalid server url for port {port}: {err}");
@@ -176,13 +174,13 @@ fn stop_server(handle: &tauri::AppHandle) {
     let Some(state) = handle.try_state::<ManagedServer>() else {
         return;
     };
-    let server = match state.0.lock() {
-        Ok(mut guard) => {
-            guard.shutting_down = true;
-            guard.server.take()
-        }
-        Err(_) => None,
-    };
+    let mut guard = state
+        .0
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    guard.shutting_down = true;
+    let server = guard.server.take();
+    drop(guard);
     if let Some(server) = server {
         shutdown_server(server);
     }

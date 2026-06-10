@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 
-import { fetchRun } from '@/api'
 import { ExecutionLog } from '@/components/issue-detail/execution-log/ExecutionLog'
 import { queryKeys } from '@/lib/queryKeys'
 import type {
@@ -12,12 +11,11 @@ import type {
 	LaunchTaskWithSteps,
 	LinkedRunSummary
 } from '@/types'
+import type { RunDetailResponse } from '@/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-type RunDetailResponse = Awaited<ReturnType<typeof fetchRun>>
 
 const mocks = vi.hoisted(() => ({
 	useIssueLaunchTasks: vi.fn(),
@@ -328,6 +326,7 @@ describe('ExecutionLog — state branches', () => {
 					sessions: [],
 					interrupts: [],
 					attention_requests: [],
+					ownership: [],
 					pr: null
 				}
 			)

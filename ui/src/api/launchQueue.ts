@@ -1,11 +1,9 @@
 import type { DispatchFromQueueRequest, LaunchQueueResponse, Run } from '@/types'
 
-import { BASE, postJsonChecked } from './_shared'
+import { getJson, postJsonChecked } from './_shared'
 
 export async function fetchLaunchQueue(): Promise<LaunchQueueResponse> {
-	const res = await fetch(`${BASE}/launch-queue`)
-	if (!res.ok) throw new Error(`GET /launch-queue failed: ${res.status}`)
-	return res.json()
+	return getJson(`/launch-queue`, 'fetch failed: GET /launch-queue')
 }
 
 export async function dispatchFromQueue(

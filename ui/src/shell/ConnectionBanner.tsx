@@ -2,14 +2,12 @@ import { useEffect, useState } from 'react'
 
 import { useBrokerConnected } from '@/hooks/useBrokerConnection'
 import { workspaceEventBroker } from '@/lib/eventBroker'
+import { Btn } from '@/ui/Btn'
 
 const DOWN_DELAY_MS = 8000
 
-/**
- * Pins under the topbar when the local daemon stream drops. Debounced generously
- * so the daemon's normal startup/restart window (build + boot) never flashes a
- * false "disconnected"; only a sustained outage surfaces the banner.
- */
+// Debounced so the daemon's normal startup/restart window never flashes a
+// false "disconnected"; only a sustained outage surfaces the banner.
 export function ConnectionBanner() {
 	const connected = useBrokerConnected(workspaceEventBroker)
 	const [showDown, setShowDown] = useState(false)
@@ -31,13 +29,9 @@ export function ConnectionBanner() {
 			<strong>Daemon disconnected</strong>
 			<span>— superkickd isn't responding. Reconnecting…</span>
 			<span className="spacer" />
-			<button
-				type="button"
-				className="btn btn--sm btn--danger"
-				onClick={() => workspaceEventBroker.start()}
-			>
+			<Btn kind="danger" size="sm" onClick={() => workspaceEventBroker.start()}>
 				Retry
-			</button>
+			</Btn>
 		</div>
 	)
 }

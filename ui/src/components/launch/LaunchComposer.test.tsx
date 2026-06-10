@@ -63,8 +63,6 @@ const CONFIG: ServerConfigResponse = {
 	base_branch: 'main',
 	launch_profile: {
 		use_worktree: true,
-		live_mode: false,
-		skills: [],
 		default_instructions: '',
 		handoff_instructions: ''
 	}

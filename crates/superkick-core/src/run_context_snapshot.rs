@@ -202,6 +202,18 @@ pub enum PendingDecisionKind {
     OpenQuestion,
 }
 
+impl PendingDecisionKind {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::TaskNeedsHuman => "task_needs_human",
+            Self::StepNeedsHuman => "step_needs_human",
+            Self::RunWaitingHuman => "run_waiting_human",
+            Self::RunPaused => "run_paused",
+            Self::OpenQuestion => "open_question",
+        }
+    }
+}
+
 /// One outstanding decision the operator (or a takeover session) must resolve.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -223,6 +235,19 @@ pub enum BlockingKind {
     RunPaused,
     RunFailed,
     RunCancelled,
+}
+
+impl BlockingKind {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::TaskNeedsHuman => "task_needs_human",
+            Self::TaskFailed => "task_failed",
+            Self::RunWaitingHuman => "run_waiting_human",
+            Self::RunPaused => "run_paused",
+            Self::RunFailed => "run_failed",
+            Self::RunCancelled => "run_cancelled",
+        }
+    }
 }
 
 /// The single most relevant blocking reason for the task/run, if blocked.
@@ -284,8 +309,8 @@ impl RunContextSnapshot {
         }
         if let Some(blocking) = &self.blocking {
             out.push_str(&format!(
-                "Blocked: {:?} — {}\n",
-                blocking.kind,
+                "Blocked: {} — {}\n",
+                blocking.kind.label(),
                 blocking.reason.trim()
             ));
         }
@@ -309,11 +334,13 @@ impl RunContextSnapshot {
             for d in &self.pending_decisions {
                 match d.step_sequence {
                     Some(seq) => out.push_str(&format!(
-                        "  - [{:?} @ step {seq}] {}\n",
-                        d.kind,
+                        "  - [{} @ step {seq}] {}\n",
+                        d.kind.label(),
                         d.detail.trim()
                     )),
-                    None => out.push_str(&format!("  - [{:?}] {}\n", d.kind, d.detail.trim())),
+                    None => {
+                        out.push_str(&format!("  - [{}] {}\n", d.kind.label(), d.detail.trim()))
+                    }
                 }
             }
         }
@@ -321,7 +348,11 @@ impl RunContextSnapshot {
             let start = self.recent_events.len().saturating_sub(RENDER_MAX_EVENTS);
             out.push_str("Recent activity:\n");
             for e in &self.recent_events[start..] {
-                out.push_str(&format!("  - [{:?}] {}\n", e.kind, e.message.trim()));
+                let kind = serde_json::to_value(e.kind)
+                    .ok()
+                    .and_then(|v| v.as_str().map(str::to_string))
+                    .unwrap_or_else(|| format!("{:?}", e.kind));
+                out.push_str(&format!("  - [{kind}] {}\n", e.message.trim()));
             }
         }
         out.push_str(&format!(

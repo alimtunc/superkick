@@ -16,7 +16,7 @@ pub use sqlite::{
     SqlitePullRequestRepo, SqliteRecoveryEventRepo, SqliteRunContextSnapshotRepo,
     SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo, SqliteRuntimeRepo,
     SqliteSessionLifecycleRepo, SqliteSessionOwnershipRepo, SqliteSkillDefinitionRepo,
-    SqliteTranscriptRepo, SqliteTurnEventRepo, SqliteTurnRepo, list_recovery_candidates,
+    SqliteTranscriptRepo, SqliteTurnEventRepo, SqliteTurnRepo,
 };
 
 /// Check if an anyhow error chain contains a SQLite unique constraint violation.

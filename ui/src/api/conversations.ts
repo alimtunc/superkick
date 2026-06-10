@@ -6,7 +6,8 @@ import type {
 	CreateTurnRequest,
 	CreateTurnResponse,
 	RunToolCall,
-	TurnEventEnvelope
+	TurnEventEnvelope,
+	SseHandlers
 } from '@/types'
 
 import {
@@ -14,6 +15,7 @@ import {
 	TurnAlreadyStreamingError,
 	apiErrorField,
 	apiErrorMessage,
+	getJson,
 	postJson,
 	postVoid,
 	readApiErrorBody,
@@ -25,9 +27,7 @@ export async function createConversation(req: CreateConversationRequest): Promis
 }
 
 export async function fetchConversation(id: string): Promise<ConversationDetail> {
-	const res = await fetch(`${BASE}/conversations/${id}`)
-	if (!res.ok) throw new Error(`GET /conversations/${id} failed: ${res.status}`)
-	return res.json()
+	return getJson(`/conversations/${id}`, 'fetch failed: GET /conversations/${id}')
 }
 
 export async function listConversationsByIssue(issueId: string): Promise<ConversationSummary[]> {
@@ -104,19 +104,6 @@ export async function cancelTurn(conversationId: string, turnId: string): Promis
 	await postVoid(`/conversations/${conversationId}/turns/${turnId}/cancel`, 'cancel turn failed')
 }
 
-export function subscribeToTurnEvents(
-	turnId: string,
-	handlers: {
-		onEvent: (envelope: TurnEventEnvelope) => void
-		onLagged?: (skipped: number) => void
-		onDone?: () => void
-		onError?: (err: Event) => void
-	}
-): () => void {
-	return subscribeToSse<TurnEventEnvelope>(`/turns/${turnId}/events`, 'turn_event', {
-		onEvent: handlers.onEvent,
-		onLagged: handlers.onLagged,
-		onClosed: handlers.onDone,
-		onError: handlers.onError
-	})
+export function subscribeToTurnEvents(turnId: string, handlers: SseHandlers<TurnEventEnvelope>): () => void {
+	return subscribeToSse<TurnEventEnvelope>(`/turns/${turnId}/events`, 'turn_event', handlers)
 }

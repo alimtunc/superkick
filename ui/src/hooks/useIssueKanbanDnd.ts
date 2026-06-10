@@ -4,6 +4,7 @@ import { useUpdateIssueState } from '@/hooks/useUpdateIssueState'
 import {
 	ISSUE_STATE_ORDER,
 	isDroppableIssueState,
+	isIssueState,
 	issueStateAccent,
 	launchQueueItemIdentifier,
 	toMutableIssueState
@@ -135,11 +136,9 @@ export function useIssueKanbanDnd({ groups }: UseIssueKanbanDndParams): UseIssue
 }
 
 function readFromState(data: unknown): IssueState | undefined {
-	return (data as { fromState?: IssueState } | undefined)?.fromState
-}
-
-function isIssueState(id: string | number): id is IssueState {
-	return typeof id === 'string' && (ISSUE_STATE_ORDER as readonly string[]).includes(id)
+	if (typeof data !== 'object' || data === null) return undefined
+	const fromState = (data as Record<string, unknown>).fromState
+	return typeof fromState === 'string' && isIssueState(fromState) ? fromState : undefined
 }
 
 /** Snap X to a column-width step so one arrow press crosses a column boundary (dnd-kit's 25px default stays inside). */

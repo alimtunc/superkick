@@ -9,9 +9,11 @@
 
 use std::sync::Arc;
 
+mod common;
+use common::{get_json, patch_json, post_json, read_json};
+
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use superkick_api::orchestrator_session_test_router;
 use superkick_storage::SqliteOrchestratorSessionRepo;
@@ -24,26 +26,8 @@ async fn router() -> axum::Router {
     orchestrator_session_test_router(repo)
 }
 
-async fn read_json(body: Body) -> Value {
-    let bytes = body.collect().await.expect("collect").to_bytes();
-    serde_json::from_slice(&bytes).expect("json body")
-}
-
 async fn create_request(app: &axum::Router, body: Value) -> (StatusCode, Value) {
-    let response = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/orchestrator-sessions")
-                .header("content-type", "application/json")
-                .body(Body::from(body.to_string()))
-                .expect("request"),
-        )
-        .await
-        .expect("send");
-    let status = response.status();
-    (status, read_json(response.into_body()).await)
+    post_json(app, "/orchestrator-sessions", body).await
 }
 
 #[tokio::test]
@@ -252,36 +236,8 @@ async fn checkpoint_for_unknown_session_is_404() {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
-async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
-    let response = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri(uri)
-                .body(Body::empty())
-                .expect("request"),
-        )
-        .await
-        .expect("send");
-    let status = response.status();
-    (status, read_json(response.into_body()).await)
-}
-
 async fn patch_request(app: &axum::Router, id: &str, body: Value) -> (StatusCode, Value) {
-    let response = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("PATCH")
-                .uri(format!("/orchestrator-sessions/{id}"))
-                .header("content-type", "application/json")
-                .body(Body::from(body.to_string()))
-                .expect("request"),
-        )
-        .await
-        .expect("send");
-    let status = response.status();
-    (status, read_json(response.into_body()).await)
+    patch_json(app, &format!("/orchestrator-sessions/{id}"), body).await
 }
 
 #[tokio::test]

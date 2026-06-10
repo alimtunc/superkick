@@ -44,7 +44,7 @@ export function ProviderSettingsCard({ settings, onSave, isSaving }: ProviderSet
 
 	return (
 		<SettingsSection title={title}>
-			<SettingsRow label="Default model" hint="Curated list or type any model id (AC10)">
+			<SettingsRow label="Default model" hint="Curated list or type any model id">
 				<input
 					className="w-56 rounded-[6px] border border-border bg-raised px-2 py-1 text-[13px] text-fg"
 					list={`models-${draft.provider}`}

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import { IssueDescription } from '@/components/issue-detail/IssueDescription'
+import { EditableDescription } from '@/components/issue-detail/properties/EditableDescription'
 import type { IssueDetailResponse } from '@/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
@@ -54,7 +54,7 @@ function makeIssue(description: string): IssueDetailResponse {
 	}
 }
 
-describe('IssueDescription', () => {
+describe('EditableDescription', () => {
 	it('renders Linear markdown as structured issue copy instead of raw text', () => {
 		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 		const issue = makeIssue(
@@ -67,7 +67,7 @@ describe('IssueDescription', () => {
 			].join('\n')
 		)
 
-		render(<IssueDescription issue={issue} />, { wrapper: wrapper(client) })
+		render(<EditableDescription issue={issue} />, { wrapper: wrapper(client) })
 
 		expect(screen.getByRole('heading', { name: 'Context', level: 2 })).toBeInTheDocument()
 		expect(screen.queryByText('## Context')).not.toBeInTheDocument()
@@ -97,7 +97,7 @@ describe('IssueDescription', () => {
 			})
 		)
 
-		render(<IssueDescription issue={issue} />, { wrapper: wrapper(client) })
+		render(<EditableDescription issue={issue} />, { wrapper: wrapper(client) })
 
 		await user.click(screen.getByRole('button', { name: 'Edit description' }))
 
@@ -118,7 +118,7 @@ describe('IssueDescription', () => {
 		const issue = makeIssue('Original body.')
 		const user = userEvent.setup()
 
-		render(<IssueDescription issue={issue} />, { wrapper: wrapper(client) })
+		render(<EditableDescription issue={issue} />, { wrapper: wrapper(client) })
 
 		await user.click(screen.getByRole('button', { name: 'Edit description' }))
 		const textarea = screen.getByRole('textbox', { name: 'Description' })

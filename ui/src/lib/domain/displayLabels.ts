@@ -1,4 +1,4 @@
-import type { PillTone } from '@/components/ui/pill'
+import type { PillTone } from '@/types'
 import type { AgentProvider, RunState } from '@/types'
 
 export const providerLabel: Record<AgentProvider, string> = {

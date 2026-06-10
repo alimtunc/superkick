@@ -1,11 +1,9 @@
 import type { AttachPayload, RuntimesResponse } from '@/types'
 
-import { BASE, postJson } from './_shared'
+import { getJson, postJson } from './_shared'
 
 export async function fetchRuntimes(): Promise<RuntimesResponse> {
-	const res = await fetch(`${BASE}/runtimes`)
-	if (!res.ok) throw new Error(`GET /runtimes failed: ${res.status}`)
-	return res.json()
+	return getJson(`/runtimes`, 'fetch failed: GET /runtimes')
 }
 
 export async function refreshRuntimes(): Promise<RuntimesResponse> {

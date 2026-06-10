@@ -6,8 +6,9 @@ use axum::response::{IntoResponse, Json};
 use serde::Deserialize;
 
 use superkick_core::{AttentionKind, AttentionReply, AttentionRequestId, RunId};
-use superkick_storage::repo::{AttentionRequestRepo, RunRepo};
+use superkick_storage::repo::AttentionRequestRepo;
 
+use super::require_run;
 use crate::AppState;
 use crate::error::AppError;
 
@@ -33,9 +34,7 @@ pub async fn list_attention_requests(
     Path(id): Path<uuid::Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     let run_id = RunId(id);
-    if state.run_repo.get(run_id).await?.is_none() {
-        return Err(AppError::NotFound("run not found"));
-    }
+    require_run(&state, run_id).await?;
     let requests = state.attention_repo.list_by_run(run_id).await?;
     Ok(Json(requests))
 }
@@ -46,14 +45,12 @@ pub async fn create_attention_request(
     Json(body): Json<CreateAttentionRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let run_id = RunId(id);
-    if state.run_repo.get(run_id).await?.is_none() {
-        return Err(AppError::NotFound("run not found"));
-    }
+    require_run(&state, run_id).await?;
     let request = state
         .attention_service
         .create(run_id, body.kind, body.title, body.body, body.options)
         .await
-        .map_err(downcast_to_app_error)?;
+        .map_err(AppError::from)?;
     Ok((StatusCode::CREATED, Json(request)))
 }
 
@@ -71,7 +68,7 @@ pub async fn reply_attention_request(
             body.replied_by,
         )
         .await
-        .map_err(downcast_to_app_error)?;
+        .map_err(AppError::from)?;
     Ok(Json(request))
 }
 
@@ -83,14 +80,6 @@ pub async fn cancel_attention_request(
         .attention_service
         .cancel(RunId(run_id), AttentionRequestId(request_id))
         .await
-        .map_err(downcast_to_app_error)?;
+        .map_err(AppError::from)?;
     Ok(Json(request))
-}
-
-/// Surface `CoreError` validation failures as 400s instead of 500s.
-fn downcast_to_app_error(err: anyhow::Error) -> AppError {
-    match err.downcast::<superkick_core::CoreError>() {
-        Ok(core) => AppError::from(core),
-        Err(other) => AppError::Internal(other),
-    }
 }

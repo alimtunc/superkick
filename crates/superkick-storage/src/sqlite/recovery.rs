@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use sqlx::SqlitePool;
 use superkick_core::{LatestEventTag, RecoveryCandidate, RunId, RunState, StalledReason};
 
-use super::codec::{decode_rfc3339, deserialize_enum};
+use super::codec::{decode_rfc3339, decode_rfc3339_opt, deserialize_enum};
 
 /// Stored row in `run_recovery_events`. The `kind` is one of `"stalled"` or
 /// `"recovered"`; the `reason` is JSON-encoded `StalledReason` for stalled
@@ -160,11 +160,7 @@ impl RawRecoveryRow {
         } else {
             None
         };
-        let stalled_since = self
-            .stalled_since
-            .as_deref()
-            .map(decode_rfc3339)
-            .transpose()?;
+        let stalled_since = decode_rfc3339_opt(self.stalled_since.as_deref())?;
         Ok(RecoveryEventRow {
             run_id: RunId(uuid::Uuid::parse_str(&self.run_id)?),
             kind,
@@ -185,7 +181,7 @@ impl RawRecoveryRow {
 /// recovery scheduler has no policy lever for them (cancel/retry is steered
 /// from the Launch Task UI). Including them would emit phantom "stalled"
 /// rows for every `NeedsHuman` block.
-pub async fn list_recovery_candidates(pool: &SqlitePool) -> Result<Vec<RecoveryCandidate>> {
+async fn list_recovery_candidates(pool: &SqlitePool) -> Result<Vec<RecoveryCandidate>> {
     let rows = sqlx::query_as::<_, RecoveryCandidateRow>(
         "SELECT id, state, updated_at, last_heartbeat_at
          FROM runs
@@ -214,11 +210,7 @@ impl RecoveryCandidateRow {
             run_id: RunId(uuid::Uuid::parse_str(&self.id)?),
             state: deserialize_enum::<RunState>(&self.state)?,
             updated_at: decode_rfc3339(&self.updated_at)?,
-            last_heartbeat_at: self
-                .last_heartbeat_at
-                .as_deref()
-                .map(decode_rfc3339)
-                .transpose()?,
+            last_heartbeat_at: decode_rfc3339_opt(self.last_heartbeat_at.as_deref())?,
         })
     }
 }

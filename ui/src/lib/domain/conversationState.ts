@@ -1,4 +1,4 @@
-import type { PillTone } from '@/components/ui/pill'
+import type { PillTone } from '@/types'
 import type {
 	ActiveTakeover,
 	AttentionSummary,

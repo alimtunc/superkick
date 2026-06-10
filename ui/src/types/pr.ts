@@ -4,7 +4,8 @@ export interface LinkedPrSummary {
 	number: number
 	url: string
 	state: PrState
-	merged_at: string | null
+	// Skipped on the wire when the PR is unmerged (serde skip_serializing_if).
+	merged_at?: string | null
 }
 
 export interface PullRequest {

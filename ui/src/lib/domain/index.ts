@@ -3,31 +3,22 @@ export {
 	elapsedMs,
 	fmtElapsed,
 	fmtRelativeTime,
+	lastRefreshedLabel,
 	fmtRelativeShort,
 	fmtSecondsCompact,
 	fmtSecondsVerbose
 } from './formatters'
 export { providerLabel, resolveProviderLabel, stepLabel, stateIcon, stateTone } from './displayLabels'
-export { agentStatusColor, agentStatusColorPulsing } from './agentStatus'
 export { agentColor, isAgentName } from './agentColor'
 export { healthSignal, healthSignalBg, shouldShowInterrupts } from './health'
 export { extractFormError, parseAnswer } from './parsers'
 export { watchButtonClass, watchButtonTitle } from './watch'
 export { classifyRuns } from './classify'
 export { toRunGroups } from './runGroups'
-export {
-	PHASE_ORDER,
-	PHASE_LABEL,
-	PHASE_DESCRIPTION,
-	PHASE_TEXT_CLASS,
-	PHASE_BORDER_CLASS,
-	boardNeedsYou,
-	phaseForRun,
-	toPhaseColumns
-} from './phaseBoard'
+export { PHASE_DESCRIPTION, PHASE_TEXT_CLASS, PHASE_BORDER_CLASS, toPhaseColumns } from './phaseBoard'
 export { pickRunReason, fmtRunElapsed } from './runCard'
 export { isTerminalRunState, isActiveRun, pickLatestRun } from './runState'
-export { PRIORITY_META, priorityColor } from './priorityMeta'
+export { PRIORITY_META } from './priorityMeta'
 export { deriveConversationUxState, conversationStateTone } from './conversationState'
 export { buildIssueActivity } from './issueActivity'
 export { launchQueueAccent } from './launchQueueAccent'
@@ -36,6 +27,7 @@ export {
 	ISSUE_STATE_ORDER,
 	groupItemsByIssueState,
 	isDroppableIssueState,
+	isIssueState,
 	issueStateFor,
 	issueStateFromLinear,
 	mapLaunchQueueToIssueState,
@@ -90,3 +82,4 @@ export {
 	toolInputSummary
 } from './protocol'
 export type { ProtocolRow, ProtocolLogRow } from './protocol'
+export { prStateTone } from './prStateTone'

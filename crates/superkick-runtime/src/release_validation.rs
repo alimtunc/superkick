@@ -59,7 +59,7 @@ impl RunnerAvailability {
 /// this out can wrap it in `tokio::task::spawn_blocking`; the harness calls
 /// it once per provider before any task scheduling so the cost is negligible.
 pub fn runner_available(provider: AgentProvider) -> RunnerAvailability {
-    let binary = provider_executable(provider);
+    let binary = crate::detector::provider_executable(provider);
     let Ok(path) = which::which(binary) else {
         return RunnerAvailability::Missing;
     };
@@ -68,15 +68,6 @@ pub fn runner_available(provider: AgentProvider) -> RunnerAvailability {
     RunnerAvailability::Available {
         executable: path,
         version,
-    }
-}
-
-/// Same mapping `detector::provider_executable` uses, lifted here so this
-/// module doesn't depend on the detector's private surface.
-fn provider_executable(provider: AgentProvider) -> &'static str {
-    match provider {
-        AgentProvider::Claude => "claude",
-        AgentProvider::Codex => "codex",
     }
 }
 

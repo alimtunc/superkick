@@ -7,7 +7,3 @@ export const PRIORITY_META: Record<number, { label: string; color: string; kind:
 	3: { label: 'Medium', color: '#3b82f6', kind: 'medium' },
 	4: { label: 'Low', color: '#6b7280', kind: 'low' }
 }
-
-export function priorityColor(value: number): string {
-	return PRIORITY_META[value]?.color ?? '#6b7280'
-}

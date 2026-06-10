@@ -1,3 +1,4 @@
+import { toErrorMessage } from '@/lib/errors'
 import { issuesQuery } from '@/lib/queries'
 import type { LinearIssueListItem } from '@/types'
 import { useQuery } from '@tanstack/react-query'
@@ -16,7 +17,7 @@ export function useIssuesQuery(limit = 200) {
 		allIssues,
 		totalCount: data?.total_count ?? 0,
 		loading: isLoading || isFetching,
-		error: error ? String(error) : null,
+		error: toErrorMessage(error),
 		lastRefresh: dataUpdatedAt ? new Date(dataUpdatedAt) : null,
 		refresh: refetch
 	}

@@ -89,8 +89,6 @@ interrupts:
 
 launch_profile:
   use_worktree: true
-  live_mode: false
-  skills: []
   default_instructions: ""
   handoff_instructions: ""
   # Subset of the agent catalog this project is allowed to spawn.

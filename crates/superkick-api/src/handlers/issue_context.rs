@@ -13,8 +13,6 @@
 //! Domain validation (empty role / text, credential redaction) lives in
 //! `superkick-core::memory_entry`; the handler is pure orchestration.
 
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use axum::extract::{FromRef, Path, Query, State};
@@ -25,9 +23,10 @@ use superkick_core::{
     IssueWorkspaceContext, IssueWorkspaceContextLinkKind, IssueWorkspaceContextSnapshot,
     MemoryCursor, MemoryEntry, MemoryEntryId, MemoryPage,
 };
-use superkick_integrations::linear::{LinearClient, LinearError};
+use superkick_integrations::linear::LinearClient;
 use superkick_storage::repo::{IssueWorkspaceContextRepoDyn, MemoryEntryRepoDyn};
 
+use super::issues::LinearFuture;
 use crate::error::AppError;
 
 /// Page-size guardrails for the memory listing endpoint. The default matches
@@ -67,18 +66,11 @@ impl FromRef<crate::AppState> for IssueContextState {
 /// returns the frozen snapshot we persist. Production: `LinearClient`.
 /// Tests: a stub that returns a canned payload.
 pub trait IssueLookup: Send + Sync {
-    fn lookup<'a>(
-        &'a self,
-        id: &'a str,
-    ) -> Pin<Box<dyn Future<Output = Result<IssueWorkspaceContextSnapshot, LinearError>> + Send + 'a>>;
+    fn lookup<'a>(&'a self, id: &'a str) -> LinearFuture<'a, IssueWorkspaceContextSnapshot>;
 }
 
 impl IssueLookup for LinearClient {
-    fn lookup<'a>(
-        &'a self,
-        id: &'a str,
-    ) -> Pin<Box<dyn Future<Output = Result<IssueWorkspaceContextSnapshot, LinearError>> + Send + 'a>>
-    {
+    fn lookup<'a>(&'a self, id: &'a str) -> LinearFuture<'a, IssueWorkspaceContextSnapshot> {
         Box::pin(async move { self.issue_workspace_snapshot(id).await })
     }
 }
@@ -230,7 +222,7 @@ async fn ensure_context_for_issue(
     let lookup = state
         .issue_lookup
         .as_ref()
-        .ok_or_else(|| AppError::ServiceUnavailable("LINEAR_API_KEY not configured"))?;
+        .ok_or(AppError::ServiceUnavailable(crate::LINEAR_NOT_CONFIGURED))?;
     let snapshot = lookup.lookup(id).await?;
     if let Some(existing) = state
         .context_repo

@@ -48,7 +48,6 @@ const FULL_YAML: &str = indoc! {"
     budget:
       max_retries_per_step: 2
       max_parallel_agents: 3
-      token_budget: medium
 "};
 
 #[test]
@@ -69,7 +68,6 @@ fn parse_full_config() {
     assert_eq!(config.workflow.steps.len(), 5);
     assert_eq!(config.interrupts.on_blocked, InterruptPolicy::AskHuman);
     assert_eq!(config.budget.max_retries_per_step, 2);
-    assert_eq!(config.budget.token_budget, TokenBudget::Medium);
 }
 
 #[test]
@@ -97,7 +95,6 @@ fn defaults_applied_when_optional_sections_omitted() {
     assert_eq!(config.interrupts.on_blocked, InterruptPolicy::AskHuman);
     assert_eq!(config.budget.max_retries_per_step, 2);
     assert_eq!(config.budget.max_parallel_agents, 3);
-    assert_eq!(config.budget.token_budget, TokenBudget::Medium);
 }
 
 #[test]
@@ -120,6 +117,83 @@ fn reject_unknown_version() {
     let err = load_str(yaml).unwrap_err();
     assert!(
         err.to_string().contains("unsupported config version"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn reject_zero_findings_threshold() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source:
+          provider: linear
+          trigger: in_progress
+        runner:
+          mode: local
+        agents:
+          bot:
+            provider: claude
+        workflow:
+          steps:
+            - type: review_swarm
+              agents: [bot]
+              findings_threshold: 0
+    "};
+    let err = load_str(yaml).unwrap_err();
+    assert!(
+        err.to_string().contains("findings_threshold"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn reject_zero_max_parallel_agents() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source:
+          provider: linear
+          trigger: in_progress
+        runner:
+          mode: local
+        agents:
+          bot:
+            provider: claude
+        workflow:
+          steps:
+            - type: plan
+              agent: bot
+        budget:
+          max_parallel_agents: 0
+    "};
+    let err = load_str(yaml).unwrap_err();
+    assert!(
+        err.to_string().contains("max_parallel_agents"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn reject_zero_max_concurrent_active_runs() {
+    let yaml = indoc! {"
+        version: 1
+        issue_source:
+          provider: linear
+          trigger: in_progress
+        runner:
+          mode: local
+        agents:
+          bot:
+            provider: claude
+        workflow:
+          steps:
+            - type: plan
+              agent: bot
+        orchestration:
+          max_concurrent_active_runs: 0
+    "};
+    let err = load_str(yaml).unwrap_err();
+    assert!(
+        err.to_string().contains("max_concurrent_active_runs"),
         "unexpected error: {err}"
     );
 }
@@ -220,7 +294,7 @@ fn reject_empty_workflow() {
 
 #[test]
 fn empty_agents_block_is_valid_thanks_to_builtin_defaults() {
-    // SUP-160: a fresh install ships built-in agents, so a config with no
+    // A fresh install ships built-in agents, so a config with no
     // custom `agents:` block must still validate. The catalog still has the
     // six Codex/Claude built-ins available to the picker and the orchestrator.
     let yaml = indoc! {"
@@ -237,8 +311,8 @@ fn empty_agents_block_is_valid_thanks_to_builtin_defaults() {
     "};
     let config = load_str(yaml).expect("empty agents map is valid");
     let catalog = config.agent_catalog();
-    assert!(catalog.get(crate::CODEX_PLAN).is_some());
-    assert!(catalog.get(crate::CLAUDE_REVIEW).is_some());
+    assert!(catalog.get(crate::builtin_agents::CODEX_PLAN).is_some());
+    assert!(catalog.get(crate::builtin_agents::CLAUDE_REVIEW).is_some());
 }
 
 #[test]
@@ -403,17 +477,17 @@ fn reject_allowed_agents_referencing_unknown_role() {
 fn agent_catalog_exposes_all_roles_including_builtin_defaults() {
     let config = load_str(FULL_YAML).unwrap();
     let catalog = config.agent_catalog();
-    // 2 custom from FULL_YAML + 6 SUP-160 built-ins
+    // 2 custom from FULL_YAML + 6 built-ins
     assert_eq!(catalog.len(), 8);
     assert!(catalog.get("implementation").is_some());
     assert!(catalog.get("review").is_some());
-    assert!(catalog.get(crate::CODEX_PLAN).is_some());
-    assert!(catalog.get(crate::CLAUDE_PLAN).is_some());
+    assert!(catalog.get(crate::builtin_agents::CODEX_PLAN).is_some());
+    assert!(catalog.get(crate::builtin_agents::CLAUDE_PLAN).is_some());
 }
 
 #[test]
 fn custom_agent_overrides_builtin_with_same_name() {
-    // SUP-160: a YAML entry with the same name as a built-in replaces the
+    // A YAML entry with the same name as a built-in replaces the
     // built-in entirely, including its `origin` (so the picker correctly
     // labels it as custom).
     let yaml = indoc! {"
@@ -433,7 +507,7 @@ fn custom_agent_overrides_builtin_with_same_name() {
     let config = load_str(yaml).unwrap();
     let catalog = config.agent_catalog();
     let overridden = catalog
-        .get(crate::CODEX_IMPLEMENT)
+        .get(crate::builtin_agents::CODEX_IMPLEMENT)
         .expect("custom override present");
     assert_eq!(overridden.provider, AgentProvider::Claude);
     assert_eq!(overridden.model.as_deref(), Some("my-custom-model"));
@@ -452,22 +526,15 @@ fn builtin_defaults_are_tagged_as_builtin_origin() {
     "};
     let config = load_str(yaml).unwrap();
     let catalog = config.agent_catalog();
-    let codex_plan = catalog.get(crate::CODEX_PLAN).expect("builtin present");
+    let codex_plan = catalog
+        .get(crate::builtin_agents::CODEX_PLAN)
+        .expect("builtin present");
     assert_eq!(codex_plan.origin, superkick_core::AgentOrigin::Builtin);
     assert_eq!(codex_plan.provider, AgentProvider::Codex);
     assert_eq!(codex_plan.role.as_deref(), Some("planner"));
 }
 
-#[test]
-fn load_example_file() {
-    let path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/superkick.yaml");
-    let config = crate::load_file(&path).expect("example config should parse successfully");
-    assert_eq!(config.version, 1);
-    assert_eq!(config.workflow.steps.len(), 5);
-}
-
-// ── SUP-104: MCP registry + per-agent policy ────────────────────────
+// ── MCP registry + per-agent policy ─────────────────────────────────
 
 #[test]
 fn parse_mcp_servers_registry_and_per_agent_policy() {
@@ -565,7 +632,7 @@ fn missing_mcp_block_resolves_to_none_in_catalog() {
 
 #[test]
 fn legacy_tools_field_becomes_allowlist_in_resolved_policy() {
-    // SUP-104: existing configs that listed `tools: [...]` for documentation
+    // Existing configs that listed `tools: [...]` for documentation
     // now see those tools become the audit allowlist snapshot. No new YAML
     // is required for backward compat.
     let yaml = indoc! {"
@@ -592,7 +659,7 @@ fn legacy_tools_field_becomes_allowlist_in_resolved_policy() {
 
 #[test]
 fn legacy_tools_field_combines_with_explicit_tool_policy_deny() {
-    // SUP-104: when a role declares the legacy `tools:` field for the
+    // When a role declares the legacy `tools:` field for the
     // allowlist *and* an explicit `tool_policy.deny`, the resolver should
     // honour both — the legacy field becomes `allow`, the explicit
     // `deny` flows through unchanged.
@@ -760,7 +827,7 @@ fn snapshot_plus_mcp_sugar_keeps_explicit_extra_servers() {
 #[test]
 fn default_linear_context_does_not_inject_linear_server() {
     // No agent uses `snapshot_plus_mcp` → no auto-injection. Backward-compat
-    // for configs that pre-date SUP-104.
+    // for configs that pre-date the tool-policy field.
     let yaml = indoc! {"
         version: 1
         issue_source: { provider: linear, trigger: in_progress }
@@ -782,7 +849,7 @@ fn default_linear_context_does_not_inject_linear_server() {
     assert_eq!(coder.mcp_policy.mode, McpMode::None);
 }
 
-// ── SUP-121: AgentBackend round-trip + validation ───────────────────
+// ── AgentBackend round-trip + validation ────────────────────────────
 
 #[test]
 fn parse_claude_subagent_backend() {

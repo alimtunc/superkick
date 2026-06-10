@@ -44,7 +44,7 @@ export function useUpdateIssue(issueId: string) {
 			queryClient.invalidateQueries({ queryKey: queryKeys.issues.all })
 			queryClient.invalidateQueries({ queryKey: queryKeys.launchQueue.all })
 			queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.queue })
-			queryClient.invalidateQueries({ queryKey: ['search'] })
+			queryClient.invalidateQueries({ queryKey: queryKeys.search.all })
 		}
 	})
 }

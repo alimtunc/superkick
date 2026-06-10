@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
 
-import type { PillTone } from '@/components/ui/pill'
 import { issueStateFromLinear } from '@/lib/domain/issueState'
 import { taskBadgeKindFor } from '@/lib/issues/taskBadge'
 import { bucketFor } from '@/lib/lifecycle'
+import type { PillTone } from '@/types'
 import type {
 	IssueBoardColumns,
 	IssueFilterState,

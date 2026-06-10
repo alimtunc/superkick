@@ -1,7 +1,4 @@
-import { Button } from '@/components/ui/button'
-import { Tooltip } from '@/components/ui/tooltip'
-import { useLastRefreshed } from '@/hooks/useLastRefreshed'
-import { RefreshCw } from 'lucide-react'
+import { RefreshHeader } from '@/components/run-shared/RefreshHeader'
 
 interface RunsHeaderProps {
 	/** Open work — active + needs-human + in-review. Excludes the 20-cap "recent". */
@@ -13,39 +10,14 @@ interface RunsHeaderProps {
 }
 
 export function RunsHeader({ openCount, needsHumanCount, loading, lastRefresh, onRefresh }: RunsHeaderProps) {
-	const refreshLabel = useLastRefreshed(lastRefresh, loading)
-
 	return (
-		<header className="sticky top-0 z-30 border-b border-border bg-surface/90 backdrop-blur-md">
-			<div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-5">
-				<div className="flex items-center gap-3">
-					<span className="font-data text-[11px] font-medium tracking-wider text-fg uppercase">
-						RUNS
-					</span>
-					<span className="font-data text-[10px] text-fg-dim">{openCount} open</span>
-					{needsHumanCount > 0 ? (
-						<span className="font-data text-[10px] text-danger">
-							{needsHumanCount} need human
-						</span>
-					) : null}
-				</div>
-				<Tooltip label={refreshLabel}>
-					<Button
-						variant="ghost"
-						size="icon-xs"
-						onClick={onRefresh}
-						disabled={loading}
-						aria-label={refreshLabel ?? undefined}
-					>
-						<RefreshCw
-							size={13}
-							strokeWidth={1.75}
-							aria-hidden="true"
-							className={loading ? 'animate-spin' : ''}
-						/>
-					</Button>
-				</Tooltip>
-			</div>
-		</header>
+		<RefreshHeader
+			title="RUNS"
+			countText={`${openCount} open`}
+			needsText={needsHumanCount > 0 ? `${needsHumanCount} need human` : null}
+			loading={loading}
+			lastRefresh={lastRefresh}
+			onRefresh={onRefresh}
+		/>
 	)
 }

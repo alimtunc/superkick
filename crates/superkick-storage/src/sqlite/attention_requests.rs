@@ -4,7 +4,7 @@ use superkick_core::{
     AttentionKind, AttentionReply, AttentionRequest, AttentionRequestId, AttentionStatus, RunId,
 };
 
-use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, decode_rfc3339_opt, deserialize_enum, serialize_enum};
 use super::ensure_updated;
 use crate::repo::AttentionRequestRepo;
 
@@ -133,7 +133,7 @@ impl AttentionRow {
                 .transpose()?,
             replied_by: self.replied_by,
             created_at: decode_rfc3339(&self.created_at)?,
-            replied_at: self.replied_at.as_deref().map(decode_rfc3339).transpose()?,
+            replied_at: decode_rfc3339_opt(self.replied_at.as_deref())?,
         })
     }
 }

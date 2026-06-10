@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 
-import { IssueFilterDropdown, type FilterOptionSet } from '@/components/issues/IssueFilterDropdown'
+import { IssueFilterDropdown } from '@/components/issues/IssueFilterDropdown'
 import { PopoverPopup } from '@/components/ui/popover-shell'
 import { cn } from '@/lib/utils'
+import type { FilterOptionSet } from '@/types'
 import type { IssueFilterState, IssueGroupBy, IssueSort } from '@/types'
 import { Icon } from '@/ui'
 import { Popover } from '@base-ui/react/popover'

@@ -31,6 +31,7 @@ pub mod release_validation;
 pub mod repo_cache;
 pub mod run_context_snapshot_builder;
 pub mod run_diff;
+mod run_events;
 pub mod run_service;
 pub mod runner_mode;
 pub mod session_bus;
@@ -47,7 +48,7 @@ pub mod worktree;
 pub use agent_supervisor::{
     AgentHandle, AgentLaunchConfig, AgentResult, AgentSupervisor, SessionLaunchInfo,
 };
-pub use attention_service::AttentionService;
+pub use attention_service::{AttentionService, AttentionServiceError};
 pub use conversation_runner::{
     ChatPermissionMode, ConversationAdapters, ConversationRunner, ConversationRunnerError,
     RunChatSnapshot, TurnOverrides, TurnStreamItem,
@@ -77,14 +78,11 @@ pub use launch_profile_service::{LaunchCompositionError, LaunchProfileService};
 pub use ownership_service::{OwnershipService, ServiceError as OwnershipServiceError};
 pub use protocol_adapter::{
     ClaudeAdapterOptions, ClaudePermissionMode, ClaudeProtocolAdapter, CodexAdapterOptions,
-    CodexProtocolAdapter, CodexSandboxMode, DEFAULT_EVENT_CHANNEL_CAPACITY, NoopProtocolAdapter,
-    ProtocolAdapter, ProtocolEventReceiver, ProtocolEventSender, ProtocolStream, StubScript,
-    TurnHandle, protocol_event_channel,
+    CodexProtocolAdapter, CodexSandboxMode, DEFAULT_EVENT_CHANNEL_CAPACITY, ProtocolAdapter,
+    ProtocolEventReceiver, ProtocolEventSender, ProtocolStream, TurnHandle, protocol_event_channel,
 };
 pub use pty_session::{PtySession, PtySessionRegistry, TakeoverEntry, WriterHolder};
-pub use pull_request_service::{
-    PR_SYNC_STALENESS_THRESHOLD, PullRequestService, ShipError, ShipOutcome,
-};
+pub use pull_request_service::{PullRequestService, ShipError, ShipOutcome};
 pub use queue_triage_service::{QueueTriageService, RunTriage};
 pub use recovery_scheduler::spawn_recovery_scheduler;
 pub use release_validation::{RunnerAvailability, requested_runners, runner_available};
@@ -96,9 +94,7 @@ pub use run_diff::{DiffError, collect_run_diff};
 pub use run_service::{LaunchTaskCanceller, RunService, RunServiceError, RunSpawn};
 pub use session_bus::SessionBus;
 pub use step_engine::{StepEngine, StepEngineDeps};
-pub use step_failure_classifier::{
-    ClassifyInputs, DiffProbe, DiffSnapshot, GitDiffProbe, classify, classify_spawn_error,
-};
+pub use step_failure_classifier::DiffSnapshot;
 pub use terminal_takeover::{OpenTakeoverParams, SpawnedTakeover, TerminalTakeoverService};
 pub use turn_event_bus::TurnEventBus;
 pub use workspace_bus::{PublishingRunEventRepo, WorkspaceEventBus};

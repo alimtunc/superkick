@@ -24,7 +24,6 @@ fn agent(name: &str, provider: AgentProvider, model: Option<&str>) -> CoreAgentD
         role: None,
         model: model.map(String::from),
         system_prompt: None,
-        tools: None,
         timeout_secs: None,
         max_turns: None,
         origin: AgentOrigin::Custom,

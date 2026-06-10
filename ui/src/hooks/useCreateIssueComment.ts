@@ -6,10 +6,9 @@ import { toast } from 'sonner'
 
 interface UseCreateIssueCommentContext {
 	previous: IssueDetailResponse | undefined
-	optimisticId: string
 }
 
-/** Optimistic prepend keyed by `temp:` id; onSuccess invalidates (cheaper than swapping in place). */
+/** Optimistic append keyed by `temp:` id; onSuccess invalidates (cheaper than swapping in place). */
 export function useCreateIssueComment(issueId: string, viewer: ViewerResponse | null) {
 	const queryClient = useQueryClient()
 
@@ -18,11 +17,10 @@ export function useCreateIssueComment(issueId: string, viewer: ViewerResponse | 
 		onMutate: async (body) => {
 			await queryClient.cancelQueries({ queryKey: queryKeys.issues.detail(issueId) })
 			const previous = queryClient.getQueryData<IssueDetailResponse>(queryKeys.issues.detail(issueId))
-			const optimisticId = `temp:${crypto.randomUUID()}`
 			if (previous) {
 				const now = new Date().toISOString()
 				const optimistic: IssueComment = {
-					id: optimisticId,
+					id: `temp:${crypto.randomUUID()}`,
 					body,
 					author: viewer
 						? { id: viewer.id, name: viewer.name, avatar_url: viewer.avatar_url }
@@ -36,7 +34,7 @@ export function useCreateIssueComment(issueId: string, viewer: ViewerResponse | 
 					comments: [...previous.comments, optimistic]
 				})
 			}
-			return { previous, optimisticId }
+			return { previous }
 		},
 		onError: (err, _body, context) => {
 			if (context?.previous) {
@@ -48,7 +46,7 @@ export function useCreateIssueComment(issueId: string, viewer: ViewerResponse | 
 			queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) })
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: ['search'] })
+			queryClient.invalidateQueries({ queryKey: queryKeys.search.all })
 		}
 	})
 }

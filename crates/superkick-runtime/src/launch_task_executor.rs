@@ -318,7 +318,7 @@ impl StepRunner for StubStepRunner {
             step_id = %step.id,
             step_kind = %step.step_kind,
             agent = %step.agent_name,
-            "StubStepRunner: V1 stub — no real agent spawn yet (Orchestrator integration is a follow-up)"
+            "StubStepRunner: stub runner — no real agent spawn"
         );
 
         tokio::select! {
@@ -567,6 +567,8 @@ where
             .update_task_status(task.id, LaunchTaskStatus::Completed)
             .await
             .with_context(|| format!("launch_task {} → Completed", task.id))?;
+        self.finalize_task_shadow_run(task, ShadowRunTerminal::Completed, "launch task completed")
+            .await;
         self.publish(LaunchTaskEvent::TaskStatusChanged {
             task_id: task.id,
             linear_issue_id: task.linear_issue_id.clone(),
@@ -753,10 +755,9 @@ where
             .with_context(|| format!("step {} auto-resume park persist", step.id))?;
 
         let suffix = match reason {
-            TimeoutParkReason::Exhausted => format!(
-                "auto-resumed {segments_used}×/{} without converging",
-                self.max_auto_resumes
-            ),
+            TimeoutParkReason::Exhausted => {
+                format!("auto-resume budget exhausted after {segments_used}× without converging")
+            }
             TimeoutParkReason::NoProgress => format!(
                 "auto-resume stopped after {segments_used}× — last segment produced no new changes"
             ),

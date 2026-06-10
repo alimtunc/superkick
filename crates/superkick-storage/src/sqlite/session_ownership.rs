@@ -13,7 +13,7 @@ use superkick_core::{
     OwnershipTransitionReason, RunId, SuspendReason,
 };
 
-use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, decode_rfc3339_opt, deserialize_enum, serialize_enum};
 use crate::repo::{OwnershipSnapshot, SessionOwnershipRepo};
 
 /// SQLite-backed implementation of the ownership repository.
@@ -265,11 +265,7 @@ impl SnapshotRow {
             self.ownership_note.as_deref(),
             self.ownership_suspend_json.as_deref(),
         )?;
-        let since = self
-            .ownership_since
-            .as_deref()
-            .map(decode_rfc3339)
-            .transpose()?;
+        let since = decode_rfc3339_opt(self.ownership_since.as_deref())?;
         Ok(OwnershipSnapshot {
             session_id: AgentSessionId(uuid::Uuid::parse_str(&self.id)?),
             run_id: RunId(uuid::Uuid::parse_str(&self.run_id)?),

@@ -14,10 +14,8 @@ use std::sync::Arc;
 
 use axum::extract::{FromRef, Path, Query, State};
 use axum::http::StatusCode;
-use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Json};
 use serde::{Deserialize, Serialize};
-use tokio::sync::broadcast::error::RecvError;
 
 use superkick_core::{
     AgentCatalog, LaunchTask, LaunchTaskId, LaunchTaskIntervention, LaunchTaskOverrides,
@@ -48,12 +46,9 @@ fn require_agent(value: Option<&str>, field: &str) -> Result<String, AppError> {
         })
 }
 
-/// Production wiring of the executor. SUP-124 swapped the V1 `StubStepRunner`
-/// for `RealStepRunner`, which spawns a real agent process per step. Held as
-/// a concrete type alias so the handlers can name it without dragging the
-/// generic parameters across the HTTP layer. SUP-154 added the intervention
-/// repo as the 7th generic so the runner can inject operator interventions
-/// at step start.
+/// Production wiring of the executor: spawns a real agent process per step.
+/// Held as a concrete type alias so the handlers can name it without dragging
+/// the generic parameters across the HTTP layer.
 pub type ProdRealStepRunner = RealStepRunner<
     SqliteRunRepo,
     SqliteRunStepRepo,
@@ -83,12 +78,9 @@ pub struct LaunchTaskState<S: StepRunner> {
     /// Composes dynamic launches from a profile + step overrides.
     /// `None` in the test router (which exercises only the legacy triplet path).
     pub launch_profile_service: Option<Arc<crate::ProdLaunchProfileService>>,
-    /// Whether `create_launch_task` should auto-spawn the executor in the
-    /// background. Always `true` in production wiring; the test router opts
-    /// out so that SUP-116 status assertions (e.g. "freshly created tasks
-    /// are Pending") stay deterministic. The executor itself is exhaustively
-    /// covered at the runtime layer in
-    /// `superkick-runtime/tests/launch_task_executor.rs`.
+    /// Whether `create_launch_task` auto-spawns the executor. Always `true`
+    /// in production; the test router opts out so create-time status
+    /// assertions stay deterministic.
     pub auto_trigger_executor: bool,
 }
 
@@ -195,12 +187,8 @@ pub async fn create_launch_task<S: StepRunner>(
         (task, steps)
     };
 
-    // SUP-118: trigger the executor in the background. A crash before the
-    // task reaches a terminal state leaves it `Pending`; recovery is hors
-    // scope V1 (see `LaunchTaskRegistry` docstring). Tests opt out via
-    // `auto_trigger_executor` so SUP-116 status pinning stays deterministic.
-    // The detached `JoinHandle` is dropped — V1 has no shutdown drain; the
-    // signature exists so a future supervisor can swap in.
+    // A crash before the task reaches a terminal state leaves it `Pending`;
+    // the liveness sweep reconciles. Tests opt out for deterministic status.
     if state.auto_trigger_executor {
         Arc::clone(&state.executor).spawn(task.id);
     }
@@ -386,43 +374,15 @@ pub async fn launch_task_events_sse<S: StepRunner>(
     State(state): State<LaunchTaskState<S>>,
     Query(q): Query<LaunchTaskEventsQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let mut rx = state.bus.subscribe();
+    let rx = state.bus.subscribe();
     let filter = q.linear_issue_id;
-
-    let stream = async_stream::stream! {
-        loop {
-            match rx.recv().await {
-                Ok(event) => {
-                    if let Some(filter) = filter.as_deref()
-                        && event.linear_issue_id() != filter
-                    {
-                        continue;
-                    }
-                    let data = match serde_json::to_string(&event) {
-                        Ok(d) => d,
-                        Err(e) => {
-                            yield Ok::<Event, std::convert::Infallible>(
-                                Event::default().event("error").data(e.to_string())
-                            );
-                            continue;
-                        }
-                    };
-                    yield Ok(Event::default().event("launch_task_event").data(data));
-                }
-                Err(RecvError::Lagged(skipped)) => {
-                    yield Ok(
-                        Event::default()
-                            .event("lagged")
-                            .data(skipped.to_string()),
-                    );
-                }
-                Err(RecvError::Closed) => {
-                    yield Ok(Event::default().event("done").data("bus closed"));
-                    break;
-                }
-            }
-        }
-    };
-
-    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
+    Ok(super::broadcast_sse(
+        rx,
+        "launch_task_event",
+        move |event| {
+            filter
+                .as_deref()
+                .is_none_or(|filter| event.linear_issue_id() == filter)
+        },
+    ))
 }

@@ -169,7 +169,7 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 									· {modeLabel(activeTakeover.mode)}
 								</span>
 								{activeTakeover.takeover_path ? (
-									<span className="font-data text-evergreen text-[10px] tracking-wider uppercase">
+									<span className="font-data text-[10px] tracking-wider text-success uppercase">
 										· {PATH_LABEL[activeTakeover.takeover_path]}
 									</span>
 								) : null}
@@ -179,7 +179,7 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 									size="xs"
 									onClick={handleClose}
 									disabled={closing}
-									className="font-data hover:border-rust/40 hover:text-rust focus-visible:ring-rust/40 ml-auto h-auto rounded-sm border-border bg-surface/40 px-2 py-1 text-[10px] tracking-wider text-fg-muted uppercase focus-visible:ring-2"
+									className="font-data ml-auto h-auto rounded-sm border-border bg-surface/40 px-2 py-1 text-[10px] tracking-wider text-fg-muted uppercase hover:border-danger/40 hover:text-danger focus-visible:ring-2 focus-visible:ring-danger/40"
 								>
 									{activeTakeover.takeover_path === 'attach' ? 'Detach' : 'Close takeover'}
 								</Button>
@@ -221,8 +221,8 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 					) : null}
 
 					{pendingForceSubMode !== null ? (
-						<div className="border-rust/40 bg-rust/10 space-y-2 rounded-md border p-3">
-							<p className="font-data text-rust text-[11px] tracking-wider uppercase">
+						<div className="space-y-2 rounded-md border border-danger/40 bg-danger/10 p-3">
+							<p className="font-data text-[11px] tracking-wider text-danger uppercase">
 								Confirm force takeover
 							</p>
 							<p className="font-data text-[11px] text-fg-muted">
@@ -251,7 +251,7 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 									size="xs"
 									onClick={() => handleConfirmForce(pendingForceSubMode)}
 									disabled={openMutation.isPending}
-									className="font-data border-rust/60 bg-rust/20 text-rust hover:border-rust hover:bg-rust/30 focus-visible:ring-rust/40 h-auto rounded-sm px-2 py-1 text-[10px] tracking-wider uppercase focus-visible:ring-2"
+									className="font-data h-auto rounded-sm border-danger/60 bg-danger/20 px-2 py-1 text-[10px] tracking-wider text-danger uppercase hover:border-danger hover:bg-danger/30 focus-visible:ring-2 focus-visible:ring-danger/40"
 								>
 									Cancel turn & take over
 								</Button>
@@ -268,7 +268,9 @@ export function TerminalTakeover({ runId, isTerminal }: TerminalTakeoverProps) {
 						</div>
 					) : null}
 
-					{errorMessage ? <p className="font-data text-rust text-[11px]">{errorMessage}</p> : null}
+					{errorMessage ? (
+						<p className="font-data text-[11px] text-danger">{errorMessage}</p>
+					) : null}
 
 					<div className="space-y-2">
 						<p className="font-data text-[10px] tracking-wider text-fg-dim uppercase">

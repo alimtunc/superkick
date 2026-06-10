@@ -14,7 +14,7 @@ import { isTerminalRunState, pickLatestRun } from './runState'
 
 export const PHASE_ORDER: BoardPhase[] = ['queued', 'planning', 'coding', 'review', 'pr', 'done']
 
-export const PHASE_LABEL: Record<BoardPhase, string> = {
+const PHASE_LABEL: Record<BoardPhase, string> = {
 	queued: 'Queued',
 	planning: 'Planning',
 	coding: 'Coding',

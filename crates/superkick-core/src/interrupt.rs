@@ -55,6 +55,12 @@ impl Interrupt {
     }
 
     pub fn resolve(&mut self, action: &InterruptAction) -> Result<(), CoreError> {
+        if self.status != InterruptStatus::Pending {
+            return Err(CoreError::InvalidInput(format!(
+                "interrupt is not pending (status: {:?})",
+                self.status
+            )));
+        }
         self.status = InterruptStatus::Resolved;
         self.answer_json = Some(serde_json::to_value(action)?);
         self.resolved_at = Some(Utc::now());

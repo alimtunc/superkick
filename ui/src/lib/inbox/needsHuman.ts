@@ -1,4 +1,3 @@
-import type { PillTone } from '@/components/ui/pill'
 import { truncate } from '@/lib/format'
 import type { LaunchQueueItem, NeedsHumanItem, NeedsHumanReasonKind, QueueRunSummary, Run } from '@/types'
 import type { SKTone } from '@/types/icons'
@@ -28,15 +27,6 @@ export const NEEDS_HUMAN_REASON_LABEL: Record<NeedsHumanReasonKind, string> = {
 	attention_pending: 'Attention',
 	budget_paused: 'Budget',
 	recently_failed: 'Failed'
-}
-
-export const NEEDS_HUMAN_REASON_PILL_TONE: Record<NeedsHumanReasonKind, PillTone> = {
-	awaiting_approval: 'warn',
-	stalled: 'warn',
-	interrupt_pending: 'warn',
-	attention_pending: 'danger',
-	budget_paused: 'warn',
-	recently_failed: 'danger'
 }
 
 export const NEEDS_HUMAN_REASON_TONE: Record<NeedsHumanReasonKind, SKTone> = {

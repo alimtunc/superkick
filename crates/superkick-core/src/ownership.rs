@@ -197,10 +197,12 @@ pub enum OwnershipError {
         requested: OperatorId,
         current: OperatorId,
     },
-    #[error("orchestrator does not currently own this session (state: {state})")]
-    NotOrchestratorOwned { state: &'static str },
+    #[error("session is not operator-owned (state: {state})")]
+    NotOperatorOwned { state: &'static str },
     #[error("session is suspended and cannot accept this transition (state: {state})")]
     Suspended { state: &'static str },
+    #[error("session is not suspended (state: {state})")]
+    NotSuspended { state: &'static str },
 }
 
 /// Apply a takeover transition to a current owner, returning the next state.
@@ -242,7 +244,7 @@ pub fn transition_release(
             requested: operator.clone(),
             current: existing.clone(),
         }),
-        other => Err(OwnershipError::NotOrchestratorOwned {
+        other => Err(OwnershipError::NotOperatorOwned {
             state: other.kind_str(),
         }),
     }
@@ -270,7 +272,7 @@ pub fn transition_resume(
 ) -> Result<OrchestrationOwner, OwnershipError> {
     match current {
         OrchestrationOwner::Suspended { .. } => Ok(OrchestrationOwner::Orchestrator),
-        other => Err(OwnershipError::Suspended {
+        other => Err(OwnershipError::NotSuspended {
             state: other.kind_str(),
         }),
     }
@@ -365,7 +367,7 @@ mod tests {
     #[test]
     fn resume_from_orchestrator_fails() {
         let err = transition_resume(&OrchestrationOwner::Orchestrator).unwrap_err();
-        assert!(matches!(err, OwnershipError::Suspended { .. }));
+        assert!(matches!(err, OwnershipError::NotSuspended { .. }));
     }
 
     #[test]

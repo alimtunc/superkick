@@ -1,8 +1,6 @@
 import type { RunEvent } from '@/types'
 import { z } from 'zod'
 
-export type ActivityKind = 'diff' | 'progress' | 'search' | 'spec' | 'summary' | 'test' | 'write'
-
 const activityKindSchema = z.enum(['diff', 'progress', 'search', 'spec', 'summary', 'test', 'write'])
 
 const activityPayloadSchema = z

@@ -7,16 +7,33 @@
 
 use std::sync::Arc;
 
-use anyhow::{Context, Result, bail};
 use tracing::info;
 
 use superkick_core::{
     AttentionKind, AttentionReply, AttentionRequest, AttentionRequestId, AttentionStatus,
-    EventKind, EventLevel, RunEvent, RunId,
+    CoreError, EventKind, EventLevel, RunEvent, RunId, RunState,
 };
 use superkick_storage::repo::{AttentionRequestRepo, RunEventRepo, RunRepo};
 
 use crate::step_engine::emit_built_event;
+
+#[derive(Debug, thiserror::Error)]
+pub enum AttentionServiceError {
+    #[error("run not found")]
+    RunNotFound,
+    #[error("attention request not found")]
+    RequestNotFound,
+    #[error("attention request does not belong to run {0}")]
+    WrongRun(RunId),
+    #[error("cannot raise attention request on run in terminal state {0}")]
+    RunTerminal(RunState),
+    #[error(transparent)]
+    Core(#[from] CoreError),
+    #[error(transparent)]
+    Storage(anyhow::Error),
+}
+
+type Result<T> = std::result::Result<T, AttentionServiceError>;
 
 pub struct AttentionService<A, E, R> {
     attention_repo: Arc<A>,
@@ -46,16 +63,21 @@ where
         body: String,
         options: Option<Vec<String>>,
     ) -> Result<AttentionRequest> {
-        let run = self.run_repo.get(run_id).await?.context("run not found")?;
+        let run = self
+            .run_repo
+            .get(run_id)
+            .await
+            .map_err(AttentionServiceError::Storage)?
+            .ok_or(AttentionServiceError::RunNotFound)?;
         if run.state.is_terminal() {
-            bail!(
-                "cannot raise attention request on run in terminal state {}",
-                run.state
-            );
+            return Err(AttentionServiceError::RunTerminal(run.state));
         }
 
         let request = AttentionRequest::new(run_id, kind, title, body, options)?;
-        self.attention_repo.insert(&request).await?;
+        self.attention_repo
+            .insert(&request)
+            .await
+            .map_err(AttentionServiceError::Storage)?;
 
         self.emit(
             run_id,
@@ -87,14 +109,18 @@ where
         let mut request = self
             .attention_repo
             .get(request_id)
-            .await?
-            .context("attention request not found")?;
+            .await
+            .map_err(AttentionServiceError::Storage)?
+            .ok_or(AttentionServiceError::RequestNotFound)?;
         if request.run_id != run_id {
-            bail!("attention request does not belong to run {run_id}");
+            return Err(AttentionServiceError::WrongRun(run_id));
         }
 
         request.record_reply(reply, replied_by)?;
-        self.attention_repo.update(&request).await?;
+        self.attention_repo
+            .update(&request)
+            .await
+            .map_err(AttentionServiceError::Storage)?;
 
         self.emit(
             run_id,
@@ -120,16 +146,20 @@ where
         let mut request = self
             .attention_repo
             .get(request_id)
-            .await?
-            .context("attention request not found")?;
+            .await
+            .map_err(AttentionServiceError::Storage)?
+            .ok_or(AttentionServiceError::RequestNotFound)?;
         if request.run_id != run_id {
-            bail!("attention request does not belong to run {run_id}");
+            return Err(AttentionServiceError::WrongRun(run_id));
         }
         if request.status != AttentionStatus::Pending {
             return Ok(request);
         }
         request.cancel();
-        self.attention_repo.update(&request).await?;
+        self.attention_repo
+            .update(&request)
+            .await
+            .map_err(AttentionServiceError::Storage)?;
 
         self.emit(
             run_id,

@@ -6,9 +6,13 @@ use superkick_core::{
     StepKey, TriggerSource,
 };
 
-use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, decode_rfc3339_opt, deserialize_enum, serialize_enum};
 use super::ensure_updated;
 use crate::repo::RunRepo;
+
+const FIND_ACTIVE_BY_IDENTIFIER_SQL: &str = "SELECT * FROM runs WHERE issue_identifier = ?1 AND state NOT IN ('completed', 'failed', 'cancelled') LIMIT 1";
+const LIST_ACTIVE_LAUNCH_TASK_RUNS_SQL: &str = "SELECT * FROM runs WHERE trigger_source = 'launch_task' AND state NOT IN ('completed', 'failed', 'cancelled') ORDER BY started_at ASC";
+const UPDATE_HEARTBEAT_SQL: &str = "UPDATE runs SET last_heartbeat_at = ?1 WHERE id = ?2 AND state NOT IN ('completed', 'failed', 'cancelled')";
 
 pub struct SqliteRunRepo {
     pool: SqlitePool,
@@ -77,6 +81,16 @@ impl RunRepo for SqliteRunRepo {
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
+    async fn list_recent(&self, limit: u32) -> Result<Vec<Run>> {
+        let rows =
+            sqlx::query_as::<_, RunRow>("SELECT * FROM runs ORDER BY started_at DESC LIMIT ?1")
+                .bind(limit)
+                .fetch_all(&self.pool)
+                .await
+                .context("list recent runs")?;
+        rows.into_iter().map(|r| r.into_domain()).collect()
+    }
+
     async fn list_by_issue_id(&self, issue_id: &str) -> Result<Vec<Run>> {
         let rows = sqlx::query_as::<_, RunRow>(
             "SELECT * FROM runs WHERE issue_id = ?1 ORDER BY started_at DESC",
@@ -100,23 +114,19 @@ impl RunRepo for SqliteRunRepo {
     }
 
     async fn find_active_by_issue_identifier(&self, issue_identifier: &str) -> Result<Option<Run>> {
-        let row = sqlx::query_as::<_, RunRow>(
-            "SELECT * FROM runs WHERE issue_identifier = ?1 AND state NOT IN ('completed', 'failed', 'cancelled') LIMIT 1",
-        )
-        .bind(issue_identifier)
-        .fetch_optional(&self.pool)
-        .await
-        .with_context(|| format!("find active run by issue_identifier {issue_identifier}"))?;
+        let row = sqlx::query_as::<_, RunRow>(FIND_ACTIVE_BY_IDENTIFIER_SQL)
+            .bind(issue_identifier)
+            .fetch_optional(&self.pool)
+            .await
+            .with_context(|| format!("find active run by issue_identifier {issue_identifier}"))?;
         row.map(|r| r.into_domain()).transpose()
     }
 
     async fn list_active_launch_task_runs(&self) -> Result<Vec<Run>> {
-        let rows = sqlx::query_as::<_, RunRow>(
-            "SELECT * FROM runs WHERE trigger_source = 'launch_task' AND state NOT IN ('completed', 'failed', 'cancelled') ORDER BY started_at ASC",
-        )
-        .fetch_all(&self.pool)
-        .await
-        .context("list active launch-task shadow runs")?;
+        let rows = sqlx::query_as::<_, RunRow>(LIST_ACTIVE_LAUNCH_TASK_RUNS_SQL)
+            .fetch_all(&self.pool)
+            .await
+            .context("list active launch-task shadow runs")?;
         rows.into_iter().map(|r| r.into_domain()).collect()
     }
 
@@ -150,15 +160,12 @@ impl RunRepo for SqliteRunRepo {
     }
 
     async fn update_heartbeat(&self, run_id: RunId, now: DateTime<Utc>) -> Result<()> {
-        sqlx::query(
-            "UPDATE runs SET last_heartbeat_at = ?1
-             WHERE id = ?2 AND state NOT IN ('completed', 'failed', 'cancelled')",
-        )
-        .bind(now.to_rfc3339())
-        .bind(run_id.0.to_string())
-        .execute(&self.pool)
-        .await
-        .with_context(|| format!("update heartbeat for run {run_id}"))?;
+        sqlx::query(UPDATE_HEARTBEAT_SQL)
+            .bind(now.to_rfc3339())
+            .bind(run_id.0.to_string())
+            .execute(&self.pool)
+            .await
+            .with_context(|| format!("update heartbeat for run {run_id}"))?;
         Ok(())
     }
 }
@@ -229,22 +236,53 @@ impl RunRow {
             operator_instructions: self.operator_instructions,
             started_at: decode_rfc3339(&self.started_at)?,
             updated_at: decode_rfc3339(&self.updated_at)?,
-            finished_at: self
-                .finished_at
-                .as_deref()
-                .map(decode_rfc3339)
-                .transpose()?,
+            finished_at: decode_rfc3339_opt(self.finished_at.as_deref())?,
             error_message: self.error_message,
             budget,
             budget_grant,
             pause_kind: deserialize_enum::<PauseKind>(&self.pause_kind)?,
             pause_reason: self.pause_reason,
-            last_heartbeat_at: self
-                .last_heartbeat_at
-                .as_deref()
-                .map(decode_rfc3339)
-                .transpose()?,
+            last_heartbeat_at: decode_rfc3339_opt(self.last_heartbeat_at.as_deref())?,
             agent_overrides,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use superkick_core::RunState;
+
+    /// SQL predicate every active-run query must share. Pinned against
+    /// `RunState::TERMINAL` so adding a terminal variant cannot silently
+    /// desync the dedup guard and heartbeat clamp from the domain.
+    const NON_TERMINAL_PREDICATE: &str = "state NOT IN ('completed', 'failed', 'cancelled')";
+
+    #[test]
+    fn queries_share_the_non_terminal_predicate() {
+        for sql in [
+            super::FIND_ACTIVE_BY_IDENTIFIER_SQL,
+            super::LIST_ACTIVE_LAUNCH_TASK_RUNS_SQL,
+            super::UPDATE_HEARTBEAT_SQL,
+        ] {
+            assert!(
+                sql.contains(NON_TERMINAL_PREDICATE),
+                "query drifted from the shared predicate: {sql}"
+            );
+        }
+    }
+
+    #[test]
+    fn non_terminal_predicate_matches_the_domain_terminal_set() {
+        let tags: Vec<String> = RunState::TERMINAL
+            .iter()
+            .map(|s| {
+                format!(
+                    "'{}'",
+                    crate::sqlite::codec::serialize_enum(s).expect("serialize RunState")
+                )
+            })
+            .collect();
+        let expected = format!("state NOT IN ({})", tags.join(", "));
+        assert_eq!(NON_TERMINAL_PREDICATE, expected);
     }
 }

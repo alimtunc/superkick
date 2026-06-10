@@ -1,7 +1,7 @@
 import { RunStateBadge } from '@/components/RunStateBadge'
 import { Button } from '@/components/ui/button'
 import { fmtElapsed, watchButtonClass } from '@/lib/domain'
-import { useWatchedSessionsStore } from '@/stores/watchedSessions'
+import { useWatchedSessionsStore, selectMaxReached } from '@/stores/watchedSessions'
 import type { Run } from '@/types'
 import { Link } from '@tanstack/react-router'
 import { Eye, EyeOff } from 'lucide-react'
@@ -16,7 +16,8 @@ interface AlertRowProps {
 export function AlertRow({ run, refTime, reason, isLast }: AlertRowProps) {
 	const borderClass = isLast ? '' : 'border-b border-border/50'
 	const isBlocked = run.state === 'waiting_human' || run.state === 'failed'
-	const { isWatched, toggleWatch, maxReached } = useWatchedSessionsStore()
+	const { isWatched, toggleWatch } = useWatchedSessionsStore()
+	const maxReached = useWatchedSessionsStore(selectMaxReached)
 	const watched = isWatched(run.id)
 
 	return (

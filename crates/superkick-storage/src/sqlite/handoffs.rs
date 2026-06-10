@@ -5,7 +5,7 @@ use superkick_core::{
     HandoffStatus, RunId, StepId,
 };
 
-use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, decode_rfc3339_opt, deserialize_enum, serialize_enum};
 use super::ensure_updated;
 use crate::repo::HandoffRepo;
 
@@ -149,16 +149,8 @@ impl HandoffRow {
                 .transpose()?
                 .map(HandoffId),
             created_at: decode_rfc3339(&self.created_at)?,
-            delivered_at: self
-                .delivered_at
-                .as_deref()
-                .map(decode_rfc3339)
-                .transpose()?,
-            completed_at: self
-                .completed_at
-                .as_deref()
-                .map(decode_rfc3339)
-                .transpose()?,
+            delivered_at: decode_rfc3339_opt(self.delivered_at.as_deref())?,
+            completed_at: decode_rfc3339_opt(self.completed_at.as_deref())?,
         })
     }
 }

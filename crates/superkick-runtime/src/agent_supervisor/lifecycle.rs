@@ -156,10 +156,7 @@ where
                 ),
                 DeadlineKind::Idle(idle) => (
                     idle,
-                    format!(
-                        "agent {} produced no output for {idle:?} — terminated as hung (no-output watchdog)",
-                        session.provider
-                    ),
+                    super::no_output_watchdog_message(session.provider, idle),
                 ),
             };
             warn!(pid = ?pid, "{message}");

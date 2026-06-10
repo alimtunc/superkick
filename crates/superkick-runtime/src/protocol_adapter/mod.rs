@@ -5,11 +5,6 @@
 //! adapter pumps `ProtocolEvent`s through an mpsc receiver → adapter publishes
 //! a `TurnOutcome` when terminal. Cancellation is cooperative, driven by a
 //! `tokio_util::sync::CancellationToken` exposed on the `TurnHandle`.
-//!
-//! This ticket defines the contract and the stub implementation only. Real
-//! Claude / Codex adapters land in follow-ups; the existing PTY supervisor
-//! (`agent_supervisor::lifecycle`) is unchanged and stays the production path
-//! for terminal-takeover today.
 
 mod claude;
 mod claude_stream;
@@ -18,7 +13,6 @@ mod codex_stream;
 mod failure_hints;
 mod process;
 mod step_result_marker;
-mod stub;
 
 pub(crate) use failure_hints::FailureHintScanner;
 pub use failure_hints::TranscriptHints;
@@ -39,7 +33,6 @@ pub use claude::{ClaudeAdapterOptions, ClaudePermissionMode, ClaudeProtocolAdapt
 #[doc(hidden)]
 pub use codex::spawn_pump_for_test as spawn_codex_pump_for_test;
 pub use codex::{CodexAdapterOptions, CodexProtocolAdapter, CodexSandboxMode};
-pub use stub::{NoopProtocolAdapter, StubScript};
 
 /// Bounded channel capacity for adapter→consumer event flow. Matches the
 /// PTY output bus, which has worked for terminal scraping under realistic

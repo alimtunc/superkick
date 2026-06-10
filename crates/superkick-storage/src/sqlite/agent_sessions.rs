@@ -5,7 +5,7 @@ use superkick_core::{
     LaunchReason, LinearContextMode, RunId, RunnerMode, StepId,
 };
 
-use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, decode_rfc3339_opt, deserialize_enum, serialize_enum};
 use super::ensure_updated;
 use crate::repo::AgentSessionRepo;
 
@@ -34,7 +34,7 @@ impl AgentSessionRepo for SqliteAgentSessionRepo {
         .bind(session.id.0.to_string())
         .bind(session.run_id.0.to_string())
         .bind(session.run_step_id.0.to_string())
-        .bind(session.provider.to_string())
+        .bind(serialize_enum(&session.provider)?)
         .bind(&session.command)
         .bind(session.pid.map(|p| p as i64))
         .bind(serialize_enum(&session.status)?)
@@ -164,14 +164,14 @@ impl SessionRow {
             run_step_id: StepId(uuid::Uuid::parse_str(&self.run_step_id)?),
             provider: deserialize_enum::<AgentProvider>(&self.provider)?,
             command: self.command,
-            pid: self.pid.map(|p| p as u32),
+            pid: self
+                .pid
+                .map(u32::try_from)
+                .transpose()
+                .with_context(|| format!("agent_session {} pid out of range", self.id))?,
             status: deserialize_enum::<AgentStatus>(&self.status)?,
             started_at: decode_rfc3339(&self.started_at)?,
-            finished_at: self
-                .finished_at
-                .as_deref()
-                .map(decode_rfc3339)
-                .transpose()?,
+            finished_at: decode_rfc3339_opt(self.finished_at.as_deref())?,
             exit_code: self.exit_code,
             linear_context_mode: self
                 .linear_context_mode

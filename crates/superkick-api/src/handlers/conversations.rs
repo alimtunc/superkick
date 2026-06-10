@@ -26,8 +26,9 @@ use superkick_core::{
     AgentProvider, ConversationId, ConversationSubject, RunId, TurnEvent, TurnId,
 };
 use superkick_runtime::{ChatPermissionMode, TurnOverrides, TurnStreamItem};
-use superkick_storage::repo::{ConversationRepo, RunRepo, TurnEventRepo, TurnRepo};
+use superkick_storage::repo::{ConversationRepo, TurnEventRepo, TurnRepo};
 
+use super::require_run;
 use crate::AppState;
 use crate::error::AppError;
 
@@ -63,9 +64,7 @@ pub async fn create_conversation(
             }
         }
         ConversationSubject::Run { run_id } => {
-            if state.run_repo.get(run_id).await?.is_none() {
-                return Err(AppError::NotFound("run not found"));
-            }
+            require_run(&state, run_id).await?;
             ConversationSubject::Run { run_id }
         }
     };

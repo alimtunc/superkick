@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 
 use superkick_core::{AgentSessionId, OperatorId, OwnershipEvent, RunId, SessionOwnership};
 use superkick_runtime::OwnershipServiceError;
-use superkick_storage::repo::RunRepo;
 
+use super::require_run;
 use crate::AppState;
 use crate::error::AppError;
 
@@ -42,7 +42,7 @@ pub async fn get_ownership(
 ) -> Result<impl IntoResponse, AppError> {
     let run_id = RunId(run_id);
     let session_id = AgentSessionId(session_id);
-    validate_run(&state, run_id).await?;
+    require_run(&state, run_id).await?;
 
     let current = state
         .ownership_service
@@ -66,7 +66,7 @@ pub async fn takeover(
 ) -> Result<impl IntoResponse, AppError> {
     let run_id = RunId(run_id);
     let session_id = AgentSessionId(session_id);
-    validate_run(&state, run_id).await?;
+    require_run(&state, run_id).await?;
 
     let operator_id = parse_operator(&body.operator_id)?;
     let note = body
@@ -90,7 +90,7 @@ pub async fn release(
 ) -> Result<impl IntoResponse, AppError> {
     let run_id = RunId(run_id);
     let session_id = AgentSessionId(session_id);
-    validate_run(&state, run_id).await?;
+    require_run(&state, run_id).await?;
 
     let operator_id = parse_operator(&body.operator_id)?;
     let snapshot = state
@@ -107,13 +107,6 @@ fn parse_operator(raw: &str) -> Result<OperatorId, AppError> {
         return Err(AppError::BadRequest("operator_id must not be empty".into()));
     }
     Ok(OperatorId(trimmed.to_string()))
-}
-
-async fn validate_run(state: &AppState, run_id: RunId) -> Result<(), AppError> {
-    if state.run_repo.get(run_id).await?.is_none() {
-        return Err(AppError::NotFound("run not found"));
-    }
-    Ok(())
 }
 
 fn to_app_error(err: OwnershipServiceError) -> AppError {

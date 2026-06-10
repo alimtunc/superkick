@@ -13,6 +13,7 @@ crate-type = ["rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+superkick-config = { path = "../crates/superkick-config" }
 tauri = { version = "2", features = [] }
 thiserror = { workspace = true }
 tracing = { workspace = true }

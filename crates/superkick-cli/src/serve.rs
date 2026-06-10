@@ -3,19 +3,19 @@ use superkick_api::ServerConfig;
 #[derive(clap::Args)]
 pub struct ServeArgs {
     /// Path to superkick.yaml
-    #[arg(short, long, default_value = "superkick.yaml")]
+    #[arg(short, long, default_value = superkick_config::CONFIG_FILENAME)]
     pub config: String,
 
     /// SQLite database URL
-    #[arg(short, long, default_value = "sqlite:superkick.db")]
+    #[arg(short, long, default_value = superkick_config::DEFAULT_DATABASE_URL)]
     pub db: String,
 
     /// HTTP listen port
-    #[arg(short, long, default_value_t = 3100)]
+    #[arg(short, long, default_value_t = superkick_config::DEFAULT_PORT)]
     pub port: u16,
 
     /// Cache directory for bare clones
-    #[arg(long, default_value = ".superkick-cache")]
+    #[arg(long, default_value = superkick_config::DEFAULT_CACHE_DIR)]
     pub cache_dir: String,
 
     /// Skip serving the bundled dashboard (API only)

@@ -1,4 +1,4 @@
-import type { PillTone } from '@/components/ui/pill'
+import type { PillTone } from '@/types'
 import type { KnownMemoryRole, MemoryRole } from '@/types'
 
 const ROLE_TONE: Record<KnownMemoryRole, PillTone> = {

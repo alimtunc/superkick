@@ -230,7 +230,7 @@ async fn detect_provider(provider: AgentProvider) -> Detected {
     }
 }
 
-fn provider_executable(provider: AgentProvider) -> &'static str {
+pub(crate) fn provider_executable(provider: AgentProvider) -> &'static str {
     match provider {
         AgentProvider::Claude => "claude",
         AgentProvider::Codex => "codex",

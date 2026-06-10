@@ -1,3 +1,4 @@
+import { toErrorMessage } from '@/lib/errors'
 import { issueDetailQuery } from '@/lib/queries'
 import { useQuery } from '@tanstack/react-query'
 
@@ -10,7 +11,7 @@ export function useIssueDetail(id: string | undefined) {
 	return {
 		issue: data ?? null,
 		loading: isLoading,
-		error: error ? String(error) : null,
+		error: toErrorMessage(error),
 		lastRefresh: dataUpdatedAt ? new Date(dataUpdatedAt) : null,
 		refresh: refetch
 	}

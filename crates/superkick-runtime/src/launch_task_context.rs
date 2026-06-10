@@ -30,24 +30,12 @@ const MEMORY_ENTRY_TEXT_MAX_CHARS: usize = 1_000;
 
 /// Canonical UI memory role for a launch step. Strings match the
 /// `KnownMemoryRole` union in `ui/src/types/issueContext.ts`.
-pub fn step_kind_to_memory_role(kind: LaunchStepKind) -> &'static str {
+fn step_kind_to_memory_role(kind: LaunchStepKind) -> &'static str {
     match kind {
         LaunchStepKind::Plan => "plan",
         LaunchStepKind::Implement => "coder",
         LaunchStepKind::Review => "reviewer",
     }
-}
-
-/// Keep the tail; prepend `…` when shortened. Used where the decision-bearing
-/// text usually sits at the end of an agent summary.
-fn tail_truncate(s: &str, max_chars: usize) -> String {
-    let total = s.chars().count();
-    if total <= max_chars {
-        return s.to_string();
-    }
-    let mut out = String::from("…");
-    out.extend(s.chars().skip(total - max_chars));
-    out
 }
 
 /// `memory_entries` must be oldest-first so the agent reads the ledger as a
@@ -81,7 +69,7 @@ pub fn render_workspace_block(
         out.push_str("\n## Shared memory ledger (oldest → newest)\n\n");
         for entry in memory_entries {
             let author = entry.author.as_deref().unwrap_or("agent");
-            let text = tail_truncate(&entry.text, MEMORY_ENTRY_TEXT_MAX_CHARS);
+            let text = crate::text::tail_chars_ellipsized(&entry.text, MEMORY_ENTRY_TEXT_MAX_CHARS);
             out.push_str(&format!(
                 "- `{role}` · {author} · {ts}\n  {text}\n",
                 role = entry.role,

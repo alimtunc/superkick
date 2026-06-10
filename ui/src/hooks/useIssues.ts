@@ -66,5 +66,3 @@ export function useIssues(limit = 200) {
 		allIssues: issuesQuery.allIssues
 	}
 }
-
-export type IssuesData = ReturnType<typeof useIssues>

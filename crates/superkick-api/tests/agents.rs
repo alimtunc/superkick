@@ -10,10 +10,11 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+mod common;
+use common::read_json;
+
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use http_body_util::BodyExt;
-use serde_json::Value;
 use superkick_api::agents_test_router;
 use superkick_core::{
     AgentCatalog, AgentOrigin, AgentProvider, CoreAgentDefinition, LinearContextMode,
@@ -43,7 +44,6 @@ fn agent_with_origin(
         role: role.map(String::from),
         model: model.map(String::from),
         system_prompt: None,
-        tools: None,
         timeout_secs: None,
         max_turns: None,
         origin,
@@ -76,11 +76,6 @@ fn catalog() -> AgentCatalog {
         agent("reviewer", AgentProvider::Codex, Some("reviewer"), None),
     );
     AgentCatalog::new(roles)
-}
-
-async fn read_json(body: Body) -> Value {
-    let bytes = body.collect().await.expect("collect").to_bytes();
-    serde_json::from_slice(&bytes).expect("json body")
 }
 
 #[tokio::test]

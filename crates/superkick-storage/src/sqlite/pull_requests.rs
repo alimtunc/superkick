@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use superkick_core::{PrState, PullRequest, PullRequestId, RunId};
 
-use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
+use super::codec::{decode_rfc3339, decode_rfc3339_opt, deserialize_enum, serialize_enum};
 use super::ensure_updated;
 use crate::repo::PullRequestRepo;
 
@@ -103,7 +103,7 @@ impl PullRequestRow {
             head_branch: self.head_branch,
             created_at: decode_rfc3339(&self.created_at)?,
             updated_at: decode_rfc3339(&self.updated_at)?,
-            merged_at: self.merged_at.as_deref().map(decode_rfc3339).transpose()?,
+            merged_at: decode_rfc3339_opt(self.merged_at.as_deref())?,
         })
     }
 }

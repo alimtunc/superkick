@@ -6,10 +6,11 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
+mod common;
+use common::send;
+
+use axum::http::StatusCode;
 use chrono::Utc;
-use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use superkick_api::linear_writes_test_router;
 use superkick_api::test_handlers::{LinearFuture, LinearWriter};
@@ -17,7 +18,6 @@ use superkick_integrations::linear::{
     IssueAssignee, IssueComment, IssueCreateInput, IssueDetailResponse, IssuePriority, IssueStatus,
     IssueUpdateInput, LinearError, LinearOptions,
 };
-use tower::ServiceExt;
 
 #[derive(Debug, Default)]
 struct StubCalls {
@@ -246,35 +246,6 @@ fn sample_options() -> LinearOptions {
         labels: Vec::new(),
         workflow_states_by_team,
     }
-}
-
-async fn json_body(body: Body) -> Value {
-    let bytes = body.collect().await.expect("collect").to_bytes();
-    serde_json::from_slice(&bytes).expect("json body")
-}
-
-async fn send(
-    router: &axum::Router,
-    method: &str,
-    uri: &str,
-    body: Option<Value>,
-) -> (StatusCode, axum::http::HeaderMap, Value) {
-    let mut req = Request::builder().method(method).uri(uri);
-    let body = match body {
-        Some(value) => {
-            req = req.header("content-type", "application/json");
-            Body::from(value.to_string())
-        }
-        None => Body::empty(),
-    };
-    let res = router
-        .clone()
-        .oneshot(req.body(body).expect("request"))
-        .await
-        .expect("send");
-    let status = res.status();
-    let headers = res.headers().clone();
-    (status, headers, json_body(res.into_body()).await)
 }
 
 #[tokio::test]
