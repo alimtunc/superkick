@@ -86,7 +86,6 @@ pub struct AgentDefinition {
     pub role: Option<String>,
     pub model: Option<String>,
     pub system_prompt: Option<String>,
-    pub tools: Option<Vec<String>>,
     pub timeout_secs: Option<u64>,
     pub max_turns: Option<u32>,
     /// Whether this entry is a Superkick-shipped default or a project-defined
@@ -365,7 +364,6 @@ mod tests {
             role: None,
             model: None,
             system_prompt: None,
-            tools: None,
             timeout_secs: None,
             max_turns: None,
             origin: AgentOrigin::default(),

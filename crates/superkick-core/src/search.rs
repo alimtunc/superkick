@@ -217,6 +217,89 @@ pub fn find_ascii_ci(haystack: &str, needle: &str) -> Option<std::ops::Range<usi
         .map(|start| start..start + n_lower.len())
 }
 
+/// The hardcoded command-bar action registry, filtered by `query`. Always
+/// non-empty so the typing state is never blank; the launch-task action is
+/// only offered when there is a query to prefill.
+pub fn build_actions(query: &str) -> Vec<SearchActionRow> {
+    let mut actions: Vec<SearchActionRow> = Vec::new();
+    let q = query.trim();
+
+    if !q.is_empty() {
+        actions.push(SearchActionRow {
+            id: format!("launch-task:{q}"),
+            kind: SearchActionKind::LaunchTask,
+            label: format!("Launch task on \"{q}\"…"),
+            hint: Some("opens composer pre-filled".to_string()),
+            target: Some(format!("/tasks/new?prefill={}", urlencode(q))),
+            kbd_hints: vec!["⌘".to_string(), "↵".to_string()],
+        });
+    }
+
+    actions.push(SearchActionRow {
+        id: "new-issue".to_string(),
+        kind: SearchActionKind::NewIssue,
+        label: "New issue…".to_string(),
+        hint: Some("in current repo".to_string()),
+        target: Some("/issues/new".to_string()),
+        kbd_hints: vec!["c".to_string()],
+    });
+    actions.push(SearchActionRow {
+        id: "switch-view".to_string(),
+        kind: SearchActionKind::SwitchView,
+        label: "Switch view…".to_string(),
+        hint: Some("My open work · All open · Recently shipped".to_string()),
+        target: None,
+        kbd_hints: Vec::new(),
+    });
+    actions.push(SearchActionRow {
+        id: "switch-repo".to_string(),
+        kind: SearchActionKind::SwitchRepo,
+        label: "Switch repo…".to_string(),
+        hint: None,
+        target: None,
+        kbd_hints: vec!["⌘".to_string(), "R".to_string()],
+    });
+    actions.push(SearchActionRow {
+        id: "open-inbox".to_string(),
+        kind: SearchActionKind::OpenInbox,
+        label: "Open inbox".to_string(),
+        hint: None,
+        target: Some("/".to_string()),
+        kbd_hints: Vec::new(),
+    });
+
+    if !q.is_empty() {
+        let q_lower = q.to_ascii_lowercase();
+        actions.retain(|a| {
+            matches!(a.kind, SearchActionKind::LaunchTask)
+                || a.label.to_ascii_lowercase().contains(&q_lower)
+                || a.hint
+                    .as_deref()
+                    .map(|h| h.to_ascii_lowercase().contains(&q_lower))
+                    .unwrap_or(false)
+        });
+    }
+
+    actions
+}
+
+fn urlencode(s: &str) -> String {
+    s.chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '~') {
+                c.to_string()
+            } else {
+                let mut buf = [0u8; 4];
+                let bytes = c.encode_utf8(&mut buf).as_bytes().to_vec();
+                bytes
+                    .into_iter()
+                    .map(|b| format!("%{b:02X}"))
+                    .collect::<String>()
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -300,6 +383,49 @@ mod tests {
     #[test]
     fn find_ascii_ci_returns_none_for_empty_needle() {
         assert!(find_ascii_ci("anything", "").is_none());
+    }
+
+    #[test]
+    fn build_actions_includes_launch_task_when_query_present() {
+        let actions = build_actions("webhook");
+        let launch = actions
+            .iter()
+            .find(|a| a.kind == SearchActionKind::LaunchTask)
+            .unwrap();
+        assert!(launch.label.contains("webhook"));
+        assert_eq!(launch.kbd_hints, vec!["⌘".to_string(), "↵".to_string()]);
+    }
+
+    #[test]
+    fn build_actions_omits_launch_task_when_query_empty() {
+        let actions = build_actions("");
+        assert!(
+            actions
+                .iter()
+                .all(|a| a.kind != SearchActionKind::LaunchTask)
+        );
+        assert!(actions.iter().any(|a| a.kind == SearchActionKind::NewIssue));
+    }
+
+    #[test]
+    fn build_actions_filters_to_matching_when_query_present() {
+        let actions = build_actions("repo");
+        assert!(
+            actions
+                .iter()
+                .any(|a| a.kind == SearchActionKind::SwitchRepo)
+        );
+        assert!(
+            actions
+                .iter()
+                .all(|a| a.kind != SearchActionKind::OpenInbox)
+        );
+    }
+
+    #[test]
+    fn url_encoding_preserves_safe_chars() {
+        assert_eq!(urlencode("hello-world_42.bar~"), "hello-world_42.bar~");
+        assert_eq!(urlencode("a b"), "a%20b");
     }
 
     fn sample_issue() -> SearchIssueRow {

@@ -96,11 +96,8 @@ impl QueueInputs<'_> {
     }
 }
 
-/// Does this run have a session suspended waiting for a handoff? Exposed so
-/// the launch-queue handler and any other surface can consume the same
-/// predicate that drives `BlockedByDependency` classification.
-#[must_use]
-pub fn has_pending_handoff(ownership: &[SessionOwnership]) -> bool {
+/// Does this run have a session suspended waiting for a handoff?
+fn has_pending_handoff(ownership: &[SessionOwnership]) -> bool {
     ownership.iter().any(|o| {
         matches!(
             &o.orchestration,
@@ -149,11 +146,13 @@ pub fn queue_card_reason(inputs: QueueInputs<'_>) -> String {
         }
         _ => {}
     }
-    if let Some(pr) = inputs.pr {
-        return format!("PR #{} ({})", pr.number, pr.state);
-    }
-    if has_pending_handoff(inputs.ownership) {
+    if inputs.has_pending_handoff() {
         return "paused — handoff pending".into();
+    }
+    if inputs.has_open_pr()
+        && let Some(pr) = inputs.pr
+    {
+        return format!("PR #{} ({})", pr.number, pr.state);
     }
     if matches!(inputs.run.state, RunState::Queued) {
         return "queued".into();
@@ -319,6 +318,43 @@ mod tests {
         let mut i = inputs(&run);
         i.pending_interrupts = 1;
         assert_eq!(classify(i), Some(OperatorQueue::NeedsHuman));
+    }
+
+    #[test]
+    fn handoff_with_open_pr_reason_describes_the_handoff() {
+        let run = run_in_state(RunState::Coding);
+        let pr = LinkedPrSummary {
+            number: 7,
+            url: "https://example/pr/7".into(),
+            state: PrState::Open,
+            merged_at: None,
+        };
+        let snap = suspended_snapshot(
+            &run,
+            SuspendReason::PendingHandoff {
+                handoff_id: HandoffId::new(),
+            },
+        );
+        let mut i = inputs(&run);
+        i.pr = Some(&pr);
+        i.ownership = std::slice::from_ref(&snap);
+        assert_eq!(classify(i), Some(OperatorQueue::BlockedByDependency));
+        assert_eq!(queue_card_reason(i), "paused — handoff pending");
+    }
+
+    #[test]
+    fn merged_pr_reason_falls_back_to_run_state() {
+        let run = run_in_state(RunState::Coding);
+        let pr = LinkedPrSummary {
+            number: 7,
+            url: "https://example/pr/7".into(),
+            state: PrState::Merged,
+            merged_at: None,
+        };
+        let mut i = inputs(&run);
+        i.pr = Some(&pr);
+        assert_eq!(classify(i), Some(OperatorQueue::Active));
+        assert_eq!(queue_card_reason(i), "run in state coding");
     }
 
     #[test]

@@ -14,7 +14,7 @@ import type { LoadedRunDetail } from '@/hooks/useRunDetail'
 import { fmtElapsed, providerLabel, runNeedsHuman } from '@/lib/domain'
 import { TopbarBackButton } from '@/shell/TopbarBackButton'
 import { usePageActions } from '@/shell/usePageActions'
-import { useWatchedSessionsStore } from '@/stores/watchedSessions'
+import { selectMaxReached, useWatchedSessionsStore } from '@/stores/watchedSessions'
 import type { AgentSession } from '@/types'
 import { Btn } from '@/ui/Btn'
 import { Icon } from '@/ui/Icon'
@@ -49,7 +49,8 @@ export function RunInspector({ detail, refTime }: RunInspectorProps) {
 	} = detail
 
 	const needsHuman = runNeedsHuman(run, attentionRequests)
-	const { isWatched, toggleWatch, maxReached } = useWatchedSessionsStore()
+	const { isWatched, toggleWatch } = useWatchedSessionsStore()
+	const maxReached = useWatchedSessionsStore(selectMaxReached)
 	const watched = isWatched(run.id)
 	const elapsed = fmtElapsed(run.started_at, refTime)
 

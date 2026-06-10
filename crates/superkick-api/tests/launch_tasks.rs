@@ -12,10 +12,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+mod common;
+use common::{get_json, post_json, read_json};
+
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::response::IntoResponse;
-use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use superkick_api::launch_task_test_router;
 use superkick_core::{
@@ -35,7 +37,6 @@ fn agent(name: &str, provider: AgentProvider, model: Option<&str>) -> CoreAgentD
         role: None,
         model: model.map(String::from),
         system_prompt: None,
-        tools: None,
         timeout_secs: None,
         max_turns: None,
         origin: superkick_core::AgentOrigin::Custom,
@@ -143,41 +144,8 @@ async fn post_no_body(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
     (status, read_json(response.into_body()).await)
 }
 
-async fn read_json(body: Body) -> Value {
-    let bytes = body.collect().await.expect("collect").to_bytes();
-    serde_json::from_slice(&bytes).expect("json body")
-}
-
 async fn create_request(app: &axum::Router, body: Value) -> (StatusCode, Value) {
-    let response = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/launch-tasks")
-                .header("content-type", "application/json")
-                .body(Body::from(body.to_string()))
-                .expect("request"),
-        )
-        .await
-        .expect("send");
-    let status = response.status();
-    (status, read_json(response.into_body()).await)
-}
-
-async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
-    let response = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri(uri)
-                .body(Body::empty())
-                .expect("request"),
-        )
-        .await
-        .expect("send");
-    let status = response.status();
-    (status, read_json(response.into_body()).await)
+    post_json(app, "/launch-tasks", body).await
 }
 
 #[tokio::test]

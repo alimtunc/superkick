@@ -2,8 +2,9 @@ use axum::extract::{Path, State};
 use axum::response::{IntoResponse, Json};
 
 use superkick_core::{AgentSessionId, RunId};
-use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, RunRepo};
+use superkick_storage::repo::{AgentSessionRepo, RunEventRepo};
 
+use super::require_run;
 use crate::AppState;
 use crate::error::AppError;
 
@@ -14,9 +15,7 @@ pub async fn prepare_attach(
     let run_id = RunId(run_id);
     let session_id = AgentSessionId(session_id);
 
-    let Some(run) = state.run_repo.get(run_id).await? else {
-        return Err(AppError::NotFound("run not found"));
-    };
+    let run = require_run(&state, run_id).await?;
 
     let Some(session) = state.session_repo.get(session_id).await? else {
         return Err(AppError::NotFound("session not found"));

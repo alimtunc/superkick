@@ -38,6 +38,7 @@ pub mod run_diff;
 pub mod runner_mode;
 pub mod runtime;
 pub mod search;
+mod serde_util;
 pub mod session_lifecycle;
 pub mod session_policy;
 pub mod skill;
@@ -113,8 +114,8 @@ pub use provider_settings::{
 };
 pub use pull_request::{LinkedPrSummary, PrState, PullRequest, ShipMode, parse_pr_number};
 pub use queue::{
-    DONE_COLUMN_LIMIT, OperatorQueue, QueueInputs, classify as classify_queue, has_pending_handoff,
-    queue_card_reason, trim_for_queue,
+    DONE_COLUMN_LIMIT, OperatorQueue, QueueInputs, classify as classify_queue, queue_card_reason,
+    trim_for_queue,
 };
 pub use reasoning::ReasoningEffort;
 pub use recovery::{

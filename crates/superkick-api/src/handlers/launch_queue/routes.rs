@@ -130,12 +130,7 @@ pub async fn dispatch_from_queue(
         ));
     }
 
-    let client = state
-        .linear_client
-        .as_ref()
-        .ok_or(AppError::ServiceUnavailable(
-            "LINEAR_API_KEY not configured",
-        ))?;
+    let client = state.linear()?;
 
     // Linear supports lookup by identifier via the `issue(id: "SUP-42")`
     // endpoint — GraphQL accepts either the UUID or the identifier.
@@ -155,7 +150,7 @@ pub async fn dispatch_from_queue(
         repo_slug: state.repo_slug.clone(),
         issue_id: detail.id,
         issue_identifier: detail.identifier,
-        base_branch: state.base_branch.clone(),
+        base_branch: None,
         use_worktree: body.use_worktree,
         execution_mode: body.execution_mode.unwrap_or_default(),
         operator_instructions: body.operator_instructions,

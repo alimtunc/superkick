@@ -29,27 +29,41 @@ pub struct GitHubPrState {
     pub merged_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
+/// Run a `gh` invocation, mapping spawn failure and non-zero exit to errors.
+/// Callers attach their own operator-facing guidance via `.context()`.
+async fn run_gh(args: &[&str], cwd: Option<&Path>) -> Result<std::process::Output> {
+    let mut cmd = Command::new("gh");
+    cmd.args(args);
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+    let output = cmd
+        .output()
+        .await
+        .with_context(|| format!("failed to run `gh {}`", args.first().unwrap_or(&"")))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("`gh {}` failed: {}", args.join(" "), stderr.trim());
+    }
+    Ok(output)
+}
+
 /// Fetch current PR state from GitHub via `gh api`.
 pub async fn fetch_pr_state(repo_slug: &str, pr_number: u32) -> Result<GitHubPrState> {
     let endpoint = format!("repos/{repo_slug}/pulls/{pr_number}");
 
     debug!(%repo_slug, pr_number, "fetching PR state from GitHub");
 
-    let output = Command::new("gh")
-        .args([
+    let output = run_gh(
+        &[
             "api",
             &endpoint,
             "--jq",
             "{state: .state, draft: .draft, merged_at: .merged_at, title: .title}",
-        ])
-        .output()
-        .await
-        .context("failed to run `gh api`")?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("`gh api` failed: {stderr}");
-    }
+        ],
+        None,
+    )
+    .await?;
 
     let raw: GhPrResponse =
         serde_json::from_slice(&output.stdout).context("failed to parse `gh api` response")?;
@@ -80,19 +94,14 @@ pub async fn fetch_pr_state(repo_slug: &str, pr_number: u32) -> Result<GitHubPrS
 /// ship modal can tell the operator to run `gh auth login` rather than failing
 /// opaquely mid-push.
 pub async fn check_gh_auth() -> Result<()> {
-    let output = Command::new("gh")
-        .args(["auth", "status"])
-        .output()
-        .await
-        .context("`gh` CLI not found — install GitHub CLI and run `gh auth login`")?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!(
-            "GitHub CLI is not authenticated — run `gh auth login` ({})",
-            stderr.trim()
-        );
-    }
+    run_gh(&["auth", "status"], None).await.map_err(|err| {
+        match err.downcast_ref::<std::io::Error>() {
+            Some(_) => {
+                err.context("`gh` CLI not found — install GitHub CLI and run `gh auth login`")
+            }
+            None => err.context("GitHub CLI is not authenticated — run `gh auth login`"),
+        }
+    })?;
     Ok(())
 }
 
@@ -116,17 +125,7 @@ pub async fn create_pr(
 
     debug!(%head, %base, draft, "opening PR via `gh pr create`");
 
-    let output = Command::new("gh")
-        .args(&args)
-        .current_dir(worktree)
-        .output()
-        .await
-        .context("failed to run `gh pr create`")?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("`gh pr create` failed: {}", stderr.trim());
-    }
+    let output = run_gh(&args, Some(worktree)).await?;
 
     let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if url.is_empty() {

@@ -13,6 +13,7 @@ use serde::Serialize;
 use superkick_core::{AgentCatalog, AgentOrigin, AgentProvider, BillingProfile, RunnerMode};
 
 use crate::AppState;
+use crate::error::AppError;
 
 /// Substate slice the agents handler reads. Mirrors the pattern used by
 /// `LaunchTaskState` so the test router can build a minimal state directly.
@@ -48,7 +49,9 @@ pub(crate) struct ListAgentsResponse {
     pub agents: Vec<AgentSummary>,
 }
 
-pub async fn list_agents(State(state): State<AgentsState>) -> Json<ListAgentsResponse> {
+pub async fn list_agents(
+    State(state): State<AgentsState>,
+) -> Result<Json<ListAgentsResponse>, AppError> {
     let mut agents: Vec<AgentSummary> = state
         .catalog
         .definitions()
@@ -70,5 +73,5 @@ pub async fn list_agents(State(state): State<AgentsState>) -> Json<ListAgentsRes
         })
         .collect();
     agents.sort_by(|a, b| a.name.cmp(&b.name));
-    Json(ListAgentsResponse { agents })
+    Ok(Json(ListAgentsResponse { agents }))
 }

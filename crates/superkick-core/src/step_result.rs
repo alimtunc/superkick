@@ -72,7 +72,7 @@ pub enum FailureClassification {
         install_hint: String,
     },
     Timeout {
-        #[serde(with = "duration_millis")]
+        #[serde(with = "crate::serde_util::duration_millis")]
         after: Duration,
     },
     NoDiff,
@@ -155,21 +155,6 @@ impl FailureClassification {
                 format!("{role} agent exited with code {exit_code}")
             }
         }
-    }
-}
-
-mod duration_millis {
-    use std::time::Duration;
-
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    pub fn serialize<S: Serializer>(d: &Duration, s: S) -> Result<S::Ok, S::Error> {
-        (d.as_millis() as u64).serialize(s)
-    }
-
-    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Duration, D::Error> {
-        let raw = u64::deserialize(d)?;
-        Ok(Duration::from_millis(raw))
     }
 }
 

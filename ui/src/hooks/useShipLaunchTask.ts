@@ -11,7 +11,7 @@ interface UseShipLaunchTaskParams {
 	teamId: string | null
 }
 
-export interface ShipSubmit {
+interface ShipSubmit {
 	mode: ShipMode
 	title: string
 	body: string

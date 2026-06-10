@@ -10,6 +10,15 @@
 //! is emitted as `EventLevel::Info`. Lifecycle events retain their original levels.
 
 mod lifecycle;
+
+pub(crate) fn no_output_watchdog_message(
+    provider: superkick_core::AgentProvider,
+    idle: std::time::Duration,
+) -> String {
+    format!(
+        "agent {provider} produced no output for {idle:?} — terminated as hung (no-output watchdog)"
+    )
+}
 pub(crate) mod output;
 pub(crate) mod process;
 pub(crate) mod structured;

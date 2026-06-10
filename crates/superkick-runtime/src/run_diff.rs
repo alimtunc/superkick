@@ -6,6 +6,7 @@
 
 use std::path::Path;
 
+use futures_util::StreamExt;
 use thiserror::Error;
 use tokio::fs;
 use tracing::debug;
@@ -72,23 +73,32 @@ pub async fn collect_run_diff(
 
     let mut files: Vec<FileDiff> = Vec::with_capacity(total.min(MAX_FILES));
 
-    for entry in entries {
-        if files.len() >= MAX_FILES {
-            break;
-        }
-        let path_for_diff = entry.path.clone();
-        let raw_patch = git(
-            worktree_path,
-            &[
-                "diff",
-                "--no-color",
-                "--no-ext-diff",
-                &base_full,
-                "--",
-                &path_for_diff,
-            ],
-        )
-        .await?;
+    // Bounded fan-out: one `git diff` per file is unavoidable for per-file
+    // patches, but running them a few at a time keeps a 500-file diff from
+    // serializing 500 subprocess round-trips.
+    const DIFF_CONCURRENCY: usize = 8;
+    let mut tracked =
+        futures_util::stream::iter(entries.into_iter().take(MAX_FILES).map(|entry| {
+            let base_full = base_full.as_str();
+            async move {
+                let raw_patch = git(
+                    worktree_path,
+                    &[
+                        "diff",
+                        "--no-color",
+                        "--no-ext-diff",
+                        base_full,
+                        "--",
+                        &entry.path,
+                    ],
+                )
+                .await?;
+                Ok::<(NameStatusEntry, String), DiffError>((entry, raw_patch))
+            }
+        }))
+        .buffered(DIFF_CONCURRENCY);
+    while let Some(result) = tracked.next().await {
+        let (entry, raw_patch) = result?;
         let (patch, binary, truncated) = shape_patch(&raw_patch);
         let (additions, deletions) = count_changes(&raw_patch);
         files.push(FileDiff {
@@ -102,6 +112,7 @@ pub async fn collect_run_diff(
             patch,
         });
     }
+    drop(tracked);
 
     for path in untracked {
         if files.len() >= MAX_FILES {

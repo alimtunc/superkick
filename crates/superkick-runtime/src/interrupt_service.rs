@@ -6,8 +6,7 @@ use anyhow::{Context, Result, bail};
 use tracing::info;
 
 use superkick_core::{
-    EventKind, EventLevel, Interrupt, InterruptAction, InterruptId, InterruptStatus, RunEvent,
-    RunId, RunState, StepId,
+    EventKind, EventLevel, Interrupt, InterruptAction, InterruptId, RunId, RunState, StepId,
 };
 use superkick_storage::repo::{InterruptRepo, InterruptTxRepo, RunEventRepo, RunRepo};
 
@@ -77,7 +76,8 @@ where
         Ok(interrupt)
     }
 
-    /// Answer a pending interrupt and execute the chosen action.
+    /// Answer a pending interrupt and record the chosen action. The step
+    /// engine's gate poll observes the resolution and acts on it.
     pub async fn answer_interrupt(
         &self,
         run_id: RunId,
@@ -89,10 +89,6 @@ where
             .get(interrupt_id)
             .await?
             .context("interrupt not found")?;
-
-        if interrupt.status != InterruptStatus::Pending {
-            bail!("interrupt is not pending (status: {:?})", interrupt.status);
-        }
 
         if interrupt.run_id != run_id {
             bail!("interrupt does not belong to run {run_id}");
@@ -117,7 +113,6 @@ where
         )
         .await;
 
-        // Execute the action.
         match &action {
             InterruptAction::RetryStep => {
                 info!(run_id = %run.id, "interrupt answered with retry_step");
@@ -141,10 +136,8 @@ where
         level: EventLevel,
         message: String,
     ) {
-        let event = RunEvent::new(run_id, step_id, kind, level, message);
-        if let Err(e) = self.event_repo.insert(&event).await {
-            tracing::warn!("failed to emit event: {e}");
-        }
+        crate::run_events::emit_event(&*self.event_repo, run_id, step_id, kind, level, message)
+            .await;
     }
 }
 

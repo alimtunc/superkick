@@ -1088,7 +1088,7 @@ async fn timeout_auto_resumes_until_max_then_parks_needs_human() -> Result<()> {
     assert_eq!(reloaded.status, LaunchTaskStatus::NeedsHuman);
     let summary = step_summary(&repo, task.id, LaunchStepKind::Implement).await;
     assert!(
-        summary.contains("auto-resumed 2×/2"),
+        summary.contains("auto-resume budget exhausted after 2×"),
         "park reason names the exhausted budget, got {summary:?}"
     );
     Ok(())

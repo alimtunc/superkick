@@ -44,7 +44,14 @@ export const queryKeys = {
 		interventions: (taskId: string) => ['launch-tasks', taskId, 'interventions'] as const
 	},
 	search: {
+		all: ['search'] as const,
 		query: (q: string, scope: string, includeDone: boolean) => ['search', q, scope, includeDone] as const
+	},
+	config: {
+		all: ['config'] as const
+	},
+	me: {
+		all: ['me'] as const
 	},
 	linearOptions: {
 		all: ['linear-options'] as const

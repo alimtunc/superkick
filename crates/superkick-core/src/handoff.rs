@@ -309,19 +309,13 @@ impl Handoff {
     /// `AttentionRequestId` is stored on the failure record so the
     /// orchestrator can later reconcile the operator's reply.
     pub fn escalate(&mut self, attention_id: AttentionRequestId) -> Result<(), CoreError> {
-        if self.status != HandoffStatus::Failed {
-            return Err(CoreError::InvalidHandoffTransition {
-                from: self.status,
-                to: HandoffStatus::Escalated,
-            });
-        }
+        self.transition(HandoffStatus::Escalated)?;
         let failure = self.failure.get_or_insert_with(|| HandoffFailure {
             reason: "escalated without explicit reason".into(),
             retry_count: 0,
             escalated_attention_id: None,
         });
         failure.escalated_attention_id = Some(attention_id);
-        self.status = HandoffStatus::Escalated;
         self.completed_at = Some(Utc::now());
         Ok(())
     }

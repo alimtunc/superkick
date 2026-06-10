@@ -23,6 +23,7 @@ use superkick_core::{
 };
 
 use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::repo::LaunchTaskRepo;
 
 pub struct SqliteLaunchTaskRepo {
@@ -333,10 +334,7 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
                 .execute(&self.pool)
                 .await
                 .with_context(|| format!("set summary for launch_task_step {}", id.0))?;
-        if result.rows_affected() == 0 {
-            return Err(anyhow!("launch_task_step {} not found", id.0));
-        }
-        Ok(())
+        ensure_updated(result, "launch_task_step", id.0)
     }
 
     async fn set_step_structured_result(
@@ -355,10 +353,7 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("set structured_result for launch_task_step {}", id.0))?;
-        if outcome.rows_affected() == 0 {
-            return Err(anyhow!("launch_task_step {} not found", id.0));
-        }
-        Ok(())
+        ensure_updated(outcome, "launch_task_step", id.0)
     }
 
     async fn set_step_failure_classification(
@@ -378,10 +373,7 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("set failure_classification for launch_task_step {}", id.0))?;
-        if outcome.rows_affected() == 0 {
-            return Err(anyhow!("launch_task_step {} not found", id.0));
-        }
-        Ok(())
+        ensure_updated(outcome, "launch_task_step", id.0)
     }
 
     async fn set_step_auto_resume(
@@ -402,10 +394,7 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("set auto_resume state for launch_task_step {}", id.0))?;
-        if outcome.rows_affected() == 0 {
-            return Err(anyhow!("launch_task_step {} not found", id.0));
-        }
-        Ok(())
+        ensure_updated(outcome, "launch_task_step", id.0)
     }
 
     async fn add_step_links(
@@ -441,10 +430,7 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         .execute(&self.pool)
         .await
         .with_context(|| format!("update launch_task_step {} links", id.0))?;
-        if result.rows_affected() == 0 {
-            return Err(anyhow!("launch_task_step {} not found", id.0));
-        }
-        Ok(())
+        ensure_updated(result, "launch_task_step", id.0)
     }
 
     async fn set_current_step(

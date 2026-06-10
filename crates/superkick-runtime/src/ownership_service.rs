@@ -93,7 +93,7 @@ where
         let mut map = self
             .session_locks
             .lock()
-            .expect("ownership session lock map poisoned");
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         map.entry(session_id)
             .or_insert_with(|| Arc::new(Mutex::new(())))
             .clone()
@@ -201,8 +201,39 @@ where
         // Serialize read-modify-write per session so concurrent callers can't
         // both observe the same current owner and race to overwrite each other.
         let lock = self.lock_for(session_id);
-        let _guard = lock.lock().await;
+        let result = {
+            let _guard = lock.lock().await;
+            self.apply_locked(session_id, reason, operator, f).await
+        };
+        self.evict_lock_if_uncontended(session_id, lock);
+        result
+    }
 
+    /// Drop the per-session lock entry once no other caller holds it, so the
+    /// map does not grow monotonically with every session ever touched.
+    fn evict_lock_if_uncontended(&self, session_id: AgentSessionId, lock: Arc<Mutex<()>>) {
+        let mut map = self
+            .session_locks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        drop(lock);
+        if let Some(entry) = map.get(&session_id)
+            && Arc::strong_count(entry) == 1
+        {
+            map.remove(&session_id);
+        }
+    }
+
+    async fn apply_locked<F>(
+        &self,
+        session_id: AgentSessionId,
+        reason: OwnershipTransitionReason,
+        operator: Option<OperatorId>,
+        f: F,
+    ) -> Result<SessionOwnership, ServiceError>
+    where
+        F: FnOnce(&OrchestrationOwner) -> Result<OrchestrationOwner, OwnershipError>,
+    {
         let current = self
             .ownership_repo
             .current(session_id)

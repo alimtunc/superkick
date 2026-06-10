@@ -156,14 +156,14 @@ where
                 number,
                 run.repo_slug.clone(),
                 url,
+                if mode.is_draft() {
+                    PrState::Draft
+                } else {
+                    PrState::Open
+                },
                 title.to_string(),
                 branch.to_string(),
             );
-            pr.state = if mode.is_draft() {
-                PrState::Draft
-            } else {
-                PrState::Open
-            };
             // Re-ship: preserve the existing row's identity so the conflict-upsert
             // overwrites its number/url rather than orphaning the prior PR record.
             if let Some(prev) = self
@@ -192,8 +192,17 @@ where
     /// PrUrl artifact if one doesn't exist yet. Syncs state from GitHub if
     /// stale.
     pub async fn resolve_pr(&self, run_id: RunId, repo_slug: &str) -> Option<PullRequest> {
-        // Check for existing PR record first.
-        if let Ok(Some(mut pr)) = self.pr_repo.get_by_run(run_id).await {
+        let existing = match self.pr_repo.get_by_run(run_id).await {
+            Ok(existing) => existing,
+            Err(e) => {
+                // A read failure must not fall through to the lazy-create
+                // path: upserting a fresh record could rewrite the existing
+                // row's identity (id/created_at/title).
+                tracing::warn!(run_id = %run_id.0, error = %e, "failed to read PullRequest record");
+                return None;
+            }
+        };
+        if let Some(mut pr) = existing {
             // Sync from GitHub if PR is in a non-terminal state and stale.
             if !pr.state.is_terminal() {
                 let age = chrono::Utc::now() - pr.updated_at;
@@ -213,6 +222,7 @@ where
             number,
             repo_slug.to_string(),
             pr_url,
+            PrState::Open,
             String::new(),
             String::new(),
         );

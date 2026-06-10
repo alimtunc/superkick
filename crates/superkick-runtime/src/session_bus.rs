@@ -37,9 +37,9 @@ impl SessionBus {
         Arc::new(Self { tx })
     }
 
-    /// Publish a lifecycle event to all live subscribers. Returns the count of
-    /// subscribers that received it. If no one is subscribed the event is
-    /// dropped — the persisted audit stream remains authoritative.
+    /// Publish a lifecycle event to all live subscribers. If no one is
+    /// subscribed the event is dropped — the persisted audit stream remains
+    /// authoritative.
     pub fn publish(&self, event: SessionLifecycleEvent) {
         match self.tx.send(event) {
             Ok(n) => debug!(subscribers = n, "session lifecycle event published"),

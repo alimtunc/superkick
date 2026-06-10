@@ -9,11 +9,11 @@
 
 use std::sync::Arc;
 
+mod common;
+use common::get_json as get;
+
 use anyhow::Result;
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
-use http_body_util::BodyExt;
-use serde_json::Value;
+use axum::http::StatusCode;
 use superkick_api::run_context_snapshot_test_router;
 use superkick_core::{
     ExecutionMode, IssueWorkspaceContext, IssueWorkspaceContextSnapshot, LaunchTask,
@@ -28,7 +28,6 @@ use superkick_storage::{
     SqliteAgentSessionRepo, SqliteIssueWorkspaceContextRepo, SqliteLaunchTaskRepo,
     SqliteRunContextSnapshotRepo, SqliteRunEventRepo, SqliteRunRepo, connect,
 };
-use tower::ServiceExt;
 
 const GITHUB_PAT: &str = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const ISSUE_UUID: &str = "issue-uuid-187";
@@ -76,33 +75,6 @@ fn agents() -> PlanImplementReviewAgents {
         coder: "coder".into(),
         reviewer: "reviewer".into(),
     }
-}
-
-async fn get(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
-    let response = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri(uri)
-                .body(Body::empty())
-                .expect("request"),
-        )
-        .await
-        .expect("send");
-    let status = response.status();
-    let bytes = response
-        .into_body()
-        .collect()
-        .await
-        .expect("body")
-        .to_bytes();
-    let json = if bytes.is_empty() {
-        Value::Null
-    } else {
-        serde_json::from_slice(&bytes).expect("json")
-    };
-    (status, json)
 }
 
 #[tokio::test]

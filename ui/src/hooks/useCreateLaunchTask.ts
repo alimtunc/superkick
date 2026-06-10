@@ -11,12 +11,8 @@ interface UseCreateLaunchTaskOptions {
 	onSuccess?: (result: LaunchTaskWithSteps) => void
 }
 
-/**
- * SUP-117 — create a Launch Task and refresh the per-issue task list so the
- * Issue Detail panel can flip from launcher to active-task view immediately.
- * The two invalidations use different keyspaces: the issue detail query is
- * keyed by Linear UUID while the launch-task list is keyed by identifier.
- */
+// The two invalidations use different keyspaces: the issue detail query is
+// keyed by Linear UUID while the launch-task list is keyed by identifier.
 export function useCreateLaunchTask({ issueIdentifier, issueId, onSuccess }: UseCreateLaunchTaskOptions) {
 	const queryClient = useQueryClient()
 

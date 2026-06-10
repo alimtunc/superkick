@@ -2,8 +2,8 @@
 //!
 //! The launch queue is a derived snapshot that merges (a) Linear issues
 //! currently tracked by Superkick and (b) Superkick runs (live or recently
-//! finished) into one of eight buckets: `launchable`, `waiting-capacity`,
-//! `waiting-approval`, `blocked`, `active`, `needs-human`, `in-pr`, `done`.
+//! finished) into one of the [`LaunchQueue`] buckets — the enum is the
+//! source of truth for the bucket set and slugs.
 //! Every item carries a human-readable `reason` so the operator never has to
 //! guess why something sits where it does.
 //!
@@ -280,20 +280,14 @@ fn classify_issue(
         return classified(issue, bucket, reason, Some(run_id));
     }
 
-    // Precedence cascade — first match wins. Order justified in module
-    // docs; tests pin every branch.
-
-    // Issue's own Linear state wins over everything below: a Done/Cancelled
-    // issue belongs in `Done`, not `Blocked`, regardless of parent or
-    // blocker state.
+    // Precedence cascade — first match wins; the order is the module-doc
+    // Precedence list, pinned by tests.
     if is_terminal_blocker_state(&issue.state_type) {
         let reason = format!("linear status is '{}'", issue.state_name);
         return classified(issue, LaunchQueue::Done, reason, None);
     }
 
-    // Blocker gate: any non-terminal Linear "blocks" relation keeps the
-    // issue in `Blocked`. This is the sole dependency signal — parent state
-    // is not checked here (SUP-81: hierarchy ≠ dependency).
+    // Sole dependency signal — parent state is hierarchy, not dependency.
     let blocker_reasons: Vec<String> = issue
         .blockers
         .iter()
@@ -313,10 +307,6 @@ fn classify_issue(
 
     let trigger = orchestration.trigger_state_type;
     if issue.state_type != trigger {
-        // Route to the bucket that mirrors Linear's own workflow group.
-        // `backlog` → `Backlog`, anything else non-trigger and non-terminal
-        // (currently only `unstarted`, future-proofed by defaulting to
-        // `Todo`) → `Todo`. Terminal states are handled earlier.
         let bucket = if issue.state_type == "backlog" {
             LaunchQueue::Backlog
         } else {

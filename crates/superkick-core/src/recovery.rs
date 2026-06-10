@@ -225,7 +225,7 @@ pub fn classify(
 
     let age = now.signed_duration_since(newest_signal);
     let age_secs = age.num_seconds().max(0) as u64;
-    if age <= chrono::Duration::from_std(threshold).unwrap_or(chrono::Duration::zero()) {
+    if age_secs <= threshold.as_secs() {
         return RecoveryStatus::Healthy;
     }
 

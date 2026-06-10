@@ -186,7 +186,7 @@ export function useTurnStream(args: UseTurnStreamArgs) {
 				dispatch({ type: 'apply', envelope })
 				onLiveEventRef.current?.()
 			},
-			onDone: () => {
+			onClosed: () => {
 				if (terminalFiredFor.current !== turnId) {
 					terminalFiredFor.current = turnId
 					onTerminalRef.current?.()

@@ -46,9 +46,9 @@ pub struct ClassifyInputs<'a> {
 /// the worktree; tests inject stubs.
 pub trait DiffProbe: std::fmt::Debug + Send + Sync {
     /// `true` when the worktree has uncommitted changes (i.e. the agent
-    /// produced a diff). Errors are absorbed as `false` — a probe failure
-    /// must not trigger a spurious `NoDiff` classification, since that would
-    /// mis-classify a real success as `NeedsHuman`.
+    /// produced a diff). Probe errors are absorbed as `true` — a probe
+    /// failure must not trigger a spurious `NoDiff` classification, since
+    /// that would mis-classify a real success as `NeedsHuman`.
     fn has_changes(&self) -> bool;
 }
 

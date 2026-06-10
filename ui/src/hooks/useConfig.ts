@@ -1,9 +1,11 @@
 import { fetchConfig } from '@/api'
+import { toErrorMessage } from '@/lib/errors'
+import { queryKeys } from '@/lib/queryKeys'
 import { useQuery } from '@tanstack/react-query'
 
 export function useConfig() {
 	const { data, isLoading, error } = useQuery({
-		queryKey: ['config'],
+		queryKey: queryKeys.config.all,
 		queryFn: fetchConfig,
 		staleTime: 5 * 60_000
 	})
@@ -11,6 +13,6 @@ export function useConfig() {
 	return {
 		config: data ?? null,
 		loading: isLoading,
-		error: error ? String(error) : null
+		error: toErrorMessage(error)
 	}
 }

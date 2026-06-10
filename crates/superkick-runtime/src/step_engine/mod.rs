@@ -43,7 +43,7 @@ use crate::repo_cache::RepoCache;
 use crate::session_bus::SessionBus;
 
 /// Default agent timeout (10 minutes).
-const DEFAULT_AGENT_TIMEOUT: Duration = Duration::from_secs(600);
+pub(crate) const DEFAULT_AGENT_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// How often the step engine re-reads the DB while waiting for an operator
 /// to resolve an interrupt / attention request. Shortened under `cfg(test)`
@@ -1253,31 +1253,7 @@ async fn check_tool_exists(tool: &str) -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn emit_event<E: RunEventRepo>(
-    repo: &E,
-    run_id: superkick_core::RunId,
-    step_id: Option<superkick_core::StepId>,
-    kind: EventKind,
-    level: EventLevel,
-    message: String,
-) {
-    let event = RunEvent::new(run_id, step_id, kind, level, message);
-    if let Err(e) = repo.insert(&event).await {
-        warn!("failed to emit run event: {e}");
-    }
-}
-
-/// Insert a pre-built run event, folding `log_subject` into the failure log so
-/// readers can tell which emitter dropped an event (`attention`, `ownership`, …).
-pub(crate) async fn emit_built_event<E: RunEventRepo>(
-    repo: &E,
-    event: &RunEvent,
-    log_subject: &str,
-) {
-    if let Err(e) = repo.insert(event).await {
-        warn!("failed to emit {log_subject} event: {e}");
-    }
-}
+pub(crate) use crate::run_events::{emit_built_event, emit_event};
 
 /// Polls `f` every `GATE_POLL_INTERVAL` until it yields `Ok(Some(_))` or the
 /// cancel token fires. `subject` is folded into the cancellation error message
@@ -1470,9 +1446,6 @@ mod gate_tests {
         run
     }
 
-    /// Spin-wait for an interrupt on this run (pending), then resolve it with
-    /// `action`. Used to simulate the operator pressing a button while the
-    /// gate's poll loop is blocked.
     /// Poll for a pending interrupt and resolve it with `action`. Returns
     /// after the first update; the gate's own poll loop observes the status
     /// change on its next cycle. Bounded by `max_polls` so a mis-configured

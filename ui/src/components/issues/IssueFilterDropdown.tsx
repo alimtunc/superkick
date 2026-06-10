@@ -2,9 +2,9 @@ import { useMemo, useState, type ReactElement, type ReactNode } from 'react'
 
 import { PopoverPopup } from '@/components/ui/popover-shell'
 import { cn } from '@/lib/utils'
-import type { IssueFilterState, IssueLabel, IssuePriority, TaskBadgeKind } from '@/types'
+import type { FilterOptionSet, IssueFilterState, TaskBadgeKind } from '@/types'
 import type { SKIconName } from '@/types/icons'
-import { Icon, PriorityIcon } from '@/ui'
+import { Icon, PriorityIcon, priorityIconKindFromValue } from '@/ui'
 import { Popover } from '@base-ui/react/popover'
 
 type AxisKey =
@@ -27,15 +27,6 @@ interface IssueFilterDropdownProps {
 	trigger: ReactElement
 	open?: boolean
 	onOpenChange?: (open: boolean) => void
-}
-
-export interface FilterOptionSet {
-	assignees: { id: string; name: string }[]
-	statuses: { state_type: string; name: string }[]
-	priorities: IssuePriority[]
-	labels: IssueLabel[]
-	projects: string[]
-	repos: string[]
 }
 
 /** Facets the list query cannot apply yet — shown disabled per §10.3
@@ -350,7 +341,7 @@ function pickerItems(
 			return options.priorities.map((p) => ({
 				value: p.value,
 				label: p.label,
-				leading: <PriorityIcon kind={priorityKind(p.value)} size={12} />
+				leading: <PriorityIcon kind={priorityIconKindFromValue(p.value)} size={12} />
 			}))
 		case 'label':
 			return options.labels.map((l) => ({ value: l.name, label: l.name }))
@@ -368,21 +359,6 @@ function pickerItems(
 			return COMPLETED_OPTIONS
 		case 'has_sub_issues':
 			return HAS_SUB_ISSUES_OPTIONS
-	}
-}
-
-function priorityKind(value: number): 'urgent' | 'high' | 'medium' | 'low' | 'none' {
-	switch (value) {
-		case 1:
-			return 'urgent'
-		case 2:
-			return 'high'
-		case 3:
-			return 'medium'
-		case 4:
-			return 'low'
-		default:
-			return 'none'
 	}
 }
 

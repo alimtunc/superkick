@@ -221,8 +221,6 @@ where
             EventLevel::Info,
             "run cancelled by operator".to_string(),
         );
-        if let Err(err) = self.event_repo.insert(&event).await {
-            tracing::warn!(%run_id, error = %err, "failed to emit cancel state-change event");
-        }
+        crate::run_events::emit_built_event(&*self.event_repo, &event, "cancel").await;
     }
 }

@@ -11,7 +11,7 @@ interface LaunchQueueColumnProps {
 	onDispatch: (issueIdentifier: string) => void
 	dispatchPending: boolean
 	/** downstream_issue_id → ISO resolved_at for recently-unblocked items
-	 *  (SUP-81). Consumed via `unblockedAt` lookup on each issue card. */
+	 * . Consumed via `unblockedAt` lookup on each issue card. */
 	recentUnblocks: RecentUnblocks
 }
 

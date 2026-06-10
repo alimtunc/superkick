@@ -17,20 +17,13 @@ interface WatchedSessionsActions {
 	clearFocus: () => void
 }
 
-export type WatchedSessionsStore = WatchedSessionsState &
-	WatchedSessionsActions & {
-		maxReached: boolean
-	}
+export type WatchedSessionsStore = WatchedSessionsState & WatchedSessionsActions
 
 export const useWatchedSessionsStore = create<WatchedSessionsStore>()(
 	persist(
 		(set, get) => ({
 			ids: [],
 			focusedId: null,
-
-			get maxReached() {
-				return get().ids.length >= MAX_WATCHED
-			},
 
 			isWatched: (runId: string) => get().ids.includes(runId),
 
@@ -64,3 +57,7 @@ export const useWatchedSessionsStore = create<WatchedSessionsStore>()(
 		{ name: 'superkick:watched-sessions' }
 	)
 )
+
+export function selectMaxReached(state: WatchedSessionsStore): boolean {
+	return state.ids.length >= MAX_WATCHED
+}

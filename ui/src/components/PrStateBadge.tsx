@@ -1,12 +1,6 @@
-import { Pill, type PillTone } from '@/components/ui/pill'
+import { Pill } from '@/components/ui/pill'
+import { prStateTone } from '@/lib/domain'
 import type { PrState } from '@/types'
-
-const tone: Record<PrState, PillTone> = {
-	open: 'success',
-	draft: 'neutral',
-	merged: 'accent',
-	closed: 'danger'
-}
 
 const label: Record<PrState, string> = {
 	open: 'OPEN',
@@ -17,7 +11,7 @@ const label: Record<PrState, string> = {
 
 export function PrStateBadge({ state }: { state: PrState }) {
 	return (
-		<Pill tone={tone[state]} size="xs">
+		<Pill tone={prStateTone[state]} size="xs">
 			{label[state]}
 		</Pill>
 	)

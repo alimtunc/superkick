@@ -45,10 +45,10 @@ impl ServerProcess {
 
         let child = Command::new(&binary)
             .current_dir(&project_root)
-            .env("SUPERKICK_CONFIG", &config_path)
-            .env("DATABASE_URL", &database_url)
-            .env("SUPERKICK_CACHE_DIR", &cache_dir)
-            .env("PORT", start_port.to_string())
+            .env(superkick_config::ENV_CONFIG, &config_path)
+            .env(superkick_config::ENV_DATABASE_URL, &database_url)
+            .env(superkick_config::ENV_CACHE_DIR, &cache_dir)
+            .env(superkick_config::ENV_PORT, start_port.to_string())
             .spawn()
             .map_err(|source| ServerError::Spawn {
                 path: binary,
@@ -102,16 +102,12 @@ fn request_termination(pid: u32) {
 #[cfg(not(unix))]
 fn request_termination(_pid: u32) {}
 
-/// Where the spawned server writes `.superkick-port`, mirroring `superkick-api`'s own logic
-/// (config dir's parent, resolved against the child's cwd = `project_root`).
+/// Where the spawned server writes `.superkick-port`, resolved against the
+/// child's cwd (`project_root`). The location rule itself is shared with the
+/// writer via `superkick_config::port_file_path`.
 #[must_use]
 pub fn port_file_path(project_root: &Path, config_path: &str) -> PathBuf {
-    match Path::new(config_path).parent() {
-        Some(parent) if !parent.as_os_str().is_empty() => {
-            project_root.join(parent).join(".superkick-port")
-        }
-        _ => project_root.join(".superkick-port"),
-    }
+    project_root.join(superkick_config::port_file_path(config_path))
 }
 
 pub fn remove_stale_port_file(path: &Path) -> Result<(), ServerError> {

@@ -10,7 +10,7 @@ interface LaunchQueueIssueCardProps {
 	onDispatch: (issueIdentifier: string) => void
 	dispatchPending: boolean
 	/** ISO timestamp of the most recent `DependencyResolved` for this issue in
-	 *  the current session (SUP-81). `undefined` when no resolution seen. */
+	 *  the current session. `undefined` when no resolution seen. */
 	unblockedAt: string | undefined
 	refTime: number
 	/** 1-indexed position in the Launchable dispatch order, when applicable. */

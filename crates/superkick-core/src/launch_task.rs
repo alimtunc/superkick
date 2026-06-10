@@ -266,7 +266,7 @@ pub struct LaunchTaskStep {
     pub output_expectation: Option<OutputExpectation>,
     /// Disabled steps are persisted but transitioned straight to `Skipped` by
     /// the executor (no run spawned). Defaults to `true` for legacy rows.
-    #[serde(default = "crate::skill::default_true")]
+    #[serde(default = "crate::serde_util::default_true")]
     pub enabled: bool,
     pub status: LaunchTaskStepStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -301,6 +301,46 @@ pub struct LaunchTaskStep {
 }
 
 impl LaunchTaskStep {
+    /// Fresh pending step with every optional/runtime field at its initial
+    /// value. Construction sites override only what differs via struct-update
+    /// syntax, so a new field is threaded through one place.
+    fn pending(
+        launch_task_id: LaunchTaskId,
+        sequence: u32,
+        step_kind: LaunchStepKind,
+        agent_name: String,
+        now: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            id: LaunchTaskStepId::new(),
+            launch_task_id,
+            sequence,
+            step_kind,
+            agent_name,
+            provider: None,
+            model: None,
+            mode: None,
+            label: None,
+            skill_source: None,
+            reasoning: None,
+            executor: None,
+            session_policy: None,
+            output_expectation: None,
+            enabled: true,
+            status: LaunchTaskStepStatus::Pending,
+            linked_run_id: None,
+            linked_conversation_id: None,
+            linked_orchestrator_session_id: None,
+            summary: None,
+            structured_result: None,
+            failure_classification: None,
+            auto_resume_count: 0,
+            resume_key: None,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
     /// Apply a status transition, bumping `updated_at`.
     pub fn transition_to(&mut self, target: LaunchTaskStepStatus) -> Result<(), CoreError> {
         self.status = self.status.transition_to(target)?;
@@ -468,11 +508,6 @@ impl LaunchTask {
         let steps = sorted
             .iter()
             .map(|s| LaunchTaskStep {
-                id: LaunchTaskStepId::new(),
-                launch_task_id: task_id,
-                sequence: s.ordering,
-                step_kind: s.step_kind,
-                agent_name: s.skill_ref.clone(),
                 provider: Some(s.provider.to_string()),
                 model: s.model.clone(),
                 mode: s.executor.runner_mode().map(|m| m.audit_tag().to_string()),
@@ -483,17 +518,13 @@ impl LaunchTask {
                 session_policy: Some(s.session_policy),
                 output_expectation: Some(s.output_expectation),
                 enabled: s.enabled,
-                status: LaunchTaskStepStatus::Pending,
-                linked_run_id: None,
-                linked_conversation_id: None,
-                linked_orchestrator_session_id: None,
-                summary: None,
-                structured_result: None,
-                failure_classification: None,
-                auto_resume_count: 0,
-                resume_key: None,
-                created_at: now,
-                updated_at: now,
+                ..LaunchTaskStep::pending(
+                    task_id,
+                    s.ordering,
+                    s.step_kind,
+                    s.skill_ref.clone(),
+                    now,
+                )
             })
             .collect();
 
@@ -582,31 +613,8 @@ fn build_step(
         ))
     })?;
     Ok(LaunchTaskStep {
-        id: LaunchTaskStepId::new(),
-        launch_task_id: task_id,
-        sequence,
-        step_kind: kind,
-        agent_name: def.name.clone(),
         provider: Some(def.provider.to_string()),
         model: def.model.clone(),
-        mode: None,
-        label: None,
-        skill_source: None,
-        reasoning: None,
-        executor: None,
-        session_policy: None,
-        output_expectation: None,
-        enabled: true,
-        status: LaunchTaskStepStatus::Pending,
-        linked_run_id: None,
-        linked_conversation_id: None,
-        linked_orchestrator_session_id: None,
-        summary: None,
-        structured_result: None,
-        failure_classification: None,
-        auto_resume_count: 0,
-        resume_key: None,
-        created_at: now,
-        updated_at: now,
+        ..LaunchTaskStep::pending(task_id, sequence, kind, def.name.clone(), now)
     })
 }

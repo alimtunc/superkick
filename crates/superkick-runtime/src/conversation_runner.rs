@@ -451,7 +451,7 @@ where
         if let Some(token) = self
             .active_turns
             .lock()
-            .expect("active turns lock")
+            .expect("bug: active turns lock poisoned")
             .get(&turn_id)
             .cloned()
         {
@@ -612,7 +612,7 @@ where
         let outer_cancel = CancellationToken::new();
         active_turns
             .lock()
-            .expect("active turns lock")
+            .expect("bug: active turns lock poisoned")
             .insert(turn.id, outer_cancel.clone());
 
         tokio::spawn(async move {
@@ -694,7 +694,7 @@ where
             // make the next `cancel_turn` for a fresh turn no-op.
             active_turns
                 .lock()
-                .expect("active turns lock")
+                .expect("bug: active turns lock poisoned")
                 .remove(&turn.id);
         })
     }

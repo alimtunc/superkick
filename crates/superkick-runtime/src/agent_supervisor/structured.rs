@@ -124,10 +124,7 @@ where
             Some(run_step_id),
             EventKind::Error,
             EventLevel::Error,
-            format!(
-                "agent {} produced no output for {idle:?} — terminated as hung (no-output watchdog)",
-                session.provider
-            ),
+            super::no_output_watchdog_message(session.provider, idle),
         )
         .await;
         (SessionLifecyclePhase::TimedOut, Some(idle))

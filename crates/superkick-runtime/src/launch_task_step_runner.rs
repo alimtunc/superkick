@@ -57,10 +57,7 @@ use crate::step_failure_classifier::{
 };
 use crate::worktree::{WorktreeInfo, WorktreeManager, default_worktree_root};
 
-/// Default agent timeout when the resolved role does not pin one. Same
-/// constant the playbook engine uses (`step_engine::DEFAULT_AGENT_TIMEOUT`)
-/// to keep the two paths interchangeable.
-const DEFAULT_AGENT_TIMEOUT: Duration = Duration::from_secs(600);
+use crate::step_engine::DEFAULT_AGENT_TIMEOUT;
 
 /// Cap on the persisted `LaunchTaskStep::summary`. The UI renders the column
 /// inline so longer payloads are mostly noise; the full transcript lives in
@@ -117,7 +114,6 @@ fn resolve_dynamic_agent(
         role: step.label.clone(),
         model: step.model.clone(),
         system_prompt,
-        tools: None,
         timeout_secs: None,
         max_turns: None,
         origin: AgentOrigin::Custom,
@@ -144,17 +140,6 @@ fn prompt_kind_for(kind: LaunchStepKind) -> PromptStepKind {
         LaunchStepKind::Implement => PromptStepKind::Implement,
         LaunchStepKind::Review => PromptStepKind::Review,
     }
-}
-
-/// Truncate to the last `max_chars` characters. Used to keep the persisted
-/// step summary inside `SUMMARY_MAX_CHARS` while preserving the most
-/// decision-bearing tail of the agent's output. O(n) once over the input.
-fn truncate_tail_chars(s: &str, max_chars: usize) -> String {
-    let total = s.chars().count();
-    if total <= max_chars {
-        return s.to_string();
-    }
-    s.chars().skip(total - max_chars).collect()
 }
 
 /// Cached substrate per LaunchTask — created lazily on the first step so
@@ -388,10 +373,10 @@ where
         self.publish_shadow_run_state(task, run.id, run.state);
 
         let mut map = self.shadow_runs.lock().await;
-        // A concurrent task call may have raced us — last writer wins, the
-        // earlier worktree is leaked. In practice the executor calls the
-        // runner sequentially per task so this branch is unreachable; the
-        // defensive check keeps the invariant explicit.
+        // A concurrent task call may have raced us — the first writer wins
+        // and a racing later worktree is leaked. In practice the executor
+        // calls the runner sequentially per task so this branch is
+        // unreachable; the defensive check keeps the invariant explicit.
         let entry = map.entry(task.id).or_insert(ShadowTaskState {
             run_id: run.id,
             worktree: work_path.clone(),
@@ -644,7 +629,6 @@ where
 
     async fn process_completion(
         &self,
-        task: &LaunchTask,
         run: &mut Run,
         result: crate::agent_supervisor::AgentResult,
         ctx: StepCompletionContext<'_>,
@@ -692,22 +676,11 @@ where
         match classification {
             None => {
                 let summary = match &result.step_result {
-                    Ok(Some(sr)) => truncate_tail_chars(&sr.summary, SUMMARY_MAX_CHARS),
+                    Ok(Some(sr)) => crate::text::tail_chars(&sr.summary, SUMMARY_MAX_CHARS),
                     _ => String::new(),
                 };
                 self.finish_run_step(ctx.run_step_id, StepStatus::Succeeded, None)
                     .await;
-                if matches!(ctx.step.step_kind, LaunchStepKind::Review)
-                    && let Err(e) = self
-                        .set_shadow_run_state(task, run, RunState::Completed)
-                        .await
-                {
-                    warn!(
-                        shadow_run_id = %shadow_run_id,
-                        error = %e,
-                        "failed to mark shadow run completed — dashboard may stay on Reviewing"
-                    );
-                }
                 let memory_entry_ids = self
                     .append_ledger_for_step(&ctx, shadow_run_id, &summary)
                     .await;
@@ -1109,7 +1082,7 @@ where
                     worktree: &worktree,
                     workspace_context_id: loaded_context.as_ref().map(|lc| lc.context.id),
                 };
-                self.process_completion(task, &mut run, result, ctx).await
+                self.process_completion(&mut run, result, ctx).await
             }
         }
     }
@@ -1284,17 +1257,17 @@ mod tests {
 
     #[test]
     fn truncate_tail_chars_returns_input_under_cap() {
-        assert_eq!(truncate_tail_chars("hi", 10), "hi");
+        assert_eq!(crate::text::tail_chars("hi", 10), "hi");
     }
 
     #[test]
     fn truncate_tail_chars_returns_input_at_cap() {
-        assert_eq!(truncate_tail_chars("hello", 5), "hello");
+        assert_eq!(crate::text::tail_chars("hello", 5), "hello");
     }
 
     #[test]
     fn truncate_tail_chars_keeps_tail_when_over_cap() {
-        assert_eq!(truncate_tail_chars("abcdef", 3), "def");
+        assert_eq!(crate::text::tail_chars("abcdef", 3), "def");
     }
 
     fn intervention(body: &str) -> LaunchTaskIntervention {
@@ -1344,6 +1317,6 @@ mod tests {
     fn truncate_tail_chars_is_char_boundary_safe() {
         // Each emoji is 4 bytes but one char; the cap is in chars, not bytes.
         let s = "🦀🚀🐙";
-        assert_eq!(truncate_tail_chars(s, 2), "🚀🐙");
+        assert_eq!(crate::text::tail_chars(s, 2), "🚀🐙");
     }
 }

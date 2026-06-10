@@ -111,15 +111,7 @@ impl From<GqlIssueDetail> for IssueDetailResponse {
                 value: g.priority,
                 label: g.priority_label,
             },
-            labels: g
-                .labels
-                .nodes
-                .into_iter()
-                .map(|l| IssueLabel {
-                    name: l.name,
-                    color: l.color,
-                })
-                .collect(),
+            labels: g.labels.nodes.into_iter().map(IssueLabel::from).collect(),
             assignee: g.assignee.map(gql_user_to_assignee),
             project: g.project.map(|p| IssueProject { name: p.name }),
             cycle: g.cycle.map(|c| IssueCycle {
@@ -239,20 +231,8 @@ fn history_entry_from_gql(node: super::graphql::GqlIssueHistory) -> Option<Issue
     let removed_labels = node.removed_labels.unwrap_or_default();
     if !added_labels.is_empty() || !removed_labels.is_empty() {
         events.push(IssueHistoryEvent::LabelsChanged {
-            added: added_labels
-                .into_iter()
-                .map(|l| IssueLabel {
-                    name: l.name,
-                    color: l.color,
-                })
-                .collect(),
-            removed: removed_labels
-                .into_iter()
-                .map(|l| IssueLabel {
-                    name: l.name,
-                    color: l.color,
-                })
-                .collect(),
+            added: added_labels.into_iter().map(IssueLabel::from).collect(),
+            removed: removed_labels.into_iter().map(IssueLabel::from).collect(),
         });
     }
 
@@ -336,15 +316,17 @@ fn priority_event(from: Option<f32>, to: Option<f32>) -> Option<IssueHistoryEven
     Some(IssueHistoryEvent::PriorityChanged { from, to })
 }
 
+impl From<GqlLabel> for IssueLabel {
+    fn from(l: GqlLabel) -> Self {
+        Self {
+            name: l.name,
+            color: l.color,
+        }
+    }
+}
+
 fn clamp_priority(raw: f32) -> Option<u8> {
-    if !raw.is_finite() {
-        return None;
-    }
-    let rounded = raw.round();
-    if !(0.0..=4.0).contains(&rounded) {
-        return None;
-    }
-    Some(rounded as u8)
+    super::graphql::priority_from_float(f64::from(raw))
 }
 
 impl From<GqlIssue> for LinearIssueListItem {
@@ -359,15 +341,7 @@ impl From<GqlIssue> for LinearIssueListItem {
                 value: g.priority,
                 label: g.priority_label,
             },
-            labels: g
-                .labels
-                .nodes
-                .into_iter()
-                .map(|l| IssueLabel {
-                    name: l.name,
-                    color: l.color,
-                })
-                .collect(),
+            labels: g.labels.nodes.into_iter().map(IssueLabel::from).collect(),
             assignee: g.assignee.map(gql_user_to_assignee),
             project: g.project.map(|p| IssueProject { name: p.name }),
             parent: g.parent.map(parent_ref_from_gql),
@@ -429,15 +403,7 @@ fn gql_child_to_child_ref(c: GqlChildIssue) -> IssueChildRef {
             value: c.priority,
             label: c.priority_label,
         },
-        labels: c
-            .labels
-            .nodes
-            .into_iter()
-            .map(|l| IssueLabel {
-                name: l.name,
-                color: l.color,
-            })
-            .collect(),
+        labels: c.labels.nodes.into_iter().map(IssueLabel::from).collect(),
         assignee: c.assignee.map(gql_user_to_assignee),
         updated_at: c.updated_at,
     }

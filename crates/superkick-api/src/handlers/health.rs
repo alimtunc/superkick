@@ -5,9 +5,10 @@ use serde::Serialize;
 use superkick_config::LaunchProfileConfig;
 
 use crate::AppState;
+use crate::error::AppError;
 
-pub async fn health() -> &'static str {
-    "ok"
+pub async fn health() -> Result<&'static str, AppError> {
+    Ok("ok")
 }
 
 #[derive(Serialize)]
@@ -17,10 +18,10 @@ pub struct ConfigResponse {
     launch_profile: LaunchProfileConfig,
 }
 
-pub async fn get_config(State(state): State<AppState>) -> Json<ConfigResponse> {
-    Json(ConfigResponse {
+pub async fn get_config(State(state): State<AppState>) -> Result<Json<ConfigResponse>, AppError> {
+    Ok(Json(ConfigResponse {
         repo_slug: state.repo_slug.clone(),
         base_branch: state.base_branch.clone(),
         launch_profile: state.launch_profile.clone(),
-    })
+    }))
 }

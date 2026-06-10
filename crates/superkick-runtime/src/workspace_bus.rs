@@ -45,10 +45,9 @@ impl WorkspaceEventBus {
         Arc::new(Self { tx })
     }
 
-    /// Publish an event to all live subscribers. Returns the count of
-    /// subscribers that received it. If no one is subscribed the event is
-    /// dropped — persistence (run_events / session_lifecycle_events) is the
-    /// source of truth, the bus is only for live fan-out.
+    /// Publish an event to all live subscribers. If no one is subscribed the
+    /// event is dropped — persistence (run_events / session_lifecycle_events)
+    /// is the source of truth, the bus is only for live fan-out.
     pub fn publish(&self, event: WorkspaceRunEvent) {
         match self.tx.send(event) {
             Ok(n) => trace!(subscribers = n, "workspace event published"),

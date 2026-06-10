@@ -1,3 +1,4 @@
+import { providerLabel } from '@/lib/domain'
 import type { Agent, AgentProvider } from '@/types'
 
 export interface AgentGroup {
@@ -5,11 +6,6 @@ export interface AgentGroup {
 	label: string
 	builtin: readonly Agent[]
 	custom: readonly Agent[]
-}
-
-const PROVIDER_LABEL: Record<AgentProvider, string> = {
-	codex: 'Codex',
-	claude: 'Claude'
 }
 
 const PROVIDER_ORDER: readonly AgentProvider[] = ['codex', 'claude']
@@ -29,7 +25,7 @@ export function groupAgents(agents: readonly Agent[]): readonly AgentGroup[] {
 		return [
 			{
 				provider,
-				label: PROVIDER_LABEL[provider],
+				label: providerLabel[provider],
 				builtin,
 				custom
 			}

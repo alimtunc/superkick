@@ -48,9 +48,7 @@ pub use memory_entries::SqliteMemoryEntryRepo;
 pub use orchestrator_sessions::SqliteOrchestratorSessionRepo;
 pub use provider_settings::SqliteProviderSettingsRepo;
 pub use pull_requests::SqlitePullRequestRepo;
-pub use recovery::{
-    RecoveryEventKind, RecoveryEventRow, SqliteRecoveryEventRepo, list_recovery_candidates,
-};
+pub use recovery::{RecoveryEventKind, RecoveryEventRow, SqliteRecoveryEventRepo};
 pub use run_context_snapshots::SqliteRunContextSnapshotRepo;
 pub use runs::SqliteRunRepo;
 pub use runtimes::{ProviderUpsert, SqliteRuntimeRepo};

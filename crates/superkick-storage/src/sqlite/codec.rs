@@ -7,6 +7,10 @@ pub fn decode_rfc3339(value: &str) -> Result<DateTime<Utc>> {
     Ok(DateTime::parse_from_rfc3339(value)?.to_utc())
 }
 
+pub fn decode_rfc3339_opt(value: Option<&str>) -> Result<Option<DateTime<Utc>>> {
+    value.map(decode_rfc3339).transpose()
+}
+
 pub fn serialize_enum<T: serde::Serialize>(value: &T) -> Result<String> {
     let encoded = serde_json::to_string(value)
         .with_context(|| format!("failed to serialize {}", type_name::<T>()))?;

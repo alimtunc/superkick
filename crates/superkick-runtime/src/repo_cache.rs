@@ -33,8 +33,7 @@ impl RepoCache {
     ///
     /// Returns the path to the bare clone directory.
     pub async fn ensure(&self, repo_slug: &str, clone_url: &str) -> Result<PathBuf> {
-        let dir_name = sanitise_slug(repo_slug);
-        let bare_path = self.cache_root.join(format!("{dir_name}.git"));
+        let bare_path = self.cache_path(repo_slug);
 
         if bare_path.join("HEAD").exists() {
             self.fetch(&bare_path, repo_slug).await?;
@@ -47,8 +46,7 @@ impl RepoCache {
 
     /// Remove a cached repo by slug.
     pub async fn remove(&self, repo_slug: &str) -> Result<()> {
-        let dir_name = sanitise_slug(repo_slug);
-        let bare_path = self.cache_root.join(format!("{dir_name}.git"));
+        let bare_path = self.cache_path(repo_slug);
         if bare_path.exists() {
             info!(repo_slug, path = %bare_path.display(), "removing cached repo");
             tokio::fs::remove_dir_all(&bare_path)

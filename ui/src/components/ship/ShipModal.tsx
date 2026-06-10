@@ -27,14 +27,12 @@ interface ShipModalProps {
 	changedFiles: readonly string[]
 }
 
-const pillClass = (active: boolean, disabled: boolean) =>
-	`rounded-md border px-2.5 py-1 text-[12px] transition-colors ${
-		disabled
-			? 'cursor-not-allowed border-border text-fg-dim opacity-50'
-			: active
-				? 'border-accent bg-accent-soft text-fg'
-				: 'border-border text-fg-muted hover:border-border-strong'
-	}`
+function pillClass(active: boolean, disabled: boolean): string {
+	const base = 'rounded-md border px-2.5 py-1 text-[12px] transition-colors'
+	if (disabled) return `${base} cursor-not-allowed border-border text-fg-dim opacity-50`
+	if (active) return `${base} border-accent bg-accent-soft text-fg`
+	return `${base} border-border text-fg-muted hover:border-border-strong`
+}
 
 export function ShipModal({
 	open,

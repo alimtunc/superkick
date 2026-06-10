@@ -4,7 +4,8 @@ use axum::response::{IntoResponse, Json};
 use superkick_core::{AgentProvider, CoreError};
 use superkick_integrations::linear::LinearError;
 use superkick_runtime::{
-    ConversationRunnerError, LaunchCompositionError, RetryError, RunServiceError, SnapshotError,
+    AttentionServiceError, ConversationRunnerError, LaunchCompositionError, RetryError,
+    RunServiceError, SnapshotError,
 };
 
 #[derive(Debug)]
@@ -96,6 +97,22 @@ impl From<RunServiceError> for AppError {
                 "unique constraint violated but no active run for issue {issue_identifier} — concurrent race resolved"
             )),
             RunServiceError::Internal(e) => AppError::Internal(e),
+        }
+    }
+}
+
+impl From<AttentionServiceError> for AppError {
+    fn from(err: AttentionServiceError) -> Self {
+        match err {
+            AttentionServiceError::RunNotFound => AppError::NotFound("run not found"),
+            AttentionServiceError::RequestNotFound => {
+                AppError::NotFound("attention request not found")
+            }
+            AttentionServiceError::WrongRun(_) | AttentionServiceError::RunTerminal(_) => {
+                AppError::BadRequest(err.to_string())
+            }
+            AttentionServiceError::Core(e) => AppError::from(e),
+            AttentionServiceError::Storage(e) => AppError::Internal(e),
         }
     }
 }

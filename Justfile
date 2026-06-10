@@ -1,7 +1,7 @@
 # Compile check (fast: no lint, no fmt)
 check:
     cargo check --workspace
-    cd ui && pnpm tsc --noEmit
+    cd ui && pnpm exec tsc -b
 
 # Run API + dashboard in parallel.
 # API writes .superkick-port on bind; dashboard reads it for proxy target.

@@ -86,9 +86,12 @@ pub async fn build_run_context_snapshot(
         status_name: workspace
             .as_ref()
             .map(|w| redact_text(&w.snapshot_status_name)),
-        body_excerpt: workspace
-            .as_ref()
-            .map(|w| redact_text(&truncate(&w.snapshot_body_md, BODY_EXCERPT_MAX_CHARS))),
+        body_excerpt: workspace.as_ref().map(|w| {
+            redact_text(&crate::text::truncate_chars(
+                &w.snapshot_body_md,
+                BODY_EXCERPT_MAX_CHARS,
+            ))
+        }),
         workspace_context_id: workspace.as_ref().map(|w| w.id),
     };
 
@@ -434,12 +437,4 @@ fn needs_human_reason(steps: &[LaunchTaskStep]) -> Option<String> {
 /// Redact a free-text field. Clean text passes through unchanged.
 fn redact_text(text: &str) -> String {
     superkick_core::redaction::redact(text).into_owned()
-}
-
-fn truncate(text: &str, max_chars: usize) -> String {
-    if text.chars().count() <= max_chars {
-        return text.to_string();
-    }
-    let head: String = text.chars().take(max_chars).collect();
-    format!("{head}…")
 }

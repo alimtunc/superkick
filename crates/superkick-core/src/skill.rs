@@ -100,15 +100,6 @@ pub enum SkillOrigin {
     Custom,
 }
 
-impl SkillOrigin {
-    pub const fn audit_tag(self) -> &'static str {
-        match self {
-            Self::Builtin => "builtin",
-            Self::Custom => "custom",
-        }
-    }
-}
-
 /// An editable skill definition. The `default_*` fields seed a profile step's
 /// columns when the skill is first dropped onto a profile; the step then
 /// snapshots its own copy so a later skill edit never rewrites a live launch.
@@ -129,14 +120,10 @@ pub struct SkillDefinition {
     pub default_session_policy: SessionPolicy,
     #[serde(default)]
     pub default_output_expectation: OutputExpectation,
-    #[serde(default = "crate::skill::default_true")]
+    #[serde(default = "crate::serde_util::default_true")]
     pub enabled: bool,
     #[serde(default)]
     pub origin: SkillOrigin,
-}
-
-pub(crate) const fn default_true() -> bool {
-    true
 }
 
 impl SkillDefinition {

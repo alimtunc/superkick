@@ -928,7 +928,7 @@ fn create_comment_response_converts_to_issue_comment() {
     assert!(comment.parent_id.is_none());
 }
 
-// ── Issue history (SUP-184) ──────────────────────────────────────────
+// ── Issue history ──────────────────────────────────────────
 
 fn empty_history_node(id: &str, created_at: &str) -> serde_json::Value {
     serde_json::json!({

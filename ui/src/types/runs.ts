@@ -1,4 +1,8 @@
-import type { LinkedPrSummary } from './pr'
+import type { AgentSession } from './agents'
+import type { AttentionRequest } from './attention'
+import type { SessionOwnershipSnapshot } from './dashboard'
+import type { Interrupt } from './interrupts'
+import type { LinkedPrSummary, PullRequest } from './pr'
 
 export type RunState =
 	| 'queued'
@@ -121,4 +125,23 @@ export interface ClassifiedRuns {
 	openingPr: Run[]
 	inProgress: Run[]
 	queued: Run[]
+}
+
+export type RunDiffUnavailableReason = 'no_worktree' | 'not_worktree_backed'
+
+export interface RunDiffUnavailable {
+	kind: 'unavailable'
+	reason: RunDiffUnavailableReason
+}
+
+export type RunDiffResult = { kind: 'ok'; value: RunDiffResponse } | RunDiffUnavailable
+
+export interface RunDetailResponse {
+	run: Run
+	steps: RunStep[]
+	sessions: AgentSession[]
+	interrupts: Interrupt[]
+	attention_requests: AttentionRequest[]
+	ownership: SessionOwnershipSnapshot[]
+	pr: PullRequest | null
 }

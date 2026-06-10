@@ -19,7 +19,7 @@ export function useCreateIssue() {
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: queryKeys.issues.all })
 			queryClient.invalidateQueries({ queryKey: queryKeys.launchQueue.all })
-			queryClient.invalidateQueries({ queryKey: ['search'] })
+			queryClient.invalidateQueries({ queryKey: queryKeys.search.all })
 		}
 	})
 }

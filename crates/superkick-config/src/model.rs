@@ -33,7 +33,7 @@ pub struct SuperkickConfig {
     /// [`crate::builtin_agents`]. Custom entries override built-ins on name
     /// collision; see [`SuperkickConfig::agent_catalog`].
     #[serde(default)]
-    pub agents: std::collections::HashMap<String, AgentDefinition>,
+    pub agents: HashMap<String, AgentDefinition>,
     pub workflow: WorkflowConfig,
     #[serde(default)]
     pub interrupts: InterruptsConfig,
@@ -230,7 +230,7 @@ pub struct AgentDefinition {
     /// Per-role tool policy (allow/deny lists + audit booleans). When
     /// absent the role inherits the project default: no allowlist, no
     /// require-approval, results persisted.
-    #[serde(default, rename = "tool_policy")]
+    #[serde(default)]
     pub tool_policy: Option<AgentToolPolicy>,
     #[serde(default)]
     pub backend: Option<AgentBackend>,
@@ -366,7 +366,6 @@ impl SuperkickConfig {
                     role: def.role.clone(),
                     model: def.model.clone(),
                     system_prompt: def.system_prompt.clone(),
-                    tools: def.tools.clone(),
                     timeout_secs: def.budget.timeout_secs,
                     max_turns: def.budget.max_turns,
                     origin: AgentOrigin::Custom,
@@ -475,8 +474,8 @@ pub struct InterruptsConfig {
 impl Default for InterruptsConfig {
     fn default() -> Self {
         Self {
-            on_blocked: InterruptPolicy::AskHuman,
-            on_review_conflict: InterruptPolicy::AskHuman,
+            on_blocked: default_interrupt_policy(),
+            on_review_conflict: default_interrupt_policy(),
         }
     }
 }
@@ -500,13 +499,10 @@ pub struct BudgetConfig {
     pub max_retries_per_step: u32,
     #[serde(default = "default_max_parallel")]
     pub max_parallel_agents: u32,
-    #[serde(default = "default_token_budget")]
-    pub token_budget: TokenBudget,
-    /// Maximum number of automatic resume attempts for a Launch Task step that
-    /// times out mid-turn (SUP-191). The per-step wall-clock budget becomes a
-    /// per-segment budget: a timed-out segment is resumed (`codex exec resume`)
-    /// up to this many times, gated by the worktree diff, before the step is
-    /// parked at `NeedsHuman`. `0` disables auto-resume (legacy behaviour).
+    /// Maximum number of automatic resume attempts for a Launch Task step
+    /// that times out mid-turn: the per-step wall-clock budget becomes a
+    /// per-segment budget, gated by the worktree diff, before the step is
+    /// parked at `NeedsHuman`. `0` disables auto-resume.
     #[serde(default = "default_max_auto_resumes")]
     pub max_auto_resumes: u32,
     /// Hard wall-clock ceiling in minutes. When set, the supervisor pauses
@@ -529,7 +525,6 @@ impl Default for BudgetConfig {
         Self {
             max_retries_per_step: default_max_retries(),
             max_parallel_agents: default_max_parallel(),
-            token_budget: default_token_budget(),
             max_auto_resumes: default_max_auto_resumes(),
             duration_mins_per_run: None,
             retries_max_per_run: None,
@@ -562,18 +557,6 @@ fn default_max_parallel() -> u32 {
 fn default_max_auto_resumes() -> u32 {
     3
 }
-fn default_token_budget() -> TokenBudget {
-    TokenBudget::Medium
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TokenBudget {
-    Low,
-    Medium,
-    High,
-}
-
 // ── Launch profile ─────────────────────────────────────────────────
 
 /// Default operator instructions injected into every run launched from the UI.
@@ -583,10 +566,6 @@ pub struct LaunchProfileConfig {
     #[serde(default = "bool_true")]
     pub use_worktree: bool,
     #[serde(default)]
-    pub live_mode: bool,
-    #[serde(default)]
-    pub skills: Vec<String>,
-    #[serde(default)]
     pub default_instructions: String,
     #[serde(default)]
     pub handoff_instructions: String,
@@ -595,6 +574,17 @@ pub struct LaunchProfileConfig {
     /// The orchestrator refuses to spawn any role outside this set.
     #[serde(default)]
     pub allowed_agents: Option<Vec<String>>,
+}
+
+impl Default for LaunchProfileConfig {
+    fn default() -> Self {
+        Self {
+            use_worktree: bool_true(),
+            default_instructions: String::new(),
+            handoff_instructions: String::new(),
+            allowed_agents: None,
+        }
+    }
 }
 
 // ── Orchestration ───────────────────────────────────────────────────
@@ -683,19 +673,6 @@ impl RecoverySettings {
     }
 }
 
-impl Default for LaunchProfileConfig {
-    fn default() -> Self {
-        Self {
-            use_worktree: true,
-            live_mode: false,
-            skills: Vec::new(),
-            default_instructions: String::new(),
-            handoff_instructions: String::new(),
-            allowed_agents: None,
-        }
-    }
-}
-
 // ── MCP / tool policy resolution helpers ────────────────────────────
 
 /// Project-level → core-level translation of an agent's MCP block.
@@ -722,10 +699,9 @@ fn resolve_mcp_policy(def: &AgentDefinition) -> ResolvedMcpPolicy {
 }
 
 /// Resolves the per-role tool policy, with the legacy informational
-/// `tools:` field as a fallback for `tool_policy.allow`. This keeps
-/// configs that pre-date SUP-104 working: a role that listed
-/// `tools: [read, grep]` for documentation now gets the same list as
-/// its allowlist snapshot. An explicit `tool_policy.allow` always wins.
+/// `tools:` field as a fallback for `tool_policy.allow` so older configs
+/// keep their list as the allowlist snapshot. An explicit
+/// `tool_policy.allow` always wins.
 fn resolve_tool_policy(def: &AgentDefinition) -> ResolvedToolPolicy {
     match &def.tool_policy {
         Some(p) => ResolvedToolPolicy {

@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::agent::AgentProvider;
 use crate::reasoning::ReasoningEffort;
 use crate::runner_mode::BillingProfile;
-use crate::skill::default_true;
+use crate::serde_util::default_true;
 use crate::step_executor::StepExecutor;
 
 /// Whether the provider CLI was reachable at last detection.
@@ -69,36 +69,6 @@ pub enum PermissionPolicy {
     BypassPermissions,
 }
 
-impl ProviderAvailability {
-    pub const fn audit_tag(self) -> &'static str {
-        match self {
-            Self::Available => "available",
-            Self::Unavailable => "unavailable",
-            Self::Unknown => "unknown",
-        }
-    }
-}
-
-impl SandboxPolicy {
-    pub const fn audit_tag(self) -> &'static str {
-        match self {
-            Self::ReadOnly => "read_only",
-            Self::WorkspaceWrite => "workspace_write",
-            Self::DangerFullAccess => "danger_full_access",
-        }
-    }
-}
-
-impl PermissionPolicy {
-    pub const fn audit_tag(self) -> &'static str {
-        match self {
-            Self::Prompt => "prompt",
-            Self::AcceptEdits => "accept_edits",
-            Self::BypassPermissions => "bypass_permissions",
-        }
-    }
-}
-
 /// Operator-editable provider configuration plus the last detected runtime
 /// state. Storage persists only the configurable fields; the service layer
 /// overlays `availability` / `install_state` / `auth_state` from the detector.
@@ -134,18 +104,8 @@ impl ProviderSettings {
     /// (paid Agent SDK) is always an explicit opt-in.
     pub fn builtins() -> Vec<ProviderSettings> {
         vec![
-            ProviderSettings {
-                provider: AgentProvider::Codex,
-                billing_mode: BillingProfile::Subscription,
-                default_executor: StepExecutor::CodexStructured,
-                ..Self::base(AgentProvider::Codex)
-            },
-            ProviderSettings {
-                provider: AgentProvider::Claude,
-                billing_mode: BillingProfile::Subscription,
-                default_executor: StepExecutor::InteractivePty,
-                ..Self::base(AgentProvider::Claude)
-            },
+            Self::base(AgentProvider::Codex),
+            Self::base(AgentProvider::Claude),
         ]
     }
 

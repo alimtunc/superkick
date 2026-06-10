@@ -5,12 +5,6 @@ import { queryKeys } from '@/lib/queryKeys'
 import type { ActiveTakeoversResponse, OpenTakeoverRequest } from '@/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-/**
- * SUP-101 — TanStack wrappers around the takeover endpoints. Exposed as
- * three small hooks so callers can pick what they need; the UI mounts all
- * three from `TerminalTakeover.tsx`.
- */
-
 export function useTakeoverModes(runId: string, enabled: boolean) {
 	return useQuery({
 		queryKey: queryKeys.terminalTakeover.modes(runId),

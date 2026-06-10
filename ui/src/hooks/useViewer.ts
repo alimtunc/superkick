@@ -1,4 +1,5 @@
 import { fetchMe } from '@/api'
+import { queryKeys } from '@/lib/queryKeys'
 import type { ViewerResponse } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 
@@ -18,7 +19,7 @@ export interface UseViewerResult {
  */
 export function useViewer(): UseViewerResult {
 	const { data, isLoading } = useQuery({
-		queryKey: ['me'],
+		queryKey: queryKeys.me.all,
 		queryFn: fetchMe,
 		staleTime: 5 * 60_000,
 		retry: false

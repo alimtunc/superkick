@@ -7,18 +7,14 @@ import type {
 	IssueUpdateRequest
 } from '@/types'
 
-import { BASE, patchVoid, throwLinearError } from './_shared'
+import { BASE, getJson, patchVoid, throwLinearError } from './_shared'
 
 export async function fetchIssues(limit = 200): Promise<IssueListResponse> {
-	const res = await fetch(`${BASE}/issues?limit=${limit}`)
-	if (!res.ok) throw new Error(`GET /issues failed: ${res.status}`)
-	return res.json()
+	return getJson(`/issues?limit=${limit}`, 'fetch failed: GET /issues')
 }
 
 export async function fetchIssueDetail(id: string): Promise<IssueDetailResponse> {
-	const res = await fetch(`${BASE}/issues/${id}`)
-	if (!res.ok) throw new Error(`GET /issues/${id} failed: ${res.status}`)
-	return res.json()
+	return getJson(`/issues/${id}`, 'fetch failed: GET /issues/${id}')
 }
 
 /** Persist a Linear status change. `teamId`, when known, lets the server skip a team-lookup round-trip. */

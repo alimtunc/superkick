@@ -7,20 +7,25 @@ use super::super::error::LinearError;
 
 /// Linear's `priority` is wire-typed `Float` but ranges over the integer scale
 /// 0..=4; accept the Float shape (matching the history path's `Option<f32>`) and
+/// Linear's `priority` is a Float 0..=4. `None` for non-finite or
+/// out-of-range values; each call site picks its own fallback semantics.
+pub(crate) fn priority_from_float(raw: f64) -> Option<u8> {
+    if !raw.is_finite() {
+        return None;
+    }
+    let rounded = raw.round();
+    if !(0.0..=4.0).contains(&rounded) {
+        return None;
+    }
+    Some(rounded as u8)
+}
+
 /// round into the domain `u8`, collapsing out-of-range to `0` ("No priority").
 fn deserialize_priority<'de, D>(deserializer: D) -> Result<u8, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let raw = f64::deserialize(deserializer)?;
-    if !raw.is_finite() {
-        return Ok(0);
-    }
-    let rounded = raw.round();
-    if !(0.0..=4.0).contains(&rounded) {
-        return Ok(0);
-    }
-    Ok(rounded as u8)
+    Ok(priority_from_float(f64::deserialize(deserializer)?).unwrap_or(0))
 }
 
 /// Linear's top-level GraphQL response envelope: every query/mutation comes
@@ -31,9 +36,20 @@ pub(crate) struct GqlEnvelope<T> {
     pub errors: Option<Vec<GqlError>>,
 }
 
+impl<T> GqlEnvelope<T> {
+    /// Standard unwrap for every Linear operation: classify GraphQL errors,
+    /// then require a `data` payload.
+    pub fn into_data(self) -> Result<T, super::super::error::LinearError> {
+        if let Some(errors) = self.errors {
+            return Err(classify_graphql_errors(&errors));
+        }
+        self.data.ok_or(super::super::error::LinearError::NoData)
+    }
+}
+
 // ── Issue list response ──────────────────────────────────────────────
 
-pub(crate) type GqlResponse = GqlEnvelope<GqlData>;
+pub(crate) type GqlResponse = GqlEnvelope<GqlIssueListData>;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GqlError {
@@ -68,20 +84,20 @@ const REJECTABLE_GQL_CODES: &[&str] = &[
 /// Used by every write path so the API's `LinearError → AppError` mapping
 /// picks the right HTTP status without per-handler heuristics.
 pub(crate) fn classify_graphql_errors(errors: &[GqlError]) -> LinearError {
-    if let Some(err) = errors.iter().find(|e| {
-        e.extensions
-            .as_ref()
-            .and_then(|x| x.code.as_deref())
-            .is_some_and(|code| REJECTABLE_GQL_CODES.contains(&code))
-    }) {
-        let extensions = err
-            .extensions
-            .as_ref()
-            .expect("REJECTABLE_GQL_CODES match guarantees extensions");
-        let msg = extensions
-            .user_presentable_message
-            .clone()
-            .unwrap_or_else(|| err.message.clone());
+    let rejected = errors.iter().find_map(|err| {
+        let extensions = err.extensions.as_ref()?;
+        extensions
+            .code
+            .as_deref()
+            .filter(|code| REJECTABLE_GQL_CODES.contains(code))?;
+        Some(
+            extensions
+                .user_presentable_message
+                .clone()
+                .unwrap_or_else(|| err.message.clone()),
+        )
+    });
+    if let Some(msg) = rejected {
         return LinearError::Rejected(msg);
     }
     let joined = errors
@@ -93,7 +109,7 @@ pub(crate) fn classify_graphql_errors(errors: &[GqlError]) -> LinearError {
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct GqlData {
+pub(crate) struct GqlIssueListData {
     pub issues: GqlIssueConnection,
 }
 
@@ -327,9 +343,9 @@ pub(crate) struct GqlIssueHistory {
     #[serde(default)]
     pub to_due_date: Option<String>,
     #[serde(default)]
-    pub added_labels: Option<Vec<GqlHistoryLabel>>,
+    pub added_labels: Option<Vec<GqlLabel>>,
     #[serde(default)]
-    pub removed_labels: Option<Vec<GqlHistoryLabel>>,
+    pub removed_labels: Option<Vec<GqlLabel>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -352,12 +368,6 @@ pub(crate) struct GqlCycleRef {
 pub(crate) struct GqlProjectRef {
     pub id: String,
     pub name: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct GqlHistoryLabel {
-    pub name: String,
-    pub color: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -458,7 +468,7 @@ pub(crate) struct GqlWorkflowState {
     pub position: f64,
 }
 
-// ── Issue team lookup (cold-cache fallback for update_issue_state) ───
+// ── Issue team lookup (cold-cache fallback for resolve_workflow_state_for_type) ──
 
 pub(crate) type GqlIssueTeamResponse = GqlEnvelope<GqlIssueTeamData>;
 
@@ -485,8 +495,7 @@ pub(crate) struct GqlIssueUpdateData {
 #[derive(Debug, Deserialize)]
 pub(crate) struct GqlIssueUpdate {
     pub success: bool,
-    /// Populated by the enriched mutation that returns the full issue detail;
-    /// the legacy state-only mutation leaves this `None`.
+    /// Populated by the enriched mutation that returns the full issue detail.
     #[serde(default)]
     pub issue: Option<GqlIssueDetail>,
 }

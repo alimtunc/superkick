@@ -15,7 +15,7 @@ pub fn run(args: CancelArgs) -> anyhow::Result<()> {
 
     let run_id = &args.run_id;
 
-    let resp = ureq::post(format!("{base}/runs/{run_id}/cancel")).send_empty();
+    let resp = crate::net::timed_post(&format!("{base}/runs/{run_id}/cancel"), None);
 
     match resp {
         Ok(resp) if resp.status() == 200 => {

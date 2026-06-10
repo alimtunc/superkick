@@ -40,7 +40,7 @@ impl RunEventRepo for SqliteRunEventRepo {
         .fetch_one(&self.pool)
         .await
         .with_context(|| format!("insert run_event {}", event.id.0))?;
-        Ok(u64::try_from(seq).unwrap_or(0))
+        u64::try_from(seq).context("run_events.seq negative")
     }
 
     async fn get(&self, id: EventId) -> Result<Option<RunEvent>> {
@@ -105,7 +105,12 @@ impl EventRow {
                 .as_deref()
                 .map(|s| uuid::Uuid::parse_str(s).map(StepId))
                 .transpose()?,
-            seq: u64::try_from(self.seq.unwrap_or(0)).unwrap_or(0),
+            seq: self
+                .seq
+                .map(u64::try_from)
+                .transpose()
+                .context("run_events.seq negative")?
+                .unwrap_or(0),
             ts: decode_rfc3339(&self.ts)?,
             kind: deserialize_enum::<EventKind>(&self.kind)?,
             level: deserialize_enum::<EventLevel>(&self.level)?,

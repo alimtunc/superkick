@@ -56,11 +56,9 @@ interrupts:
 budget:
   max_retries_per_step: 2
   max_parallel_agents: 3
-  token_budget: medium
 "#;
 
 pub fn run() -> anyhow::Result<()> {
-    // Must be inside a git repo at its root
     let in_git = Command::new("git")
         .args(["rev-parse", "--is-inside-work-tree"])
         .output()
@@ -99,4 +97,14 @@ pub fn run() -> anyhow::Result<()> {
     println!("  superkick serve    — start the server");
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::STARTER_CONFIG;
+
+    #[test]
+    fn starter_config_parses_and_validates() {
+        superkick_config::load_str(STARTER_CONFIG).expect("starter config must parse and validate");
+    }
 }

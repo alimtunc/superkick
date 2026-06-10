@@ -18,15 +18,17 @@ use std::path::Path as StdPath;
 
 use superkick_core::{
     ActiveTakeover, ForceTakeoverSubMode, OpenedTakeover, Run, RunContextSnapshot, RunId,
-    TakeoverMode, TakeoverModeAvailability, TakeoverModeKind, TakeoverPath, TakeoverSessionId,
+    TakeoverMode, TakeoverModeAvailability, TakeoverSessionId,
 };
 use superkick_runtime::cli_resume::{
-    inspect_shell_command, interactive_command, resolve_resume_target, resume_supported,
+    TakeoverSpawnKind, continuation_takeover_spawn, inspect_takeover_spawn,
+    takeover_mode_availability,
 };
-use superkick_runtime::{OpenTakeoverParams, RunChatSnapshot, refresh_run_context_snapshot};
-use superkick_storage::repo::{LaunchTaskRepo, RunRepo};
+use superkick_runtime::{OpenTakeoverParams, refresh_run_context_snapshot};
+use superkick_storage::repo::LaunchTaskRepo;
 use tracing::warn;
 
+use super::require_run;
 use crate::AppState;
 use crate::error::AppError;
 
@@ -49,14 +51,6 @@ pub struct ActiveTakeoversResponse {
     pub takeovers: Vec<ActiveTakeover>,
 }
 
-/// What the takeover should actually spawn — the rich `TakeoverMode` enum
-/// projects onto one of these two shapes after the API has validated
-/// `confirm_force` for the destructive path.
-enum SpawnKind {
-    Inspect,
-    Continuation,
-}
-
 // ── Handlers ─────────────────────────────────────────────────────────
 
 pub async fn list_modes(
@@ -64,10 +58,10 @@ pub async fn list_modes(
     Path(id): Path<uuid::Uuid>,
 ) -> Result<Json<ModesResponse>, AppError> {
     let run_id = RunId(id);
-    let _run = require_run(&state, run_id).await?;
+    require_run(&state, run_id).await?;
     let snapshot = state.conversation_runner.run_chat_snapshot(run_id).await?;
     Ok(Json(ModesResponse {
-        modes: build_availability(&snapshot),
+        modes: takeover_mode_availability(&snapshot),
     }))
 }
 
@@ -93,7 +87,7 @@ pub async fn open_takeover(
 
     // Join an already-live interactive PTY rather than spawn a second CLI. Only
     // interactive runs register a primary session, so headless never matches.
-    if matches!(spawn_kind, SpawnKind::Continuation)
+    if matches!(spawn_kind, TakeoverSpawnKind::Continuation)
         && !is_force
         && state.pty_registry.get(run_id).is_some()
     {
@@ -106,39 +100,14 @@ pub async fn open_takeover(
 
     let worktree = require_worktree(&run)?;
 
-    let (command, takeover_path, opening_context) = match spawn_kind {
-        SpawnKind::Inspect => (inspect_shell_command(worktree), TakeoverPath::Fresh, None),
-        SpawnKind::Continuation => {
+    let resolved = match spawn_kind {
+        TakeoverSpawnKind::Inspect => inspect_takeover_spawn(worktree),
+        TakeoverSpawnKind::Continuation => {
             // The launch-task snapshot is the honest resume target + injection
             // source; a plain chat run has none (falls back to its conversation).
             let chat = state.conversation_runner.run_chat_snapshot(run_id).await?;
             let snapshot = load_run_snapshot(&state, run_id).await;
-            let (provider, resume_session_id) =
-                resolve_resume_target(&chat, snapshot.as_ref().map(|s| &s.provider));
-            let allow_resume = resume_supported(provider) && resume_session_id.is_some();
-            let (command, resumed) = interactive_command(
-                provider,
-                worktree,
-                if allow_resume {
-                    resume_session_id.as_deref()
-                } else {
-                    None
-                },
-            );
-            if resumed {
-                // Provider restores history on resume; inject only a short header
-                // so the operator still sees which task this terminal is.
-                let header = snapshot
-                    .as_ref()
-                    .map(RunContextSnapshot::render_takeover_header);
-                (command, TakeoverPath::Resume, header)
-            } else {
-                // Fresh spawn: inject the full redacted snapshot when one exists.
-                let block = snapshot
-                    .as_ref()
-                    .map(RunContextSnapshot::render_for_takeover);
-                (command, TakeoverPath::Fresh, block)
-            }
+            continuation_takeover_spawn(&chat, snapshot.as_ref(), worktree)
         }
     };
 
@@ -147,10 +116,10 @@ pub async fn open_takeover(
         .open(OpenTakeoverParams {
             run_id,
             cwd: worktree,
-            command,
+            command: resolved.command,
             mode: body.mode.kind(),
-            takeover_path,
-            opening_context,
+            takeover_path: resolved.takeover_path,
+            opening_context: resolved.opening_context,
             operator_id: body.operator_id,
         })
         .await
@@ -221,10 +190,10 @@ async fn load_run_snapshot(state: &AppState, run_id: RunId) -> Option<RunContext
     }
 }
 
-fn resolve_spawn_kind(mode: &TakeoverMode) -> Result<SpawnKind, AppError> {
+fn resolve_spawn_kind(mode: &TakeoverMode) -> Result<TakeoverSpawnKind, AppError> {
     match mode {
-        TakeoverMode::Inspect => Ok(SpawnKind::Inspect),
-        TakeoverMode::InteractiveContinuation => Ok(SpawnKind::Continuation),
+        TakeoverMode::Inspect => Ok(TakeoverSpawnKind::Inspect),
+        TakeoverMode::InteractiveContinuation => Ok(TakeoverSpawnKind::Continuation),
         TakeoverMode::ForceTakeover {
             sub_mode,
             confirm_force,
@@ -235,52 +204,13 @@ fn resolve_spawn_kind(mode: &TakeoverMode) -> Result<SpawnKind, AppError> {
                 ));
             }
             match sub_mode {
-                ForceTakeoverSubMode::Inspect => Ok(SpawnKind::Inspect),
-                ForceTakeoverSubMode::InteractiveContinuation => Ok(SpawnKind::Continuation),
+                ForceTakeoverSubMode::Inspect => Ok(TakeoverSpawnKind::Inspect),
+                ForceTakeoverSubMode::InteractiveContinuation => {
+                    Ok(TakeoverSpawnKind::Continuation)
+                }
             }
         }
     }
-}
-
-fn build_availability(snapshot: &RunChatSnapshot) -> Vec<TakeoverModeAvailability> {
-    let resume = resume_supported(snapshot.provider) && snapshot.provider_session_id.is_some();
-    let no_turn_reason = if snapshot.has_conversation {
-        "no active turn".to_string()
-    } else {
-        "no run-scoped conversation".to_string()
-    };
-    vec![
-        TakeoverModeAvailability {
-            mode: TakeoverModeKind::Inspect,
-            available: true,
-            reason: None,
-            resume_supported: false,
-        },
-        TakeoverModeAvailability {
-            mode: TakeoverModeKind::InteractiveContinuation,
-            available: true,
-            reason: None,
-            resume_supported: resume,
-        },
-        TakeoverModeAvailability {
-            mode: TakeoverModeKind::ForceTakeover,
-            available: snapshot.has_active_turn,
-            reason: if snapshot.has_active_turn {
-                None
-            } else {
-                Some(no_turn_reason)
-            },
-            resume_supported: false,
-        },
-    ]
-}
-
-async fn require_run(state: &AppState, run_id: RunId) -> Result<Run, AppError> {
-    state
-        .run_repo
-        .get(run_id)
-        .await?
-        .ok_or(AppError::NotFound("run not found"))
 }
 
 fn require_worktree(run: &Run) -> Result<&StdPath, AppError> {

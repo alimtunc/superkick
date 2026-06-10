@@ -1,0 +1,219 @@
+//! Test-only router builders, gated behind the `test-support` feature so
+//! none of this reaches production callers. Each builder wires a route subset
+//! against the minimal state slice it needs, so integration tests don't have
+//! to materialise the full `AppState`.
+
+use std::sync::Arc;
+
+use axum::Router;
+use axum::routing::{get, post};
+
+use superkick_core::AgentCatalog;
+use superkick_runtime::{LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry};
+use superkick_storage::{
+    SqliteAgentSessionRepo, SqliteIssueWorkspaceContextRepo, SqliteLaunchTaskInterventionRepo,
+    SqliteLaunchTaskRepo, SqliteOrchestratorSessionRepo, SqliteRunContextSnapshotRepo,
+    SqliteRunRepo,
+};
+
+use crate::{EventRepo, handlers};
+
+pub mod tests_only {
+    use superkick_core::CoreError;
+
+    use crate::error::AppError;
+
+    /// Run the `CoreError → AppError` mapping that handlers rely on, for
+    /// integration tests that need to assert HTTP status pinning without
+    /// going through a full handler invocation.
+    pub fn map_core_error(err: CoreError) -> AppError {
+        AppError::from(err)
+    }
+}
+
+/// Re-export of the issue-context handler types tests need to assemble a
+/// router (`IssueLookup`, the two dyn-repo traits).
+pub mod test_handlers {
+    pub use crate::handlers::issue_context::{IssueContextState, IssueLookup};
+    pub use crate::handlers::issues::{IssueWritesState, LinearFuture, LinearWriter};
+    pub use superkick_storage::repo::{IssueWorkspaceContextRepoDyn, MemoryEntryRepoDyn};
+}
+
+/// Orchestrator session + checkpoint routes against the repo alone.
+pub fn orchestrator_session_test_router(repo: Arc<SqliteOrchestratorSessionRepo>) -> Router {
+    Router::new()
+        .route(
+            "/orchestrator-sessions",
+            post(handlers::orchestrator_sessions::create_session)
+                .get(handlers::orchestrator_sessions::list_sessions),
+        )
+        .route(
+            "/orchestrator-sessions/{id}",
+            get(handlers::orchestrator_sessions::get_session)
+                .patch(handlers::orchestrator_sessions::patch_session),
+        )
+        .route(
+            "/orchestrator-sessions/{id}/checkpoints",
+            post(handlers::orchestrator_sessions::create_checkpoint)
+                .get(handlers::orchestrator_sessions::list_checkpoints),
+        )
+        .with_state(repo)
+}
+
+/// `GET /agents` against an `AgentsState` built from the supplied catalog.
+pub fn agents_test_router(catalog: Arc<AgentCatalog>) -> Router {
+    let state = handlers::agents::AgentsState { catalog };
+    Router::new()
+        .route("/agents", get(handlers::agents::list_agents))
+        .with_state(state)
+}
+
+/// Launch-task read/create/cancel/SSE routes against a fresh in-memory
+/// `LaunchTaskState` with the stub step runner — sufficient for HTTP-shape
+/// tests; behavioural tests of the executor live in `superkick-runtime/tests`.
+pub fn launch_task_test_router(
+    repo: Arc<SqliteLaunchTaskRepo>,
+    intervention_repo: Arc<SqliteLaunchTaskInterventionRepo>,
+    run_repo: Arc<SqliteRunRepo>,
+    catalog: Arc<AgentCatalog>,
+) -> Router {
+    use superkick_runtime::StubStepRunner;
+    let bus = LaunchTaskEventBus::new();
+    let executor = LaunchTaskExecutor::new(
+        Arc::clone(&repo),
+        Arc::clone(&bus),
+        Arc::new(LaunchTaskRegistry::new()),
+        Arc::new(StubStepRunner::new()),
+    );
+    let state = handlers::launch_tasks::LaunchTaskState::<StubStepRunner> {
+        repo,
+        intervention_repo,
+        run_repo,
+        catalog,
+        bus,
+        executor,
+        // The test router exercises only the legacy triplet path; dynamic
+        // composition is covered at the runtime layer.
+        launch_profile_service: None,
+        // Tests assert against synchronous create-time state; the executor
+        // itself is covered at the runtime layer.
+        auto_trigger_executor: false,
+    };
+    Router::new()
+        .route(
+            "/launch-tasks",
+            post(handlers::launch_tasks::create_launch_task)
+                .get(handlers::launch_tasks::list_launch_tasks),
+        )
+        .route(
+            "/launch-tasks/{id}",
+            get(handlers::launch_tasks::get_launch_task),
+        )
+        .route(
+            "/launch-tasks/{id}/steps",
+            get(handlers::launch_tasks::list_launch_task_steps),
+        )
+        .route(
+            "/launch-tasks/{id}/cancel",
+            post(handlers::launch_tasks::cancel_launch_task),
+        )
+        .route(
+            "/launch-tasks/{id}/retry",
+            post(handlers::launch_tasks::retry_launch_task),
+        )
+        .route(
+            "/launch-tasks/{id}/interventions",
+            get(handlers::launch_tasks::list_launch_task_interventions)
+                .post(handlers::launch_tasks::create_launch_task_intervention),
+        )
+        .route(
+            "/launch-tasks/events",
+            get(handlers::launch_tasks::launch_task_events_sse),
+        )
+        .with_state(state)
+}
+
+/// `GET /runs/{id}/diff` against a `RunDiffState`. Tests pre-seed runs through
+/// the repo and point `worktree_path` at a temp git repo they control.
+pub fn run_diff_test_router(repo: Arc<SqliteRunRepo>, base_branch: String) -> Router {
+    let state = handlers::runs::RunDiffState {
+        run_repo: repo,
+        base_branch,
+    };
+    Router::new()
+        .route("/runs/{id}/diff", get(handlers::runs::get_run_diff))
+        .with_state(state)
+}
+
+/// `GET /launch-tasks/{id}/snapshot` against real in-memory SQLite repos.
+pub fn run_context_snapshot_test_router(
+    launch_task_repo: Arc<SqliteLaunchTaskRepo>,
+    run_repo: Arc<SqliteRunRepo>,
+    session_repo: Arc<SqliteAgentSessionRepo>,
+    event_repo: Arc<EventRepo>,
+    issue_workspace_context_repo: Arc<SqliteIssueWorkspaceContextRepo>,
+    snapshot_repo: Arc<SqliteRunContextSnapshotRepo>,
+) -> Router {
+    let state = handlers::snapshots::SnapshotState {
+        launch_task_repo,
+        run_repo,
+        session_repo,
+        event_repo,
+        issue_workspace_context_repo,
+        snapshot_repo,
+    };
+    Router::new()
+        .route(
+            "/launch-tasks/{id}/snapshot",
+            get(handlers::snapshots::get_launch_task_snapshot),
+        )
+        .with_state(state)
+}
+
+/// Linear write paths (`POST /issues`, `PATCH /issues/{id}`,
+/// `POST /issues/{id}/comments`, `GET /linear/options`).
+pub fn linear_writes_test_router(writer: Option<Arc<dyn test_handlers::LinearWriter>>) -> Router {
+    let state = test_handlers::IssueWritesState {
+        linear_writer: writer,
+    };
+    Router::new()
+        .route("/issues", post(handlers::issues::create_issue))
+        .route(
+            "/issues/{id}",
+            axum::routing::patch(handlers::issues::patch_issue),
+        )
+        .route(
+            "/issues/{id}/comments",
+            post(handlers::issues::create_comment),
+        )
+        .route(
+            "/linear/options",
+            get(handlers::linear_options::get_options),
+        )
+        .with_state(state)
+}
+
+/// Issue-context + memory routes against injected repos and an
+/// [`handlers::issue_context::IssueLookup`] stub, so the suite never hits
+/// Linear.
+pub fn issue_context_test_router(
+    context_repo: Arc<dyn test_handlers::IssueWorkspaceContextRepoDyn>,
+    memory_repo: Arc<dyn test_handlers::MemoryEntryRepoDyn>,
+    issue_lookup: Option<Arc<dyn test_handlers::IssueLookup>>,
+) -> Router {
+    let state = test_handlers::IssueContextState {
+        context_repo,
+        memory_repo,
+        issue_lookup,
+    };
+    Router::new()
+        .route(
+            "/issues/{id}/context",
+            get(handlers::issue_context::get_or_create_context),
+        )
+        .route(
+            "/issues/{id}/context/memory",
+            get(handlers::issue_context::list_memory).post(handlers::issue_context::append_memory),
+        )
+        .with_state(state)
+}

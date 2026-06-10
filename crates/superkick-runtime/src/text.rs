@@ -9,3 +9,24 @@ pub(crate) fn truncate_chars(text: &str, max: usize) -> String {
         text.to_string()
     }
 }
+
+/// Keep the last `max` characters, with no marker. Tail-keeping is for text
+/// whose decision-bearing content sits at the end (agent summaries).
+pub(crate) fn tail_chars(text: &str, max: usize) -> String {
+    let total = text.chars().count();
+    if total <= max {
+        return text.to_string();
+    }
+    text.chars().skip(total - max).collect()
+}
+
+/// Keep the last `max` characters, prepending `…` when shortened.
+pub(crate) fn tail_chars_ellipsized(text: &str, max: usize) -> String {
+    let total = text.chars().count();
+    if total <= max {
+        return text.to_string();
+    }
+    let mut out = String::from("…");
+    out.extend(text.chars().skip(total - max));
+    out
+}

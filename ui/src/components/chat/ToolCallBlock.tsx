@@ -1,6 +1,6 @@
-import { safeStringify } from '@/components/chat/toolCallBlock.helpers'
 import { Disclosure } from '@/components/ui/disclosure'
 import { truncate } from '@/lib/format'
+import { stringifyForDisplay } from '@/lib/format/json'
 import type { ToolCallEntry } from '@/types'
 
 interface ToolCallHeaderProps {
@@ -36,17 +36,17 @@ function toolCallHeader(call: ToolCallEntry, hasOutput: boolean, summary: string
 
 export function ToolCallBlock({ call }: { call: ToolCallEntry }) {
 	const hasOutput = call.output !== null
-	const summary = truncate(safeStringify(call.input, false), 61)
+	const summary = truncate(stringifyForDisplay(call.input, false), 61)
 
 	return (
 		<Disclosure header={toolCallHeader(call, hasOutput, summary)}>
 			<div className="space-y-2">
 				<pre className="wrap-break-word whitespace-pre-wrap text-fg-dim">
-					input: {safeStringify(call.input)}
+					input: {stringifyForDisplay(call.input)}
 				</pre>
 				{hasOutput ? (
 					<pre className="wrap-break-word whitespace-pre-wrap text-success">
-						output: {safeStringify(call.output)}
+						output: {stringifyForDisplay(call.output)}
 					</pre>
 				) : null}
 			</div>

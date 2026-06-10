@@ -1,4 +1,4 @@
-import type { FilterOptionSet } from '@/components/issues/IssueFilterDropdown'
+import type { FilterOptionSet } from '@/types'
 import type { IssueFilterState, IssueWithState, LinearIssueListItem } from '@/types'
 
 export function buildFilterOptions(issues: readonly IssueWithState[]): FilterOptionSet {

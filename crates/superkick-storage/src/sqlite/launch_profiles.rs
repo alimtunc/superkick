@@ -4,7 +4,7 @@
 //! `insert_if_absent` (the seed path) inserts a builtin only when its id is
 //! absent so operator edits survive a reboot. Steps cascade with their profile.
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::{SqliteConnection, SqlitePool};
 use superkick_core::{
@@ -13,6 +13,7 @@ use superkick_core::{
 };
 
 use super::codec::{deserialize_enum, serialize_enum};
+use super::ensure_updated;
 use crate::repo::LaunchProfileRepo;
 
 pub struct SqliteLaunchProfileRepo {
@@ -171,10 +172,7 @@ impl LaunchProfileRepo for SqliteLaunchProfileRepo {
             .execute(&self.pool)
             .await
             .with_context(|| format!("delete launch_profile {id}"))?;
-        if result.rows_affected() == 0 {
-            return Err(anyhow!("launch_profile {id} not found"));
-        }
-        Ok(())
+        ensure_updated(result, "launch_profile", id)
     }
 }
 

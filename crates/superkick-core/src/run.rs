@@ -25,6 +25,11 @@ pub enum RunState {
 }
 
 impl RunState {
+    /// Every terminal state, the single source for SQL predicates and CLI
+    /// filters that must match `is_terminal()`.
+    pub const TERMINAL: [RunState; 3] =
+        [RunState::Completed, RunState::Failed, RunState::Cancelled];
+
     /// Returns `true` when the run has reached a final outcome.
     /// `Completed`, `Failed`, and `Cancelled` are all terminal with no
     /// outgoing transitions; recovery from a failed run is a fresh run.
@@ -406,21 +411,6 @@ impl Run {
         self.pause_reason = None;
     }
 
-    /// Stamp a fresh heartbeat for the run without touching `state` or
-    /// `updated_at`. Called by the runtime heartbeat listener when a session
-    /// lifecycle event is observed for an active run. We deliberately leave
-    /// `updated_at` alone — it is the supervisor's signal that a state-bearing
-    /// transition happened, and the recovery scheduler relies on it to detect
-    /// staleness when no heartbeat has ever fired (`last_heartbeat_at` is
-    /// `None`). No-op for terminal runs to keep audit consistent with the
-    /// "terminal runs are out of scope" invariant in `recovery_scheduler`.
-    pub fn touch_heartbeat(&mut self, now: DateTime<Utc>) {
-        if self.state.is_terminal() {
-            return;
-        }
-        self.last_heartbeat_at = Some(now);
-    }
-
     /// Append a labelled note to `operator_instructions`. The note is rendered
     /// to the agent under a section header (e.g. "budget override",
     /// "semi-auto checkpoint") so multiple checkpoints in one run remain
@@ -430,10 +420,11 @@ impl Run {
             return;
         }
         let existing = self.operator_instructions.take().unwrap_or_default();
+        let labelled = format!("--- Operator note ({header}) ---\n{note}");
         let combined = if existing.is_empty() {
-            note.to_string()
+            labelled
         } else {
-            format!("{existing}\n\n--- Operator note ({header}) ---\n{note}")
+            format!("{existing}\n\n{labelled}")
         };
         self.operator_instructions = Some(combined);
     }

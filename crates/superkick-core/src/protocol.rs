@@ -7,11 +7,6 @@
 //! each provider can emit the *same* `ProtocolEvent` regardless of the wire
 //! format underneath.
 //!
-//! Scope of this ticket: types only. Real Claude / Codex adapters land in
-//! follow-ups (SUP-95 §"Child ticket order" 3 & 4). The PTY path
-//! (`agent_supervisor::lifecycle`) is untouched and continues to drive the
-//! terminal-takeover UX.
-//!
 //! Design notes:
 //!
 //! - `ProtocolEvent` is internally tagged on `kind` so JSON traces are
@@ -239,7 +234,7 @@ pub struct TurnRequest {
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct TurnOptions {
     /// Hard wall-clock ceiling for the turn. `None` = adapter default.
-    #[serde(default, with = "duration_opt")]
+    #[serde(default, with = "crate::serde_util::duration_millis_opt")]
     pub timeout: Option<Duration>,
     /// Soft cap on output tokens. `None` = adapter / provider default.
     pub max_output_tokens: Option<u64>,
@@ -268,20 +263,6 @@ pub enum TurnOutcome {
         resume_key: Option<ResumeKey>,
         reason: String,
     },
-}
-
-mod duration_opt {
-    use super::Duration;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    pub fn serialize<S: Serializer>(d: &Option<Duration>, s: S) -> Result<S::Ok, S::Error> {
-        d.map(|d| d.as_millis() as u64).serialize(s)
-    }
-
-    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Duration>, D::Error> {
-        let raw = Option::<u64>::deserialize(d)?;
-        Ok(raw.map(Duration::from_millis))
-    }
 }
 
 #[cfg(test)]

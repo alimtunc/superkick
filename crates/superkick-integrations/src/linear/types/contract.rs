@@ -3,8 +3,7 @@
 use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
-use serde::ser::SerializeMap;
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use superkick_core::LinkedRunSummary;
 
 /// Identity of the authenticated Linear user (the "viewer").
@@ -19,7 +18,7 @@ pub struct ViewerResponse {
     pub avatar_url: Option<String>,
 }
 
-/// Operator-facing mutation target. Narrower than `LinearStateType` — `backlog` / `canceled` are not written from the kanban.
+/// Operator-facing mutation target. Narrower than Linear's workflow-state `type` set — `backlog` / `canceled` are not written from the kanban.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IssueStateMutation {
     Open,
@@ -61,7 +60,7 @@ pub struct LinearIssueListItem {
     pub project: Option<IssueProject>,
     pub parent: Option<IssueParentRef>,
     pub children: Vec<IssueChildRef>,
-    /// Issues that block this one via a Linear `blocks` relation (SUP-81).
+    /// Issues that block this one via a Linear `blocks` relation.
     /// Empty when the issue has no incoming blocker relations or when Linear
     /// hid the source issues (access control).
     #[serde(default)]
@@ -88,7 +87,7 @@ pub struct IssueParentRef {
 }
 
 /// Reference to an issue that blocks another via a Linear `blocks` relation
-/// (SUP-81). Mirrors `IssueParentRef`: the `status` is hydrated so the
+///. Mirrors `IssueParentRef`: the `status` is hydrated so the
 /// classifier can decide "blocker resolved" without a second round-trip.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IssueBlockerRef {
@@ -311,51 +310,27 @@ pub struct IssueCreateInput {
 /// Input to `LinearClient::update_issue`. Clearable fields use
 /// `Option<Option<T>>`: `None` skips the key, `Some(None)` sends `null`
 /// (clears on Linear), `Some(Some(v))` sets.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IssueUpdateInput {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub state_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub assignee_id: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub priority: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub label_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub project_id: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub due_date: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub estimate: Option<Option<f32>>,
-}
-
-impl Serialize for IssueUpdateInput {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut map = serializer.serialize_map(None)?;
-        if let Some(v) = &self.title {
-            map.serialize_entry("title", v)?;
-        }
-        if let Some(v) = &self.description {
-            map.serialize_entry("description", v)?;
-        }
-        if let Some(v) = &self.state_id {
-            map.serialize_entry("stateId", v)?;
-        }
-        if let Some(v) = &self.assignee_id {
-            map.serialize_entry("assigneeId", v)?;
-        }
-        if let Some(v) = &self.priority {
-            map.serialize_entry("priority", v)?;
-        }
-        if let Some(v) = &self.label_ids {
-            map.serialize_entry("labelIds", v)?;
-        }
-        if let Some(v) = &self.project_id {
-            map.serialize_entry("projectId", v)?;
-        }
-        if let Some(v) = &self.due_date {
-            map.serialize_entry("dueDate", v)?;
-        }
-        if let Some(v) = &self.estimate {
-            map.serialize_entry("estimate", v)?;
-        }
-        map.end()
-    }
 }
 
 /// Composite payload for `GET /linear/options` / `LinearClient::list_options`:

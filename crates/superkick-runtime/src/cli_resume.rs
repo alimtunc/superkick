@@ -8,9 +8,105 @@
 use std::path::Path;
 
 use portable_pty::CommandBuilder;
-use superkick_core::{AgentProvider, SnapshotProvider};
+use superkick_core::{
+    AgentProvider, RunContextSnapshot, SnapshotProvider, TakeoverModeAvailability,
+    TakeoverModeKind, TakeoverPath,
+};
 
 use crate::conversation_runner::RunChatSnapshot;
+
+/// What a takeover should spawn once the API layer has validated the request
+/// (`confirm_force` etc.) — the rich `TakeoverMode` enum projects onto one of
+/// these two shapes.
+#[derive(Debug, Clone, Copy)]
+pub enum TakeoverSpawnKind {
+    Inspect,
+    Continuation,
+}
+
+pub struct ResolvedTakeoverSpawn {
+    pub command: CommandBuilder,
+    pub takeover_path: TakeoverPath,
+    pub opening_context: Option<String>,
+}
+
+/// Spawn policy for an inspect takeover: a plain shell, no injected context.
+pub fn inspect_takeover_spawn(worktree: &Path) -> ResolvedTakeoverSpawn {
+    ResolvedTakeoverSpawn {
+        command: inspect_shell_command(worktree),
+        takeover_path: TakeoverPath::Fresh,
+        opening_context: None,
+    }
+}
+
+/// Spawn policy for a continuation takeover: which CLI to launch, whether it
+/// resumes the provider session, and what context block to inject after spawn.
+pub fn continuation_takeover_spawn(
+    chat: &RunChatSnapshot,
+    snapshot: Option<&RunContextSnapshot>,
+    worktree: &Path,
+) -> ResolvedTakeoverSpawn {
+    let (provider, resume_session_id) = resolve_resume_target(chat, snapshot.map(|s| &s.provider));
+    let allow_resume = resume_supported(provider) && resume_session_id.is_some();
+    let (command, resumed) = interactive_command(
+        provider,
+        worktree,
+        if allow_resume {
+            resume_session_id.as_deref()
+        } else {
+            None
+        },
+    );
+    if resumed {
+        // Provider restores history on resume; inject only a short header so
+        // the operator still sees which task this terminal is.
+        ResolvedTakeoverSpawn {
+            command,
+            takeover_path: TakeoverPath::Resume,
+            opening_context: snapshot.map(RunContextSnapshot::render_takeover_header),
+        }
+    } else {
+        ResolvedTakeoverSpawn {
+            command,
+            takeover_path: TakeoverPath::Fresh,
+            opening_context: snapshot.map(RunContextSnapshot::render_for_takeover),
+        }
+    }
+}
+
+/// Mode availability surfaced to the UI for a run's takeover menu.
+pub fn takeover_mode_availability(snapshot: &RunChatSnapshot) -> Vec<TakeoverModeAvailability> {
+    let resume = resume_supported(snapshot.provider) && snapshot.provider_session_id.is_some();
+    let no_turn_reason = if snapshot.has_conversation {
+        "no active turn".to_string()
+    } else {
+        "no run-scoped conversation".to_string()
+    };
+    vec![
+        TakeoverModeAvailability {
+            mode: TakeoverModeKind::Inspect,
+            available: true,
+            reason: None,
+            resume_supported: false,
+        },
+        TakeoverModeAvailability {
+            mode: TakeoverModeKind::InteractiveContinuation,
+            available: true,
+            reason: None,
+            resume_supported: resume,
+        },
+        TakeoverModeAvailability {
+            mode: TakeoverModeKind::ForceTakeover,
+            available: snapshot.has_active_turn,
+            reason: if snapshot.has_active_turn {
+                None
+            } else {
+                Some(no_turn_reason)
+            },
+            resume_supported: false,
+        },
+    ]
+}
 
 /// Whether the provider's CLI accepts a resume key when launched
 /// interactively. Drives the `resume_supported` flag exposed to the UI so

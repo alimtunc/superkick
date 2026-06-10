@@ -9,12 +9,7 @@ pub struct StatusArgs {
 
 fn check_health(port: u16) -> bool {
     let url = format!("http://127.0.0.1:{port}/api/health");
-    match ureq::get(&url)
-        .config()
-        .timeout_global(Some(std::time::Duration::from_secs(2)))
-        .build()
-        .call()
-    {
+    match crate::net::timed_get(&url) {
         Ok(resp) if resp.status() == 200 => resp
             .into_body()
             .read_to_string()
@@ -26,12 +21,7 @@ fn check_health(port: u16) -> bool {
 
 fn print_active_runs(port: u16) {
     let url = format!("http://127.0.0.1:{port}/api/runs");
-    let Ok(resp) = ureq::get(&url)
-        .config()
-        .timeout_global(Some(std::time::Duration::from_secs(2)))
-        .build()
-        .call()
-    else {
+    let Ok(resp) = crate::net::timed_get(&url) else {
         return;
     };
     let Ok(body) = resp.into_body().read_to_string() else {

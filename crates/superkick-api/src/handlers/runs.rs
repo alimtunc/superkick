@@ -17,6 +17,7 @@ use superkick_storage::repo::{
     AgentSessionRepo, AttentionRequestRepo, InterruptRepo, RunEventRepo, RunRepo, RunStepRepo,
 };
 
+use super::require_run;
 use crate::AppState;
 use crate::error::AppError;
 
@@ -25,8 +26,8 @@ pub struct CreateRunRequest {
     pub repo_slug: String,
     pub issue_id: String,
     pub issue_identifier: String,
-    #[serde(default = "default_base_branch")]
-    pub base_branch: String,
+    /// Falls back to the configured workspace base branch when absent.
+    pub base_branch: Option<String>,
     /// Per-run worktree override. If absent, falls back to the launch profile default.
     pub use_worktree: Option<bool>,
     /// Execution mode override. Defaults to `full_auto`.
@@ -41,10 +42,6 @@ pub struct CreateRunRequest {
     pub coder_agent: Option<String>,
     #[serde(default)]
     pub reviewer_agent: Option<String>,
-}
-
-fn default_base_branch() -> String {
-    "main".into()
 }
 
 /// Reject a launch when the issue already has an active (non-terminal) run.
@@ -82,7 +79,11 @@ pub(crate) async fn spawn_run_from_request(
     let repo_slug = body.repo_slug.trim().to_string();
     let issue_id = body.issue_id.trim().to_string();
     let issue_identifier = body.issue_identifier.trim().to_string();
-    let base_branch = body.base_branch.trim().to_string();
+    let base_branch = body
+        .base_branch
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| state.base_branch.clone());
 
     if repo_slug.is_empty() {
         return Err(AppError::BadRequest("repo_slug must not be empty".into()));
@@ -172,10 +173,7 @@ pub async fn get_run(
     Path(id): Path<uuid::Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     let run_id = RunId(id);
-    let run = state.run_repo.get(run_id).await?;
-    let Some(run) = run else {
-        return Err(AppError::NotFound("run not found"));
-    };
+    let run = require_run(&state, run_id).await?;
     let steps = state.step_repo.list_by_run(run_id).await?;
     let sessions = state.session_repo.list_by_run(run_id).await?;
     let interrupts = state.interrupt_repo.list_by_run(run_id).await?;
@@ -208,9 +206,7 @@ pub async fn list_run_events(
     Path(id): Path<uuid::Uuid>,
 ) -> Result<Json<Vec<RunEvent>>, AppError> {
     let run_id = RunId(id);
-    if state.run_repo.get(run_id).await?.is_none() {
-        return Err(AppError::NotFound("run not found"));
-    }
+    require_run(&state, run_id).await?;
     let events = state.event_repo.list_by_run(run_id).await?;
     Ok(Json(events))
 }
@@ -220,11 +216,7 @@ pub async fn get_run_events(
     Path(id): Path<uuid::Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     let run_id = RunId(id);
-
-    let run = state.run_repo.get(run_id).await?;
-    if run.is_none() {
-        return Err(AppError::NotFound("run not found"));
-    }
+    require_run(&state, run_id).await?;
 
     let event_repo = Arc::clone(&state.event_repo);
     let run_repo = Arc::clone(&state.run_repo);
@@ -241,6 +233,7 @@ pub async fn get_run_events(
                 }
             };
 
+            let mut yielded = 0;
             for event in &events {
                 let data = match serde_json::to_string(event) {
                     Ok(d) => d,
@@ -252,8 +245,9 @@ pub async fn get_run_events(
                 yield Ok::<Event, std::convert::Infallible>(
                     Event::default().event("run_event").data(data)
                 );
+                yielded += 1;
             }
-            offset += events.len();
+            offset += yielded;
 
             if let Ok(Some(run)) = run_repo.get(run_id).await {
                 if run.state.is_terminal() {
@@ -394,9 +388,7 @@ pub async fn ship_run(
     Json(req): Json<ShipRunRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let run_id = RunId(id);
-    let Some(run) = state.run_repo.get(run_id).await? else {
-        return Err(AppError::NotFound("run not found"));
-    };
+    let run = require_run(&state, run_id).await?;
 
     let outcome = state
         .pr_service

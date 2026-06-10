@@ -1,6 +1,5 @@
 use std::io::{BufRead, BufReader};
 use std::path::Path;
-use std::process::Command;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -19,31 +18,19 @@ pub struct RunArgs {
 }
 
 fn get_repo_slug() -> anyhow::Result<String> {
-    let output = Command::new("git")
-        .args(["remote", "get-url", "origin"])
-        .output()
-        .map_err(|_| anyhow::anyhow!("Could not run git. Is git installed?"))?;
-
-    if !output.status.success() {
-        anyhow::bail!("Could not read git remote origin. Is this a git repository with a remote?");
-    }
-
-    let raw = String::from_utf8_lossy(&output.stdout);
-    let url = raw.trim();
-    superkick_config::parse_repo_slug(url)
-        .ok_or_else(|| anyhow::anyhow!("Could not parse repo slug from remote URL: {url}"))
+    superkick_config::detect_repo_slug().ok_or_else(|| {
+        anyhow::anyhow!(
+            "Could not detect the repo slug from `git remote get-url origin`. \
+             Is this a git repository with a GitHub remote?"
+        )
+    })
 }
 
 fn load_base_branch() -> anyhow::Result<String> {
-    // `superkick.yaml` is optional. Fall back to the bootstrap default
-    // base branch when no config file is present rather than hard-failing.
     let config_path = Path::new(superkick_config::CONFIG_FILENAME);
-    let config = if config_path.exists() {
-        superkick_config::load_file(config_path)?
-    } else {
-        superkick_config::SuperkickConfig::bootstrap()
-    };
-    Ok(config.runner.base_branch)
+    Ok(superkick_config::load_or_bootstrap(config_path)?
+        .runner
+        .base_branch)
 }
 
 fn create_run(
@@ -59,9 +46,7 @@ fn create_run(
         "base_branch": base_branch,
     });
 
-    let resp = ureq::post(format!("{base_url}/runs"))
-        .header("Content-Type", "application/json")
-        .send(payload.to_string().as_bytes());
+    let resp = crate::net::timed_post(&format!("{base_url}/runs"), Some(&payload.to_string()));
 
     match resp {
         Ok(resp) if resp.status() == 201 => {

@@ -4085,7 +4085,6 @@ dependencies = [
  "superkick-storage",
  "tempfile",
  "tokio",
- "tokio-stream",
  "tokio-util",
  "tower",
  "tracing",
@@ -4141,6 +4140,7 @@ name = "superkick-desktop"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "superkick-config",
  "tauri",
  "tauri-build",
  "tempfile",

@@ -319,7 +319,5 @@ async fn emit_takeover_event<E: RunEventRepo>(
 ) {
     let mut event = RunEvent::new(run_id, None, kind, level, message);
     event.payload_json = Some(payload);
-    if let Err(err) = repo.insert(&event).await {
-        warn!("failed to emit takeover event: {err}");
-    }
+    crate::run_events::emit_built_event(repo, &event, "takeover").await;
 }

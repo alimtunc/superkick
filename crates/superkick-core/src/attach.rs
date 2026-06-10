@@ -47,17 +47,19 @@ pub fn prepare_attach(
     }
 
     if run.state.is_terminal() {
-        return Err(CoreError::InvalidInput("run is in terminal state".into()));
+        return Err(CoreError::TerminalState(run.state));
     }
 
-    if !matches!(
-        session.status,
-        AgentStatus::Starting | AgentStatus::Running | AgentStatus::Failed
-    ) {
-        return Err(CoreError::InvalidInput(
-            "session not eligible for attach".into(),
-        ));
-    }
+    let status_str = match session.status {
+        AgentStatus::Starting => "starting",
+        AgentStatus::Running => "running",
+        AgentStatus::Failed => "failed",
+        _ => {
+            return Err(CoreError::InvalidInput(
+                "session not eligible for attach".into(),
+            ));
+        }
+    };
 
     let Some(ref worktree_path) = run.worktree_path else {
         return Err(CoreError::InvalidInput(
@@ -93,17 +95,6 @@ pub fn prepare_attach(
          Useful for inspecting state, running tests, or making manual edits alongside \
          the supervised agent."
             .to_string()
-    };
-
-    let status_str = match session.status {
-        AgentStatus::Starting => "starting",
-        AgentStatus::Running => "running",
-        AgentStatus::Failed => "failed",
-        status => {
-            return Err(CoreError::InvalidInput(format!(
-                "session status '{status:?}' is not eligible for attach"
-            )));
-        }
     };
 
     let command = build_shell_command(

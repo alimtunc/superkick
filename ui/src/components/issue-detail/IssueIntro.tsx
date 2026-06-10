@@ -1,5 +1,5 @@
 import { ChildIssues } from '@/components/issue-detail/ChildIssues'
-import { IssueDescription } from '@/components/issue-detail/IssueDescription'
+import { EditableDescription } from '@/components/issue-detail/properties/EditableDescription'
 import { EditableTitle } from '@/components/issue-detail/properties/EditableTitle'
 import type { IssueDetailResponse } from '@/types'
 import { Icon, StatusIcon, statusIconKindFor } from '@/ui'
@@ -26,7 +26,7 @@ export function IssueIntro({ issue }: IssueIntroProps) {
 				</div>
 				<EditableTitle issue={issue} />
 			</div>
-			<IssueDescription issue={issue} />
+			<EditableDescription issue={issue} />
 			{issue.children.length > 0 ? (
 				<section aria-label="Sub-issues">
 					<ChildIssues issues={issue.children} />

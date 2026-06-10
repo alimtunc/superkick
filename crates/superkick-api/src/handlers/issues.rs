@@ -33,10 +33,7 @@ pub async fn list_issues(
     State(state): State<AppState>,
     axum::extract::Query(params): axum::extract::Query<ListIssuesParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let client = state
-        .linear_client
-        .as_ref()
-        .ok_or_else(|| AppError::ServiceUnavailable("LINEAR_API_KEY not configured"))?;
+    let client = state.linear()?;
 
     let response = client.list_issues(params.limit).await?;
 
@@ -47,10 +44,7 @@ pub async fn get_issue(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let client = state
-        .linear_client
-        .as_ref()
-        .ok_or_else(|| AppError::ServiceUnavailable("LINEAR_API_KEY not configured"))?;
+    let client = state.linear()?;
 
     let mut detail = client.get_issue(&id).await?;
 
@@ -58,14 +52,12 @@ pub async fn get_issue(
         .run_repo
         .list_by_issue_identifier(&detail.identifier)
         .await?;
-    let mut summaries = Vec::with_capacity(runs.len());
-    for run in &runs {
-        let pr = state
-            .pr_service
-            .resolve_pr_summary(run.id, &run.repo_slug)
-            .await;
-        summaries.push(LinkedRunSummary::from(run).with_pr(pr));
-    }
+    let pr_service = &state.pr_service;
+    let summaries = futures_util::future::join_all(runs.iter().map(|run| async move {
+        let pr = pr_service.resolve_pr_summary(run.id, &run.repo_slug).await;
+        LinkedRunSummary::from(run).with_pr(pr)
+    }))
+    .await;
     detail.linked_runs = summaries;
 
     Ok(Json(detail))
@@ -137,9 +129,7 @@ pub(crate) fn require_writer(state: &IssueWritesState) -> Result<&Arc<dyn Linear
     state
         .linear_writer
         .as_ref()
-        .ok_or(AppError::ServiceUnavailable(
-            "LINEAR_API_KEY not configured",
-        ))
+        .ok_or(AppError::ServiceUnavailable(crate::LINEAR_NOT_CONFIGURED))
 }
 
 pub type LinearFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, LinearError>> + Send + 'a>>;

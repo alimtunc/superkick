@@ -21,8 +21,9 @@ use crate::error::CoreError;
 use crate::launch_task::LaunchStepKind;
 use crate::output_expectation::OutputExpectation;
 use crate::reasoning::ReasoningEffort;
+use crate::serde_util::default_true;
 use crate::session_policy::SessionPolicy;
-use crate::skill::{SkillSource, default_true};
+use crate::skill::SkillSource;
 use crate::step_executor::StepExecutor;
 
 /// The product-level shape of a profile. Each named kind appears once among the

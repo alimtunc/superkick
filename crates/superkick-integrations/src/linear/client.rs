@@ -16,8 +16,8 @@ use super::types::{
     CachedComment, GqlCommentCreateResponse, GqlCommentsResponse, GqlDetailResponse,
     GqlIssueCreateResponse, GqlIssueUpdateResponse, GqlOptionsResponse, GqlRecentComment,
     GqlResponse, GqlSearchResponse, GqlTeamStatesResponse, GqlViewerResponse, IssueComment,
-    IssueCreateInput, IssueDetailResponse, IssueListResponse, IssueStateMutation, IssueUpdateInput,
-    LinearIssueListItem, LinearOptions, ViewerResponse, classify_graphql_errors,
+    IssueCreateInput, IssueDetailResponse, IssueListResponse, IssueUpdateInput,
+    LinearIssueListItem, LinearOptions, ViewerResponse,
 };
 
 const LINEAR_API_URL: &str = "https://api.linear.app/graphql";
@@ -241,14 +241,6 @@ macro_rules! issue_detail_selection {
     };
 }
 
-const ISSUE_UPDATE_STATE_ONLY_MUTATION: &str = r#"
-mutation UpdateIssueState($id: String!, $stateId: String!) {
-  issueUpdate(id: $id, input: { stateId: $stateId }) {
-    success
-  }
-}
-"#;
-
 const ISSUE_UPDATE_MUTATION: &str = concat!(
     "mutation UpdateIssue($id: String!, $input: IssueUpdateInput!) {",
     "  issueUpdate(id: $id, input: $input) {",
@@ -376,13 +368,7 @@ impl LinearClient {
                 }
             });
 
-            let gql: GqlResponse = self.post(&body).await?;
-
-            if let Some(errors) = gql.errors {
-                return Err(classify_graphql_errors(&errors));
-            }
-
-            let data = gql.data.ok_or(LinearError::NoData)?;
+            let data = self.post::<GqlResponse>(&body).await?.into_data()?;
             let issues = data.issues;
             let has_next = issues.page_info.has_next_page;
             cursor = issues.page_info.end_cursor;
@@ -426,13 +412,7 @@ impl LinearClient {
             }
         });
 
-        let gql: GqlSearchResponse = self.post(&body).await?;
-
-        if let Some(errors) = gql.errors {
-            return Err(classify_graphql_errors(&errors));
-        }
-
-        let data = gql.data.ok_or(LinearError::NoData)?;
+        let data = self.post::<GqlSearchResponse>(&body).await?.into_data()?;
         let issues: Vec<LinearIssueListItem> = data
             .search_issues
             .nodes
@@ -478,12 +458,7 @@ impl LinearClient {
                 }
             });
 
-            let gql: GqlCommentsResponse = self.post(&body).await?;
-            if let Some(errors) = gql.errors {
-                return Err(classify_graphql_errors(&errors));
-            }
-
-            let data = gql.data.ok_or(LinearError::NoData)?;
+            let data = self.post::<GqlCommentsResponse>(&body).await?.into_data()?;
             let has_next = data.comments.page_info.has_next_page;
             cursor = data.comments.page_info.end_cursor;
 
@@ -508,13 +483,7 @@ impl LinearClient {
             "variables": { "id": id }
         });
 
-        let gql: GqlDetailResponse = self.post(&body).await?;
-
-        if let Some(errors) = gql.errors {
-            return Err(classify_graphql_errors(&errors));
-        }
-
-        let data = gql.data.ok_or(LinearError::NoData)?;
+        let data = self.post::<GqlDetailResponse>(&body).await?.into_data()?;
         Ok(IssueDetailResponse::from(data.issue))
     }
 
@@ -547,45 +516,16 @@ impl LinearClient {
     /// "assigned to me" without name collisions.
     pub async fn viewer(&self) -> Result<ViewerResponse, LinearError> {
         let body = serde_json::json!({ "query": VIEWER_QUERY });
-        let gql: GqlViewerResponse = self.post(&body).await?;
-
-        if let Some(errors) = gql.errors {
-            return Err(classify_graphql_errors(&errors));
-        }
-
-        let user = gql.data.ok_or(LinearError::NoData)?.viewer;
+        let user = self
+            .post::<GqlViewerResponse>(&body)
+            .await?
+            .into_data()?
+            .viewer;
         Ok(ViewerResponse {
             id: user.id,
             name: user.name,
             avatar_url: user.avatar_url,
         })
-    }
-
-    /// Kanban drop path: slim state-only mutation, response discarded.
-    pub async fn update_issue_state(
-        &self,
-        issue_id: &str,
-        team_id: Option<&str>,
-        mutation: IssueStateMutation,
-    ) -> Result<(), LinearError> {
-        let state_id = self
-            .resolve_workflow_state_for_type(team_id, mutation.linear_state_type(), Some(issue_id))
-            .await?;
-        let body = serde_json::json!({
-            "query": ISSUE_UPDATE_STATE_ONLY_MUTATION,
-            "variables": { "id": issue_id, "stateId": state_id }
-        });
-        let gql: GqlIssueUpdateResponse = self.post(&body).await?;
-        if let Some(errors) = gql.errors {
-            return Err(classify_graphql_errors(&errors));
-        }
-        let data = gql.data.ok_or(LinearError::NoData)?;
-        if !data.issue_update.success {
-            return Err(LinearError::Rejected(
-                "Linear refused the status update (issueUpdate returned success=false)".into(),
-            ));
-        }
-        Ok(())
     }
 
     /// Apply a full `IssueUpdateInput` to an existing issue. Returns the
@@ -599,11 +539,10 @@ impl LinearClient {
             "query": ISSUE_UPDATE_MUTATION,
             "variables": { "id": issue_id, "input": input }
         });
-        let gql: GqlIssueUpdateResponse = self.post(&body).await?;
-        if let Some(errors) = gql.errors {
-            return Err(classify_graphql_errors(&errors));
-        }
-        let data = gql.data.ok_or(LinearError::NoData)?;
+        let data = self
+            .post::<GqlIssueUpdateResponse>(&body)
+            .await?
+            .into_data()?;
         if !data.issue_update.success {
             return Err(LinearError::Rejected(
                 "Linear refused the update (issueUpdate returned success=false)".into(),
@@ -627,11 +566,10 @@ impl LinearClient {
             "query": ISSUE_CREATE_MUTATION,
             "variables": { "input": input }
         });
-        let gql: GqlIssueCreateResponse = self.post(&body).await?;
-        if let Some(errors) = gql.errors {
-            return Err(classify_graphql_errors(&errors));
-        }
-        let data = gql.data.ok_or(LinearError::NoData)?;
+        let data = self
+            .post::<GqlIssueCreateResponse>(&body)
+            .await?
+            .into_data()?;
         if !data.issue_create.success {
             return Err(LinearError::Rejected(
                 "Linear refused the create (issueCreate returned success=false)".into(),
@@ -655,11 +593,10 @@ impl LinearClient {
             "query": COMMENT_CREATE_MUTATION,
             "variables": { "issueId": issue_id, "body": body }
         });
-        let gql: GqlCommentCreateResponse = self.post(&payload).await?;
-        if let Some(errors) = gql.errors {
-            return Err(classify_graphql_errors(&errors));
-        }
-        let data = gql.data.ok_or(LinearError::NoData)?;
+        let data = self
+            .post::<GqlCommentCreateResponse>(&payload)
+            .await?
+            .into_data()?;
         if !data.comment_create.success {
             return Err(LinearError::Rejected(
                 "Linear refused the comment (commentCreate returned success=false)".into(),
@@ -683,11 +620,7 @@ impl LinearClient {
             "query": LINEAR_OPTIONS_QUERY,
             "variables": { "first": OPTIONS_PAGE_LIMIT, "teamFirst": TEAM_OPTIONS_LIMIT }
         });
-        let gql: GqlOptionsResponse = self.post(&body).await?;
-        if let Some(errors) = gql.errors {
-            return Err(classify_graphql_errors(&errors));
-        }
-        let data = gql.data.ok_or(LinearError::NoData)?;
+        let data = self.post::<GqlOptionsResponse>(&body).await?.into_data()?;
         // Warm the workflow-state cache from the same payload so a follow-up
         // `update_issue_state` for any returned team skips the team-states
         // round-trip.
@@ -737,13 +670,11 @@ impl LinearClient {
             "query": ISSUE_TEAM_QUERY,
             "variables": { "id": issue_id }
         });
-        let gql: super::types::GqlIssueTeamResponse = self.post(&body).await?;
-        if let Some(errors) = gql.errors {
-            return Err(classify_graphql_errors(&errors));
-        }
-        gql.data
-            .and_then(|d| d.issue.map(|i| i.team.id))
-            .ok_or(LinearError::NoData)
+        let data = self
+            .post::<super::types::GqlIssueTeamResponse>(&body)
+            .await?
+            .into_data()?;
+        data.issue.map(|i| i.team.id).ok_or(LinearError::NoData)
     }
 
     async fn resolve_workflow_state_id(
@@ -798,11 +729,10 @@ impl LinearClient {
             "query": TEAM_STATES_QUERY,
             "variables": { "teamId": team_id }
         });
-        let gql: GqlTeamStatesResponse = self.post(&body).await?;
-        if let Some(errors) = gql.errors {
-            return Err(classify_graphql_errors(&errors));
-        }
-        let data = gql.data.ok_or(LinearError::NoData)?;
+        let data = self
+            .post::<GqlTeamStatesResponse>(&body)
+            .await?
+            .into_data()?;
         let team = data
             .team
             .ok_or_else(|| LinearError::Rejected(format!("Linear team {team_id} not found")))?;

@@ -78,6 +78,7 @@ impl PullRequest {
         number: u32,
         repo_slug: String,
         url: String,
+        state: PrState,
         title: String,
         head_branch: String,
     ) -> Self {
@@ -88,7 +89,7 @@ impl PullRequest {
             number,
             repo_slug,
             url,
-            state: PrState::Open,
+            state,
             title,
             head_branch,
             created_at: now,
