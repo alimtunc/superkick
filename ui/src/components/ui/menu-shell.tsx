@@ -3,6 +3,9 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { Menu } from '@base-ui/react/menu'
 
+export const MENU_ITEM_CLASS =
+	'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-[12.5px] text-fg outline-none data-highlighted:bg-raised'
+
 interface MenuPopupProps {
 	children: ReactNode
 	className?: string

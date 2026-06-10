@@ -1,5 +1,6 @@
 export type SettingsPaneId =
 	| 'general'
+	| 'integrations'
 	| 'providers'
 	| 'skills'
 	| 'profiles'
@@ -11,9 +12,12 @@ export type SettingsPaneId =
 	| 'api-tokens'
 	| 'members'
 
+export type SettingsScope = 'global' | 'project'
+
 export interface SettingsNavItem {
 	id: SettingsPaneId
 	label: string
+	scope: SettingsScope
 }
 
 export interface SettingsRule {

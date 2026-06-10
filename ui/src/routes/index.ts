@@ -12,9 +12,9 @@ import { Route as queueRoute } from './_shell/queue'
 import { Route as shellRoute } from './_shell/route'
 import { Route as runsRoute } from './_shell/runs'
 import { Route as runDetailRoute } from './_shell/runs.$runId'
-import { Route as settingsRoute } from './_shell/settings'
 import { Route as tasksDetailRoute } from './_shell/tasks.$taskId'
 import { Route as tasksNewRoute } from './_shell/tasks.new'
+import { Route as settingsRoute } from './settings'
 
 const routeTree = rootRoute.addChildren([
 	shellRoute.addChildren([
@@ -27,10 +27,10 @@ const routeTree = rootRoute.addChildren([
 		runDetailRoute,
 		attentionRoute,
 		agentsRoute,
-		settingsRoute,
 		tasksNewRoute,
 		tasksDetailRoute
-	])
+	]),
+	settingsRoute
 ])
 
 export function createAppRouter(queryClient: QueryClient) {

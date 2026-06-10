@@ -301,7 +301,7 @@ async fn build_app_state(
     let cache_root = PathBuf::from(&cfg.cache_dir);
     let repo_cache = RepoCache::new(cache_root).await?;
 
-    let linear_client = std::env::var("LINEAR_API_KEY")
+    let linear_client = std::env::var(superkick_config::ENV_LINEAR_API_KEY)
         .ok()
         .filter(|k| !k.is_empty())
         .map(|key| Arc::new(LinearClient::new(key)));

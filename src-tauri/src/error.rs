@@ -14,6 +14,13 @@ pub enum ServerError {
         source: std::io::Error,
     },
 
+    #[error("failed to create the project data dir {}: {source}", .path.display())]
+    DataDir {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
     #[error("failed to remove stale port file {}: {source}", .path.display())]
     StalePortFile {
         path: PathBuf,
@@ -36,6 +43,13 @@ pub enum ServerError {
 
     #[error("failed to terminate superkick-api (pid {pid}): {source}")]
     Shutdown {
+        pid: u32,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("failed to probe superkick-api (pid {pid}) for liveness: {source}")]
+    Liveness {
         pid: u32,
         #[source]
         source: std::io::Error,

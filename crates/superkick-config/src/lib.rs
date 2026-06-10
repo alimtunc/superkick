@@ -12,7 +12,7 @@ mod validate;
 
 pub use boot::{
     DEFAULT_CACHE_DIR, DEFAULT_DATABASE_URL, DEFAULT_PORT, ENV_CACHE_DIR, ENV_CONFIG,
-    ENV_DATABASE_URL, ENV_PORT, port_file_path,
+    ENV_DATABASE_URL, ENV_LINEAR_API_KEY, ENV_PORT, ENV_PORT_FILE, port_file_path,
 };
 pub use model::*;
 pub use repo_slug::{detect_repo_slug, parse_repo_slug};

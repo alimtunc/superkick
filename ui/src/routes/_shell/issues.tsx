@@ -32,10 +32,11 @@ export const Route = createRoute({
 	getParentRoute: () => shellRoute,
 	path: '/issues',
 	validateSearch: parseIssuesSearch,
+	// Loader failures (e.g. 503 when Linear is not configured) must not crash the route — the page renders its own ErrorState.
 	loader: ({ context }) =>
 		Promise.all([
-			context.queryClient.ensureQueryData(issuesQuery()),
-			context.queryClient.ensureQueryData(launchQueueQuery())
+			context.queryClient.ensureQueryData(issuesQuery()).catch(() => null),
+			context.queryClient.ensureQueryData(launchQueueQuery()).catch(() => null)
 		]),
 	component: IssuesPage
 })
