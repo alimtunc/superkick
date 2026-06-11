@@ -13,15 +13,17 @@ use superkick_config::RunnerConfig;
 use superkick_core::AgentCatalog;
 use superkick_runtime::{LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry};
 use superkick_storage::{
-    SqliteAgentSessionRepo, SqliteIssueWorkspaceContextRepo, SqliteLaunchTaskInterventionRepo,
-    SqliteLaunchTaskRepo, SqliteOrchestratorSessionRepo, SqliteRunContextSnapshotRepo,
-    SqliteRunRepo,
+    SqliteAgentSessionRepo, SqliteDiffReviewRepo, SqliteIssueWorkspaceContextRepo,
+    SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo, SqliteOrchestratorSessionRepo,
+    SqliteRunContextSnapshotRepo, SqliteRunRepo,
 };
 
 use crate::{EventRepo, handlers};
 
 pub mod tests_only {
-    use superkick_core::CoreError;
+    use superkick_core::{
+        CoreError, DiffReviewFixPromptComment, DiffReviewLineSide, render_diff_review_fix_prompt,
+    };
 
     use crate::error::AppError;
 
@@ -30,6 +32,50 @@ pub mod tests_only {
     /// going through a full handler invocation.
     pub fn map_core_error(err: CoreError) -> AppError {
         AppError::from(err)
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct FixPromptCommentForTest {
+        pub file_path: String,
+        pub side: String,
+        pub old_line: Option<u32>,
+        pub new_line: Option<u32>,
+        pub body: String,
+    }
+
+    pub fn render_fix_with_ai_prompt_for_test(
+        issue_identifier: &str,
+        source_run_id: superkick_core::RunId,
+        source_branch: Option<&str>,
+        base_ref: &str,
+        head_ref: &str,
+        comments: &[FixPromptCommentForTest],
+        snapshot_json: Option<&str>,
+    ) -> String {
+        let comments = comments
+            .iter()
+            .map(|comment| DiffReviewFixPromptComment {
+                file_path: comment.file_path.clone(),
+                side: match comment.side.as_str() {
+                    "old" => DiffReviewLineSide::Old,
+                    "new" => DiffReviewLineSide::New,
+                    "context" => DiffReviewLineSide::Context,
+                    other => panic!("unsupported test comment side: {other}"),
+                },
+                old_line: comment.old_line,
+                new_line: comment.new_line,
+                body: comment.body.clone(),
+            })
+            .collect::<Vec<_>>();
+        render_diff_review_fix_prompt(
+            issue_identifier,
+            source_run_id,
+            source_branch,
+            base_ref,
+            head_ref,
+            &comments,
+            snapshot_json,
+        )
     }
 }
 
@@ -159,6 +205,45 @@ pub fn run_diff_test_router(repo: Arc<SqliteRunRepo>, base_branch: String) -> Ro
     };
     Router::new()
         .route("/runs/{id}/diff", get(handlers::runs::get_run_diff))
+        .with_state(state)
+}
+
+/// Local run-review routes against the run repo plus review repo.
+pub fn run_review_test_router(
+    run_repo: Arc<SqliteRunRepo>,
+    review_repo: Arc<SqliteDiffReviewRepo>,
+) -> Router {
+    let state = handlers::run_reviews::RunReviewState {
+        run_repo,
+        review_repo,
+    };
+    Router::new()
+        .route(
+            "/runs/{id}/review",
+            get(handlers::run_reviews::get_run_review),
+        )
+        .route(
+            "/runs/{id}/review/threads",
+            post(handlers::run_reviews::create_thread),
+        )
+        .route(
+            "/runs/{id}/review/threads/{thread_id}",
+            axum::routing::patch(handlers::run_reviews::patch_thread)
+                .delete(handlers::run_reviews::delete_thread),
+        )
+        .route(
+            "/runs/{id}/review/threads/{thread_id}/comments",
+            post(handlers::run_reviews::add_comment),
+        )
+        .route(
+            "/runs/{id}/review/threads/{thread_id}/comments/{comment_id}",
+            axum::routing::patch(handlers::run_reviews::patch_comment)
+                .delete(handlers::run_reviews::delete_comment),
+        )
+        .route(
+            "/runs/{id}/review/files/reviewed",
+            post(handlers::run_reviews::set_file_reviewed),
+        )
         .with_state(state)
 }
 

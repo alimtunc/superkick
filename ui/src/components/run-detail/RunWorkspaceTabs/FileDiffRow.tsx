@@ -2,7 +2,7 @@ import { Suspense, lazy, useRef, useState } from 'react'
 
 import { useInView } from '@/hooks/useInView'
 import { splitPath } from '@/lib/path'
-import type { DiffViewMode, FileDiff, FileDiffStatus } from '@/types'
+import type { DiffPatchReview, DiffViewMode, FileDiff, FileDiffStatus } from '@/types'
 import { Icon } from '@/ui/Icon'
 
 const DiffPatchView = lazy(() =>
@@ -30,9 +30,10 @@ const STATUS_COLOR: Record<FileDiffStatus, string> = {
 interface FileDiffRowProps {
 	file: FileDiff
 	mode: DiffViewMode
+	review?: DiffPatchReview
 }
 
-export function FileDiffRow({ file, mode }: FileDiffRowProps) {
+export function FileDiffRow({ file, mode, review }: FileDiffRowProps) {
 	const [expanded, setExpanded] = useState(true)
 	const patchRef = useRef<HTMLDivElement>(null)
 	const inView = useInView(patchRef)
@@ -93,6 +94,7 @@ export function FileDiffRow({ file, mode }: FileDiffRowProps) {
 								oldPath={file.oldPath}
 								mode={mode}
 								deletions={file.deletions}
+								review={review}
 							/>
 						</Suspense>
 					) : (

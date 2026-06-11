@@ -8,15 +8,17 @@ use chrono::{DateTime, Utc};
 use superkick_core::{AgentProvider, LaunchProfile, ProviderSettings, SkillDefinition};
 use superkick_core::{
     AgentSession, AgentSessionId, Artifact, ArtifactId, AttentionRequest, AttentionRequestId,
-    Conversation, ConversationId, ConversationStatus, ConversationSubject, EventId,
-    FailureClassification, Handoff, HandoffId, Interrupt, InterruptId, IssueBlocker,
-    IssueWorkspaceContext, IssueWorkspaceContextCommentExcerpt, IssueWorkspaceContextId,
-    IssueWorkspaceContextLink, IssueWorkspaceContextLinkKind, LaunchTask, LaunchTaskId,
-    LaunchTaskIntervention, LaunchTaskInterventionId, LaunchTaskStatus, LaunchTaskStep,
-    LaunchTaskStepId, LaunchTaskStepStatus, MemoryCursor, MemoryEntry, MemoryPage,
-    OrchestratorCheckpoint, OrchestratorCheckpointId, OrchestratorSession, OrchestratorSessionId,
-    OrchestratorStatus, OwnershipEvent, ProtocolEventEnvelope, PullRequest, Run,
-    RunContextSnapshot, RunEvent, RunId, RunStep, SessionLifecycleEvent, StepId, StepResult,
+    Conversation, ConversationId, ConversationStatus, ConversationSubject, DiffReviewComment,
+    DiffReviewCommentId, DiffReviewFileReviewedChange, DiffReviewFileState, DiffReviewState,
+    DiffReviewThread, DiffReviewThreadId, EventId, FailureClassification, Handoff, HandoffId,
+    Interrupt, InterruptId, IssueBlocker, IssueWorkspaceContext,
+    IssueWorkspaceContextCommentExcerpt, IssueWorkspaceContextId, IssueWorkspaceContextLink,
+    IssueWorkspaceContextLinkKind, LaunchTask, LaunchTaskId, LaunchTaskIntervention,
+    LaunchTaskInterventionId, LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId,
+    LaunchTaskStepStatus, MemoryCursor, MemoryEntry, MemoryPage, NewDiffReviewComment,
+    NewDiffReviewThread, OrchestratorCheckpoint, OrchestratorCheckpointId, OrchestratorSession,
+    OrchestratorSessionId, OrchestratorStatus, OwnershipEvent, ProtocolEventEnvelope, PullRequest,
+    Run, RunContextSnapshot, RunEvent, RunId, RunStep, SessionLifecycleEvent, StepId, StepResult,
     TranscriptChunk, Turn, TurnEvent, TurnId, UsageSnapshot,
 };
 
@@ -124,6 +126,54 @@ pub trait PullRequestRepo: Send + Sync {
     fn get_by_run(&self, run_id: RunId)
     -> impl Future<Output = Result<Option<PullRequest>>> + Send;
     fn update(&self, pr: &PullRequest) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// Repository for local inline diff review state (SUP-199).
+pub trait DiffReviewRepo: Send + Sync {
+    fn list_by_run(&self, run_id: RunId) -> impl Future<Output = Result<DiffReviewState>> + Send;
+
+    fn get_thread(
+        &self,
+        thread_id: DiffReviewThreadId,
+    ) -> impl Future<Output = Result<Option<DiffReviewThread>>> + Send;
+
+    fn create_thread(
+        &self,
+        thread: NewDiffReviewThread,
+    ) -> impl Future<Output = Result<DiffReviewThread>> + Send;
+
+    fn add_comment(
+        &self,
+        thread_id: DiffReviewThreadId,
+        comment: NewDiffReviewComment,
+    ) -> impl Future<Output = Result<DiffReviewComment>> + Send;
+
+    fn update_comment(
+        &self,
+        comment_id: DiffReviewCommentId,
+        body: String,
+    ) -> impl Future<Output = Result<Option<DiffReviewComment>>> + Send;
+
+    fn delete_comment(
+        &self,
+        comment_id: DiffReviewCommentId,
+    ) -> impl Future<Output = Result<bool>> + Send;
+
+    fn set_thread_resolved(
+        &self,
+        thread_id: DiffReviewThreadId,
+        resolved: bool,
+    ) -> impl Future<Output = Result<Option<DiffReviewThread>>> + Send;
+
+    fn delete_thread(
+        &self,
+        thread_id: DiffReviewThreadId,
+    ) -> impl Future<Output = Result<bool>> + Send;
+
+    fn set_file_reviewed(
+        &self,
+        change: DiffReviewFileReviewedChange,
+    ) -> impl Future<Output = Result<DiffReviewFileState>> + Send;
 }
 
 /// Repository for durable terminal transcript chunks.

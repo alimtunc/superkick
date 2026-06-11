@@ -20,12 +20,12 @@ use superkick_runtime::{
 };
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo,
-    SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssueWorkspaceContextRepo,
-    SqliteLaunchProfileRepo, SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo,
-    SqliteMemoryEntryRepo, SqliteOrchestratorSessionRepo, SqliteProviderSettingsRepo,
-    SqlitePullRequestRepo, SqliteRecoveryEventRepo, SqliteRunContextSnapshotRepo,
-    SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo, SqliteRuntimeRepo,
-    SqliteSessionOwnershipRepo, SqliteSkillDefinitionRepo, SqliteTranscriptRepo,
+    SqliteDiffReviewRepo, SqliteInterruptRepo, SqliteIssueBlockerRepo,
+    SqliteIssueWorkspaceContextRepo, SqliteLaunchProfileRepo, SqliteLaunchTaskInterventionRepo,
+    SqliteLaunchTaskRepo, SqliteMemoryEntryRepo, SqliteOrchestratorSessionRepo,
+    SqliteProviderSettingsRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo,
+    SqliteRunContextSnapshotRepo, SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
+    SqliteRuntimeRepo, SqliteSessionOwnershipRepo, SqliteSkillDefinitionRepo, SqliteTranscriptRepo,
     SqliteTurnEventRepo, SqliteTurnRepo,
 };
 
@@ -42,7 +42,8 @@ mod ui_assets;
 pub use test_routers::{
     agents_test_router, issue_context_test_router, launch_task_test_router,
     linear_writes_test_router, orchestrator_session_test_router, run_context_snapshot_test_router,
-    run_diff_test_router, runner_config_test_router, test_handlers, tests_only,
+    run_diff_test_router, run_review_test_router, runner_config_test_router, test_handlers,
+    tests_only,
 };
 
 // ── App state ──────────────────────────────────────────────────────────
@@ -95,6 +96,7 @@ pub(crate) type ProdLaunchProfileService =
 #[derive(Clone)]
 pub(crate) struct AppState {
     pub run_repo: Arc<SqliteRunRepo>,
+    pub review_repo: Arc<SqliteDiffReviewRepo>,
     pub step_repo: Arc<SqliteRunStepRepo>,
     pub event_repo: Arc<EventRepo>,
     pub session_repo: Arc<SqliteAgentSessionRepo>,
@@ -264,6 +266,7 @@ async fn build_app_state(
     // tasks that live for the lifetime of the server.
 
     let run_repo = Arc::new(SqliteRunRepo::new(pool.clone()));
+    let review_repo = Arc::new(SqliteDiffReviewRepo::new(pool.clone()));
     let step_repo = Arc::new(SqliteRunStepRepo::new(pool.clone()));
     let event_repo = Arc::new(PublishingRunEventRepo::new(
         SqliteRunEventRepo::new(pool.clone()),
@@ -493,6 +496,7 @@ async fn build_app_state(
 
     Ok(AppState {
         run_repo,
+        review_repo,
         step_repo,
         event_repo,
         session_repo,
@@ -594,6 +598,35 @@ fn api_router(state: AppState) -> Router {
         )
         .route("/runs/{id}", get(handlers::runs::get_run))
         .route("/runs/{id}/diff", get(handlers::runs::get_run_diff))
+        .route(
+            "/runs/{id}/review",
+            get(handlers::run_reviews::get_run_review),
+        )
+        .route(
+            "/runs/{id}/review/threads",
+            post(handlers::run_reviews::create_thread),
+        )
+        .route(
+            "/runs/{id}/review/threads/{thread_id}",
+            patch(handlers::run_reviews::patch_thread).delete(handlers::run_reviews::delete_thread),
+        )
+        .route(
+            "/runs/{id}/review/threads/{thread_id}/comments",
+            post(handlers::run_reviews::add_comment),
+        )
+        .route(
+            "/runs/{id}/review/threads/{thread_id}/comments/{comment_id}",
+            patch(handlers::run_reviews::patch_comment)
+                .delete(handlers::run_reviews::delete_comment),
+        )
+        .route(
+            "/runs/{id}/review/files/reviewed",
+            post(handlers::run_reviews::set_file_reviewed),
+        )
+        .route(
+            "/runs/{id}/review/fix-with-ai",
+            post(handlers::run_reviews::fix_with_ai),
+        )
         .route("/runs/{id}/ship", post(handlers::runs::ship_run))
         .route("/runs/{id}/events", get(handlers::runs::get_run_events))
         .route(
