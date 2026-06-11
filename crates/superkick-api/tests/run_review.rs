@@ -53,6 +53,7 @@ async fn create_list_reply_resolve_and_delete_thread() -> Result<()> {
             "filePath": "ui/src/App.tsx",
             "side": "new",
             "newLine": 12,
+            "newLineEnd": 14,
             "hunkHeader": "@@ -10,2 +10,3 @@",
             "hunkIndex": 0,
             "baseRef": "abc1234",
@@ -66,6 +67,7 @@ async fn create_list_reply_resolve_and_delete_thread() -> Result<()> {
     let thread_id = body["id"].as_str().expect("thread id");
     assert_eq!(body["anchor"]["issueId"], "issue-uuid");
     assert_eq!(body["anchor"]["filePath"], "ui/src/App.tsx");
+    assert_eq!(body["anchor"]["newLineEnd"], 14);
     assert_eq!(
         body["comments"][0]["body"],
         "Extract this branch before shipping."
@@ -183,6 +185,8 @@ fn fix_with_ai_prompt_includes_unresolved_comments_and_guardrails() {
                 side: "new".into(),
                 old_line: None,
                 new_line: Some(12),
+                old_line_end: None,
+                new_line_end: Some(14),
                 body: "Extract this branch before shipping.".into(),
             },
             tests_only::FixPromptCommentForTest {
@@ -190,6 +194,8 @@ fn fix_with_ai_prompt_includes_unresolved_comments_and_guardrails() {
                 side: "old".into(),
                 old_line: Some(44),
                 new_line: None,
+                old_line_end: None,
+                new_line_end: None,
                 body: "This deletion drops the error context.".into(),
             },
         ],
@@ -201,7 +207,7 @@ fn fix_with_ai_prompt_includes_unresolved_comments_and_guardrails() {
     assert!(prompt.contains("SUP-199"));
     assert!(prompt.contains(&run_id.to_string()));
     assert!(prompt.contains("ui/src/App.tsx"));
-    assert!(prompt.contains("new line 12"));
+    assert!(prompt.contains("new lines 12-14"));
     assert!(prompt.contains("This deletion drops the error context."));
     assert!(prompt.contains("Run context snapshot"));
 }

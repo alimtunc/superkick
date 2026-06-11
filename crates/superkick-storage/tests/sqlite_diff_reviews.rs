@@ -46,7 +46,9 @@ fn anchor(run_id: RunId, file_path: &str, new_line: u32) -> DiffReviewAnchor {
         old_path: None,
         side: DiffReviewLineSide::New,
         old_line: None,
+        old_line_end: None,
         new_line: Some(new_line),
+        new_line_end: None,
         hunk_header: Some("@@ -1,2 +1,3 @@".into()),
         hunk_index: Some(0),
         base_ref: Some("abc1234".into()),
@@ -84,6 +86,29 @@ async fn create_thread_persists_anchor_and_scopes_by_run() -> Result<()> {
     let other_state = repo.list_by_run(other_run_id).await?;
     assert!(other_state.threads.is_empty());
     assert_eq!(other_state.unresolved_comment_count, 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn line_range_anchor_round_trips() -> Result<()> {
+    let (repo, run_repo) = setup().await?;
+    let run_id = insert_run(&run_repo).await?;
+    let mut review_anchor = anchor(run_id, "src/lib.rs", 42);
+    review_anchor.new_line_end = Some(45);
+
+    let thread = repo
+        .create_thread(NewDiffReviewThread {
+            anchor: review_anchor,
+            author: Some("operator".into()),
+            body: "Extract this full range.".into(),
+        })
+        .await?;
+
+    let state = repo.list_by_run(run_id).await?;
+    assert_eq!(thread.anchor.new_line, Some(42));
+    assert_eq!(thread.anchor.new_line_end, Some(45));
+    assert_eq!(state.threads[0].anchor.new_line_end, Some(45));
 
     Ok(())
 }

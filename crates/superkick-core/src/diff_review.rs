@@ -62,7 +62,11 @@ pub struct DiffReviewAnchor {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub old_line: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub old_line_end: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub new_line: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub new_line_end: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hunk_header: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -80,11 +84,17 @@ impl DiffReviewAnchor {
                 "review file_path must not be empty".into(),
             ));
         }
-        if self.old_line == Some(0) || self.new_line == Some(0) {
+        if self.old_line == Some(0)
+            || self.old_line_end == Some(0)
+            || self.new_line == Some(0)
+            || self.new_line_end == Some(0)
+        {
             return Err(CoreError::InvalidInput(
                 "review anchor line numbers must be greater than zero".into(),
             ));
         }
+        validate_line_range("old", self.old_line, self.old_line_end)?;
+        validate_line_range("new", self.new_line, self.new_line_end)?;
         match self.side {
             DiffReviewLineSide::Old if self.old_line.is_none() => {
                 return Err(CoreError::InvalidInput(
@@ -284,7 +294,9 @@ pub struct DiffReviewFixPromptComment {
     pub file_path: String,
     pub side: DiffReviewLineSide,
     pub old_line: Option<u32>,
+    pub old_line_end: Option<u32>,
     pub new_line: Option<u32>,
+    pub new_line_end: Option<u32>,
     pub body: String,
 }
 
@@ -303,7 +315,9 @@ pub fn unresolved_diff_review_fix_prompt_comments(
                     file_path: thread.anchor.file_path.clone(),
                     side: thread.anchor.side,
                     old_line: thread.anchor.old_line,
+                    old_line_end: thread.anchor.old_line_end,
                     new_line: thread.anchor.new_line,
+                    new_line_end: thread.anchor.new_line_end,
                     body: comment.body.clone(),
                 })
         })
@@ -402,24 +416,60 @@ fn normalize_body(body: &str) -> Result<String, CoreError> {
     Ok(body.to_string())
 }
 
+fn validate_line_range(side: &str, start: Option<u32>, end: Option<u32>) -> Result<(), CoreError> {
+    let Some(end) = end else {
+        return Ok(());
+    };
+    let Some(start) = start else {
+        return Err(CoreError::InvalidInput(format!(
+            "{side} review line range requires a start line"
+        )));
+    };
+    if end < start {
+        return Err(CoreError::InvalidInput(format!(
+            "{side} review line range must end on or after its start line"
+        )));
+    }
+    Ok(())
+}
+
 fn line_label(comment: &DiffReviewFixPromptComment) -> String {
     match comment.side {
-        DiffReviewLineSide::New => match comment.new_line {
-            Some(line) => format!("new line {line}"),
-            None => "new line unknown".to_string(),
-        },
-        DiffReviewLineSide::Old => match comment.old_line {
-            Some(line) => format!("old line {line}"),
-            None => "old line unknown".to_string(),
-        },
+        DiffReviewLineSide::New => line_span_label("new", comment.new_line, comment.new_line_end),
+        DiffReviewLineSide::Old => line_span_label("old", comment.old_line, comment.old_line_end),
         DiffReviewLineSide::Context => match (comment.old_line, comment.new_line) {
             (Some(old_line), Some(new_line)) => {
-                format!("context old line {old_line}, new line {new_line}")
+                let old_label = span_suffix(old_line, comment.old_line_end);
+                let new_label = span_suffix(new_line, comment.new_line_end);
+                format!("context old line{old_label}, new line{new_label}")
             }
-            (Some(line), None) => format!("context old line {line}"),
-            (None, Some(line)) => format!("context new line {line}"),
+            (Some(line), None) => {
+                let suffix = span_suffix(line, comment.old_line_end);
+                format!("context old line{suffix}")
+            }
+            (None, Some(line)) => {
+                let suffix = span_suffix(line, comment.new_line_end);
+                format!("context new line{suffix}")
+            }
             (None, None) => "context line unknown".to_string(),
         },
+    }
+}
+
+fn line_span_label(side: &str, start: Option<u32>, end: Option<u32>) -> String {
+    match start {
+        Some(start) => match end {
+            Some(end) if end > start => format!("{side} lines {start}-{end}"),
+            _ => format!("{side} line {start}"),
+        },
+        None => format!("{side} line unknown"),
+    }
+}
+
+fn span_suffix(start: u32, end: Option<u32>) -> String {
+    match end {
+        Some(end) if end > start => format!("s {start}-{end}"),
+        _ => format!(" {start}"),
     }
 }
 
@@ -435,7 +485,9 @@ mod tests {
             old_path: None,
             side,
             old_line: None,
+            old_line_end: None,
             new_line: None,
+            new_line_end: None,
             hunk_header: Some("@@ -1,2 +1,2 @@".into()),
             hunk_index: Some(0),
             base_ref: Some("abc1234".into()),
@@ -501,6 +553,37 @@ mod tests {
     }
 
     #[test]
+    fn new_thread_accepts_line_range() {
+        let mut review_anchor = anchor(DiffReviewLineSide::New);
+        review_anchor.new_line = Some(4);
+        review_anchor.new_line_end = Some(7);
+        let thread = DiffReviewThread::new(NewDiffReviewThread {
+            anchor: review_anchor,
+            author: Some("operator".into()),
+            body: "Range needs a single review thread.".into(),
+        })
+        .expect("new line range");
+
+        assert_eq!(thread.anchor.new_line, Some(4));
+        assert_eq!(thread.anchor.new_line_end, Some(7));
+    }
+
+    #[test]
+    fn new_thread_rejects_line_range_ending_before_start() {
+        let mut review_anchor = anchor(DiffReviewLineSide::New);
+        review_anchor.new_line = Some(7);
+        review_anchor.new_line_end = Some(4);
+        let err = DiffReviewThread::new(NewDiffReviewThread {
+            anchor: review_anchor,
+            author: Some("operator".into()),
+            body: "Invalid range.".into(),
+        })
+        .expect_err("range ending before start should fail");
+
+        assert!(matches!(err, CoreError::InvalidInput(message) if message.contains("line range")));
+    }
+
+    #[test]
     fn thread_normalizes_anchor_paths_and_refs() {
         let mut review_anchor = anchor(DiffReviewLineSide::New);
         review_anchor.issue_id = Some(" issue-1 ".into());
@@ -548,6 +631,7 @@ mod tests {
         let mut open_anchor = anchor(DiffReviewLineSide::New);
         open_anchor.run_id = run_id;
         open_anchor.new_line = Some(12);
+        open_anchor.new_line_end = Some(15);
         let mut resolved_anchor = anchor(DiffReviewLineSide::Old);
         resolved_anchor.run_id = run_id;
         resolved_anchor.file_path = "src/other.rs".into();
@@ -581,7 +665,7 @@ mod tests {
             Some("{\"version\":0}"),
         );
         assert!(prompt.contains("Do not introduce unrelated changes"));
-        assert!(prompt.contains("new line 12"));
+        assert!(prompt.contains("new lines 12-15"));
         assert!(prompt.contains("Fix this branch."));
         assert!(!prompt.contains("Already handled."));
     }

@@ -40,6 +40,8 @@ pub mod tests_only {
         pub side: String,
         pub old_line: Option<u32>,
         pub new_line: Option<u32>,
+        pub old_line_end: Option<u32>,
+        pub new_line_end: Option<u32>,
         pub body: String,
     }
 
@@ -63,7 +65,9 @@ pub mod tests_only {
                     other => panic!("unsupported test comment side: {other}"),
                 },
                 old_line: comment.old_line,
+                old_line_end: comment.old_line_end,
                 new_line: comment.new_line,
+                new_line_end: comment.new_line_end,
                 body: comment.body.clone(),
             })
             .collect::<Vec<_>>();

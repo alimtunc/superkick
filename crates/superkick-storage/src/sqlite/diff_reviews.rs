@@ -82,9 +82,10 @@ impl DiffReviewRepo for SqliteDiffReviewRepo {
             .context("begin create diff_review_thread tx")?;
         sqlx::query(
             "INSERT INTO diff_review_threads (\
-                 id, run_id, issue_id, file_path, old_path, side, old_line, new_line, \
-                 hunk_header, hunk_index, base_ref, head_ref, state, author, created_at, updated_at\
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+                 id, run_id, issue_id, file_path, old_path, side, old_line, old_line_end, \
+                 new_line, new_line_end, hunk_header, hunk_index, base_ref, head_ref, state, \
+                 author, created_at, updated_at\
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
         )
         .bind(thread.id.0.to_string())
         .bind(thread.anchor.run_id.0.to_string())
@@ -93,7 +94,9 @@ impl DiffReviewRepo for SqliteDiffReviewRepo {
         .bind(thread.anchor.old_path.clone())
         .bind(serialize_enum(&thread.anchor.side)?)
         .bind(thread.anchor.old_line.map(i64::from))
+        .bind(thread.anchor.old_line_end.map(i64::from))
         .bind(thread.anchor.new_line.map(i64::from))
+        .bind(thread.anchor.new_line_end.map(i64::from))
         .bind(thread.anchor.hunk_header.clone())
         .bind(thread.anchor.hunk_index.map(i64::from))
         .bind(thread.anchor.base_ref.clone())
@@ -365,7 +368,9 @@ struct ThreadRow {
     old_path: Option<String>,
     side: String,
     old_line: Option<i64>,
+    old_line_end: Option<i64>,
     new_line: Option<i64>,
+    new_line_end: Option<i64>,
     hunk_header: Option<String>,
     hunk_index: Option<i64>,
     base_ref: Option<String>,
@@ -387,7 +392,9 @@ impl ThreadRow {
                 old_path: self.old_path,
                 side: deserialize_enum::<DiffReviewLineSide>(&self.side)?,
                 old_line: self.old_line.map(u32::try_from).transpose()?,
+                old_line_end: self.old_line_end.map(u32::try_from).transpose()?,
                 new_line: self.new_line.map(u32::try_from).transpose()?,
+                new_line_end: self.new_line_end.map(u32::try_from).transpose()?,
                 hunk_header: self.hunk_header,
                 hunk_index: self.hunk_index.map(u32::try_from).transpose()?,
                 base_ref: self.base_ref,

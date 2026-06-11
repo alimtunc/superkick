@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { ChangesTab } from '@/components/run-detail/RunWorkspaceTabs/ChangesTab'
 import type { DiffReviewState, FileDiff, Run, RunDiffResponse } from '@/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -165,8 +165,9 @@ describe('ChangesTab', () => {
 
 		render(wrap(<ChangesTab run={buildRun()} pr={null} />))
 
-		expect(await screen.findByText('+5')).toBeInTheDocument()
-		expect(screen.getByText('−2')).toBeInTheDocument()
+		const region = await screen.findByRole('region', { name: 'src/foo.ts diff' })
+		expect(within(region).getByText('+5')).toBeInTheDocument()
+		expect(within(region).getByText('−2')).toBeInTheDocument()
 
 		const diff = await screen.findByTestId('diff')
 		expect(diff).toHaveTextContent('-old')
@@ -216,8 +217,8 @@ describe('ChangesTab', () => {
 
 		render(wrap(<ChangesTab run={buildRun()} pr={null} />))
 
-		const row = await screen.findByRole('button', { name: /assets\/logo\.png/ })
-		expect(row).toBeDisabled()
+		const region = await screen.findByRole('region', { name: 'assets/logo.png diff' })
+		expect(within(region).getByRole('button')).toBeDisabled()
 		expect(screen.getByText('binary file')).toBeInTheDocument()
 	})
 
@@ -239,11 +240,53 @@ describe('ChangesTab', () => {
 
 		render(wrap(<ChangesTab run={buildRun()} pr={null} />))
 
-		await screen.findByRole('button', { name: /src\/big\.ts/ })
+		await screen.findByRole('region', { name: 'src/big.ts diff' })
 		expect(screen.getByText('patch truncated')).toBeInTheDocument()
 	})
 
-	it('shows file comment counts, reviewed state, and inline thread bodies', async () => {
+	it('renders every file in the main stack and filters the left file index', async () => {
+		mocks.fetchRunDiff.mockResolvedValue({
+			kind: 'ok',
+			value: buildResponse([
+				{
+					path: 'src/foo.ts',
+					status: 'modified',
+					additions: 5,
+					deletions: 2,
+					binary: false,
+					truncated: false,
+					patch: '@@ -1 +1 @@\n-old\n+new'
+				},
+				{
+					path: 'src/bar.ts',
+					status: 'added',
+					additions: 1,
+					deletions: 0,
+					binary: false,
+					truncated: false,
+					patch: '@@ -1 +1 @@\n+bar'
+				}
+			])
+		})
+
+		const user = userEvent.setup()
+		render(wrap(<ChangesTab run={buildRun()} pr={null} />))
+
+		expect(await screen.findAllByTestId('diff')).toHaveLength(2)
+		expect(screen.getByRole('region', { name: 'src/foo.ts diff' })).toBeInTheDocument()
+		expect(screen.getByRole('region', { name: 'src/bar.ts diff' })).toBeInTheDocument()
+		expect(screen.getByText('Modified')).toBeInTheDocument()
+		expect(screen.getByText('Added')).toBeInTheDocument()
+
+		const search = screen.getByRole('searchbox', { name: 'Search changed files' })
+		await user.type(search, 'bar')
+
+		expect(screen.queryByRole('button', { name: /jump to src\/foo\.ts/i })).not.toBeInTheDocument()
+		expect(screen.getByRole('button', { name: /jump to src\/bar\.ts/i })).toBeInTheDocument()
+		expect(screen.getAllByTestId('diff')).toHaveLength(2)
+	})
+
+	it('shows file comment counts, reviewed state, and inline thread bodies in file headers', async () => {
 		mocks.fetchRunDiff.mockResolvedValue({
 			kind: 'ok',
 			value: buildResponse([
@@ -318,13 +361,17 @@ describe('ChangesTab', () => {
 
 		render(wrap(<ChangesTab run={buildRun()} pr={null} />))
 
+		const fooRegion = await screen.findByRole('region', { name: 'src/foo.ts diff' })
+		const barRegion = screen.getByRole('region', { name: 'src/bar.ts diff' })
+
+		expect(fooRegion).toHaveTextContent('1 unresolved')
 		expect(
-			await screen.findByRole('button', { name: /src\/foo\.ts, 1 unresolved comment/ })
-		).toBeInTheDocument()
-		expect(screen.getByRole('checkbox', { name: 'Mark src/bar.ts as not reviewed' })).toBeChecked()
+			within(barRegion).getByRole('checkbox', { name: 'Mark src/bar.ts as not reviewed' })
+		).toBeChecked()
 		expect(screen.getByText('Please simplify this branch.')).toBeInTheDocument()
 		expect(screen.getByText('1 unresolved comment')).toBeInTheDocument()
-		expect(screen.getByTestId('diff')).toHaveAttribute('data-review', 'enabled')
+		expect(screen.getAllByTestId('diff')).toHaveLength(2)
+		expect(screen.getAllByTestId('diff')[0]).toHaveAttribute('data-review', 'enabled')
 	})
 
 	it('disables review controls while review state is loading', async () => {

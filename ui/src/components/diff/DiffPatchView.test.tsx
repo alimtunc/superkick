@@ -78,6 +78,108 @@ vi.mock('@git-diff-view/react', async () => {
 						: null}
 				</div>
 			)
+		},
+		DiffViewWithMultiSelect: (props: {
+			diffViewAddWidget?: boolean
+			renderWidgetLine?: (input: {
+				diffFile: unknown
+				side: number
+				lineNumber: number
+				fromLineNumber: number
+				onClose: () => void
+			}) => React.ReactNode
+			renderExtendLine?: (input: {
+				diffFile: unknown
+				side: number
+				lineNumber: number
+				data: unknown
+				onUpdate: () => void
+			}) => React.ReactNode
+			extendData?: {
+				oldFile?: Record<string, { data: unknown }>
+				newFile?: Record<string, { data: unknown }>
+			}
+		}) => {
+			const [widget, setWidget] = React.useState<{
+				side: number
+				lineNumber: number
+				fromLineNumber: number
+				diffFile: unknown
+			} | null>(null)
+			const rangeDiffFile = {
+				getUnifiedLineByLineNumber: (lineNumber: number) => ({ newLineNumber: lineNumber })
+			}
+			const contextRangeDiffFile = {
+				getUnifiedLineByLineNumber: (lineNumber: number) => ({
+					oldLineNumber: lineNumber,
+					newLineNumber: lineNumber
+				})
+			}
+			return (
+				<div>
+					{props.diffViewAddWidget ? (
+						<>
+							<button
+								type="button"
+								onClick={() =>
+									setWidget({
+										side: SplitSide.new,
+										fromLineNumber: 2,
+										lineNumber: 2,
+										diffFile: rangeDiffFile
+									})
+								}
+							>
+								Add comment to new line 2
+							</button>
+							<button
+								type="button"
+								onClick={() =>
+									setWidget({
+										side: SplitSide.new,
+										fromLineNumber: 2,
+										lineNumber: 2,
+										diffFile: contextRangeDiffFile
+									})
+								}
+							>
+								Add comment to context line 2
+							</button>
+							<button
+								type="button"
+								onClick={() =>
+									setWidget({
+										side: SplitSide.new,
+										fromLineNumber: 2,
+										lineNumber: 4,
+										diffFile: rangeDiffFile
+									})
+								}
+							>
+								Add comment to new lines 2-4
+							</button>
+						</>
+					) : null}
+					{widget && props.renderWidgetLine
+						? props.renderWidgetLine({
+								diffFile: widget.diffFile,
+								side: widget.side,
+								lineNumber: widget.lineNumber,
+								fromLineNumber: widget.fromLineNumber,
+								onClose: () => setWidget(null)
+							})
+						: null}
+					{props.extendData?.newFile?.['2'] && props.renderExtendLine
+						? props.renderExtendLine({
+								diffFile: {},
+								side: SplitSide.new,
+								lineNumber: 2,
+								data: props.extendData.newFile['2'].data,
+								onUpdate: vi.fn()
+							})
+						: null}
+				</div>
+			)
 		}
 	}
 })
@@ -199,6 +301,49 @@ describe('DiffPatchView review hooks', () => {
 				headRef: 'def5678'
 			}),
 			'This context needs the same guard.'
+		)
+	})
+
+	it('creates a multi-line review thread from a selected line range', async () => {
+		const createThread = vi.fn().mockResolvedValue(undefined)
+		const user = userEvent.setup()
+
+		render(
+			<DiffPatchView
+				patch="@@ -1,4 +1,5 @@\n line\n+added\n+more\n+done"
+				path="src/foo.ts"
+				mode="unified"
+				deletions={0}
+				review={{
+					runId: 'run-1',
+					filePath: 'src/foo.ts',
+					oldPath: null,
+					baseRef: 'abc1234',
+					headRef: 'def5678',
+					threads: [],
+					onCreateThread: createThread,
+					onReply: vi.fn(),
+					onResolve: vi.fn(),
+					onDeleteThread: vi.fn()
+				}}
+			/>
+		)
+
+		await user.click(screen.getByRole('button', { name: 'Add comment to new lines 2-4' }))
+		await user.type(screen.getByLabelText('Review comment'), 'This range should be extracted.')
+		await user.click(screen.getByRole('button', { name: 'Save comment' }))
+
+		await waitFor(() => expect(createThread).toHaveBeenCalledTimes(1))
+		expect(createThread).toHaveBeenCalledWith(
+			expect.objectContaining({
+				filePath: 'src/foo.ts',
+				side: 'new',
+				newLine: 2,
+				newLineEnd: 4,
+				baseRef: 'abc1234',
+				headRef: 'def5678'
+			}),
+			'This range should be extracted.'
 		)
 	})
 

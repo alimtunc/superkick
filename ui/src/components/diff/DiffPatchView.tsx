@@ -1,4 +1,12 @@
-import { type FormEvent, useCallback, useMemo, useReducer, useState } from 'react'
+import {
+	type CSSProperties,
+	type FormEvent,
+	type ReactNode,
+	useCallback,
+	useMemo,
+	useReducer,
+	useState
+} from 'react'
 
 import { langFromPath } from '@/lib/diff/lang'
 import { effectiveDiffMode } from '@/lib/diff/mode'
@@ -12,11 +20,31 @@ import type {
 
 import '@git-diff-view/react/styles/diff-view.css'
 
-import { DiffModeEnum, DiffView, SplitSide, type DiffFile, type DiffViewProps } from '@git-diff-view/react'
+import {
+	DiffModeEnum,
+	DiffView,
+	DiffViewWithMultiSelect,
+	SplitSide,
+	type DiffFile,
+	type DiffViewProps
+} from '@git-diff-view/react'
+
+const DIFF_MULTI_SELECT_STYLE = {
+	'--diff-multi-select-bg': 'var(--accent)',
+	'--diff-multi-select-border': 'var(--accent)'
+} as CSSProperties
 
 interface ReviewLineData {
 	threads: DiffReviewThread[]
 }
+
+type ReviewWidgetRenderer = (props: {
+	diffFile: DiffFile
+	side: SplitSide
+	lineNumber: number
+	fromLineNumber: number
+	onClose: () => void
+}) => ReactNode
 
 interface DiffPatchViewProps {
 	patch: string
@@ -53,14 +81,15 @@ export function DiffPatchView({ patch, path, oldPath, mode, deletions, review }:
 		() => (review ? buildExtendData(review.threads) : undefined),
 		[review]
 	)
-	const renderWidgetLine = useCallback<NonNullable<DiffViewProps<ReviewLineData>['renderWidgetLine']>>(
-		({ diffFile, side, lineNumber, onClose }) => {
+	const renderWidgetLine = useCallback<ReviewWidgetRenderer>(
+		({ diffFile, side, lineNumber, fromLineNumber, onClose }) => {
 			if (!review) return null
 			return (
 				<ReviewComposer
 					review={review}
 					diffFile={diffFile}
 					side={side}
+					fromLineNumber={fromLineNumber}
 					lineNumber={lineNumber}
 					onClose={onClose}
 				/>
@@ -76,18 +105,34 @@ export function DiffPatchView({ patch, path, oldPath, mode, deletions, review }:
 	return (
 		<div className="overflow-hidden rounded-[4px] border border-(--border-faint)">
 			<div className="overflow-x-auto text-[12px]">
-				<DiffView<ReviewLineData>
-					data={data}
-					extendData={extendData}
-					diffViewMode={diffViewMode}
-					diffViewHighlight
-					diffViewWrap={false}
-					diffViewTheme="dark"
-					diffViewFontSize={12}
-					diffViewAddWidget={Boolean(review)}
-					renderWidgetLine={review ? renderWidgetLine : undefined}
-					renderExtendLine={review ? renderExtendLine : undefined}
-				/>
+				{review ? (
+					<DiffViewWithMultiSelect<ReviewLineData>
+						data={data}
+						extendData={extendData}
+						diffViewMode={diffViewMode}
+						diffViewHighlight
+						diffViewWrap={false}
+						diffViewTheme="dark"
+						diffViewFontSize={12}
+						diffViewAddWidget
+						enableMultiSelect
+						style={DIFF_MULTI_SELECT_STYLE}
+						renderWidgetLine={renderWidgetLine}
+						renderExtendLine={renderExtendLine}
+					/>
+				) : (
+					<DiffView<ReviewLineData>
+						data={data}
+						extendData={extendData}
+						diffViewMode={diffViewMode}
+						diffViewHighlight
+						diffViewWrap={false}
+						diffViewTheme="dark"
+						diffViewFontSize={12}
+						diffViewAddWidget={false}
+						renderExtendLine={undefined}
+					/>
+				)}
 			</div>
 		</div>
 	)
@@ -97,12 +142,14 @@ function ReviewComposer({
 	review,
 	diffFile,
 	side,
+	fromLineNumber,
 	lineNumber,
 	onClose
 }: {
 	review: DiffPatchReview
 	diffFile: DiffFile
 	side: SplitSide
+	fromLineNumber: number
 	lineNumber: number
 	onClose: () => void
 }) {
@@ -117,7 +164,10 @@ function ReviewComposer({
 		setIsSubmitting(true)
 		setError(null)
 		try {
-			await review.onCreateThread(anchorForWidget(review, diffFile, side, lineNumber), trimmed)
+			await review.onCreateThread(
+				anchorForWidget(review, diffFile, side, fromLineNumber, lineNumber),
+				trimmed
+			)
 			setBody('')
 			onClose()
 		} catch (err) {
@@ -130,7 +180,7 @@ function ReviewComposer({
 	return (
 		<form onSubmit={onSubmit} className="m-2 rounded-[4px] border border-border bg-canvas p-2 shadow-sm">
 			<label className="block text-[11px] font-medium text-fg-dim" htmlFor="review-comment">
-				Review comment
+				{reviewComposerLabel(fromLineNumber, lineNumber)}
 			</label>
 			<textarea
 				id="review-comment"
@@ -364,9 +414,13 @@ function anchorForWidget(
 	review: DiffPatchReview,
 	diffFile: DiffFile,
 	side: SplitSide,
+	fromLineNumber: number,
 	lineNumber: number
 ): DiffReviewAnchor {
-	const lines = lineNumbersForWidget(diffFile, side, lineNumber)
+	const startLineNumber = Math.min(fromLineNumber, lineNumber)
+	const endLineNumber = Math.max(fromLineNumber, lineNumber)
+	const lines = lineNumbersForWidget(diffFile, side, startLineNumber)
+	const endLines = lineNumbersForWidget(diffFile, side, endLineNumber)
 	const reviewSide = reviewSideForLines(side, lines.oldLine, lines.newLine)
 	return {
 		runId: review.runId,
@@ -374,12 +428,19 @@ function anchorForWidget(
 		oldPath: review.oldPath ?? null,
 		side: reviewSide,
 		oldLine: lines.oldLine,
+		oldLineEnd: rangeEnd(lines.oldLine, endLines.oldLine),
 		newLine: lines.newLine,
+		newLineEnd: rangeEnd(lines.newLine, endLines.newLine),
 		hunkHeader: null,
 		hunkIndex: null,
 		baseRef: review.baseRef,
 		headRef: review.headRef
 	}
+}
+
+function rangeEnd(start: number | null, end: number | null): number | null {
+	if (start === null || end === null || end <= start) return null
+	return end
 }
 
 function lineNumbersForWidget(
@@ -420,4 +481,8 @@ function reviewSideForLines(
 
 function sideToReviewSide(side: SplitSide): DiffReviewLineSide {
 	return side === SplitSide.old ? 'old' : 'new'
+}
+
+function reviewComposerLabel(fromLineNumber: number, lineNumber: number): string {
+	return fromLineNumber === lineNumber ? 'Review comment' : 'Review comment for selected lines'
 }

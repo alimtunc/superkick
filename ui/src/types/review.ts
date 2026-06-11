@@ -26,7 +26,9 @@ export interface DiffReviewAnchor {
 	oldPath?: string | null
 	side: DiffReviewLineSide
 	oldLine?: number | null
+	oldLineEnd?: number | null
 	newLine?: number | null
+	newLineEnd?: number | null
 	hunkHeader?: string | null
 	hunkIndex?: number | null
 	baseRef?: string | null
@@ -89,7 +91,9 @@ export interface CreateDiffReviewThreadRequest {
 	oldPath?: string | null
 	side: DiffReviewLineSide
 	oldLine?: number | null
+	oldLineEnd?: number | null
 	newLine?: number | null
+	newLineEnd?: number | null
 	hunkHeader?: string | null
 	hunkIndex?: number | null
 	baseRef?: string | null
