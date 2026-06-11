@@ -103,6 +103,7 @@ export function ReviewReadySection({ issue, task, run, runDetail, worktree }: Re
 					runId={runId}
 					baseBranch={baseBranch}
 					headBranch={branchName}
+					prExists={pr !== null}
 					defaultTitle={issue.title}
 					summary={summary}
 					changedFiles={changedFiles}

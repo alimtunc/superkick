@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod env_path;
 pub mod error;
 pub mod lifecycle;
 pub mod registry;
@@ -19,6 +20,7 @@ use supervisor::Supervisor;
 const SWITCH_PROJECT_MENU_ID: &str = "switch-project";
 
 pub fn run() {
+    env_path::inherit_login_shell_path();
     init_tracing();
     signals::block_termination_signals();
 
@@ -33,6 +35,7 @@ pub fn run() {
             commands::configure_project,
             commands::report_attention,
             commands::retry_boot,
+            commands::restart_active_project,
             commands::show_picker,
         ])
         .setup(|app| {

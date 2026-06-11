@@ -13,7 +13,7 @@ const WIDE_ACTION_CLASS =
 export function ProjectRail() {
 	const compact = useProjectRailStore((s) => s.compact)
 	const toggleCompact = useProjectRailStore((s) => s.toggleCompact)
-	const { projects, activeId, switchTo, addProject } = useDesktopProjects()
+	const { projects, displayActiveId, switchingProjectId, switchTo, addProject } = useDesktopProjects()
 
 	const actionClass = compact ? COMPACT_ACTION_CLASS : WIDE_ACTION_CLASS
 
@@ -35,7 +35,8 @@ export function ProjectRail() {
 					<ProjectRailButton
 						key={project.id}
 						project={project}
-						active={project.id === activeId}
+						active={project.id === displayActiveId}
+						switching={project.id === switchingProjectId}
 						compact={compact}
 						onSelect={switchTo}
 					/>

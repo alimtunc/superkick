@@ -3,11 +3,13 @@
 //! against the minimal state slice it needs, so integration tests don't have
 //! to materialise the full `AppState`.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::Router;
 use axum::routing::{get, post};
 
+use superkick_config::RunnerConfig;
 use superkick_core::AgentCatalog;
 use superkick_runtime::{LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry};
 use superkick_storage::{
@@ -129,6 +131,21 @@ pub fn launch_task_test_router(
         .route(
             "/launch-tasks/events",
             get(handlers::launch_tasks::launch_task_events_sse),
+        )
+        .with_state(state)
+}
+
+/// GET+PUT `/config/runner` against a config path and boot-time runner
+/// snapshot the test controls.
+pub fn runner_config_test_router(config_path: PathBuf, boot_runner: RunnerConfig) -> Router {
+    let state = handlers::config::RunnerConfigState {
+        config_path,
+        boot_runner,
+    };
+    Router::new()
+        .route(
+            "/config/runner",
+            get(handlers::config::get_runner_config).put(handlers::config::put_runner_config),
         )
         .with_state(state)
 }

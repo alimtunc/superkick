@@ -51,6 +51,10 @@ export function configureDesktopProject(
 	return tauriCore().invoke('configure_project', { id, linearApiKey, returnPath })
 }
 
+export function restartActiveDesktopProject(returnPath?: string): Promise<void> {
+	return tauriCore().invoke('restart_active_project', { returnPath })
+}
+
 export function openDesktopPicker(): Promise<void> {
 	return tauriCore().invoke('show_picker')
 }

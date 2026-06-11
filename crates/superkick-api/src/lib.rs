@@ -42,7 +42,7 @@ mod ui_assets;
 pub use test_routers::{
     agents_test_router, issue_context_test_router, launch_task_test_router,
     linear_writes_test_router, orchestrator_session_test_router, run_context_snapshot_test_router,
-    run_diff_test_router, test_handlers, tests_only,
+    run_diff_test_router, runner_config_test_router, test_handlers, tests_only,
 };
 
 // ── App state ──────────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ type ChatRunner =
 
 type TakeoverService = TerminalTakeoverService<EventRepo>;
 
-type PrService = PullRequestService<SqlitePullRequestRepo, SqliteArtifactRepo>;
+type PrService = PullRequestService<SqlitePullRequestRepo, SqliteArtifactRepo, SqliteRunRepo>;
 
 type TriageService = QueueTriageService<
     SqliteRunRepo,
@@ -169,6 +169,10 @@ pub(crate) struct AppState {
     pub file_index: search_state::FileIndex,
     pub repo_slug: String,
     pub base_branch: String,
+    pub config_path: String,
+    /// Boot-time `runner` snapshot — compared against the on-disk value so
+    /// `GET /config/runner` can report `requires_restart`.
+    pub boot_runner: superkick_config::RunnerConfig,
     pub launch_profile: LaunchProfileConfig,
     pub orchestration: OrchestrationConfig,
     pub issue_trigger: IssueTrigger,
@@ -239,6 +243,7 @@ async fn build_app_state(
     config: superkick_config::SuperkickConfig,
 ) -> anyhow::Result<AppState> {
     let base_branch = config.runner.base_branch.clone();
+    let boot_runner = config.runner.clone();
     let launch_profile = config.launch_profile.clone();
     let orchestration = config.orchestration.clone();
     let issue_trigger = config.issue_source.trigger;
@@ -385,7 +390,11 @@ async fn build_app_state(
         Arc::clone(&pty_registry),
     ));
 
-    let pr_service = PullRequestService::new(Arc::clone(&pr_repo), Arc::clone(&artifact_repo));
+    let pr_service = PullRequestService::new(
+        Arc::clone(&pr_repo),
+        Arc::clone(&artifact_repo),
+        Arc::clone(&run_repo),
+    );
 
     let queue_triage_service = QueueTriageService::new(
         Arc::clone(&run_repo),
@@ -524,6 +533,8 @@ async fn build_app_state(
         file_index,
         repo_slug,
         base_branch,
+        config_path: cfg.config_path.clone(),
+        boot_runner,
         launch_profile,
         orchestration,
         issue_trigger,
@@ -536,6 +547,10 @@ fn api_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(handlers::health::health))
         .route("/config", get(handlers::health::get_config))
+        .route(
+            "/config/runner",
+            get(handlers::config::get_runner_config).put(handlers::config::put_runner_config),
+        )
         .route("/dashboard/queue", get(handlers::dashboard::get_queue))
         .route("/launch-queue", get(handlers::launch_queue::get_queue))
         .route(

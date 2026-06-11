@@ -22,9 +22,19 @@ interface ShipModalProps {
 	runId: string
 	baseBranch: string | null
 	headBranch: string | null
+	prExists?: boolean
 	defaultTitle: string
 	summary: string
 	changedFiles: readonly string[]
+}
+
+const HEAD_BRANCH_LOCKED_ID = 'ship-head-branch-locked'
+const HEAD_BRANCH_ERROR_ID = 'ship-head-branch-error'
+
+function headBranchDescribedBy(prExists: boolean, hasError: boolean): string | undefined {
+	if (prExists) return HEAD_BRANCH_LOCKED_ID
+	if (hasError) return HEAD_BRANCH_ERROR_ID
+	return undefined
 }
 
 function pillClass(active: boolean, disabled: boolean): string {
@@ -42,11 +52,12 @@ export function ShipModal({
 	runId,
 	baseBranch,
 	headBranch,
+	prExists = false,
 	defaultTitle,
 	summary,
 	changedFiles
 }: ShipModalProps) {
-	const form = useShipForm({ open, defaultTitle, summary, changedFiles })
+	const form = useShipForm({ open, defaultTitle, summary, changedFiles, headBranch })
 	const { data: options } = useLinearOptions()
 	const mutation = useShipLaunchTask({ issueId: issue.id, taskId, runId, teamId: issue.team_id })
 	const [confirmReady, setConfirmReady] = useState(false)
@@ -64,7 +75,8 @@ export function ShipModal({
 
 	const isPr = form.mode !== 'push_only'
 	const busy = mutation.isPending
-	const canSubmit = !busy && (!isPr || form.title.trim().length > 0)
+	const headBranchError = prExists ? null : form.headBranchError
+	const canSubmit = !busy && (!isPr || form.title.trim().length > 0) && headBranchError === null
 
 	const submit = () => {
 		mutation.mutate(
@@ -72,6 +84,7 @@ export function ShipModal({
 				mode: form.mode,
 				title: form.title.trim(),
 				body: isPr ? form.body : '',
+				headBranch: prExists ? null : form.headBranchOverride,
 				comment: form.comment.trim() ? form.comment.trim() : null,
 				statusStateId: resolveLinearStatusStateId(states, form.statusChoice)
 			},
@@ -134,14 +147,39 @@ export function ShipModal({
 							))}
 						</fieldset>
 
-						<div className="flex items-center gap-2 rounded-md border border-border bg-canvas px-3 py-2 text-[11.5px]">
-							<span className="text-fg-dim">base</span>
-							<span className="font-mono text-fg">{baseBranch ?? 'main'}</span>
-							<span aria-hidden="true" className="text-fg-dim">
-								←
-							</span>
-							<span className="text-fg-dim">head</span>
-							<span className="font-mono text-fg">{headBranch ?? '(run branch)'}</span>
+						<div className="flex flex-col gap-1">
+							<div className="flex items-center gap-2 rounded-md border border-border bg-canvas px-3 py-2 text-[11.5px]">
+								<span className="text-fg-dim">base</span>
+								<span className="font-mono text-fg">{baseBranch ?? 'main'}</span>
+								<span aria-hidden="true" className="text-fg-dim">
+									←
+								</span>
+								<span className="text-fg-dim">head</span>
+								<input
+									type="text"
+									value={form.headBranch}
+									onChange={(event) => form.setHeadBranch(event.target.value)}
+									placeholder="(run branch)"
+									disabled={prExists || busy}
+									aria-label="Head branch"
+									aria-invalid={headBranchError !== null}
+									aria-describedby={headBranchDescribedBy(
+										prExists,
+										headBranchError !== null
+									)}
+									className="min-w-0 flex-1 rounded-sm border border-border bg-input px-2 py-0.5 font-mono text-[11.5px] text-fg outline-none placeholder:text-fg-dim focus:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+								/>
+							</div>
+							{prExists ? (
+								<span id={HEAD_BRANCH_LOCKED_ID} className="text-[11px] text-fg-dim">
+									Head branch is locked — a PR already exists for this run.
+								</span>
+							) : null}
+							{headBranchError !== null ? (
+								<span id={HEAD_BRANCH_ERROR_ID} className="text-[11px] text-danger">
+									{headBranchError}
+								</span>
+							) : null}
 						</div>
 
 						{isPr ? (

@@ -5,6 +5,7 @@ export type SettingsPaneId =
 	| 'skills'
 	| 'profiles'
 	| 'runtimes'
+	| 'runner'
 	| 'sandboxes'
 	| 'rules'
 	| 'budgets'
@@ -26,4 +27,22 @@ export interface SettingsRule {
 	hint: string
 	status: 'on' | 'off' | 'dry-run'
 	meta?: string
+}
+
+export interface RunnerConfigResponse {
+	worktree_prefix: string
+	base_branch: string
+	setup_commands: string[]
+	requires_restart: boolean
+}
+
+export interface RunnerConfigUpdate {
+	worktree_prefix: string
+	base_branch: string
+	setup_commands: string[]
+}
+
+export interface RunnerValidationErrors {
+	worktreePrefix: string | null
+	baseBranch: string | null
 }

@@ -18,6 +18,22 @@ export const desktopProjectsQuery = () =>
 		staleTime: 10_000
 	})
 
+export function sortDesktopProjects(projects: readonly DesktopProject[]): DesktopProject[] {
+	return projects.toSorted(compareDesktopProjects)
+}
+
+function compareDesktopProjects(a: DesktopProject, b: DesktopProject): number {
+	const byName = a.name.localeCompare(b.name, undefined, {
+		sensitivity: 'base',
+		numeric: true
+	})
+	if (byName !== 0) return byName
+	return a.path.localeCompare(b.path, undefined, {
+		sensitivity: 'base',
+		numeric: true
+	})
+}
+
 export async function addAndSelectProject(): Promise<void> {
 	const path = await pickProjectFolder()
 	if (!path) return
@@ -35,7 +51,18 @@ export function activeDesktopProjectName(snapshot: DesktopRegistrySnapshot | und
 }
 
 export function currentReturnPath(): string {
-	return window.location.pathname + window.location.search
+	return projectSwitchReturnPath(window.location.pathname, window.location.search)
+}
+
+export function projectSwitchReturnPath(pathname: string, search: string): string {
+	if (isProjectScopedDetailPath(pathname, '/issues')) return '/issues'
+	if (isProjectScopedDetailPath(pathname, '/runs')) return '/runs'
+	if (isProjectScopedDetailPath(pathname, '/tasks')) return '/queue'
+	return `${pathname}${search}`
+}
+
+function isProjectScopedDetailPath(pathname: string, collectionPath: string): boolean {
+	return pathname.startsWith(`${collectionPath}/`)
 }
 
 export function projectInitials(name: string): string {
@@ -49,9 +76,10 @@ export function projectInitials(name: string): string {
 export async function withProjectSwitchOverlay(
 	message: string,
 	action: () => Promise<void>,
-	errorLabel: string
+	errorLabel: string,
+	targetProjectId?: string
 ): Promise<boolean> {
-	useProjectSwitchStore.getState().begin(message)
+	useProjectSwitchStore.getState().begin(message, targetProjectId)
 	try {
 		await action()
 		return true

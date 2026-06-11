@@ -8,7 +8,9 @@ import { Route as shellRoute } from './route'
 export const Route = createRoute({
 	getParentRoute: () => shellRoute,
 	path: '/runs/$runId',
-	loader: ({ context, params }) => context.queryClient.ensureQueryData(runDetailQuery(params.runId)),
+	loader: ({ context, params }) => {
+		void context.queryClient.prefetchQuery(runDetailQuery(params.runId))
+	},
 	component: RunDetailPage
 })
 

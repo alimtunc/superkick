@@ -15,7 +15,9 @@ import { Route as shellRoute } from './route'
 export const Route = createRoute({
 	getParentRoute: () => shellRoute,
 	path: '/runs',
-	loader: ({ context }) => context.queryClient.ensureQueryData(dashboardQueueQuery()),
+	loader: ({ context }) => {
+		void context.queryClient.prefetchQuery(dashboardQueueQuery())
+	},
 	component: RunsPage
 })
 

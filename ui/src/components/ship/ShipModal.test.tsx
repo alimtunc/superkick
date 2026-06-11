@@ -60,7 +60,7 @@ function buildIssue(teamId: string | null = 'team-1'): IssueDetailResponse {
 	} as unknown as IssueDetailResponse
 }
 
-function renderModal(issue = buildIssue()) {
+function renderModal(issue = buildIssue(), prExists = false) {
 	const onOpenChange = vi.fn()
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 	const wrapper = ({ children }: { children: ReactNode }) => (
@@ -75,6 +75,7 @@ function renderModal(issue = buildIssue()) {
 			runId="run-1"
 			baseBranch="main"
 			headBranch="feat/sup-195"
+			prExists={prExists}
 			defaultTitle="Review and ship"
 			summary="Did the work"
 			changedFiles={['src/a.ts']}
@@ -152,6 +153,52 @@ describe('ShipModal', () => {
 		renderModal(buildIssue(null))
 		expect(screen.getByText(/Linear is not configured/)).toBeInTheDocument()
 		expect(screen.queryByRole('button', { name: 'In Review' })).not.toBeInTheDocument()
+	})
+
+	it('includes the edited head branch in the ship payload', async () => {
+		const user = userEvent.setup()
+		renderModal()
+
+		const input = screen.getByLabelText('Head branch')
+		await user.clear(input)
+		await user.type(input, 'feat/renamed')
+		await user.click(screen.getByRole('button', { name: 'Create draft PR' }))
+
+		await waitFor(() => expect(mocks.shipRun).toHaveBeenCalledTimes(1))
+		expect(mocks.shipRun.mock.calls[0][1]).toMatchObject({ headBranch: 'feat/renamed' })
+	})
+
+	it('omits headBranch when the input is left unedited', async () => {
+		const user = userEvent.setup()
+		renderModal()
+
+		await user.click(screen.getByRole('button', { name: 'Create draft PR' }))
+
+		await waitFor(() => expect(mocks.shipRun).toHaveBeenCalledTimes(1))
+		expect('headBranch' in mocks.shipRun.mock.calls[0][1]).toBe(false)
+	})
+
+	it('shows an inline error and disables submit for an invalid head branch', async () => {
+		const user = userEvent.setup()
+		renderModal()
+
+		const input = screen.getByLabelText('Head branch')
+		await user.clear(input)
+		await user.type(input, 'bad..name')
+
+		const error = screen.getByText('Branch names cannot contain ".."')
+		expect(input).toHaveAttribute('aria-describedby', error.id)
+		expect(screen.getByRole('button', { name: 'Create draft PR' })).toBeDisabled()
+		expect(mocks.shipRun).not.toHaveBeenCalled()
+	})
+
+	it('locks the head branch input when a PR already exists', () => {
+		renderModal(buildIssue(), true)
+
+		const input = screen.getByLabelText('Head branch')
+		expect(input).toBeDisabled()
+		const hint = screen.getByText(/Head branch is locked/)
+		expect(input).toHaveAttribute('aria-describedby', hint.id)
 	})
 
 	it('reports PR success and closes even when a Linear write fails', async () => {

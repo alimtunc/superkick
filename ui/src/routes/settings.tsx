@@ -6,6 +6,7 @@ import { SettingsPaneIntegrations } from '@/components/settings/SettingsPaneInte
 import { SettingsPaneProfiles } from '@/components/settings/SettingsPaneProfiles'
 import { SettingsPaneProviders } from '@/components/settings/SettingsPaneProviders'
 import { SettingsPaneRules } from '@/components/settings/SettingsPaneRules'
+import { SettingsPaneRunner } from '@/components/settings/SettingsPaneRunner'
 import { SettingsPaneRuntimes } from '@/components/settings/SettingsPaneRuntimes'
 import { SettingsPaneSkills } from '@/components/settings/SettingsPaneSkills'
 import type { SettingsPaneId } from '@/types'
@@ -41,5 +42,6 @@ function renderPane(id: SettingsPaneId, label: string) {
 	if (id === 'profiles') return <SettingsPaneProfiles />
 	if (id === 'rules') return <SettingsPaneRules />
 	if (id === 'runtimes') return <SettingsPaneRuntimes />
+	if (id === 'runner') return <SettingsPaneRunner />
 	return <SettingsPaneComingSoon label={label} />
 }
