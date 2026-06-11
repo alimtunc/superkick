@@ -110,6 +110,11 @@ export async function postVoid(path: string, errorContext: string, body?: unknow
 	await requestOk(path, errorContext, { method: 'POST', body })
 }
 
+export async function putJson<T>(path: string, errorContext: string, body: unknown): Promise<T> {
+	const res = await requestOk(path, errorContext, { method: 'PUT', body })
+	return res.json() as Promise<T>
+}
+
 export async function patchVoid(path: string, errorContext: string, body: unknown): Promise<void> {
 	await requestOk(path, errorContext, { method: 'PATCH', body })
 }

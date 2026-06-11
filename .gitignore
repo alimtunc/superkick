@@ -22,6 +22,7 @@ _bmad*
 .superkick-port
 superkick.yaml
 /src-tauri/gen/
+/src-tauri/binaries/
 .visual-parity-output/
 docs/design/issue-centered-v1/artifacts/sup-*-visual-parity/**/*.png
 

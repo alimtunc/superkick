@@ -19,12 +19,11 @@ import { Route as shellRoute } from './route'
 export const Route = createRoute({
 	getParentRoute: () => shellRoute,
 	path: '/',
-	loader: ({ context }) =>
-		Promise.all([
-			context.queryClient.ensureQueryData(runsQuery()),
-			context.queryClient.ensureQueryData(dashboardQueueQuery()),
-			context.queryClient.ensureQueryData(launchQueueQuery()).catch(() => null)
-		]),
+	loader: ({ context }) => {
+		void context.queryClient.prefetchQuery(runsQuery())
+		void context.queryClient.prefetchQuery(dashboardQueueQuery())
+		void context.queryClient.prefetchQuery(launchQueueQuery())
+	},
 	component: InboxPage
 })
 

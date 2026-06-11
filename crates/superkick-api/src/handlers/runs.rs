@@ -365,6 +365,10 @@ pub struct ShipRunRequest {
     /// PR body (ignored for `push_only`).
     #[serde(default)]
     pub body: String,
+    /// Head-branch override: renames the run branch before pushing. Rejected
+    /// once a PR exists. Omitted/equal → ship under the current branch name.
+    #[serde(default)]
+    pub head_branch: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -392,7 +396,13 @@ pub async fn ship_run(
 
     let outcome = state
         .pr_service
-        .ship(&run, req.mode, &req.title, &req.body)
+        .ship(
+            &run,
+            req.mode,
+            &req.title,
+            &req.body,
+            req.head_branch.as_deref(),
+        )
         .await
         .map_err(map_ship_error)?;
 
@@ -409,6 +419,9 @@ fn map_ship_error(err: ShipError) -> AppError {
         | ShipError::NotWorktreeBacked
         | ShipError::NoBranch
         | ShipError::NoChanges
+        | ShipError::HeadBranchLocked
+        | ShipError::InvalidHeadBranch(_)
+        | ShipError::HeadBranchRename(_)
         | ShipError::GhAuth(_)
         | ShipError::GitHub(_) => AppError::Unprocessable(err.to_string()),
         ShipError::WorktreeMissing => AppError::NotFound("worktree"),

@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 
 import { ExecutionLog } from '@/components/issue-detail/execution-log/ExecutionLog'
 import { IssueDetailRail } from '@/components/issue-detail/IssueDetailRail'
+import { IssueDetailSkeleton } from '@/components/issue-detail/IssueDetailSkeleton'
 import { IssueDetailTopbarRight } from '@/components/issue-detail/IssueDetailTopbarRight'
 import { IssueFeed } from '@/components/issue-detail/IssueFeed'
 import { IssueIntro } from '@/components/issue-detail/IssueIntro'
@@ -10,7 +11,6 @@ import { RunDrawer } from '@/components/issue-detail/run-drawer'
 import { Pill } from '@/components/ui/pill'
 import { EmptyState } from '@/components/ui/state-empty'
 import { ErrorState } from '@/components/ui/state-error'
-import { LoadingState } from '@/components/ui/state-loading'
 import { ChatDrawer } from '@/components/workspace/ChatDrawer'
 import { useIssueDetail } from '@/hooks/useIssueDetail'
 import { TopbarBackButton } from '@/shell/TopbarBackButton'
@@ -21,14 +21,7 @@ import { Copy, FileSearch } from 'lucide-react'
 export function IssueDetail({ issueId }: { issueId: string }) {
 	const { issue, loading, error, refresh } = useIssueDetail(issueId)
 
-	if (loading)
-		return (
-			<div className="detail__body">
-				<div className="detail__inner">
-					<LoadingState rows={4} />
-				</div>
-			</div>
-		)
+	if (loading) return <IssueDetailSkeleton />
 	if (error)
 		return (
 			<div className="detail__body">

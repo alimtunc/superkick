@@ -3,6 +3,9 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { Popover } from '@base-ui/react/popover'
 
+export const POPOVER_POPUP_CLASS =
+	'flex max-h-[min(420px,var(--available-height))] flex-col overflow-hidden rounded-[7px] border border-border bg-overlay shadow-lg outline-none transition-[opacity,transform] duration-150 ease-out data-[ending-style]:scale-98 data-[ending-style]:opacity-0 data-[starting-style]:scale-98 data-[starting-style]:opacity-0'
+
 interface PopoverPopupProps {
 	children: ReactNode
 	className?: string
@@ -39,10 +42,7 @@ export function PopoverPopup({
 			>
 				<Popover.Popup
 					initialFocus={initialFocus}
-					className={cn(
-						'flex max-h-[min(420px,var(--available-height))] flex-col overflow-hidden rounded-[7px] border border-border bg-surface shadow-lg outline-none',
-						popupClassName
-					)}
+					className={cn(POPOVER_POPUP_CLASS, popupClassName)}
 				>
 					{children}
 				</Popover.Popup>

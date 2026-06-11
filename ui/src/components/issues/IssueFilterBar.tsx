@@ -423,8 +423,8 @@ function SelectControl<T extends string>({
 								setOpen(false)
 							}}
 							className={cn(
-								'flex h-7 w-full items-center justify-between px-2.5 text-left text-[12px] transition-colors hover:bg-overlay',
-								active ? 'text-fg' : 'text-fg-muted'
+								'flex h-7 w-full items-center justify-between rounded-md px-2.5 text-left text-[12px] transition-[background,color,transform] duration-100 ease-out outline-none hover:translate-x-0.5 hover:bg-(--bg-active) focus-visible:translate-x-0.5 focus-visible:bg-(--bg-active)',
+								active ? 'bg-(--bg-active) text-fg' : 'text-fg-muted'
 							)}
 						>
 							<span>{optionLabel}</span>

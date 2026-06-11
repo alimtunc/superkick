@@ -16,11 +16,12 @@ const onManage = async () => {
 }
 
 export function ProjectSwitcher() {
-	const { projects, activeId, activeProject, switchTo, addProject } = useDesktopProjects()
+	const { projects, displayActiveId, switchingProjectId, activeProject, switchTo, addProject } =
+		useDesktopProjects()
 
 	return (
 		<Menu.Root>
-			<Menu.Trigger className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 py-1 text-left outline-none hover:bg-raised">
+			<Menu.Trigger className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 py-1 text-left transition-[background,color] duration-100 outline-none hover:bg-raised data-[popup-open]:bg-raised">
 				<span className="truncate text-[13px] font-semibold text-fg">
 					{activeProject?.name ?? 'Choose project'}
 				</span>
@@ -37,22 +38,26 @@ export function ProjectSwitcher() {
 						key={project.id}
 						onClick={() => switchTo(project)}
 						className={cn(MENU_ITEM_CLASS, 'justify-between')}
+						aria-busy={project.id === switchingProjectId}
 					>
 						<span className="flex min-w-0 items-center gap-2">
 							<FolderGit2
 								size={13}
 								strokeWidth={1.75}
 								aria-hidden="true"
-								className="shrink-0 text-fg-dim"
+								className={cn(
+									'shrink-0 text-fg-dim transition-colors',
+									project.id === displayActiveId ? 'text-accent' : null
+								)}
 							/>
 							<span className="truncate">{project.name}</span>
 						</span>
-						{project.id === activeId ? (
+						{project.id === displayActiveId ? (
 							<Check
 								size={12}
 								strokeWidth={2}
 								aria-hidden="true"
-								className="shrink-0 text-fg"
+								className="shrink-0 text-accent"
 							/>
 						) : null}
 					</Menu.Item>

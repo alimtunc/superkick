@@ -9,6 +9,7 @@ export interface ShipRunRequest {
 	mode: ShipMode
 	title?: string
 	body?: string
+	headBranch?: string
 }
 
 // Mirrors `superkick-api` `ShipRunResponse` (camelCase serde). `pr` is null for

@@ -33,6 +33,17 @@ tauri-dev:
 tauri-build:
     cargo build -p superkick-desktop
 
+# Bundle the desktop app (API as embedded-ui sidecar) and install it into /Applications. macOS only.
+tauri-install:
+    cd ui && pnpm build
+    cargo build -p superkick-api --release --features embedded-ui
+    mkdir -p src-tauri/binaries
+    cp target/release/superkick-api src-tauri/binaries/superkick-api-$(rustc --print host-tuple)
+    cargo tauri build --bundles app --config src-tauri/tauri.bundle.conf.json
+    rm -rf /Applications/Superkick.app
+    cp -R target/release/bundle/macos/Superkick.app /Applications/
+    @echo "Installed /Applications/Superkick.app"
+
 # Format everything
 fmt:
     cargo fmt

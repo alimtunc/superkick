@@ -196,8 +196,8 @@ export function IssueFilterDropdown({
 												type="button"
 												onClick={() => setActiveAxis(row.axis.key)}
 												className={cn(
-													'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-fg hover:bg-raised focus-visible:bg-raised focus-visible:outline-none',
-													row.axis.sk ? 'bg-raised' : null
+													'flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[12.5px] text-fg transition-[background,color,transform] duration-100 ease-out outline-none hover:translate-x-0.5 hover:bg-(--bg-active) focus-visible:translate-x-0.5 focus-visible:bg-(--bg-active)',
+													row.axis.sk ? 'bg-(--bg-active)' : null
 												)}
 											>
 												<Icon
@@ -280,7 +280,7 @@ function AxisPicker({
 				<button
 					type="button"
 					onClick={onBack}
-					className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[11.5px] font-medium text-fg-dim hover:bg-raised hover:text-fg focus-visible:outline-none"
+					className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[11.5px] font-medium text-fg-dim transition-[background,color] duration-100 ease-out hover:bg-(--bg-active) hover:text-fg focus-visible:bg-(--bg-active) focus-visible:text-fg focus-visible:outline-none"
 					aria-label="Back to filter list"
 				>
 					<Icon name="chev" size={11} className="rotate-180" />
@@ -290,7 +290,7 @@ function AxisPicker({
 					<button
 						type="button"
 						onClick={onApply}
-						className="inline-flex h-6 items-center rounded px-1.5 text-[11.5px] text-fg-dim hover:text-fg focus-visible:outline-none"
+						className="inline-flex h-6 items-center rounded px-1.5 text-[11.5px] text-fg-dim transition-[background,color] duration-100 ease-out hover:bg-(--bg-active) hover:text-fg focus-visible:bg-(--bg-active) focus-visible:text-fg focus-visible:outline-none"
 					>
 						Done
 					</button>
@@ -305,8 +305,8 @@ function AxisPicker({
 								type="button"
 								onClick={() => toggle(item.value)}
 								className={cn(
-									'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] hover:bg-raised focus-visible:bg-raised focus-visible:outline-none',
-									selected ? 'text-fg' : 'text-fg-muted'
+									'flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[12.5px] transition-[background,color,transform] duration-100 ease-out outline-none hover:translate-x-0.5 hover:bg-(--bg-active) focus-visible:translate-x-0.5 focus-visible:bg-(--bg-active)',
+									selected ? 'bg-(--bg-active) text-fg' : 'text-fg-muted'
 								)}
 							>
 								<span

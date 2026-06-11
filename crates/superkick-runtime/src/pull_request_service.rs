@@ -12,7 +12,7 @@ use superkick_core::{
     ArtifactKind, LinkedPrSummary, PrState, PullRequest, Run, RunId, RunState, ShipMode,
     parse_pr_number,
 };
-use superkick_storage::repo::{ArtifactRepo, PullRequestRepo};
+use superkick_storage::repo::{ArtifactRepo, PullRequestRepo, RunRepo};
 
 /// Re-sync a non-terminal PR from GitHub only after this window elapses. Keeps
 /// run-detail loads from hammering `gh api` on every refresh while still
@@ -36,6 +36,12 @@ pub enum ShipError {
     NoBranch,
     #[error("nothing to ship — no commits between the base branch and the run branch")]
     NoChanges,
+    #[error("head branch cannot be changed after a PR exists")]
+    HeadBranchLocked,
+    #[error("{0}")]
+    InvalidHeadBranch(String),
+    #[error("{0}")]
+    HeadBranchRename(String),
     #[error("{0}")]
     GhAuth(String),
     #[error("{0}")]
@@ -54,24 +60,28 @@ pub struct ShipOutcome {
     pub pr: Option<PullRequest>,
 }
 
-pub struct PullRequestService<P, A>
+pub struct PullRequestService<P, A, R>
 where
     P: PullRequestRepo + 'static,
     A: ArtifactRepo + 'static,
+    R: RunRepo + 'static,
 {
     pr_repo: Arc<P>,
     artifact_repo: Arc<A>,
+    run_repo: Arc<R>,
 }
 
-impl<P, A> PullRequestService<P, A>
+impl<P, A, R> PullRequestService<P, A, R>
 where
     P: PullRequestRepo + 'static,
     A: ArtifactRepo + 'static,
+    R: RunRepo + 'static,
 {
-    pub fn new(pr_repo: Arc<P>, artifact_repo: Arc<A>) -> Arc<Self> {
+    pub fn new(pr_repo: Arc<P>, artifact_repo: Arc<A>, run_repo: Arc<R>) -> Arc<Self> {
         Arc::new(Self {
             pr_repo,
             artifact_repo,
+            run_repo,
         })
     }
 
@@ -88,6 +98,7 @@ where
         mode: ShipMode,
         title: &str,
         body: &str,
+        head_branch: Option<&str>,
     ) -> Result<ShipOutcome, ShipError> {
         // Server-authoritative gate: the UI only offers Ship on a succeeded launch
         // task, but the run-scoped endpoint is directly reachable, so refuse to
@@ -101,7 +112,7 @@ where
         if !run.use_worktree {
             return Err(ShipError::NotWorktreeBacked);
         }
-        let branch = run.branch_name.as_deref().ok_or(ShipError::NoBranch)?;
+        let current_branch = run.branch_name.as_deref().ok_or(ShipError::NoBranch)?;
         let worktree_path = run
             .worktree_path
             .as_deref()
@@ -110,6 +121,24 @@ where
         if !worktree.exists() {
             return Err(ShipError::WorktreeMissing);
         }
+
+        // Validate the head-branch override before any side effect (commit,
+        // remote add): a rejected rename must not mutate the worktree.
+        let planned_head = match head_branch {
+            None => None,
+            Some(requested) => {
+                let pr_exists = self.pr_exists(run.id).await?;
+                match plan_head_branch(current_branch, requested, pr_exists)? {
+                    None => None,
+                    Some(new_name) => {
+                        crate::git_ship::validate_branch_name(worktree, &new_name)
+                            .await
+                            .map_err(|e| ShipError::InvalidHeadBranch(e.to_string()))?;
+                        Some(new_name)
+                    }
+                }
+            }
+        };
 
         superkick_integrations::github::check_gh_auth()
             .await
@@ -131,11 +160,27 @@ where
             return Err(ShipError::NoChanges);
         }
 
+        let renamed = planned_head.is_some();
+        let branch = match planned_head {
+            None => current_branch.to_string(),
+            Some(new_name) => {
+                self.rename_head_branch(run, worktree, current_branch, &new_name)
+                    .await?;
+                new_name
+            }
+        };
+        let branch = branch.as_str();
+
         crate::git_ship::push_branch(worktree, branch)
             .await
             .map_err(ShipError::Git)?;
 
         let pr = if mode.opens_pr() {
+            // Re-check right before PR creation: a concurrent ship may have
+            // opened a PR after the pre-rename gate passed.
+            if renamed && self.pr_exists(run.id).await? {
+                return Err(ShipError::HeadBranchLocked);
+            }
             let url = superkick_integrations::github::create_pr(
                 worktree,
                 branch,
@@ -186,6 +231,49 @@ where
             pushed_branch: branch.to_string(),
             pr,
         })
+    }
+
+    /// Whether a PR already exists for the run, counting both persisted rows
+    /// and PrUrl artifacts: the autonomous `create_pr` step writes only the
+    /// artifact until `resolve_pr` lazily materializes a row.
+    async fn pr_exists(&self, run_id: RunId) -> Result<bool, ShipError> {
+        let recorded = self
+            .pr_repo
+            .get_by_run(run_id)
+            .await
+            .map_err(ShipError::Persist)?
+            .is_some();
+        Ok(recorded || self.extract_pr_url_from_artifacts(run_id).await.is_some())
+    }
+
+    /// Apply an operator-requested head-branch rename (the name was validated
+    /// upfront): rename in the worktree, then persist `run.branch_name` before
+    /// the push so a later push failure leaves the DB consistent with the local
+    /// branch. A persist failure rolls the rename back for the same reason.
+    async fn rename_head_branch(
+        &self,
+        run: &Run,
+        worktree: &std::path::Path,
+        from: &str,
+        to: &str,
+    ) -> Result<(), ShipError> {
+        crate::git_ship::rename_branch(worktree, from, to)
+            .await
+            .map_err(|e| ShipError::HeadBranchRename(e.to_string()))?;
+
+        let mut renamed = run.clone();
+        renamed.branch_name = Some(to.to_string());
+        if let Err(persist_err) = self.run_repo.update(&renamed).await {
+            if let Err(rollback_err) = crate::git_ship::rename_branch(worktree, to, from).await {
+                tracing::warn!(
+                    run_id = %run.id.0,
+                    error = %rollback_err,
+                    "failed to roll back head-branch rename after persist failure"
+                );
+            }
+            return Err(ShipError::Persist(persist_err));
+        }
+        Ok(())
     }
 
     /// Resolve the PullRequest for a run. Lazily creates a record from the
@@ -274,5 +362,56 @@ where
                 tracing::debug!(pr_number = pr.number, error = %e, "GitHub PR sync failed (gh cli may not be available)");
             }
         }
+    }
+}
+
+/// Decide whether a requested head-branch override is a no-op, a rename, or a
+/// rejection. Renames are locked once a PR exists — GitHub tracks the PR by its
+/// head ref, so a rename would orphan it.
+fn plan_head_branch(
+    current: &str,
+    requested: &str,
+    pr_exists: bool,
+) -> Result<Option<String>, ShipError> {
+    let requested = requested.trim();
+    if requested == current {
+        return Ok(None);
+    }
+    if pr_exists {
+        return Err(ShipError::HeadBranchLocked);
+    }
+    Ok(Some(requested.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ShipError, plan_head_branch};
+
+    #[test]
+    fn same_name_is_a_noop_even_with_whitespace() {
+        assert_eq!(plan_head_branch("feat/x", "feat/x", false).unwrap(), None);
+        assert_eq!(
+            plan_head_branch("feat/x", "  feat/x  ", false).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn same_name_with_existing_pr_is_still_a_noop() {
+        assert_eq!(plan_head_branch("feat/x", "feat/x", true).unwrap(), None);
+    }
+
+    #[test]
+    fn different_name_without_pr_renames_to_trimmed() {
+        assert_eq!(
+            plan_head_branch("feat/x", " feat/y ", false).unwrap(),
+            Some("feat/y".to_string())
+        );
+    }
+
+    #[test]
+    fn different_name_with_existing_pr_is_rejected() {
+        let err = plan_head_branch("feat/x", "feat/y", true).unwrap_err();
+        assert!(matches!(err, ShipError::HeadBranchLocked));
     }
 }

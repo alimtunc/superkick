@@ -10,11 +10,10 @@ import { Route as shellRoute } from './route'
 export const Route = createRoute({
 	getParentRoute: () => shellRoute,
 	path: '/tasks/$taskId',
-	loader: ({ context, params }) =>
-		Promise.all([
-			context.queryClient.ensureQueryData(launchTaskDetailQuery(params.taskId)),
-			context.queryClient.ensureQueryData(launchTaskStepsQuery(params.taskId))
-		]),
+	loader: ({ context, params }) => {
+		void context.queryClient.prefetchQuery(launchTaskDetailQuery(params.taskId))
+		void context.queryClient.prefetchQuery(launchTaskStepsQuery(params.taskId))
+	},
 	component: TaskDetailPage
 })
 

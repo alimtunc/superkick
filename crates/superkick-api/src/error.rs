@@ -1,6 +1,7 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json};
 
+use superkick_config::RunnerPatchError;
 use superkick_core::{AgentProvider, CoreError};
 use superkick_integrations::linear::LinearError;
 use superkick_runtime::{
@@ -64,6 +65,15 @@ impl From<LinearError> for AppError {
             AppError::Unprocessable(msg.to_string())
         } else {
             AppError::Internal(anyhow::Error::from(err))
+        }
+    }
+}
+
+impl From<RunnerPatchError> for AppError {
+    fn from(err: RunnerPatchError) -> Self {
+        match err {
+            RunnerPatchError::Invalid(msg) => AppError::Unprocessable(msg),
+            RunnerPatchError::Other(e) => AppError::Internal(e),
         }
     }
 }

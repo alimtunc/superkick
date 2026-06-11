@@ -85,4 +85,16 @@ describe('IssueFilterBar', () => {
 			status_not: ['completed']
 		})
 	})
+
+	it('gives group and sort popover rows motion feedback', async () => {
+		const user = userEvent.setup()
+		renderBar()
+
+		await user.click(screen.getByRole('button', { name: 'Group' }))
+
+		const lifecycle = screen.getByRole('button', { name: 'Lifecycle' })
+		expect(lifecycle).toHaveClass('transition-[background,color,transform]')
+		expect(lifecycle).toHaveClass('hover:translate-x-0.5')
+		expect(lifecycle).toHaveClass('hover:bg-(--bg-active)')
+	})
 })

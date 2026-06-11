@@ -88,6 +88,29 @@ async fn resolve_base_sha(worktree: &Path, base_branch: &str) -> Result<String> 
     bail!("failed to resolve base sha for origin/{base_branch} or local {base_branch}")
 }
 
+/// Reject branch names `git check-ref-format --branch` refuses, with a message
+/// the operator can act on.
+pub async fn validate_branch_name(worktree: &Path, name: &str) -> Result<()> {
+    let output = git_raw(worktree, &["check-ref-format", "--branch", name]).await?;
+    if !output.status.success() {
+        bail!("'{name}' is not a valid git branch name");
+    }
+    Ok(())
+}
+
+/// Rename a local branch. Fails when the target name already exists.
+pub async fn rename_branch(worktree: &Path, from: &str, to: &str) -> Result<()> {
+    let output = git_raw(worktree, &["branch", "-m", from, to]).await?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!(
+            "could not rename branch '{from}' to '{to}': {}",
+            stderr.trim()
+        );
+    }
+    Ok(())
+}
+
 /// Push the branch to `origin`, setting upstream tracking.
 pub async fn push_branch(worktree: &Path, branch: &str) -> Result<()> {
     git(worktree, &["push", "-u", "origin", branch])

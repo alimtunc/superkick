@@ -135,6 +135,14 @@ impl Supervisor {
         }
     }
 
+    /// Reboots the active project's server unconditionally, e.g. after a
+    /// config change that only takes effect at server startup.
+    pub fn restart_active_project(&self, handle: &tauri::AppHandle, return_path: Option<String>) {
+        if let Some(project) = lock(&self.registry).active().cloned() {
+            self.boot(handle, project, return_path);
+        }
+    }
+
     /// Boots the persisted active project on app launch, if any.
     pub fn boot_persisted_active(&self, handle: &tauri::AppHandle) {
         if let Some(project) = lock(&self.registry).active().cloned() {

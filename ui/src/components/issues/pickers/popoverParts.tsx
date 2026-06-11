@@ -59,7 +59,7 @@ export function Popline({ selected = false, dim = false, onClick, ariaLabel, chi
 			aria-selected={selected}
 			aria-label={ariaLabel}
 			onClick={onClick}
-			className="popline w-full text-left text-fg"
+			className="popline w-full text-left text-fg transition-[background,color,transform] duration-100 ease-out outline-none hover:translate-x-0.5 focus-visible:bg-(--bg-active)"
 			style={{
 				...(selected ? POPLINE_SELECTED_STYLE : POPLINE_STYLE),
 				...(dim ? { color: 'var(--fg-dim)' } : null),

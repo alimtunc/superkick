@@ -4,7 +4,10 @@ import { cn } from '@/lib/utils'
 import { Menu } from '@base-ui/react/menu'
 
 export const MENU_ITEM_CLASS =
-	'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-[12.5px] text-fg outline-none data-highlighted:bg-raised'
+	'flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none transition-[background,color,transform] duration-100 ease-out data-highlighted:translate-x-0.5 data-highlighted:bg-(--bg-active) data-highlighted:text-fg data-disabled:cursor-not-allowed data-disabled:opacity-50'
+
+export const MENU_POPUP_CLASS =
+	'max-h-[min(360px,var(--available-height))] overflow-x-hidden overflow-y-auto rounded-[7px] border border-border bg-overlay p-1 shadow-lg outline-none transition-[opacity,transform] duration-150 ease-out data-[ending-style]:scale-98 data-[ending-style]:opacity-0 data-[starting-style]:scale-98 data-[starting-style]:opacity-0'
 
 interface MenuPopupProps {
 	children: ReactNode
@@ -35,14 +38,7 @@ export function MenuPopup({
 				collisionAvoidance={{ side: 'flip', align: 'shift' }}
 				className={cn('z-popover-over-dialog', className)}
 			>
-				<Menu.Popup
-					className={cn(
-						'max-h-[min(360px,var(--available-height))] overflow-x-hidden overflow-y-auto rounded-[7px] border border-border bg-surface shadow-lg outline-none',
-						popupClassName
-					)}
-				>
-					{children}
-				</Menu.Popup>
+				<Menu.Popup className={cn(MENU_POPUP_CLASS, popupClassName)}>{children}</Menu.Popup>
 			</Menu.Positioner>
 		</Menu.Portal>
 	)

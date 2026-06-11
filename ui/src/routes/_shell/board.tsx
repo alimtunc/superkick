@@ -15,8 +15,9 @@ import { Route as shellRoute } from './route'
 export const Route = createRoute({
 	getParentRoute: () => shellRoute,
 	path: '/board',
-	// Loader failures must not crash the route — BoardPage renders queue.error.
-	loader: ({ context }) => context.queryClient.ensureQueryData(dashboardQueueQuery()).catch(() => null),
+	loader: ({ context }) => {
+		void context.queryClient.prefetchQuery(dashboardQueueQuery())
+	},
 	component: BoardPage
 })
 

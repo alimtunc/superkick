@@ -118,6 +118,15 @@ pub fn retry_boot(app: tauri::AppHandle, supervisor: tauri::State<'_, Supervisor
 }
 
 #[tauri::command]
+pub fn restart_active_project(
+    app: tauri::AppHandle,
+    supervisor: tauri::State<'_, Supervisor>,
+    return_path: Option<String>,
+) {
+    supervisor.restart_active_project(&app, return_path);
+}
+
+#[tauri::command]
 pub fn show_picker(app: tauri::AppHandle, supervisor: tauri::State<'_, Supervisor>) {
     supervisor.go_home(&app);
 }

@@ -142,7 +142,7 @@ impl IssueTrigger {
 
 // ── Runner ──────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RunnerConfig {
     pub mode: ProcessRunnerMode,
     #[serde(default = "default_repo_root")]

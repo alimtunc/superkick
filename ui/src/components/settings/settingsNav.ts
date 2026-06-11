@@ -12,6 +12,7 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
 	{ id: 'skills', label: 'Skills', scope: 'project' },
 	{ id: 'profiles', label: 'Launch profiles', scope: 'project' },
 	{ id: 'runtimes', label: 'Runtimes', scope: 'project' },
+	{ id: 'runner', label: 'Runner', scope: 'project' },
 	{ id: 'sandboxes', label: 'Sandboxes', scope: 'project' },
 	{ id: 'rules', label: 'Rules & guardrails', scope: 'project' },
 	{ id: 'budgets', label: 'Budgets', scope: 'project' },

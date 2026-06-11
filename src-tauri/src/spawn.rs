@@ -50,15 +50,23 @@ pub(crate) fn spawn_config(
     })
 }
 
+/// The bundler places the `externalBin` sidecar next to the shell executable,
+/// and a dev `cargo run` shares `target/debug` with the api binary — so
+/// exe-adjacent covers both. The workspace fallback handles a release shell
+/// run against a debug api build.
 fn api_binary_path() -> PathBuf {
-    workspace_root()
-        .join("target")
-        .join("debug")
-        .join(api_binary_name())
+    let name = api_binary_name();
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(dir) = exe.parent()
+    {
+        let adjacent = dir.join(name);
+        if adjacent.exists() {
+            return adjacent;
+        }
+    }
+    workspace_root().join("target").join("debug").join(name)
 }
 
-/// Dev-only resolution: the crate lives at `<workspace>/src-tauri`. A packaged app resolves its
-/// own bundle path — bundling is out of scope for this shell.
 fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { composeShipBody } from '@/lib/ship'
+import { validateHeadBranch } from '@/lib/shipBranch'
 import type { LinearStatusChoice, ShipMode } from '@/types'
 
 interface UseShipFormInput {
@@ -8,6 +9,7 @@ interface UseShipFormInput {
 	defaultTitle: string
 	summary: string
 	changedFiles: readonly string[]
+	headBranch: string | null
 }
 
 export interface ShipFormState {
@@ -25,11 +27,22 @@ export interface ShipFormState {
 	setComment: (comment: string) => void
 	statusChoice: LinearStatusChoice
 	setStatusChoice: (choice: LinearStatusChoice) => void
+	headBranch: string
+	setHeadBranch: (name: string) => void
+	headBranchError: string | null
+	headBranchOverride: string | null
 }
 
-export function useShipForm({ open, defaultTitle, summary, changedFiles }: UseShipFormInput): ShipFormState {
+export function useShipForm({
+	open,
+	defaultTitle,
+	summary,
+	changedFiles,
+	headBranch
+}: UseShipFormInput): ShipFormState {
 	const [mode, setMode] = useState<ShipMode>('draft')
 	const [title, setTitle] = useState(defaultTitle ?? '')
+	const [headBranchInput, setHeadBranchInput] = useState(headBranch ?? '')
 	const [includeSummary, setIncludeSummary] = useState(true)
 	const [includeChangedFiles, setIncludeChangedFiles] = useState(true)
 	const [comment, setComment] = useState('')
@@ -49,6 +62,7 @@ export function useShipForm({ open, defaultTitle, summary, changedFiles }: UseSh
 		seededRef.current = true
 		setMode('draft')
 		setTitle(defaultTitle ?? '')
+		setHeadBranchInput(headBranch ?? '')
 		setIncludeSummary(true)
 		setIncludeChangedFiles(true)
 		setComment('')
@@ -57,7 +71,7 @@ export function useShipForm({ open, defaultTitle, summary, changedFiles }: UseSh
 		setBodyState(
 			composeShipBody({ includeSummary: true, includeChangedFiles: true, summary, changedFiles })
 		)
-	}, [open, defaultTitle, summary, changedFiles])
+	}, [open, defaultTitle, summary, changedFiles, headBranch])
 
 	// Recompose the body from the include toggles until the operator edits it.
 	useEffect(() => {
@@ -69,6 +83,11 @@ export function useShipForm({ open, defaultTitle, summary, changedFiles }: UseSh
 		setBodyDirty(true)
 		setBodyState(next)
 	}
+
+	const originalHeadBranch = (headBranch ?? '').trim()
+	const trimmedHeadBranch = headBranchInput.trim()
+	const headBranchEdited = trimmedHeadBranch !== originalHeadBranch
+	const headBranchError = headBranchEdited ? validateHeadBranch(trimmedHeadBranch) : null
 
 	return {
 		mode,
@@ -84,6 +103,10 @@ export function useShipForm({ open, defaultTitle, summary, changedFiles }: UseSh
 		comment,
 		setComment,
 		statusChoice,
-		setStatusChoice
+		setStatusChoice,
+		headBranch: headBranchInput,
+		setHeadBranch: setHeadBranchInput,
+		headBranchError,
+		headBranchOverride: headBranchEdited && headBranchError === null ? trimmedHeadBranch : null
 	}
 }

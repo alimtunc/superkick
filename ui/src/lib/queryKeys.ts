@@ -48,7 +48,8 @@ export const queryKeys = {
 		query: (q: string, scope: string, includeDone: boolean) => ['search', q, scope, includeDone] as const
 	},
 	config: {
-		all: ['config'] as const
+		all: ['config'] as const,
+		runner: ['config', 'runner'] as const
 	},
 	me: {
 		all: ['me'] as const

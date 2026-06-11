@@ -8,6 +8,7 @@ mod boot;
 mod builtin_agents;
 mod model;
 mod repo_slug;
+mod runner_patch;
 mod validate;
 
 pub use boot::{
@@ -16,8 +17,10 @@ pub use boot::{
 };
 pub use model::*;
 pub use repo_slug::{detect_repo_slug, parse_repo_slug};
+pub use runner_patch::{RunnerPatch, RunnerPatchError, update_runner_config};
 pub use validate::validate;
 
+use std::io::Write;
 use std::path::Path;
 
 use anyhow::Context;
@@ -48,6 +51,26 @@ pub fn load_or_bootstrap(path: &Path) -> anyhow::Result<SuperkickConfig> {
     } else {
         Ok(SuperkickConfig::bootstrap())
     }
+}
+
+/// Validate and persist a Superkick config atomically (unique tmp file +
+/// rename), so a crash mid-write or a concurrent writer can never leave a
+/// truncated `superkick.yaml`.
+pub fn save_file(config: &SuperkickConfig, path: &Path) -> anyhow::Result<()> {
+    validate(config)?;
+    let yaml = serde_yaml::to_string(config).context("failed to serialize config")?;
+    let dir = match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent,
+        _ => Path::new("."),
+    };
+    let mut tmp = tempfile::NamedTempFile::new_in(dir)
+        .with_context(|| format!("failed to create temp file in {}", dir.display()))?;
+    tmp.write_all(yaml.as_bytes())
+        .with_context(|| format!("failed to write {}", tmp.path().display()))?;
+    tmp.persist(path)
+        .map_err(|error| error.error)
+        .with_context(|| format!("failed to move temp file into place at {}", path.display()))?;
+    Ok(())
 }
 
 #[cfg(test)]

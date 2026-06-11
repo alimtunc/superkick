@@ -1,7 +1,7 @@
 import { IssueFilterDropdown } from '@/components/issues/IssueFilterDropdown'
 import { EMPTY_FILTERS } from '@/lib/issues/searchParams'
 import type { FilterOptionSet } from '@/types'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 const OPTIONS: FilterOptionSet = {
@@ -56,5 +56,21 @@ describe('IssueFilterDropdown', () => {
 	it('offers the "Save current as view…" footer row', () => {
 		renderOpen()
 		expect(screen.getByText('Save current as view…')).toBeInTheDocument()
+	})
+
+	it('gives axis and picker rows motion feedback instead of flat hover only', () => {
+		renderOpen()
+
+		const projectAxis = screen.getByRole('button', { name: 'Project' })
+		expect(projectAxis).toHaveClass('transition-[background,color,transform]')
+		expect(projectAxis).toHaveClass('hover:translate-x-0.5')
+		expect(projectAxis).toHaveClass('hover:bg-(--bg-active)')
+
+		fireEvent.click(projectAxis)
+
+		const projectOption = screen.getByRole('button', { name: 'Superkick' })
+		expect(projectOption).toHaveClass('transition-[background,color,transform]')
+		expect(projectOption).toHaveClass('hover:translate-x-0.5')
+		expect(projectOption).toHaveClass('hover:bg-(--bg-active)')
 	})
 })

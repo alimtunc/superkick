@@ -63,7 +63,7 @@ where
     run_repo: Arc<R>,
     attention_repo: Arc<A>,
     interrupt_repo: Arc<I>,
-    pr_service: Arc<PullRequestService<P, Art>>,
+    pr_service: Arc<PullRequestService<P, Art, R>>,
     recovery_event_repo: Arc<SqliteRecoveryEventRepo>,
     ownership_service: Arc<OwnershipService<OwnR, OwnE>>,
 }
@@ -82,7 +82,7 @@ where
         run_repo: Arc<R>,
         attention_repo: Arc<A>,
         interrupt_repo: Arc<I>,
-        pr_service: Arc<PullRequestService<P, Art>>,
+        pr_service: Arc<PullRequestService<P, Art, R>>,
         recovery_event_repo: Arc<SqliteRecoveryEventRepo>,
         ownership_service: Arc<OwnershipService<OwnR, OwnE>>,
     ) -> Arc<Self> {

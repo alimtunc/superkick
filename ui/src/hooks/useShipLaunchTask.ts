@@ -1,6 +1,6 @@
 import { createIssueComment, patchIssue, shipRun } from '@/api'
 import { invalidateAfterRunOrTaskStateChange } from '@/lib/queryInvalidation'
-import type { ShipMode, ShipRunResponse } from '@/types'
+import type { ShipMode, ShipRunRequest, ShipRunResponse } from '@/types'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -15,6 +15,8 @@ interface ShipSubmit {
 	mode: ShipMode
 	title: string
 	body: string
+	/** Head-branch rename to request, or null to keep the run branch. */
+	headBranch: string | null
 	/** Linear comment to post, or null to skip. */
 	comment: string | null
 	/** Pre-resolved Linear workflow-state id to move to, or null for no change. */
@@ -33,8 +35,10 @@ export function useShipLaunchTask(params: UseShipLaunchTaskParams) {
 	const queryClient = useQueryClient()
 
 	return useMutation<ShipRunResponse, Error, ShipSubmit>({
-		mutationFn: async ({ mode, title, body, comment, statusStateId }) => {
-			const result = await shipRun(params.runId, { mode, title, body })
+		mutationFn: async ({ mode, title, body, headBranch, comment, statusStateId }) => {
+			const request: ShipRunRequest = { mode, title, body }
+			if (headBranch !== null) request.headBranch = headBranch
+			const result = await shipRun(params.runId, request)
 			const linearWarnings: string[] = []
 			if (comment) {
 				try {

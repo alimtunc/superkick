@@ -115,6 +115,65 @@ async fn has_commits_against_base_falls_back_to_local_base_without_origin() -> R
     Ok(())
 }
 
+fn local_branches(cwd: &Path) -> String {
+    let output = Command::new("git")
+        .args(["branch", "--format=%(refname:short)"])
+        .current_dir(cwd)
+        .output()
+        .expect("branch list");
+    String::from_utf8_lossy(&output.stdout).to_string()
+}
+
+#[tokio::test]
+async fn rename_branch_renames_the_local_branch() -> Result<()> {
+    let repo = init_repo()?;
+    let path = repo.path();
+    git(path, &["checkout", "-b", "feat/old", "--quiet"]);
+
+    git_ship::rename_branch(path, "feat/old", "feat/new").await?;
+
+    let branches = local_branches(path);
+    assert!(branches.contains("feat/new"));
+    assert!(!branches.contains("feat/old"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn rename_branch_onto_existing_target_fails() -> Result<()> {
+    let repo = init_repo()?;
+    let path = repo.path();
+    git(path, &["branch", "feat/taken"]);
+    git(path, &["checkout", "-b", "feat/old", "--quiet"]);
+
+    let err = git_ship::rename_branch(path, "feat/old", "feat/taken")
+        .await
+        .expect_err("rename onto existing branch must fail");
+    assert!(err.to_string().contains("could not rename branch"));
+
+    let branches = local_branches(path);
+    assert!(branches.contains("feat/old"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn validate_branch_name_accepts_valid_and_rejects_invalid() -> Result<()> {
+    let repo = init_repo()?;
+    let path = repo.path();
+
+    git_ship::validate_branch_name(path, "feat/valid-name").await?;
+
+    for invalid in ["", "feat..x", "feat name", "feat/x.lock", "feat/@{x"] {
+        let err = git_ship::validate_branch_name(path, invalid)
+            .await
+            .expect_err("check-ref-format must reject the name");
+        assert!(
+            err.to_string().contains("is not a valid git branch name"),
+            "unexpected error for {invalid:?}: {err}"
+        );
+    }
+    Ok(())
+}
+
 #[tokio::test]
 async fn push_branch_publishes_to_origin() -> Result<()> {
     let origin = bare_origin()?;
