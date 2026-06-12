@@ -1,9 +1,9 @@
-//! SUP-185 — structured (headless) spawn path for Codex Launch Task steps.
+//! SUP-185/SUP-201 — structured (headless) spawn path for Launch Task steps.
 //!
 //! The PTY supervisor (`lifecycle::run_supervised`) scrapes a terminal for the
-//! `SUPERKICK_STEP_RESULT_*` marker. This path instead drives the existing
-//! [`CodexProtocolAdapter`] (`codex exec --json`), drains its
-//! `ProtocolEventEnvelope` stream, and:
+//! `SUPERKICK_STEP_RESULT_*` marker. This path instead drives the provider's
+//! `ProtocolAdapter` (`codex exec --json` / `claude --print --output-format
+//! stream-json`), drains its `ProtocolEventEnvelope` stream, and:
 //!
 //! - persists each event as an `EventKind::AgentProtocol` `run_events` row
 //!   (provider evidence — the storage layer assigns the per-run `seq`),
@@ -45,9 +45,10 @@ pub(crate) struct StructuredDeps<S, E, T> {
     pub lifecycle_bus: Option<Arc<SessionBus>>,
 }
 
-/// Drive one Codex structured turn to completion: drain the protocol stream,
-/// persist evidence, and build the terminal `AgentResult`. Runs as the task
-/// behind the `JoinHandle` returned by `AgentSupervisor::launch_codex_structured`.
+/// Drive one structured turn (Codex or Claude) to completion: drain the
+/// protocol stream, persist evidence, and build the terminal `AgentResult`.
+/// Runs as the task behind the `JoinHandle` returned by
+/// `AgentSupervisor::launch_codex_structured` / `launch_claude_structured`.
 pub(crate) async fn consume<S, E, T>(
     stream: ProtocolStream,
     mut session: AgentSession,
@@ -81,7 +82,7 @@ where
         Some(run_step_id),
         EventKind::AgentOutput,
         EventLevel::Info,
-        format!("codex structured turn started ({})", session.provider),
+        format!("structured turn started ({})", session.provider),
     )
     .await;
 
@@ -162,7 +163,7 @@ where
     if !transcript.is_empty() {
         let chunk = TranscriptChunk::new(run_id, 0, transcript.into_bytes());
         if let Err(e) = deps.transcript_repo.insert(&chunk).await {
-            warn!(run_id = %run_id, error = %e, "failed to persist codex structured transcript");
+            warn!(run_id = %run_id, error = %e, "failed to persist structured transcript");
         }
     }
 
@@ -203,7 +204,7 @@ fn map_outcome(
         Err(e) => (
             SessionLifecyclePhase::Failed {
                 exit_code: None,
-                reason: format!("codex adapter error: {e:#}"),
+                reason: format!("structured adapter error: {e:#}"),
             },
             None,
         ),
@@ -352,7 +353,7 @@ where
         );
         event.payload_json = serde_json::to_value(envelope).ok();
         if let Err(e) = self.event_repo.insert(&event).await {
-            warn!(run_id = %self.run_id, error = %e, "failed to persist codex protocol event");
+            warn!(run_id = %self.run_id, error = %e, "failed to persist protocol event");
         }
     }
 
@@ -442,7 +443,7 @@ mod tests {
     use crate::agent_supervisor::{
         AgentLaunchConfig, PolicyAudit, SessionLaunchInfo, build_agent_session,
     };
-    use crate::protocol_adapter::spawn_codex_pump_for_test;
+    use crate::protocol_adapter::{spawn_codex_pump_for_test, spawn_pump_for_test};
 
     // One `codex exec --json` turn: session id, a command tool call, an
     // unparseable line (must surface as a diagnostic, not vanish), the agent
@@ -459,6 +460,22 @@ mod tests {
         r#"{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"SUPERKICK_STEP_RESULT_BEGIN\n{\"status\":\"completed\",\"summary\":\"did the thing\",\"changed_files\":[\"a.rs\"],\"questions\":[]}\nSUPERKICK_STEP_RESULT_END"}}"#,
         "\n",
         r#"{"type":"turn.completed","usage":{"input_tokens":100,"output_tokens":10}}"#,
+        "\n",
+    );
+
+    // One `claude --print --output-format stream-json` turn: a `system.init`
+    // (carries the resume `session_id`), a tool call + its result, the agent
+    // message carrying the step-result marker, and a terminal success result.
+    const CLAUDE_FIXTURE: &str = concat!(
+        r#"{"type":"system","subtype":"init","session_id":"sess-claude-9","model":"claude-sonnet-4-5","cwd":"/tmp"}"#,
+        "\n",
+        r#"{"type":"assistant","message":{"id":"msg_1","role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"command":"ls"}}]}}"#,
+        "\n",
+        r#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok","is_error":false}]}}"#,
+        "\n",
+        r#"{"type":"assistant","message":{"id":"msg_2","role":"assistant","content":[{"type":"text","text":"SUPERKICK_STEP_RESULT_BEGIN\n{\"status\":\"completed\",\"summary\":\"did the claude thing\",\"changed_files\":[\"b.rs\"],\"questions\":[]}\nSUPERKICK_STEP_RESULT_END"}]}}"#,
+        "\n",
+        r#"{"type":"result","subtype":"success","is_error":false,"result":"done","total_cost_usd":0.0002,"usage":{"input_tokens":50,"output_tokens":8},"session_id":"sess-claude-9"}"#,
         "\n",
     );
 
@@ -593,6 +610,140 @@ mod tests {
             .expect("get session")
             .expect("session present");
         assert_eq!(reloaded.provider_session_id.as_deref(), Some("thread-xyz"));
+
+        // Raw transcript fallback persisted for the shadow run.
+        let transcript = transcript_repo
+            .list_by_run(run_id)
+            .await
+            .expect("transcript");
+        assert!(
+            !transcript.is_empty(),
+            "structured turn should persist a raw transcript chunk"
+        );
+    }
+
+    // SUP-201: a `claude_workflow` (Claude, PrintStreamJson) step driven
+    // through `ClaudeProtocolAdapter` writes the SAME ledger shape Codex does —
+    // append-only `AgentProtocol` `run_events` with strictly increasing `seq`
+    // and a captured `provider_session_id` — with zero new persistence.
+    #[tokio::test]
+    async fn claude_structured_flow_persists_protocol_events_and_resume_key() {
+        // Cap at one connection: each extra connection to `:memory:` opens its
+        // own empty database and would hide writes from the reads below.
+        let pool = connect_with_capacity("sqlite::memory:", 1)
+            .await
+            .expect("db");
+        let run_repo = SqliteRunRepo::new(pool.clone());
+        let step_repo = SqliteRunStepRepo::new(pool.clone());
+        let event_repo = Arc::new(SqliteRunEventRepo::new(pool.clone()));
+        let session_repo = Arc::new(SqliteAgentSessionRepo::new(pool.clone()));
+        let transcript_repo = Arc::new(SqliteTranscriptRepo::new(pool.clone()));
+
+        let run = Run::new(
+            "T-CLAUDE".into(),
+            "T-CLAUDE".into(),
+            "owner/repo".into(),
+            TriggerSource::LaunchTask,
+            ExecutionMode::FullAuto,
+            "main".into(),
+            true,
+            None,
+        );
+        let run_id = run.id;
+        run_repo.insert(&run).await.expect("insert run");
+        let mut step = RunStep::new(run_id, StepKey::Plan, 1);
+        step.status = StepStatus::Running;
+        step_repo.insert(&step).await.expect("insert step");
+
+        let config = AgentLaunchConfig {
+            run_id,
+            step_id: step.id,
+            provider: AgentProvider::Claude,
+            args: vec!["claude".into(), "--print".into()],
+            workdir: std::env::temp_dir(),
+            timeout: Duration::from_secs(5),
+            idle_timeout: None,
+            linear_context_mode: LinearContextMode::None,
+            policy_audit: PolicyAudit::default(),
+            session_launch: SessionLaunchInfo {
+                role: "coder".into(),
+                purpose: "claude structured test".into(),
+                parent_session_id: None,
+                launch_reason: LaunchReason::InitialStep,
+                handoff_id: None,
+            },
+            initial_stdin: None,
+            runner_mode: RunnerMode::PrintStreamJson,
+            billing_profile: superkick_core::BillingProfile::default_for(
+                AgentProvider::Claude,
+                RunnerMode::PrintStreamJson,
+            ),
+            session_live: None,
+        };
+        let session = build_agent_session(&config);
+        let session_id = session.id;
+        session_repo.insert(&session).await.expect("insert session");
+
+        let child = spawn_cat(CLAUDE_FIXTURE).await;
+        let stream = spawn_pump_for_test(child, 64, Some(Duration::from_secs(5)));
+        let deps = StructuredDeps {
+            session_repo: Arc::clone(&session_repo),
+            event_repo: Arc::clone(&event_repo),
+            transcript_repo: Arc::clone(&transcript_repo),
+            lifecycle_bus: None,
+        };
+
+        let result = consume(stream, session, Duration::from_secs(5), None, deps)
+            .await
+            .expect("consume");
+
+        // Terminal outcome + step result derived from the SAME marker scanner
+        // the Codex path uses.
+        assert!(matches!(
+            result.lifecycle_phase,
+            SessionLifecyclePhase::Completed { .. }
+        ));
+        let step_result = result.step_result.expect("marker parsed").expect("present");
+        assert_eq!(step_result.status, StepResultStatus::Completed);
+        assert_eq!(step_result.summary, "did the claude thing");
+        assert_eq!(step_result.changed_files, vec!["b.rs".to_string()]);
+
+        let events = event_repo.list_by_run(run_id).await.expect("events");
+
+        // AC2/AC5: append-only ledger with a strictly increasing per-run seq.
+        let seqs: Vec<u64> = events.iter().map(|e| e.seq).collect();
+        assert!(
+            seqs.windows(2).all(|w| w[0] < w[1]),
+            "run_events seq must be strictly increasing for replay: {seqs:?}"
+        );
+
+        // The Claude step emits the same AgentProtocol evidence rows as Codex
+        // (session/tool_use/tool_result/text/usage/completion).
+        let protocol: Vec<_> = events
+            .iter()
+            .filter(|e| e.kind == EventKind::AgentProtocol)
+            .collect();
+        assert!(
+            protocol.len() >= 5,
+            "expected the Claude provider-evidence rows, got {}",
+            protocol.len()
+        );
+
+        // AC2/AC4: the first SessionMeta resume key is captured into the
+        // session, so a timed-out Claude structured step can `--resume` it.
+        let reloaded = session_repo
+            .get(session_id)
+            .await
+            .expect("get session")
+            .expect("session present");
+        assert_eq!(
+            reloaded.provider_session_id.as_deref(),
+            Some("sess-claude-9")
+        );
+        assert_eq!(
+            result.resume_key.as_ref().map(|k| k.as_str()),
+            Some("sess-claude-9")
+        );
 
         // Raw transcript fallback persisted for the shadow run.
         let transcript = transcript_repo
