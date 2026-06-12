@@ -158,23 +158,16 @@ pub async fn fetch_pr_files(repo_slug: &str, pr_number: u32) -> Result<Vec<PrDif
 
     debug!(%repo_slug, pr_number, "fetching PR files from GitHub");
 
-    let output = run_gh(
-        &[
-            "api",
-            &endpoint,
-            "--paginate",
-            "--slurp",
-            "--jq",
-            "flatten | map({filename: .filename, previous_filename: .previous_filename, status: .status, additions: .additions, deletions: .deletions, patch: .patch})",
-        ],
-        None,
-    )
-    .await?;
+    // gh >= 2.94 rejects `--slurp` combined with `--jq`; slurp alone returns one
+    // JSON array per page, flattened here instead.
+    let output = run_gh(&["api", &endpoint, "--paginate", "--slurp"], None).await?;
 
-    let raw: Vec<GhPrFileResponse> = serde_json::from_slice(&output.stdout)
+    let pages: Vec<Vec<GhPrFileResponse>> = serde_json::from_slice(&output.stdout)
         .context("failed to parse `gh api` files response")?;
 
-    raw.into_iter()
+    pages
+        .into_iter()
+        .flatten()
         .enumerate()
         .map(|(position, file)| {
             Ok(PrDiffFile {

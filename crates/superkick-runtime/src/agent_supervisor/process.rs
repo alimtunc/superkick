@@ -1,6 +1,7 @@
 //! OS-level process control for supervised agents.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
@@ -86,8 +87,8 @@ pub(crate) fn open_pty_and_spawn(
     })
 }
 
-/// Inject an opening payload into a freshly-spawned PTY after a short delay,
-/// then submit it with a carriage return.
+/// Inject an opening payload into a freshly-spawned PTY once its startup UI has
+/// settled, then submit it with a carriage return.
 ///
 /// Runs on a detached task because `write_input` is a blocking `write_all`:
 /// doing it inline on the async runtime would let an agent that is slow to
@@ -99,15 +100,15 @@ pub(crate) fn spawn_initial_input_injection(
     session: Arc<PtySession>,
     payload: String,
     run_id: RunId,
+    output_rx: broadcast::Receiver<Vec<u8>>,
 ) {
     tokio::spawn(async move {
-        // Both `claude` and `codex` print a welcome banner before accepting
-        // input; without this brief pause the injected prefix lands inside the
-        // banner instead of the prompt box.
-        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        wait_for_input_ready(output_rx).await;
         let injected = tokio::task::spawn_blocking(move || {
             session.write_input(payload.as_bytes())?;
-            // `\r` is the canonical Enter in raw mode; submits the line.
+            // Gap so Claude's TUI closes its paste-coalesce window: an Enter glued
+            // to the multi-line burst is absorbed as paste content, not a submit.
+            std::thread::sleep(Duration::from_millis(200));
             session.write_input(b"\r")
         })
         .await;
@@ -121,4 +122,32 @@ pub(crate) fn spawn_initial_input_injection(
             Err(err) => warn!(run_id = %run_id, error = %err, "PTY input injection task panicked"),
         }
     });
+}
+
+/// Block until the freshly-spawned CLI has finished painting its startup UI
+/// (welcome box, MCP load, release notices, trust/onboarding modals) and is
+/// idle at a ready prompt. Detected by PTY output quiescence — once the master
+/// has been silent for `QUIET`, the TUI has stopped repainting and the composer
+/// is accepting input. Capped at `MAX` so a perpetually-animating TUI still
+/// gets the prompt. A fixed delay raced a multi-second boot and dropped the
+/// payload into a half-painted screen.
+async fn wait_for_input_ready(mut output_rx: broadcast::Receiver<Vec<u8>>) {
+    use broadcast::error::RecvError;
+    const QUIET: Duration = Duration::from_millis(600);
+    const MAX: Duration = Duration::from_secs(12);
+
+    let cap = tokio::time::sleep(MAX);
+    tokio::pin!(cap);
+    loop {
+        tokio::select! {
+            _ = &mut cap => return,
+            recv = output_rx.recv() => match recv {
+                // New output: the TUI is still painting — reset the quiet window.
+                Ok(_) | Err(RecvError::Lagged(_)) => continue,
+                // Child exited before it ever idled; nothing to wait for.
+                Err(RecvError::Closed) => return,
+            },
+            _ = tokio::time::sleep(QUIET) => return,
+        }
+    }
 }

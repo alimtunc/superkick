@@ -9,7 +9,6 @@ import {
 } from 'react'
 
 import { langFromPath } from '@/lib/diff/lang'
-import { effectiveDiffMode } from '@/lib/diff/mode'
 import type {
 	DiffPatchReview,
 	DiffReviewAnchor,
@@ -51,9 +50,6 @@ interface DiffPatchViewProps {
 	path: string
 	oldPath?: string | null
 	mode: DiffViewMode
-	/** Deletions in this file; split view falls back to unified when there are
-	 *  none (side-by-side adds nothing for a pure-addition file). */
-	deletions: number
 	review?: DiffPatchReview
 }
 
@@ -63,7 +59,7 @@ interface DiffPatchViewProps {
  * (incl. `DiffModeEnum`) stay out of the main bundle until a file is rendered.
  * Layout mode is driven by the parent so the whole list toggles at once.
  */
-export function DiffPatchView({ patch, path, oldPath, mode, deletions, review }: DiffPatchViewProps) {
+export function DiffPatchView({ patch, path, oldPath, mode, review }: DiffPatchViewProps) {
 	const lang = langFromPath(path)
 
 	const data = useMemo(
@@ -75,8 +71,7 @@ export function DiffPatchView({ patch, path, oldPath, mode, deletions, review }:
 		[patch, path, oldPath, lang]
 	)
 
-	const diffViewMode =
-		effectiveDiffMode(mode, deletions) === 'split' ? DiffModeEnum.Split : DiffModeEnum.Unified
+	const diffViewMode = mode === 'split' ? DiffModeEnum.Split : DiffModeEnum.Unified
 	const extendData = useMemo<DiffViewProps<ReviewLineData>['extendData']>(
 		() => (review ? buildExtendData(review.threads) : undefined),
 		[review]

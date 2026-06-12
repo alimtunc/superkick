@@ -3,6 +3,7 @@
 pub mod agent_spawn;
 pub mod agent_supervisor;
 pub mod attention_service;
+pub mod claude_trust;
 pub mod cli_resume;
 pub mod conversation_runner;
 pub mod detector;

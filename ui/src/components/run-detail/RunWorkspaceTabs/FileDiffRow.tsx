@@ -130,7 +130,6 @@ export function FileDiffRow({
 								path={file.path}
 								oldPath={file.oldPath}
 								mode={mode}
-								deletions={file.deletions}
 								review={review}
 							/>
 						</Suspense>

@@ -103,7 +103,7 @@ describe('IssuePullRequestsBlock', () => {
 		await waitFor(() => {
 			expect(mocks.fetchIssuePullRequestDiff).toHaveBeenCalledWith('issue-uuid', 'acme/superkick', 42)
 		})
-		expect(await screen.findByText('App.tsx')).toBeInTheDocument()
+		expect(await screen.findByRole('button', { name: /jump to ui\/src\/App\.tsx/i })).toBeInTheDocument()
 		expect(await screen.findByTestId('diff')).toHaveTextContent('+new')
 	})
 })
