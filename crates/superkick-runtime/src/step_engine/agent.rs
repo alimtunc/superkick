@@ -94,6 +94,7 @@ where
                 default_timeout: DEFAULT_AGENT_TIMEOUT,
                 purpose: format!("{} agent for issue {}", step.step_key, run.issue_identifier),
                 launch_reason: LaunchReason::InitialStep,
+                reasoning: None,
             },
         );
 

@@ -12,7 +12,7 @@
 //! policy + Linear snapshot wiring is reused via the `crate::agent_spawn`
 //! module so the two callers can't drift.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -25,19 +25,22 @@ use tracing::{error, info, warn};
 
 use superkick_config::SuperkickConfig;
 use superkick_core::{
-    AgentCatalog, AgentOrigin, AgentProvider, CoreAgentDefinition, EventKind, EventLevel,
-    FailureClassification, FailureDisposition, LaunchReason, LaunchStepKind, LaunchTask,
-    LaunchTaskId, LaunchTaskIntervention, LaunchTaskStep, LaunchTaskStepId, LinearContextMode,
-    MemoryEntryId, ResolvedAgent, ResolvedMcpPolicy, ResolvedToolPolicy, ResumeKey, RoleRouter,
-    Run, RunId, RunPolicy, RunState, RunStep, RunnerMode, SkillSource, StepExecutor, StepId,
-    StepKey, StepResult, StepStatus, TriggerSource,
+    AgentBackend, AgentCatalog, AgentOrigin, AgentProvider, CoreAgentDefinition, EventKind,
+    EventLevel, FailureClassification, FailureDisposition, LaunchReason, LaunchStepKind,
+    LaunchTask, LaunchTaskId, LaunchTaskIntervention, LaunchTaskStep, LaunchTaskStepId,
+    LinearContextMode, MemoryEntryId, ResolvedAgent, ResolvedMcpPolicy, ResolvedToolPolicy,
+    ResumeKey, RoleRouter, Run, RunId, RunPolicy, RunState, RunStep, RunnerMode, SkillArtifact,
+    SkillDefinition, SkillKind, SkillSource, StepExecutor, StepId, StepKey, StepResult, StepStatus,
+    TriggerSource,
 };
 use superkick_storage::repo::{
     AgentSessionRepo, IssueWorkspaceContextRepoDyn, LaunchTaskInterventionRepo, LaunchTaskRepo,
-    MemoryEntryRepoDyn, RunEventRepo, RunRepo, RunStepRepo, TranscriptRepo,
+    MemoryEntryRepoDyn, RunEventRepo, RunRepo, RunStepRepo, SkillDefinitionRepo, TranscriptRepo,
 };
 
-use crate::agent_spawn::{LaunchConfigInputs, build_launch_config, resolve_spawn_plan};
+use crate::agent_spawn::{
+    BACKEND_DIRECTIVE_MARKER, LaunchConfigInputs, build_launch_config, resolve_spawn_plan,
+};
 use crate::agent_supervisor::AgentSupervisor;
 use crate::launch_task_context::{
     AppendError, LoadedWorkspaceContext, append_step_memory_entry, render_workspace_block,
@@ -50,7 +53,9 @@ use crate::linear_context::OptionalLinearClient;
 use crate::protocol_adapter::{CodexAdapterOptions, CodexProtocolAdapter, MarkerError};
 use crate::repo_cache::RepoCache;
 use crate::session_bus::SessionBus;
-use crate::step_engine::prompts::{PromptStepKind, step_body_for};
+use crate::step_engine::prompts::{
+    PromptStepKind, skill_body_instructions, step_body_for, step_result_contract_prompt,
+};
 use crate::step_engine::{build_full_prompt, emit_event};
 use crate::step_failure_classifier::{
     ClassifyInputs, GitDiffProbe, capture_diff_snapshot, classify, classify_spawn_error,
@@ -108,6 +113,15 @@ fn resolve_dynamic_agent(
         Some(SkillSource::Prompt(template)) => Some(template.clone()),
         _ => None,
     };
+    // Only Custom-kind installed skills name real Claude Code skills; Codex has no skill mechanism.
+    let backend = match (&step.skill_source, provider, step.skill_kind) {
+        (Some(SkillSource::Installed(name)), AgentProvider::Claude, Some(SkillKind::Custom)) => {
+            Some(AgentBackend::ClaudeSkill {
+                skills: vec![name.clone()],
+            })
+        }
+        _ => None,
+    };
     let def = CoreAgentDefinition {
         name: step.agent_name.clone(),
         provider,
@@ -120,7 +134,7 @@ fn resolve_dynamic_agent(
         linear_context: LinearContextMode::default(),
         mcp_policy: ResolvedMcpPolicy::default(),
         tool_policy: ResolvedToolPolicy::default(),
-        backend: None,
+        backend,
         runner_mode: Some(runner_mode),
         // `None` lets `RoleRouter::resolve` apply the forced
         // claude+print_stream_json → agent_sdk_credits invariant.
@@ -131,6 +145,90 @@ fn resolve_dynamic_agent(
     RoleRouter::new(&catalog, &policy)
         .resolve(&step.agent_name)
         .map_err(|e| format!("dynamic step '{}' resolution failed: {e}", step.agent_name))
+}
+
+/// `Some(name)` when a Codex step references a real (Custom-kind) installed
+/// skill it cannot invoke — surfaced as an Info event on the run ledger.
+fn unmapped_codex_skill(step: &LaunchTaskStep, provider: AgentProvider) -> Option<&str> {
+    match (&step.skill_source, provider, step.skill_kind) {
+        (Some(SkillSource::Installed(name)), AgentProvider::Codex, Some(SkillKind::Custom)) => {
+            Some(name)
+        }
+        _ => None,
+    }
+}
+
+/// The managed-skill id a step references, if any. Only `Installed` skills map
+/// onto a `SkillDefinition` row (the value is the skill id); inline `Prompt`
+/// steps carry their own template and have no file-backed body.
+fn step_skill_id(step: &LaunchTaskStep) -> Option<&str> {
+    match &step.skill_source {
+        Some(SkillSource::Installed(id)) => Some(id.as_str()),
+        _ => None,
+    }
+}
+
+/// The skill id eligible for the lean `/name` interactive path: an
+/// `InteractivePty` step whose `Installed` skill body was materialised on disk
+/// this run. A body-less builtin (no SKILL.md written) returns `None` so the
+/// caller falls back to the full self-contained prompt instead of sending a
+/// `/name` directive that the worktree cannot resolve (a silent no-op).
+fn lean_skill_id<'s>(step: &'s LaunchTaskStep, materialized: &HashSet<String>) -> Option<&'s str> {
+    if step.executor != Some(StepExecutor::InteractivePty) {
+        return None;
+    }
+    step_skill_id(step).filter(|id| materialized.contains(*id))
+}
+
+/// A skill id is only safe to interpolate into a filesystem path when it is a
+/// plain slug: no separators, no `..`, no leading dot. Belt-and-suspenders —
+/// core `validate()` already rejects bad ids, but materialisation writes into
+/// the operator's real repo so a traversal here is a clobber/escape risk.
+fn is_safe_skill_slug(id: &str) -> bool {
+    !id.is_empty()
+        && !id.starts_with('.')
+        && !id.contains('/')
+        && !id.contains('\\')
+        && !id.contains("..")
+}
+
+/// The worktree-relative path a managed skill materialises to, or `None` when
+/// the id is not a safe slug (refuse to build a traversal path).
+fn skill_artifact_path(work_path: &std::path::Path, skill: &SkillDefinition) -> Option<PathBuf> {
+    if !is_safe_skill_slug(&skill.id) {
+        return None;
+    }
+    let path = match skill.artifact_kind {
+        SkillArtifact::Skill => work_path
+            .join(".claude/skills")
+            .join(&skill.id)
+            .join("SKILL.md"),
+        SkillArtifact::Command => work_path
+            .join(".claude/commands")
+            .join(format!("{}.md", skill.id)),
+    };
+    Some(path)
+}
+
+/// Write `body` to `path`, creating parent dirs, only when the target does not
+/// already exist. Returns `true` when written, `false` when a pre-existing file
+/// is left untouched (a repo-native skill we must not clobber).
+async fn write_skill_file(path: &std::path::Path, body: &str) -> Result<bool> {
+    if tokio::fs::try_exists(path)
+        .await
+        .with_context(|| format!("probe skill file {}", path.display()))?
+    {
+        return Ok(false);
+    }
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .with_context(|| format!("create skill dir {}", parent.display()))?;
+    }
+    tokio::fs::write(path, body)
+        .await
+        .with_context(|| format!("write skill file {}", path.display()))?;
+    Ok(true)
 }
 
 /// Map a Launch Task kind to its playbook-engine-equivalent prompt body.
@@ -147,12 +245,17 @@ fn prompt_kind_for(kind: LaunchStepKind) -> PromptStepKind {
 struct ShadowTaskState {
     run_id: RunId,
     worktree: PathBuf,
+    /// Ids of managed skills whose body is present on disk in the worktree
+    /// (materialised this run or already repo-native). Only these may take the
+    /// lean `/name` interactive path; everything else falls back to the full
+    /// self-contained prompt so an un-imported `/ticket` step is not a no-op.
+    materialized_skills: HashSet<String>,
 }
 
 /// Construction dependencies for `RealStepRunner`. Mirrors the
 /// `StepEngineDeps` pattern so the wiring stays one struct literal per call
 /// site.
-pub struct RealStepRunnerDeps<R, ST, E, A, T, L, I>
+pub struct RealStepRunnerDeps<R, ST, E, A, T, L, I, K>
 where
     R: RunRepo + 'static,
     ST: RunStepRepo + 'static,
@@ -161,6 +264,7 @@ where
     T: TranscriptRepo + 'static,
     L: LaunchTaskRepo + 'static,
     I: LaunchTaskInterventionRepo + 'static,
+    K: SkillDefinitionRepo + 'static,
 {
     pub run_repo: Arc<R>,
     pub step_repo: Arc<ST>,
@@ -171,6 +275,8 @@ where
     pub issue_workspace_context_repo: Arc<dyn IssueWorkspaceContextRepoDyn>,
     pub memory_repo: Arc<dyn MemoryEntryRepoDyn>,
     pub intervention_repo: Arc<I>,
+    /// Source of managed-skill bodies materialised into the worktree at setup.
+    pub skill_repo: Arc<K>,
     pub registry: Arc<crate::pty_session::PtySessionRegistry>,
     pub session_bus: Option<Arc<SessionBus>>,
     pub launch_task_bus: Arc<LaunchTaskEventBus>,
@@ -183,7 +289,7 @@ where
 
 /// Production `StepRunner` that spawns a real agent for every Launch Task
 /// step.
-pub struct RealStepRunner<R, ST, E, A, T, L, I>
+pub struct RealStepRunner<R, ST, E, A, T, L, I, K>
 where
     R: RunRepo + 'static,
     ST: RunStepRepo + 'static,
@@ -192,6 +298,7 @@ where
     T: TranscriptRepo + 'static,
     L: LaunchTaskRepo + 'static,
     I: LaunchTaskInterventionRepo + 'static,
+    K: SkillDefinitionRepo + 'static,
 {
     run_repo: Arc<R>,
     step_repo: Arc<ST>,
@@ -203,6 +310,7 @@ where
     issue_workspace_context_repo: Arc<dyn IssueWorkspaceContextRepoDyn>,
     memory_repo: Arc<dyn MemoryEntryRepoDyn>,
     intervention_repo: Arc<I>,
+    skill_repo: Arc<K>,
     launch_task_bus: Arc<LaunchTaskEventBus>,
     supervisor: AgentSupervisor<A, E, T>,
     repo_cache: RepoCache,
@@ -219,7 +327,7 @@ where
     shadow_runs: Mutex<HashMap<LaunchTaskId, ShadowTaskState>>,
 }
 
-impl<R, ST, E, A, T, L, I> RealStepRunner<R, ST, E, A, T, L, I>
+impl<R, ST, E, A, T, L, I, K> RealStepRunner<R, ST, E, A, T, L, I, K>
 where
     R: RunRepo + 'static,
     ST: RunStepRepo + 'static,
@@ -228,8 +336,9 @@ where
     T: TranscriptRepo + 'static,
     L: LaunchTaskRepo + 'static,
     I: LaunchTaskInterventionRepo + 'static,
+    K: SkillDefinitionRepo + 'static,
 {
-    pub fn new(deps: RealStepRunnerDeps<R, ST, E, A, T, L, I>) -> Self {
+    pub fn new(deps: RealStepRunnerDeps<R, ST, E, A, T, L, I, K>) -> Self {
         let session_repo = Arc::clone(&deps.session_repo);
         let mut supervisor = AgentSupervisor::new(
             deps.session_repo,
@@ -252,6 +361,7 @@ where
             issue_workspace_context_repo: deps.issue_workspace_context_repo,
             memory_repo: deps.memory_repo,
             intervention_repo: deps.intervention_repo,
+            skill_repo: deps.skill_repo,
             launch_task_bus: deps.launch_task_bus,
             supervisor,
             repo_cache: deps.repo_cache,
@@ -280,11 +390,18 @@ where
     /// Launch Task. Idempotent: subsequent steps for the same task reuse the
     /// in-memory cache without touching the DB. Task-level `base_branch` and
     /// `use_worktree` overrides take precedence over runner config defaults.
-    async fn ensure_shadow_run(&self, task: &LaunchTask) -> Result<(RunId, PathBuf)> {
+    async fn ensure_shadow_run(
+        &self,
+        task: &LaunchTask,
+    ) -> Result<(RunId, PathBuf, HashSet<String>)> {
         {
             let map = self.shadow_runs.lock().await;
             if let Some(state) = map.get(&task.id) {
-                return Ok((state.run_id, state.worktree.clone()));
+                return Ok((
+                    state.run_id,
+                    state.worktree.clone(),
+                    state.materialized_skills.clone(),
+                ));
             }
         }
 
@@ -370,6 +487,12 @@ where
             "shadow run created for launch task"
         );
 
+        // Skills invoked via `/name` need their file on disk before any step
+        // runs, so the LLM can read it rather than have the body inlined into
+        // the prompt. Warn-not-fail: a write error degrades the step to the
+        // full self-contained prompt path, which the lean gate selects below.
+        let materialized_skills = self.materialize_skills(task, &work_path).await;
+
         self.publish_shadow_run_state(task, run.id, run.state);
 
         let mut map = self.shadow_runs.lock().await;
@@ -380,8 +503,101 @@ where
         let entry = map.entry(task.id).or_insert(ShadowTaskState {
             run_id: run.id,
             worktree: work_path.clone(),
+            materialized_skills,
         });
-        Ok((entry.run_id, entry.worktree.clone()))
+        Ok((
+            entry.run_id,
+            entry.worktree.clone(),
+            entry.materialized_skills.clone(),
+        ))
+    }
+
+    /// Write every file-backed managed skill referenced by the task's steps
+    /// into the worktree (`.claude/skills/<id>/SKILL.md` or
+    /// `.claude/commands/<id>.md`), never clobbering a repo-native file.
+    /// Returns the ids whose body is present on disk afterwards (written here or
+    /// already existing) — the lean `/name` path is gated on that set. Each
+    /// failure is logged + emitted as a Warn but never aborts setup: a missing
+    /// skill file degrades the step to the full prompt, not a crashed run.
+    async fn materialize_skills(
+        &self,
+        task: &LaunchTask,
+        work_path: &std::path::Path,
+    ) -> HashSet<String> {
+        let mut materialized = HashSet::new();
+        let steps = match self.launch_task_repo.list_steps(task.id).await {
+            Ok(steps) => steps,
+            Err(e) => {
+                warn!(
+                    launch_task_id = %task.id,
+                    error = %e,
+                    "failed to list steps for skill materialisation — skipping"
+                );
+                return materialized;
+            }
+        };
+        let mut wanted: Vec<&str> = steps
+            .iter()
+            .filter(|s| s.enabled)
+            .filter_map(step_skill_id)
+            .collect();
+        wanted.sort_unstable();
+        wanted.dedup();
+        if wanted.is_empty() {
+            return materialized;
+        }
+
+        let definitions = match self.skill_repo.list().await {
+            Ok(defs) => defs,
+            Err(e) => {
+                warn!(
+                    launch_task_id = %task.id,
+                    error = %e,
+                    "failed to load skill definitions for materialisation — skipping"
+                );
+                return materialized;
+            }
+        };
+        for skill in definitions
+            .iter()
+            .filter(|d| wanted.contains(&d.id.as_str()))
+        {
+            // Whitespace-only bodies count as bodyless everywhere (the lean and
+            // structured prompt paths both gate on `!trim().is_empty()`), so a
+            // blank skill never materialises a `/name`-resolvable file.
+            let Some(body) = skill.body.as_deref().filter(|b| !b.trim().is_empty()) else {
+                continue;
+            };
+            let Some(path) = skill_artifact_path(work_path, skill) else {
+                warn!(
+                    launch_task_id = %task.id,
+                    skill_id = %skill.id,
+                    "refusing to materialise managed skill with unsafe id — skipping"
+                );
+                continue;
+            };
+            match write_skill_file(&path, body).await {
+                Ok(true) => {
+                    materialized.insert(skill.id.clone());
+                }
+                Ok(false) => {
+                    // A repo-native skill file already occupies the path. Leave
+                    // it untouched but treat its presence as materialised so the
+                    // lean `/name` path still resolves to the on-disk body.
+                    materialized.insert(skill.id.clone());
+                }
+                Err(e) => {
+                    warn!(
+                        launch_task_id = %task.id,
+                        skill_id = %skill.id,
+                        path = %path.display(),
+                        error = %e,
+                        "failed to materialise managed skill into worktree"
+                    );
+                }
+            }
+        }
+        materialized
     }
 
     /// Direct field write on the shadow `Run`'s state machine. Bypasses
@@ -477,12 +693,41 @@ where
         Ok(prev.and_then(|s| s.structured_result.map(|sr| sr.summary).or(s.summary)))
     }
 
-    /// Build the base prompt for one step. The body wording lives in
-    /// `step_engine::prompts` so the playbook engine and the Launch Task
-    /// runner cannot drift on the guard rails.
+    /// The editable `body` of the managed skill a step references, if any.
+    /// Used to drive the structured (non-lean) prompt straight from the skill
+    /// body so an operator edit changes behaviour. A load error degrades to
+    /// `None` (the hardcoded per-kind body), warning rather than failing the
+    /// step.
+    async fn step_skill_body(
+        &self,
+        task_id: LaunchTaskId,
+        step: &LaunchTaskStep,
+    ) -> Option<String> {
+        let id = step_skill_id(step)?;
+        match self.skill_repo.get(id).await {
+            Ok(def) => def.and_then(|d| d.body).filter(|b| !b.trim().is_empty()),
+            Err(e) => {
+                warn!(
+                    launch_task_id = %task_id,
+                    skill_id = %id,
+                    error = %e,
+                    "failed to load skill body — falling back to the hardcoded step body"
+                );
+                None
+            }
+        }
+    }
+
+    /// Build the base prompt for one step. When the step's skill carries an
+    /// editable `body`, that body *is* the instruction block (so editing the
+    /// skill changes behaviour on this structured path); a body-less legacy
+    /// step falls back to the hardcoded per-kind wording in
+    /// `step_engine::prompts`. Either way the guardrail + completion contract
+    /// are appended in one place so the two callers cannot drift.
     fn build_base_prompt(
         task: &LaunchTask,
         step_kind: LaunchStepKind,
+        skill_body: Option<&str>,
         previous_summary: Option<&str>,
     ) -> String {
         let preamble = format!(
@@ -490,13 +735,39 @@ where
              Plan → Implement → Review run.",
             issue = task.linear_issue_id,
         );
-        let body = step_body_for(prompt_kind_for(step_kind));
+        let body = match skill_body.filter(|b| !b.trim().is_empty()) {
+            Some(b) => skill_body_instructions(b),
+            None => step_body_for(prompt_kind_for(step_kind)),
+        };
         let mut prompt = format!("{preamble}\n\n{body}");
         if let Some(summary) = previous_summary.filter(|s| !s.is_empty()) {
             prompt.push_str("\n\n--- Previous step summary ---\n");
             prompt.push_str(summary);
         }
         prompt
+    }
+
+    /// Lean stdin payload for a managed skill driving an interactive REPL: the
+    /// `/<skill>` directive plus the issue ref and a one-line pointer, keeping
+    /// the STEP_RESULT completion contract (3a's mid-stream marker needs it) but
+    /// dropping the verbose step body, previous-summary, and memory ledger. The
+    /// skill's body is materialised to disk, so the LLM reads it via the slash
+    /// command instead of having it inlined here.
+    ///
+    /// The prompt already carries its own `/{skill}` directive, so it leads with
+    /// [`BACKEND_DIRECTIVE_MARKER`] to suppress the second directive
+    /// `apply_claude_backend` would otherwise prepend for the step's
+    /// `ClaudeSkill` backend — a double invocation of the same skill.
+    fn lean_interactive_prompt(task: &LaunchTask, skill_id: &str) -> String {
+        format!(
+            "{BACKEND_DIRECTIVE_MARKER}\n\
+             /{skill_id} {issue}\n\n\
+             Work Linear issue {issue} end to end using the `/{skill_id}` skill. \
+             Follow that skill's instructions; do not wait for further input.\n\n\
+             {contract}",
+            issue = task.linear_issue_id,
+            contract = step_result_contract_prompt(),
+        )
     }
 
     /// Append a clearly-labelled block listing every pending operator
@@ -770,7 +1041,7 @@ struct StepCompletionContext<'a> {
     workspace_context_id: Option<superkick_core::IssueWorkspaceContextId>,
 }
 
-impl<R, ST, E, A, T, L, I> StepRunner for RealStepRunner<R, ST, E, A, T, L, I>
+impl<R, ST, E, A, T, L, I, K> StepRunner for RealStepRunner<R, ST, E, A, T, L, I, K>
 where
     R: RunRepo + 'static,
     ST: RunStepRepo + 'static,
@@ -779,6 +1050,7 @@ where
     T: TranscriptRepo + 'static,
     L: LaunchTaskRepo + 'static,
     I: LaunchTaskInterventionRepo + 'static,
+    K: SkillDefinitionRepo + 'static,
 {
     async fn run_step(
         &self,
@@ -787,17 +1059,18 @@ where
         resume: Option<ResumeKey>,
         cancel: CancellationToken,
     ) -> Result<StepOutcome> {
-        let (shadow_run_id, worktree) = match self.ensure_shadow_run(task).await {
-            Ok(pair) => pair,
-            Err(e) => {
-                return Ok(StepOutcome::Failed {
-                    classification: FailureClassification::SpawnError {
-                        detail: format!("shadow run setup failed: {e:#}"),
-                    },
-                    links: StepLinks::default(),
-                });
-            }
-        };
+        let (shadow_run_id, worktree, materialized_skills) =
+            match self.ensure_shadow_run(task).await {
+                Ok(triple) => triple,
+                Err(e) => {
+                    return Ok(StepOutcome::Failed {
+                        classification: FailureClassification::SpawnError {
+                            detail: format!("shadow run setup failed: {e:#}"),
+                        },
+                        links: StepLinks::default(),
+                    });
+                }
+            };
 
         if let Err(e) = self
             .launch_task_repo
@@ -868,6 +1141,20 @@ where
             }
         };
 
+        if let Some(name) = unmapped_codex_skill(step, resolved.provider) {
+            emit_event(
+                &*self.event_repo,
+                shadow_run_id,
+                Some(run_step_id),
+                EventKind::AgentOutput,
+                EventLevel::Info,
+                format!(
+                    "installed skill '{name}' has no codex mechanism; running generic step prompt"
+                ),
+            )
+            .await;
+        }
+
         let spawn_plan = match resolve_spawn_plan(
             &run,
             &resolved,
@@ -921,18 +1208,36 @@ where
                 Vec::new()
             });
 
-        let mut base_prompt =
-            Self::build_base_prompt(task, step.step_kind, previous_summary.as_deref());
-        Self::append_interventions(&mut base_prompt, &pending_interventions);
-        let default_instructions = &self.config.launch_profile.default_instructions;
-        let prompt = build_full_prompt(
-            &base_prompt,
-            Some(default_instructions.as_str()).filter(|s| !s.is_empty()),
-            None,
-            None,
-            resolved.system_prompt.as_deref(),
-            context_block_for_prompt,
-        );
+        // A managed skill on an interactive REPL gets the lean `/name` directive
+        // (the body is on disk) instead of the full body + ledger + scaffolding,
+        // which would otherwise flood the session and never let it self-complete.
+        let lean_skill = lean_skill_id(step, &materialized_skills);
+        let prompt = match lean_skill {
+            Some(skill_id) => {
+                let mut base = Self::lean_interactive_prompt(task, skill_id);
+                Self::append_interventions(&mut base, &pending_interventions);
+                base
+            }
+            None => {
+                let skill_body = self.step_skill_body(task.id, step).await;
+                let mut base_prompt = Self::build_base_prompt(
+                    task,
+                    step.step_kind,
+                    skill_body.as_deref(),
+                    previous_summary.as_deref(),
+                );
+                Self::append_interventions(&mut base_prompt, &pending_interventions);
+                let default_instructions = &self.config.launch_profile.default_instructions;
+                build_full_prompt(
+                    &base_prompt,
+                    Some(default_instructions.as_str()).filter(|s| !s.is_empty()),
+                    None,
+                    None,
+                    resolved.system_prompt.as_deref(),
+                    context_block_for_prompt,
+                )
+            }
+        };
 
         // SUP-185: route Codex `ExecJson` steps through the structured adapter
         // (codex exec --json) so Activity/Tools/Logs see real provider events.
@@ -944,6 +1249,10 @@ where
         // separately from the launch config, so it needs its own copy; the PTY
         // path moves the prompt straight into the config.
         let structured_prompt = codex_structured.then(|| prompt.clone());
+
+        // Legacy catalog steps (executor None) never carry reasoning, so their
+        // argv stays byte-for-byte unchanged.
+        let step_reasoning = step.executor.and(step.reasoning);
 
         let mut launch_cfg = build_launch_config(
             &spawn_plan,
@@ -959,21 +1268,41 @@ where
                     step.step_kind, task.linear_issue_id
                 ),
                 launch_reason: LaunchReason::InitialStep,
+                reasoning: step_reasoning,
             },
         );
-        // Arm the no-output watchdog on Launch Task steps (both spawn paths) so
-        // a hung-but-alive agent is killed before the full wall-clock.
         launch_cfg.idle_timeout = self
             .config
             .runner
             .agent_idle_timeout_secs
             .map(Duration::from_secs);
 
+        // The PTY path registers an attachable session; pulse `StepSessionLive`
+        // the moment that happens so the cockpit shows a live session instead of
+        // an indistinguishable "running". The structured path has no PTY to
+        // attach, so it leaves the hook unset.
+        if structured_prompt.is_none() {
+            let bus = Arc::clone(&self.launch_task_bus);
+            let task_id = task.id;
+            let linear_issue_id = task.linear_issue_id.clone();
+            let step_id = step.id;
+            launch_cfg.session_live = Some(Box::new(move || {
+                bus.publish(LaunchTaskEvent::StepSessionLive {
+                    task_id,
+                    linear_issue_id,
+                    step_id,
+                    run_id: shadow_run_id,
+                    at: Utc::now(),
+                });
+            }));
+        }
+
         let spawn_result = match structured_prompt {
             Some(prompt) => {
                 let adapter = CodexProtocolAdapter::with_options(CodexAdapterOptions {
                     codex_executable: Some(PathBuf::from(resolved.program.clone())),
                     model: resolved.model.clone(),
+                    reasoning_effort: step_reasoning,
                     ..CodexAdapterOptions::default()
                 });
                 // SUP-191: `resume` continues a prior timed-out segment via
@@ -1118,7 +1447,179 @@ mod tests {
     use super::*;
 
     use chrono::Utc;
-    use superkick_core::{LaunchRecipe, LaunchTaskStatus};
+    use superkick_core::{LaunchRecipe, LaunchTaskStatus, LaunchTaskStepStatus};
+
+    fn dynamic_step(
+        provider: &str,
+        executor: StepExecutor,
+        skill_source: Option<SkillSource>,
+        skill_kind: Option<SkillKind>,
+    ) -> LaunchTaskStep {
+        let now = Utc::now();
+        LaunchTaskStep {
+            id: LaunchTaskStepId::new(),
+            launch_task_id: LaunchTaskId::new(),
+            sequence: 1,
+            step_kind: LaunchStepKind::Implement,
+            agent_name: "implement".into(),
+            provider: Some(provider.into()),
+            model: None,
+            mode: None,
+            label: Some("Implement".into()),
+            skill_source,
+            skill_kind,
+            reasoning: None,
+            executor: Some(executor),
+            session_policy: None,
+            output_expectation: None,
+            enabled: true,
+            status: LaunchTaskStepStatus::Pending,
+            linked_run_id: None,
+            linked_conversation_id: None,
+            linked_orchestrator_session_id: None,
+            summary: None,
+            structured_result: None,
+            failure_classification: None,
+            auto_resume_count: 0,
+            resume_key: None,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    #[test]
+    fn resolve_dynamic_agent_claude_custom_installed_skill_sets_claude_skill_backend() {
+        let step = dynamic_step(
+            "claude",
+            StepExecutor::InteractivePty,
+            Some(SkillSource::Installed("ticket".into())),
+            Some(SkillKind::Custom),
+        );
+        let resolved =
+            resolve_dynamic_agent(&step, StepExecutor::InteractivePty).expect("resolves");
+        assert_eq!(
+            resolved.backend,
+            Some(AgentBackend::ClaudeSkill {
+                skills: vec!["ticket".into()],
+            })
+        );
+        assert!(resolved.system_prompt.is_none());
+    }
+
+    #[test]
+    fn resolve_dynamic_agent_claude_recipe_kind_skill_keeps_generic_backend() {
+        let step = dynamic_step(
+            "claude",
+            StepExecutor::InteractivePty,
+            Some(SkillSource::Installed("plan".into())),
+            Some(SkillKind::Plan),
+        );
+        let resolved =
+            resolve_dynamic_agent(&step, StepExecutor::InteractivePty).expect("resolves");
+        assert!(resolved.backend.is_none());
+    }
+
+    #[test]
+    fn resolve_dynamic_agent_claude_degraded_skill_ref_keeps_generic_backend() {
+        let step = dynamic_step(
+            "claude",
+            StepExecutor::InteractivePty,
+            Some(SkillSource::Installed("plann".into())),
+            None,
+        );
+        let resolved =
+            resolve_dynamic_agent(&step, StepExecutor::InteractivePty).expect("resolves");
+        assert!(resolved.backend.is_none());
+    }
+
+    #[test]
+    fn resolve_dynamic_agent_codex_installed_skill_keeps_generic_backend() {
+        let step = dynamic_step(
+            "codex",
+            StepExecutor::CodexStructured,
+            Some(SkillSource::Installed("ticket".into())),
+            Some(SkillKind::Custom),
+        );
+        let resolved =
+            resolve_dynamic_agent(&step, StepExecutor::CodexStructured).expect("resolves");
+        assert!(resolved.backend.is_none());
+    }
+
+    #[test]
+    fn resolve_dynamic_agent_prompt_skill_rides_as_system_prompt_without_backend() {
+        let step = dynamic_step(
+            "claude",
+            StepExecutor::InteractivePty,
+            Some(SkillSource::Prompt("custom brief".into())),
+            Some(SkillKind::Custom),
+        );
+        let resolved =
+            resolve_dynamic_agent(&step, StepExecutor::InteractivePty).expect("resolves");
+        assert!(resolved.backend.is_none());
+        assert_eq!(resolved.system_prompt.as_deref(), Some("custom brief"));
+    }
+
+    #[test]
+    fn resolve_dynamic_agent_interactive_pty_keeps_the_default_wall_clock() {
+        // Reverted SUP regression: an InteractivePty step no longer carries a 4h
+        // wall clock — it falls back to the configured default like every step.
+        let step = dynamic_step(
+            "claude",
+            StepExecutor::InteractivePty,
+            Some(SkillSource::Installed("ticket".into())),
+            Some(SkillKind::Custom),
+        );
+        let resolved =
+            resolve_dynamic_agent(&step, StepExecutor::InteractivePty).expect("resolves");
+        assert!(resolved.timeout.is_none());
+    }
+
+    #[test]
+    fn unmapped_codex_skill_fires_only_for_codex_custom_installed_skills() {
+        let codex_custom = dynamic_step(
+            "codex",
+            StepExecutor::CodexStructured,
+            Some(SkillSource::Installed("ticket".into())),
+            Some(SkillKind::Custom),
+        );
+        assert_eq!(
+            unmapped_codex_skill(&codex_custom, AgentProvider::Codex),
+            Some("ticket")
+        );
+
+        let codex_recipe = dynamic_step(
+            "codex",
+            StepExecutor::CodexStructured,
+            Some(SkillSource::Installed("plan".into())),
+            Some(SkillKind::Plan),
+        );
+        assert_eq!(
+            unmapped_codex_skill(&codex_recipe, AgentProvider::Codex),
+            None
+        );
+
+        let codex_prompt = dynamic_step(
+            "codex",
+            StepExecutor::CodexStructured,
+            Some(SkillSource::Prompt("brief".into())),
+            Some(SkillKind::Custom),
+        );
+        assert_eq!(
+            unmapped_codex_skill(&codex_prompt, AgentProvider::Codex),
+            None
+        );
+
+        let claude_custom = dynamic_step(
+            "claude",
+            StepExecutor::InteractivePty,
+            Some(SkillSource::Installed("ticket".into())),
+            Some(SkillKind::Custom),
+        );
+        assert_eq!(
+            unmapped_codex_skill(&claude_custom, AgentProvider::Claude),
+            None
+        );
+    }
 
     fn task(linear_issue_id: &str) -> LaunchTask {
         let now = Utc::now();
@@ -1149,6 +1650,7 @@ mod tests {
                 superkick_storage::SqliteTranscriptRepo,
                 superkick_storage::SqliteLaunchTaskRepo,
                 superkick_storage::SqliteLaunchTaskInterventionRepo,
+                superkick_storage::SqliteSkillDefinitionRepo,
             >::shadow_run_state_for_step(LaunchStepKind::Plan),
             RunState::Planning
         );
@@ -1161,6 +1663,7 @@ mod tests {
                 superkick_storage::SqliteTranscriptRepo,
                 superkick_storage::SqliteLaunchTaskRepo,
                 superkick_storage::SqliteLaunchTaskInterventionRepo,
+                superkick_storage::SqliteSkillDefinitionRepo,
             >::shadow_run_state_for_step(LaunchStepKind::Implement),
             RunState::Coding
         );
@@ -1173,6 +1676,7 @@ mod tests {
                 superkick_storage::SqliteTranscriptRepo,
                 superkick_storage::SqliteLaunchTaskRepo,
                 superkick_storage::SqliteLaunchTaskInterventionRepo,
+                superkick_storage::SqliteSkillDefinitionRepo,
             >::shadow_run_state_for_step(LaunchStepKind::Review),
             RunState::Reviewing
         );
@@ -1214,7 +1718,8 @@ mod tests {
                 superkick_storage::SqliteTranscriptRepo,
                 superkick_storage::SqliteLaunchTaskRepo,
                 superkick_storage::SqliteLaunchTaskInterventionRepo,
-            >::build_base_prompt(&t, kind, None);
+                superkick_storage::SqliteSkillDefinitionRepo,
+            >::build_base_prompt(&t, kind, None, None);
             assert!(p.contains("SUP-999"), "{kind:?} missing issue id");
             assert!(
                 p.contains("Plan → Implement → Review"),
@@ -1235,7 +1740,10 @@ mod tests {
             superkick_storage::SqliteTranscriptRepo,
             superkick_storage::SqliteLaunchTaskRepo,
             superkick_storage::SqliteLaunchTaskInterventionRepo,
-        >::build_base_prompt(&t, LaunchStepKind::Implement, Some("PLAN_OUTPUT"));
+            superkick_storage::SqliteSkillDefinitionRepo,
+        >::build_base_prompt(
+            &t, LaunchStepKind::Implement, None, Some("PLAN_OUTPUT")
+        );
         assert!(p.contains("--- Previous step summary ---"));
         assert!(p.contains("PLAN_OUTPUT"));
     }
@@ -1251,8 +1759,276 @@ mod tests {
             superkick_storage::SqliteTranscriptRepo,
             superkick_storage::SqliteLaunchTaskRepo,
             superkick_storage::SqliteLaunchTaskInterventionRepo,
-        >::build_base_prompt(&t, LaunchStepKind::Implement, Some(""));
+            superkick_storage::SqliteSkillDefinitionRepo,
+        >::build_base_prompt(&t, LaunchStepKind::Implement, None, Some(""));
         assert!(!p.contains("--- Previous step summary ---"));
+    }
+
+    #[test]
+    fn build_base_prompt_inlines_the_skill_body_over_the_hardcoded_text() {
+        let t = task("SUP-42");
+        let custom_body = "INLINE SKILL BODY: do the bespoke thing";
+        let p = RealStepRunner::<
+            superkick_storage::SqliteRunRepo,
+            superkick_storage::SqliteRunStepRepo,
+            superkick_storage::SqliteRunEventRepo,
+            superkick_storage::SqliteAgentSessionRepo,
+            superkick_storage::SqliteTranscriptRepo,
+            superkick_storage::SqliteLaunchTaskRepo,
+            superkick_storage::SqliteLaunchTaskInterventionRepo,
+            superkick_storage::SqliteSkillDefinitionRepo,
+        >::build_base_prompt(&t, LaunchStepKind::Implement, Some(custom_body), None);
+        assert!(p.contains(custom_body), "skill body must be inlined");
+        // The hardcoded per-kind wording is replaced, not appended.
+        let hardcoded = step_body_for(PromptStepKind::Implement);
+        assert!(
+            !p.contains("Implement the changes needed to resolve this issue"),
+            "hardcoded body text must not appear when a skill body is supplied"
+        );
+        assert_ne!(p, hardcoded);
+        // Guardrail + completion contract still ride along on the body path.
+        assert_prompt_contains_guardrail(&p);
+        assert!(p.contains(superkick_core::STEP_RESULT_BEGIN));
+    }
+
+    #[test]
+    fn build_base_prompt_falls_back_to_step_body_for_legacy_steps() {
+        let t = task("SUP-43");
+        for (kind, marker) in [
+            (LaunchStepKind::Plan, "only plan"),
+            (LaunchStepKind::Implement, "Only write code"),
+            (LaunchStepKind::Review, "Only review code"),
+        ] {
+            let p = RealStepRunner::<
+                superkick_storage::SqliteRunRepo,
+                superkick_storage::SqliteRunStepRepo,
+                superkick_storage::SqliteRunEventRepo,
+                superkick_storage::SqliteAgentSessionRepo,
+                superkick_storage::SqliteTranscriptRepo,
+                superkick_storage::SqliteLaunchTaskRepo,
+                superkick_storage::SqliteLaunchTaskInterventionRepo,
+                superkick_storage::SqliteSkillDefinitionRepo,
+            >::build_base_prompt(&t, kind, None, None);
+            assert!(
+                p.contains(marker),
+                "{kind:?} legacy step must use the hardcoded step_body_for wording"
+            );
+        }
+    }
+
+    #[test]
+    fn build_base_prompt_blank_skill_body_uses_hardcoded_fallback() {
+        let t = task("SUP-44");
+        let p = RealStepRunner::<
+            superkick_storage::SqliteRunRepo,
+            superkick_storage::SqliteRunStepRepo,
+            superkick_storage::SqliteRunEventRepo,
+            superkick_storage::SqliteAgentSessionRepo,
+            superkick_storage::SqliteTranscriptRepo,
+            superkick_storage::SqliteLaunchTaskRepo,
+            superkick_storage::SqliteLaunchTaskInterventionRepo,
+            superkick_storage::SqliteSkillDefinitionRepo,
+        >::build_base_prompt(&t, LaunchStepKind::Review, Some("   \n  "), None);
+        assert!(
+            p.contains("Only review code"),
+            "a whitespace-only skill body must fall back to step_body_for"
+        );
+    }
+
+    #[test]
+    fn lean_interactive_prompt_is_slash_directive_plus_contract_without_verbose_body() {
+        let t = task("SUP-77");
+        let p = RealStepRunner::<
+            superkick_storage::SqliteRunRepo,
+            superkick_storage::SqliteRunStepRepo,
+            superkick_storage::SqliteRunEventRepo,
+            superkick_storage::SqliteAgentSessionRepo,
+            superkick_storage::SqliteTranscriptRepo,
+            superkick_storage::SqliteLaunchTaskRepo,
+            superkick_storage::SqliteLaunchTaskInterventionRepo,
+            superkick_storage::SqliteSkillDefinitionRepo,
+        >::lean_interactive_prompt(&t, "ticket");
+        // Leads with the backend marker so `apply_claude_backend` won't prepend
+        // a second `/ticket` directive; the slash directive follows on its own line.
+        assert!(p.starts_with(BACKEND_DIRECTIVE_MARKER));
+        assert!(p.contains("/ticket SUP-77"));
+        assert!(p.contains("SUP-77"));
+        assert!(p.contains(superkick_core::STEP_RESULT_BEGIN));
+        assert!(p.contains(superkick_core::STEP_RESULT_END));
+        // The verbose per-kind body is dropped on the lean path.
+        assert!(!p.contains("Plan → Implement → Review"));
+        assert!(!p.contains("--- Previous step summary ---"));
+    }
+
+    #[test]
+    fn lean_prompt_through_claude_skill_backend_emits_one_directive() {
+        let step = dynamic_step(
+            "claude",
+            StepExecutor::InteractivePty,
+            Some(SkillSource::Installed("ticket".into())),
+            Some(SkillKind::Custom),
+        );
+        let resolved =
+            resolve_dynamic_agent(&step, StepExecutor::InteractivePty).expect("resolves");
+        assert_eq!(
+            resolved.backend,
+            Some(AgentBackend::ClaudeSkill {
+                skills: vec!["ticket".into()],
+            }),
+            "guards the double-invocation premise: the step carries a ClaudeSkill backend"
+        );
+
+        let t = task("SUP-77");
+        let lean = RealStepRunner::<
+            superkick_storage::SqliteRunRepo,
+            superkick_storage::SqliteRunStepRepo,
+            superkick_storage::SqliteRunEventRepo,
+            superkick_storage::SqliteAgentSessionRepo,
+            superkick_storage::SqliteTranscriptRepo,
+            superkick_storage::SqliteLaunchTaskRepo,
+            superkick_storage::SqliteLaunchTaskInterventionRepo,
+            superkick_storage::SqliteSkillDefinitionRepo,
+        >::lean_interactive_prompt(&t, "ticket");
+
+        let (_, final_prompt) = crate::agent_spawn::apply_claude_backend(&resolved, lean);
+        // Count actual invocations (a line that *starts* with the directive),
+        // not the backtick-wrapped `/ticket` mention in the prose pointer.
+        let directives = final_prompt
+            .lines()
+            .filter(|l| l.starts_with("/ticket"))
+            .count();
+        assert_eq!(
+            directives, 1,
+            "the backend must not double-invoke the skill the lean prompt already calls:\n{final_prompt}"
+        );
+    }
+
+    #[test]
+    fn step_skill_id_only_resolves_installed_skills() {
+        let installed = dynamic_step(
+            "claude",
+            StepExecutor::InteractivePty,
+            Some(SkillSource::Installed("ticket".into())),
+            Some(SkillKind::Custom),
+        );
+        assert_eq!(step_skill_id(&installed), Some("ticket"));
+        let prompt = dynamic_step(
+            "claude",
+            StepExecutor::InteractivePty,
+            Some(SkillSource::Prompt("brief".into())),
+            Some(SkillKind::Custom),
+        );
+        assert_eq!(step_skill_id(&prompt), None);
+        let none = dynamic_step("claude", StepExecutor::InteractivePty, None, None);
+        assert_eq!(step_skill_id(&none), None);
+    }
+
+    #[test]
+    fn skill_artifact_path_routes_by_artifact_kind() {
+        let work = std::path::Path::new("/wt");
+        let mut skill = SkillDefinition::builtins().remove(0);
+        skill.id = "ticket".into();
+        skill.artifact_kind = SkillArtifact::Skill;
+        assert_eq!(
+            skill_artifact_path(work, &skill),
+            Some(std::path::PathBuf::from(
+                "/wt/.claude/skills/ticket/SKILL.md"
+            ))
+        );
+        skill.artifact_kind = SkillArtifact::Command;
+        assert_eq!(
+            skill_artifact_path(work, &skill),
+            Some(std::path::PathBuf::from("/wt/.claude/commands/ticket.md"))
+        );
+    }
+
+    #[test]
+    fn skill_artifact_path_rejects_unsafe_ids() {
+        let work = std::path::Path::new("/wt");
+        let mut skill = SkillDefinition::builtins().remove(0);
+        skill.artifact_kind = SkillArtifact::Skill;
+        for bad in ["../escape", "a/b", ".hidden", "..", "with\\sep", ""] {
+            skill.id = bad.into();
+            assert_eq!(
+                skill_artifact_path(work, &skill),
+                None,
+                "unsafe id {bad:?} must not build a path"
+            );
+        }
+    }
+
+    #[test]
+    fn is_safe_skill_slug_accepts_plain_ids_and_rejects_traversal() {
+        assert!(is_safe_skill_slug("ticket"));
+        assert!(is_safe_skill_slug("full-session_2"));
+        assert!(!is_safe_skill_slug(""));
+        assert!(!is_safe_skill_slug(".hidden"));
+        assert!(!is_safe_skill_slug("a/b"));
+        assert!(!is_safe_skill_slug("a\\b"));
+        assert!(!is_safe_skill_slug(".."));
+        assert!(!is_safe_skill_slug("x..y"));
+    }
+
+    #[tokio::test]
+    async fn write_skill_file_does_not_clobber_a_preexisting_file() {
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let path = dir.path().join(".claude/skills/ticket/SKILL.md");
+        tokio::fs::create_dir_all(path.parent().expect("parent"))
+            .await
+            .expect("mkdir");
+        tokio::fs::write(&path, "REPO NATIVE")
+            .await
+            .expect("seed repo-native file");
+
+        let wrote = write_skill_file(&path, "MANAGED BODY")
+            .await
+            .expect("write");
+        assert!(!wrote, "must not overwrite a pre-existing file");
+        let on_disk = tokio::fs::read_to_string(&path).await.expect("read");
+        assert_eq!(on_disk, "REPO NATIVE", "repo-native body must survive");
+    }
+
+    #[tokio::test]
+    async fn write_skill_file_creates_missing_file() {
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let path = dir.path().join(".claude/skills/ticket/SKILL.md");
+        let wrote = write_skill_file(&path, "MANAGED BODY")
+            .await
+            .expect("write");
+        assert!(wrote, "absent file must be created");
+        let on_disk = tokio::fs::read_to_string(&path).await.expect("read");
+        assert_eq!(on_disk, "MANAGED BODY");
+    }
+
+    #[test]
+    fn lean_skill_id_requires_materialised_body() {
+        let step = dynamic_step(
+            "claude",
+            StepExecutor::InteractivePty,
+            Some(SkillSource::Installed("ticket".into())),
+            Some(SkillKind::Custom),
+        );
+
+        // body=None equivalent: nothing materialised → non-lean (fall back to
+        // the full self-contained prompt so `/ticket` is not a no-op).
+        let none: HashSet<String> = HashSet::new();
+        assert_eq!(lean_skill_id(&step, &none), None);
+
+        // body=Some equivalent: id present on disk → lean `/name`.
+        let materialised: HashSet<String> = HashSet::from(["ticket".to_string()]);
+        assert_eq!(lean_skill_id(&step, &materialised), Some("ticket"));
+    }
+
+    #[test]
+    fn lean_skill_id_is_none_for_non_interactive_executor() {
+        let step = dynamic_step(
+            "claude",
+            StepExecutor::CodexStructured,
+            Some(SkillSource::Installed("ticket".into())),
+            Some(SkillKind::Custom),
+        );
+        let materialised: HashSet<String> = HashSet::from(["ticket".to_string()]);
+        assert_eq!(lean_skill_id(&step, &materialised), None);
     }
 
     #[test]
@@ -1285,6 +2061,7 @@ mod tests {
             superkick_storage::SqliteTranscriptRepo,
             superkick_storage::SqliteLaunchTaskRepo,
             superkick_storage::SqliteLaunchTaskInterventionRepo,
+            superkick_storage::SqliteSkillDefinitionRepo,
         >::append_interventions(&mut base, &[]);
         assert_eq!(base, "BASE");
     }
@@ -1304,6 +2081,7 @@ mod tests {
             superkick_storage::SqliteTranscriptRepo,
             superkick_storage::SqliteLaunchTaskRepo,
             superkick_storage::SqliteLaunchTaskInterventionRepo,
+            superkick_storage::SqliteSkillDefinitionRepo,
         >::append_interventions(&mut base, &items);
         assert!(base.starts_with("BASE"));
         assert!(base.contains("--- Operator interventions ---"));

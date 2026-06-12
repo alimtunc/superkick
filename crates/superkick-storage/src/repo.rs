@@ -897,6 +897,12 @@ pub trait SkillDefinitionRepo: Send + Sync {
     fn get(&self, id: &str) -> impl Future<Output = Result<Option<SkillDefinition>>> + Send;
     fn upsert(&self, skill: &SkillDefinition) -> impl Future<Output = Result<()>> + Send;
     fn insert_if_absent(&self, skill: &SkillDefinition) -> impl Future<Output = Result<()>> + Send;
+    /// Backfill `body`/`artifact_kind` onto a pre-`body` builtin row, but only
+    /// while its `body` is still NULL — guards operator edits from a re-seed.
+    fn backfill_builtin_body(
+        &self,
+        skill: &SkillDefinition,
+    ) -> impl Future<Output = Result<()>> + Send;
     fn delete(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
 }
 

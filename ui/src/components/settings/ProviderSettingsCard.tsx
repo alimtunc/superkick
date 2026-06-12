@@ -14,10 +14,10 @@ import {
 	PERMISSION_LABEL,
 	PERMISSION_OPTIONS,
 	REASONING_LABEL,
-	REASONING_OPTIONS,
 	SANDBOX_LABEL,
 	SANDBOX_OPTIONS,
-	isPaidExecutor
+	isPaidExecutor,
+	reasoningOptionsFor
 } from '@/lib/launchConfigOptions'
 import type { ProviderSettings } from '@/types'
 
@@ -65,7 +65,7 @@ export function ProviderSettingsCard({ settings, onSave, isSaving }: ProviderSet
 				<ConfigSelect
 					ariaLabel={`${title} reasoning effort`}
 					value={draft.default_reasoning}
-					options={REASONING_OPTIONS}
+					options={reasoningOptionsFor(draft.provider)}
 					labels={REASONING_LABEL}
 					onChange={(value) => patch('default_reasoning', value)}
 				/>

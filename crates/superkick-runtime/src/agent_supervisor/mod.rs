@@ -59,6 +59,12 @@ pub struct SessionLaunchInfo {
     pub handoff_id: Option<HandoffId>,
 }
 
+/// One-shot callback fired the instant the PTY child is spawned and registered
+/// (the session is attachable). The Launch Task runner uses it to pulse a
+/// `StepSessionLive` bus event so the cockpit can distinguish "live session"
+/// from "still spawning". `None` (every non-PTY/non-launch path) is a no-op.
+pub type SessionLiveHook = Box<dyn FnOnce() + Send>;
+
 /// Configuration for launching an agent session.
 pub struct AgentLaunchConfig {
     pub run_id: RunId,
@@ -92,6 +98,9 @@ pub struct AgentLaunchConfig {
     pub runner_mode: RunnerMode,
     /// Audit-only; passed through to `agent_sessions.billing_profile`.
     pub billing_profile: BillingProfile,
+    /// Fired once the PTY child is spawned and registered (see
+    /// [`SessionLiveHook`]). Only the PTY [`Self::launch`] path honours it.
+    pub session_live: Option<SessionLiveHook>,
 }
 
 /// Audit snapshot of the MCP + tool policy that was actually applied to
@@ -298,6 +307,7 @@ where
             registry,
             lifecycle_bus: self.lifecycle_bus.clone(),
             idle_timeout: config.idle_timeout,
+            session_live: config.session_live,
         };
 
         let join = tokio::spawn(lifecycle::run_supervised(

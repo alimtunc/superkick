@@ -25,7 +25,7 @@ use crate::output_expectation::OutputExpectation;
 use crate::reasoning::ReasoningEffort;
 use crate::role_router::AgentCatalog;
 use crate::session_policy::SessionPolicy;
-use crate::skill::SkillSource;
+use crate::skill::{SkillKind, SkillSource};
 use crate::step_executor::StepExecutor;
 use crate::step_result::{FailureClassification, StepResult};
 
@@ -257,6 +257,8 @@ pub struct LaunchTaskStep {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skill_source: Option<SkillSource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skill_kind: Option<SkillKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<ReasoningEffort>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executor: Option<StepExecutor>,
@@ -322,6 +324,7 @@ impl LaunchTaskStep {
             mode: None,
             label: None,
             skill_source: None,
+            skill_kind: None,
             reasoning: None,
             executor: None,
             session_policy: None,
@@ -513,6 +516,7 @@ impl LaunchTask {
                 mode: s.executor.runner_mode().map(|m| m.audit_tag().to_string()),
                 label: Some(s.label.clone()),
                 skill_source: Some(s.skill_source.clone()),
+                skill_kind: s.skill_kind,
                 reasoning: Some(s.reasoning),
                 executor: Some(s.executor),
                 session_policy: Some(s.session_policy),

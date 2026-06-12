@@ -33,7 +33,7 @@ use superkick_storage::repo::{IssueWorkspaceContextRepo, LaunchTaskRepo};
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteIssueWorkspaceContextRepo, SqliteLaunchTaskInterventionRepo,
     SqliteLaunchTaskRepo, SqliteMemoryEntryRepo, SqliteRunEventRepo, SqliteRunRepo,
-    SqliteRunStepRepo, SqliteTranscriptRepo, connect,
+    SqliteRunStepRepo, SqliteSkillDefinitionRepo, SqliteTranscriptRepo, connect,
 };
 use tempfile::TempDir;
 
@@ -50,6 +50,7 @@ type HarnessRunner = RealStepRunner<
     SqliteTranscriptRepo,
     SqliteLaunchTaskRepo,
     SqliteLaunchTaskInterventionRepo,
+    SqliteSkillDefinitionRepo,
 >;
 type HarnessExecutor = LaunchTaskExecutor<SqliteLaunchTaskRepo, HarnessRunner>;
 
@@ -93,7 +94,8 @@ impl Harness {
         let issue_workspace_context_repo =
             Arc::new(SqliteIssueWorkspaceContextRepo::new(pool.clone()));
         let memory_repo = Arc::new(SqliteMemoryEntryRepo::new(pool.clone()));
-        let intervention_repo = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool));
+        let intervention_repo = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
+        let skill_repo = Arc::new(SqliteSkillDefinitionRepo::new(pool));
 
         let (workspace_context, excerpts, links) = fixture::canonical_issue_workspace_context()?;
         issue_workspace_context_repo
@@ -127,6 +129,7 @@ impl Harness {
                 as Arc<dyn superkick_storage::repo::IssueWorkspaceContextRepoDyn>,
             memory_repo: memory_repo as Arc<dyn superkick_storage::repo::MemoryEntryRepoDyn>,
             intervention_repo,
+            skill_repo,
             registry: pty_registry,
             session_bus: None,
             launch_task_bus: Arc::clone(&launch_task_bus),

@@ -1374,6 +1374,7 @@ mod gate_tests {
             },
             recovery: Default::default(),
             mcp_servers: HashMap::new(),
+            skills: Default::default(),
         }
     }
 

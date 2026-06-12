@@ -31,6 +31,12 @@ pub async fn seed_defaults(pool: &SqlitePool) -> Result<()> {
             .insert_if_absent(&skill)
             .await
             .with_context(|| format!("seed skill_definition {}", skill.id))?;
+        // Pre-`body` installs carry builtin rows with body=NULL; fill them in
+        // without clobbering a later operator edit (no-op once body is set).
+        skills
+            .backfill_builtin_body(&skill)
+            .await
+            .with_context(|| format!("backfill skill_definition {}", skill.id))?;
     }
 
     let profiles = SqliteLaunchProfileRepo::new(pool.clone());

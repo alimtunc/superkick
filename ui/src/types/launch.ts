@@ -41,7 +41,7 @@ export type LaunchStepKind = 'plan' | 'implement' | 'review'
 
 // ── shared launch-config enums (mirror superkick-core) ────────
 
-export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'ultra_code'
+export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 export type StepExecutor = 'codex_structured' | 'claude_workflow' | 'interactive_pty' | 'future'
 

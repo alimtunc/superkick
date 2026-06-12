@@ -90,6 +90,16 @@ pub enum LaunchTaskEvent {
         step_id: LaunchTaskStepId,
         consumed_at: DateTime<Utc>,
     },
+    /// The PTY child backing a step is spawned and attachable. Lets the cockpit
+    /// distinguish a live (operator-attachable) session from one that is still
+    /// spawning. Pulsed once per step from the supervisor's session-live hook.
+    StepSessionLive {
+        task_id: LaunchTaskId,
+        linear_issue_id: String,
+        step_id: LaunchTaskStepId,
+        run_id: RunId,
+        at: DateTime<Utc>,
+    },
 }
 
 impl LaunchTaskEvent {
@@ -100,7 +110,8 @@ impl LaunchTaskEvent {
             | Self::TaskStatusChanged { task_id, .. }
             | Self::ShadowRunStateChanged { task_id, .. }
             | Self::InterventionAdded { task_id, .. }
-            | Self::InterventionConsumed { task_id, .. } => *task_id,
+            | Self::InterventionConsumed { task_id, .. }
+            | Self::StepSessionLive { task_id, .. } => *task_id,
         }
     }
 
@@ -122,6 +133,9 @@ impl LaunchTaskEvent {
                 linear_issue_id, ..
             }
             | Self::InterventionConsumed {
+                linear_issue_id, ..
+            }
+            | Self::StepSessionLive {
                 linear_issue_id, ..
             } => linear_issue_id,
         }

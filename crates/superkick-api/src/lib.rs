@@ -176,6 +176,9 @@ pub(crate) struct AppState {
     pub launch_profile: LaunchProfileConfig,
     pub orchestration: OrchestrationConfig,
     pub issue_trigger: IssueTrigger,
+    /// Boot snapshot of `skills.import_dirs` — the directories the repo-import
+    /// scanner walks for `GET /skills/importable`. Read-only after boot.
+    pub skill_import_dirs: Vec<PathBuf>,
     /// Run-level budget snapshot applied to every new run at launch time.
     /// Computed once from `BudgetConfig` on boot; mid-flight config changes do
     /// not retroactively affect in-flight runs.
@@ -247,6 +250,10 @@ async fn build_app_state(
     let launch_profile = config.launch_profile.clone();
     let orchestration = config.orchestration.clone();
     let issue_trigger = config.issue_source.trigger;
+    let mut skill_import_dirs = config.skills.effective_import_dirs();
+    // Also scan the target repo's own `.claude` so its project skills import
+    // without extra config.
+    skill_import_dirs.push(std::path::PathBuf::from(&config.runner.repo_root).join(".claude"));
     let run_budget = config.budget.run_budget_snapshot();
     let recovery_config = config.recovery.to_recovery_config();
     let repo_slug = superkick_config::detect_repo_slug().unwrap_or_else(|| {
@@ -339,6 +346,7 @@ async fn build_app_state(
         memory_repo: Arc::clone(&memory_repo)
             as Arc<dyn superkick_storage::repo::MemoryEntryRepoDyn>,
         intervention_repo: Arc::clone(&launch_task_intervention_repo),
+        skill_repo: Arc::clone(&skill_repo),
         registry: Arc::clone(&pty_registry),
         session_bus: Some(Arc::clone(&session_bus)),
         launch_task_bus: Arc::clone(&launch_task_event_bus),
@@ -538,6 +546,7 @@ async fn build_app_state(
         launch_profile,
         orchestration,
         issue_trigger,
+        skill_import_dirs,
         run_budget,
     })
 }
@@ -733,6 +742,11 @@ fn api_router(state: AppState) -> Router {
             "/skills",
             get(handlers::skills::list_skills).post(handlers::skills::create_skill),
         )
+        .route(
+            "/skills/importable",
+            get(handlers::skills::list_importable_skills),
+        )
+        .route("/skills/import", post(handlers::skills::import_skills))
         .route(
             "/skills/{id}",
             patch(handlers::skills::patch_skill).delete(handlers::skills::delete_skill),

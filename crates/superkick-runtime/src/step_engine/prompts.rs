@@ -24,7 +24,7 @@ pub const NO_LINEAR_UPDATE_GUARDRAIL: &str = "IMPORTANT: Do NOT update the issue
      Do NOT mark the issue as done, closed, or resolved.";
 
 /// Operator-facing block telling the agent how to declare completion. The marker literals are interpolated from the parser's constants so the two cannot drift.
-fn step_result_contract_prompt() -> String {
+pub fn step_result_contract_prompt() -> String {
     format!(
         "--- Step completion contract ---\n\
          When and only when this step is fully done, print the following block on its own lines, \
@@ -33,6 +33,18 @@ fn step_result_contract_prompt() -> String {
          {{\"status\":\"completed|needs_human|failed\",\"summary\":\"...\",\"changed_files\":[\"...\"],\"questions\":[\"...\"]}}\n\
          {STEP_RESULT_END}\n\n\
          Without this block the step will not be marked complete and an operator will be paged."
+    )
+}
+
+/// Wrap an editable skill `body` into a step instruction block: the body
+/// verbatim, then the shared Linear guardrail and the step-completion contract.
+/// This is the body-driven counterpart to [`step_body_for`] — when a step's
+/// skill carries a non-empty body, the body *is* the instructions, so every
+/// edit to the body changes behaviour on every prompt path.
+pub fn skill_body_instructions(body: &str) -> String {
+    format!(
+        "{body}\n\n{NO_LINEAR_UPDATE_GUARDRAIL}\n\n{}",
+        step_result_contract_prompt()
     )
 }
 
@@ -95,6 +107,27 @@ mod tests {
     #[test]
     fn review_body_directs_only_review() {
         assert!(step_body_for(PromptStepKind::Review).contains("Only review code"));
+    }
+
+    #[test]
+    fn skill_body_instructions_inlines_body_with_guardrail_and_contract() {
+        let out = skill_body_instructions("CUSTOM SKILL BODY TEXT");
+        assert!(
+            out.contains("CUSTOM SKILL BODY TEXT"),
+            "body inlined verbatim"
+        );
+        assert!(
+            out.contains("Do NOT update the issue status"),
+            "guardrail appended"
+        );
+        assert!(
+            out.contains(superkick_core::STEP_RESULT_BEGIN),
+            "contract BEGIN appended"
+        );
+        assert!(
+            out.contains(superkick_core::STEP_RESULT_END),
+            "contract END appended"
+        );
     }
 
     #[test]

@@ -1,9 +1,17 @@
-import type { SkillDefinition } from '@/types'
+import type { SkillDefinition, SkillImportCandidate } from '@/types'
 
 import { deleteVoid, getJson, patchJson, postJson } from './_shared'
 
 export async function fetchSkills(): Promise<SkillDefinition[]> {
 	return getJson('/skills', 'fetch skills failed')
+}
+
+export async function listImportableSkills(): Promise<SkillImportCandidate[]> {
+	return getJson('/skills/importable', 'list importable skills failed')
+}
+
+export async function importSkills(candidates: SkillImportCandidate[]): Promise<SkillDefinition[]> {
+	return postJson('/skills/import', 'import skills failed', { candidates })
 }
 
 export async function createSkill(skill: SkillDefinition): Promise<SkillDefinition> {
