@@ -12,9 +12,7 @@ CREATE TABLE IF NOT EXISTS diff_review_threads (
     old_path      TEXT,
     side          TEXT NOT NULL CHECK(side IN ('old', 'new', 'context')),
     old_line      INTEGER CHECK(old_line IS NULL OR old_line > 0),
-    old_line_end  INTEGER CHECK(old_line_end IS NULL OR old_line_end > 0),
     new_line      INTEGER CHECK(new_line IS NULL OR new_line > 0),
-    new_line_end  INTEGER CHECK(new_line_end IS NULL OR new_line_end > 0),
     hunk_header   TEXT,
     hunk_index    INTEGER,
     base_ref      TEXT,
@@ -27,10 +25,6 @@ CREATE TABLE IF NOT EXISTS diff_review_threads (
         (side = 'old' AND old_line IS NOT NULL) OR
         (side = 'new' AND new_line IS NOT NULL) OR
         (side = 'context' AND old_line IS NOT NULL AND new_line IS NOT NULL)
-    ),
-    CHECK (
-        (old_line_end IS NULL OR (old_line IS NOT NULL AND old_line_end >= old_line)) AND
-        (new_line_end IS NULL OR (new_line IS NOT NULL AND new_line_end >= new_line))
     )
 );
 

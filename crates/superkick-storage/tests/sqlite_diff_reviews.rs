@@ -13,6 +13,69 @@ use superkick_core::{
 };
 use superkick_storage::repo::{DiffReviewRepo, RunRepo};
 use superkick_storage::{SqliteDiffReviewRepo, SqliteRunRepo, connect_with_capacity};
+use uuid::Uuid;
+
+const LEGACY_DIFF_REVIEW_SCHEMA_WITHOUT_LINE_RANGES: &str = r#"
+DROP TABLE IF EXISTS diff_review_comments;
+DROP TABLE IF EXISTS diff_review_file_states;
+DROP TABLE IF EXISTS diff_review_threads;
+
+CREATE TABLE diff_review_threads (
+    id            TEXT PRIMARY KEY NOT NULL,
+    run_id        TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    issue_id      TEXT,
+    file_path     TEXT NOT NULL CHECK(length(trim(file_path)) > 0),
+    old_path      TEXT,
+    side          TEXT NOT NULL CHECK(side IN ('old', 'new', 'context')),
+    old_line      INTEGER CHECK(old_line IS NULL OR old_line > 0),
+    new_line      INTEGER CHECK(new_line IS NULL OR new_line > 0),
+    hunk_header   TEXT,
+    hunk_index    INTEGER,
+    base_ref      TEXT,
+    head_ref      TEXT,
+    state         TEXT NOT NULL CHECK(state IN ('open', 'resolved')),
+    author        TEXT NOT NULL CHECK(length(trim(author)) > 0),
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL,
+    CHECK (
+        (side = 'old' AND old_line IS NOT NULL) OR
+        (side = 'new' AND new_line IS NOT NULL) OR
+        (side = 'context' AND old_line IS NOT NULL AND new_line IS NOT NULL)
+    )
+);
+
+CREATE INDEX idx_diff_review_threads_run
+    ON diff_review_threads(run_id, created_at);
+
+CREATE INDEX idx_diff_review_threads_file
+    ON diff_review_threads(run_id, file_path, state);
+
+CREATE TABLE diff_review_comments (
+    id          TEXT PRIMARY KEY NOT NULL,
+    thread_id   TEXT NOT NULL REFERENCES diff_review_threads(id) ON DELETE CASCADE,
+    author      TEXT NOT NULL CHECK(length(trim(author)) > 0),
+    body        TEXT NOT NULL CHECK(length(trim(body)) > 0),
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
+
+CREATE INDEX idx_diff_review_comments_thread
+    ON diff_review_comments(thread_id, created_at);
+
+CREATE TABLE diff_review_file_states (
+    run_id      TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    issue_id    TEXT,
+    file_path   TEXT NOT NULL CHECK(length(trim(file_path)) > 0),
+    old_path    TEXT,
+    reviewed    INTEGER NOT NULL CHECK(reviewed IN (0, 1)),
+    reviewer    TEXT,
+    updated_at  TEXT NOT NULL,
+    PRIMARY KEY (run_id, file_path)
+);
+
+CREATE INDEX idx_diff_review_file_states_run
+    ON diff_review_file_states(run_id);
+"#;
 
 async fn setup() -> Result<(SqliteDiffReviewRepo, SqliteRunRepo)> {
     let pool = connect_with_capacity("sqlite::memory:", 1).await?;
@@ -109,6 +172,50 @@ async fn line_range_anchor_round_trips() -> Result<()> {
     assert_eq!(thread.anchor.new_line, Some(42));
     assert_eq!(thread.anchor.new_line_end, Some(45));
     assert_eq!(state.threads[0].anchor.new_line_end, Some(45));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn existing_diff_review_schema_migrates_line_range_columns() -> Result<()> {
+    let db_path = std::env::temp_dir().join(format!(
+        "superkick-diff-review-line-range-{}.sqlite",
+        Uuid::new_v4()
+    ));
+    let database_url = format!("sqlite://{}", db_path.display());
+
+    {
+        let pool = connect_with_capacity(&database_url, 1).await?;
+        sqlx::raw_sql(sqlx::AssertSqlSafe(
+            LEGACY_DIFF_REVIEW_SCHEMA_WITHOUT_LINE_RANGES.to_string(),
+        ))
+        .execute(&pool)
+        .await?;
+        sqlx::query("DELETE FROM _migrations WHERE name = '041_diff_review_line_ranges'")
+            .execute(&pool)
+            .await?;
+        pool.close().await;
+    }
+
+    let pool = connect_with_capacity(&database_url, 1).await?;
+    let repo = SqliteDiffReviewRepo::new(pool.clone());
+    let run_repo = SqliteRunRepo::new(pool.clone());
+    let run_id = insert_run(&run_repo).await?;
+    let mut review_anchor = anchor(run_id, "src/lib.rs", 42);
+    review_anchor.new_line_end = Some(45);
+
+    let thread = repo
+        .create_thread(NewDiffReviewThread {
+            anchor: review_anchor,
+            author: Some("operator".into()),
+            body: "Extract this full range.".into(),
+        })
+        .await?;
+
+    assert_eq!(thread.anchor.new_line_end, Some(45));
+
+    pool.close().await;
+    let _ = std::fs::remove_file(db_path);
 
     Ok(())
 }
