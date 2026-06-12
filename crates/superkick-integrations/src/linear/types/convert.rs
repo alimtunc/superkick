@@ -151,8 +151,25 @@ impl From<GqlIssueDetail> for IssueDetailResponse {
                 })
                 .collect(),
             linked_runs: Vec::new(),
+            linked_prs: Vec::new(),
+            attachments: g
+                .attachments
+                .into_iter()
+                .flat_map(|conn| conn.nodes)
+                .map(IssueAttachment::from)
+                .collect(),
             history,
             history_has_more,
+        }
+    }
+}
+
+impl From<GqlAttachment> for IssueAttachment {
+    fn from(a: GqlAttachment) -> Self {
+        Self {
+            id: a.id,
+            title: a.title,
+            url: a.url,
         }
     }
 }

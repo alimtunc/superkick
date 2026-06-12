@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use superkick_core::LinkedRunSummary;
+use superkick_core::{IssuePullRequest, LinkedRunSummary};
 
 /// Identity of the authenticated Linear user (the "viewer").
 ///
@@ -168,9 +168,21 @@ pub struct IssueDetailResponse {
     pub comments: Vec<IssueComment>,
     pub linked_runs: Vec<LinkedRunSummary>,
     #[serde(default)]
+    pub linked_prs: Vec<IssuePullRequest>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<IssueAttachment>,
+    #[serde(default)]
     pub history: Vec<IssueHistoryEntry>,
     #[serde(default)]
     pub history_has_more: bool,
+}
+
+/// Linear attachment metadata used to discover external GitHub PR links.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IssueAttachment {
+    pub id: String,
+    pub title: String,
+    pub url: String,
 }
 
 /// A single Linear history record can carry multiple deltas — hence `Vec<IssueHistoryEvent>`.

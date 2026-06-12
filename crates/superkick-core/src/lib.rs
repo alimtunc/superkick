@@ -112,7 +112,10 @@ pub use provider_settings::{
     AuthState, InstallState, PermissionPolicy, ProviderAvailability, ProviderSettings,
     SandboxPolicy,
 };
-pub use pull_request::{LinkedPrSummary, PrState, PullRequest, ShipMode, parse_pr_number};
+pub use pull_request::{
+    GitHubPullRequestRef, IssuePullRequest, IssuePullRequestSource, LinkedPrSummary, PrDiffFile,
+    PrDiffFileStatus, PrState, PullRequest, ShipMode, parse_github_pr_url, parse_pr_number,
+};
 pub use queue::{
     DONE_COLUMN_LIMIT, OperatorQueue, QueueInputs, classify as classify_queue, queue_card_reason,
     trim_for_queue,

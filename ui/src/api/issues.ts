@@ -3,6 +3,7 @@ import type {
 	IssueCreateRequest,
 	IssueDetailResponse,
 	IssueListResponse,
+	IssuePullRequestDiffResponse,
 	IssueStateMutable,
 	IssueUpdateRequest
 } from '@/types'
@@ -15,6 +16,18 @@ export async function fetchIssues(limit = 200): Promise<IssueListResponse> {
 
 export async function fetchIssueDetail(id: string): Promise<IssueDetailResponse> {
 	return getJson(`/issues/${id}`, 'fetch failed: GET /issues/${id}')
+}
+
+export async function fetchIssuePullRequestDiff(
+	id: string,
+	repoSlug: string,
+	number: number
+): Promise<IssuePullRequestDiffResponse> {
+	const params = new URLSearchParams({ repo_slug: repoSlug, number: String(number) })
+	return getJson(
+		`/issues/${id}/pull-request-diff?${params.toString()}`,
+		`fetch failed: GET /issues/${id}/pull-request-diff`
+	)
 }
 
 /** Persist a Linear status change. `teamId`, when known, lets the server skip a team-lookup round-trip. */

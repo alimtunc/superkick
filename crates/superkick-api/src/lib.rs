@@ -12,20 +12,20 @@ use superkick_integrations::linear::LinearClient;
 use superkick_runtime::launch_task::{RealStepRunner, RealStepRunnerDeps};
 use superkick_runtime::{
     AttentionService, ConversationAdapters, ConversationRunner, InterruptService,
-    LaunchProfileService, LaunchTaskCanceller, LaunchTaskEventBus, LaunchTaskExecutor,
-    LaunchTaskRegistry, OwnershipService, PtySessionRegistry, PublishingRunEventRepo,
-    PullRequestService, QueueTriageService, RepoCache, RunService, RuntimeDetector, SessionBus,
-    StepEngine, StepEngineDeps, TerminalTakeoverService, TurnEventBus, WorkspaceEventBus,
-    boot_refresh as runtime_boot_refresh, spawn_heartbeat_listener,
+    IssuePullRequestService, LaunchProfileService, LaunchTaskCanceller, LaunchTaskEventBus,
+    LaunchTaskExecutor, LaunchTaskRegistry, OwnershipService, PtySessionRegistry,
+    PublishingRunEventRepo, PullRequestService, QueueTriageService, RepoCache, RunService,
+    RuntimeDetector, SessionBus, StepEngine, StepEngineDeps, TerminalTakeoverService, TurnEventBus,
+    WorkspaceEventBus, boot_refresh as runtime_boot_refresh, spawn_heartbeat_listener,
 };
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo,
-    SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssueWorkspaceContextRepo,
-    SqliteLaunchProfileRepo, SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo,
-    SqliteMemoryEntryRepo, SqliteOrchestratorSessionRepo, SqliteProviderSettingsRepo,
-    SqlitePullRequestRepo, SqliteRecoveryEventRepo, SqliteRunContextSnapshotRepo,
-    SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo, SqliteRuntimeRepo,
-    SqliteSessionOwnershipRepo, SqliteSkillDefinitionRepo, SqliteTranscriptRepo,
+    SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssuePullRequestRepo,
+    SqliteIssueWorkspaceContextRepo, SqliteLaunchProfileRepo, SqliteLaunchTaskInterventionRepo,
+    SqliteLaunchTaskRepo, SqliteMemoryEntryRepo, SqliteOrchestratorSessionRepo,
+    SqliteProviderSettingsRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo,
+    SqliteRunContextSnapshotRepo, SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
+    SqliteRuntimeRepo, SqliteSessionOwnershipRepo, SqliteSkillDefinitionRepo, SqliteTranscriptRepo,
     SqliteTurnEventRepo, SqliteTurnRepo,
 };
 
@@ -75,6 +75,8 @@ type ChatRunner =
 type TakeoverService = TerminalTakeoverService<EventRepo>;
 
 type PrService = PullRequestService<SqlitePullRequestRepo, SqliteArtifactRepo, SqliteRunRepo>;
+
+type IssuePrService = IssuePullRequestService<SqliteIssuePullRequestRepo>;
 
 type TriageService = QueueTriageService<
     SqliteRunRepo,
@@ -151,6 +153,7 @@ pub(crate) struct AppState {
     pub attention_service: Arc<AttnService>,
     pub ownership_service: Arc<OwnService>,
     pub pr_service: Arc<PrService>,
+    pub issue_pr_service: Arc<IssuePrService>,
     pub queue_triage_service: Arc<TriageService>,
     pub run_service: Arc<ProdRunService>,
     pub pty_registry: Arc<PtySessionRegistry>,
@@ -272,6 +275,7 @@ async fn build_app_state(
     let session_repo = Arc::new(SqliteAgentSessionRepo::new(pool.clone()));
     let artifact_repo = Arc::new(SqliteArtifactRepo::new(pool.clone()));
     let pr_repo = Arc::new(SqlitePullRequestRepo::new(pool.clone()));
+    let issue_pr_repo = Arc::new(SqliteIssuePullRequestRepo::new(pool.clone()));
     let interrupt_repo = Arc::new(SqliteInterruptRepo::new(pool.clone()));
     let attention_repo = Arc::new(SqliteAttentionRequestRepo::new(pool.clone()));
     let ownership_repo = Arc::new(SqliteSessionOwnershipRepo::new(pool.clone()));
@@ -395,6 +399,8 @@ async fn build_app_state(
         Arc::clone(&artifact_repo),
         Arc::clone(&run_repo),
     );
+    let issue_pr_service =
+        IssuePullRequestService::new(Arc::clone(&issue_pr_repo), repo_slug.clone());
 
     let queue_triage_service = QueueTriageService::new(
         Arc::clone(&run_repo),
@@ -519,6 +525,7 @@ async fn build_app_state(
         attention_service,
         ownership_service,
         pr_service,
+        issue_pr_service,
         queue_triage_service,
         run_service,
         pty_registry,
@@ -566,6 +573,10 @@ fn api_router(state: AppState) -> Router {
         .route(
             "/issues/{id}",
             get(handlers::issues::get_issue).patch(handlers::issues::patch_issue),
+        )
+        .route(
+            "/issues/{id}/pull-request-diff",
+            get(handlers::issues::get_issue_pull_request_diff),
         )
         .route(
             "/issues/{id}/comments",

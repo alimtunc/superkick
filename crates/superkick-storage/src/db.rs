@@ -215,6 +215,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "039_launch_task_profile_snapshot",
             include_str!("../migrations/039_launch_task_profile_snapshot.sql"),
         ),
+        (
+            "041_issue_pull_requests",
+            include_str!("../migrations/041_issue_pull_requests.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {
