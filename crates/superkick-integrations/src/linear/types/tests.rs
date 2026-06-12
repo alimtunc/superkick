@@ -293,6 +293,7 @@ fn sample_gql_issue_detail() -> GqlIssueDetail {
                 children: None,
             }],
         },
+        attachments: None,
         history: None,
     }
 }
@@ -320,6 +321,8 @@ fn gql_issue_detail_converts_to_response() {
     assert_eq!(detail.comments[0].body, "Reproducible on Safari 17+");
     assert!(detail.comments[0].parent_id.is_none());
     assert!(detail.linked_runs.is_empty());
+    assert!(detail.linked_prs.is_empty());
+    assert!(detail.attachments.is_empty());
 }
 
 #[test]
@@ -376,6 +379,7 @@ fn detail_response_serializes_to_stable_json() {
         "children",
         "comments",
         "linked_runs",
+        "linked_prs",
     ] {
         assert!(json.get(key).is_some(), "missing field: {key}");
     }
@@ -433,7 +437,16 @@ fn gql_detail_response_deserializes_from_linear_shape() {
                             }
                         ] }
                     }
-                ] }
+                ] },
+                "attachments": {
+                    "nodes": [
+                        {
+                            "id": "att-1",
+                            "title": "GitHub PR",
+                            "url": "https://github.com/acme/superkick/pull/42"
+                        }
+                    ]
+                }
             }
         }
     }"##;
@@ -442,6 +455,12 @@ fn gql_detail_response_deserializes_from_linear_shape() {
     let data = parsed.data.unwrap();
     assert_eq!(data.issue.identifier, "SUP-1");
     assert_eq!(data.issue.description.as_deref(), Some("Some description"));
+    let detail = IssueDetailResponse::from(data.issue);
+    assert_eq!(detail.attachments.len(), 1);
+    assert_eq!(
+        detail.attachments[0].url,
+        "https://github.com/acme/superkick/pull/42"
+    );
 }
 
 #[test]

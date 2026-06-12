@@ -11,15 +11,15 @@ use superkick_core::{
     Conversation, ConversationId, ConversationStatus, ConversationSubject, DiffReviewComment,
     DiffReviewCommentId, DiffReviewFileReviewedChange, DiffReviewFileState, DiffReviewState,
     DiffReviewThread, DiffReviewThreadId, EventId, FailureClassification, Handoff, HandoffId,
-    Interrupt, InterruptId, IssueBlocker, IssueWorkspaceContext,
+    Interrupt, InterruptId, IssueBlocker, IssuePullRequest, IssueWorkspaceContext,
     IssueWorkspaceContextCommentExcerpt, IssueWorkspaceContextId, IssueWorkspaceContextLink,
     IssueWorkspaceContextLinkKind, LaunchTask, LaunchTaskId, LaunchTaskIntervention,
     LaunchTaskInterventionId, LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId,
     LaunchTaskStepStatus, MemoryCursor, MemoryEntry, MemoryPage, NewDiffReviewComment,
     NewDiffReviewThread, OrchestratorCheckpoint, OrchestratorCheckpointId, OrchestratorSession,
-    OrchestratorSessionId, OrchestratorStatus, OwnershipEvent, ProtocolEventEnvelope, PullRequest,
-    Run, RunContextSnapshot, RunEvent, RunId, RunStep, SessionLifecycleEvent, StepId, StepResult,
-    TranscriptChunk, Turn, TurnEvent, TurnId, UsageSnapshot,
+    OrchestratorSessionId, OrchestratorStatus, OwnershipEvent, PrDiffFile, ProtocolEventEnvelope,
+    PullRequest, Run, RunContextSnapshot, RunEvent, RunId, RunStep, SessionLifecycleEvent, StepId,
+    StepResult, TranscriptChunk, Turn, TurnEvent, TurnId, UsageSnapshot,
 };
 
 /// Repository for `Run` entities.
@@ -126,6 +126,30 @@ pub trait PullRequestRepo: Send + Sync {
     fn get_by_run(&self, run_id: RunId)
     -> impl Future<Output = Result<Option<PullRequest>>> + Send;
     fn update(&self, pr: &PullRequest) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// Repository for GitHub PRs linked directly to Linear issues.
+pub trait IssuePullRequestRepo: Send + Sync {
+    fn upsert_issue_pr(&self, pr: &IssuePullRequest) -> impl Future<Output = Result<()>> + Send;
+    fn list_by_issue(
+        &self,
+        issue_identifier: &str,
+    ) -> impl Future<Output = Result<Vec<IssuePullRequest>>> + Send;
+    fn replace_diff_files(
+        &self,
+        issue_identifier: &str,
+        repo_slug: &str,
+        number: u32,
+        head_sha: &str,
+        files: &[PrDiffFile],
+    ) -> impl Future<Output = Result<()>> + Send;
+    fn list_diff_files(
+        &self,
+        issue_identifier: &str,
+        repo_slug: &str,
+        number: u32,
+        head_sha: &str,
+    ) -> impl Future<Output = Result<Vec<PrDiffFile>>> + Send;
 }
 
 /// Repository for local inline diff review state (SUP-199).

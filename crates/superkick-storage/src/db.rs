@@ -223,6 +223,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "041_diff_review_line_ranges",
             include_str!("../migrations/041_diff_review_line_ranges.sql"),
         ),
+        (
+            "042_issue_pull_requests",
+            include_str!("../migrations/042_issue_pull_requests.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

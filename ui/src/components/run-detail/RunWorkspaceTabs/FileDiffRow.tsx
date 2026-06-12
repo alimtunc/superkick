@@ -30,23 +30,25 @@ const STATUS_TONE: Record<FileDiffStatus, PillTone> = {
 
 interface FileDiffRowProps {
 	file: FileDiff
-	id: string
 	mode: DiffViewMode
-	reviewed: boolean
-	unresolvedCount: number
-	reviewDisabled: boolean
+	id?: string
+	reviewed?: boolean
+	unresolvedCount?: number
+	reviewDisabled?: boolean
 	review?: DiffPatchReview
-	onReviewedChange: (file: FileDiff, reviewed: boolean) => void
+	showReview?: boolean
+	onReviewedChange?: (file: FileDiff, reviewed: boolean) => void
 }
 
 export function FileDiffRow({
 	file,
-	id,
 	mode,
-	reviewed,
-	unresolvedCount,
-	reviewDisabled,
+	id,
+	reviewed = false,
+	unresolvedCount = 0,
+	reviewDisabled = false,
 	review,
+	showReview = true,
 	onReviewedChange
 }: FileDiffRowProps) {
 	const [expanded, setExpanded] = useState(true)
@@ -92,20 +94,24 @@ export function FileDiffRow({
 					<span className="text-success">+{file.additions}</span>
 					<span className="text-danger">−{file.deletions}</span>
 				</span>
-				<span className="shrink-0 rounded border border-border bg-canvas px-1.5 py-0.5 font-mono text-[10.5px] text-fg-muted">
-					{unresolvedCount} unresolved
-				</span>
-				<label className="inline-flex h-7 shrink-0 items-center gap-2 rounded border border-border bg-canvas px-2 text-[11.5px] text-fg-muted transition-colors hover:border-border-strong hover:text-fg">
-					<input
-						type="checkbox"
-						checked={reviewed}
-						onChange={(event) => onReviewedChange(file, event.target.checked)}
-						disabled={reviewDisabled}
-						aria-label={`Mark ${file.path} as ${reviewed ? 'not reviewed' : 'reviewed'}`}
-						className="size-3.5 accent-[var(--accent)] disabled:cursor-not-allowed"
-					/>
-					Reviewed
-				</label>
+				{showReview ? (
+					<>
+						<span className="shrink-0 rounded border border-border bg-canvas px-1.5 py-0.5 font-mono text-[10.5px] text-fg-muted">
+							{unresolvedCount} unresolved
+						</span>
+						<label className="inline-flex h-7 shrink-0 items-center gap-2 rounded border border-border bg-canvas px-2 text-[11.5px] text-fg-muted transition-colors hover:border-border-strong hover:text-fg">
+							<input
+								type="checkbox"
+								checked={reviewed}
+								onChange={(event) => onReviewedChange?.(file, event.target.checked)}
+								disabled={reviewDisabled}
+								aria-label={`Mark ${file.path} as ${reviewed ? 'not reviewed' : 'reviewed'}`}
+								className="size-3.5 accent-[var(--accent)] disabled:cursor-not-allowed"
+							/>
+							Reviewed
+						</label>
+					</>
+				) : null}
 			</header>
 			{file.binary ? <p className="px-7 pb-3 text-[11px] text-fg-muted">binary file</p> : null}
 			{file.truncated && !file.binary ? (

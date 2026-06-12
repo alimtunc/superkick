@@ -210,6 +210,13 @@ macro_rules! issue_detail_selection {
           } }
         }
       }
+      attachments(first: 50) {
+        nodes {
+          id
+          title
+          url
+        }
+      }
       history(first: 100, orderBy: createdAt) {
         nodes {
           id

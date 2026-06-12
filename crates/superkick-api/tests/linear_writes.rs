@@ -216,6 +216,8 @@ fn sample_detail() -> IssueDetailResponse {
         team_id: Some("team-uuid".into()),
         comments: Vec::new(),
         linked_runs: Vec::new(),
+        linked_prs: Vec::new(),
+        attachments: Vec::new(),
         history: Vec::new(),
         history_has_more: false,
     }

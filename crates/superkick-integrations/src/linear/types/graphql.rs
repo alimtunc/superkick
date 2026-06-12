@@ -277,10 +277,24 @@ pub(crate) struct GqlIssueDetail {
     #[serde(default)]
     pub inverse_relations: Option<GqlInverseRelationConnection>,
     pub comments: GqlCommentConnection,
+    #[serde(default)]
+    pub attachments: Option<GqlAttachmentConnection>,
     /// Optional so mutation responses keep deserializing if Linear ever
     /// omits the selection set, and so test fixtures don't have to model it.
     #[serde(default)]
     pub history: Option<GqlIssueHistoryConnection>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlAttachmentConnection {
+    pub nodes: Vec<GqlAttachment>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GqlAttachment {
+    pub id: String,
+    pub title: String,
+    pub url: String,
 }
 
 #[derive(Debug, Deserialize)]

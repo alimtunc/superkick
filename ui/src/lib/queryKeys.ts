@@ -3,6 +3,8 @@ export const queryKeys = {
 		all: ['issues'] as const,
 		list: (limit: number) => ['issues', limit] as const,
 		detail: (id: string) => ['issues', 'detail', id] as const,
+		prDiff: (id: string, repoSlug: string, number: number, headSha: string) =>
+			['issues', id, 'pull-request-diff', repoSlug, number, headSha] as const,
 		workspaceContext: (id: string) => ['issues', id, 'workspace-context'] as const,
 		memory: (id: string) => ['issues', id, 'memory'] as const
 	},

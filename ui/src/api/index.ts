@@ -20,6 +20,7 @@ export {
 	createIssue,
 	createIssueComment,
 	fetchIssueDetail,
+	fetchIssuePullRequestDiff,
 	fetchIssues,
 	patchIssue,
 	patchIssueState
