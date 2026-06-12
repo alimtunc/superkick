@@ -1,15 +1,10 @@
 import { RunDrawerTabs } from '@/components/issue-detail/run-drawer/RunDrawerTabs'
-import { ChangesTab } from '@/components/run-detail/RunWorkspaceTabs/ChangesTab'
-import { ShellTab } from '@/components/run-detail/RunWorkspaceTabs/ShellTab'
-import { ToolsTab } from '@/components/run-detail/RunWorkspaceTabs/ToolsTab'
 import { RunChip } from '@/components/run-shared/RunChip'
 import { RunMetaStrip } from '@/components/run-shared/RunMetaStrip'
-import { ActivityTab } from '@/components/run-tabs/ActivityTab'
-import { LogsTab } from '@/components/run-tabs/LogsTab'
+import { RunSessionTabs } from '@/components/run-tabs/RunSessionTabs'
 import { ErrorState } from '@/components/ui/state-error'
 import { LoadingState } from '@/components/ui/state-loading'
-import { useEventStream } from '@/hooks/useEventStream'
-import { useRunDetail } from '@/hooks/useRunDetail'
+import { useRunSession } from '@/hooks/useRunSession'
 import { useStickToBottom } from '@/hooks/useStickToBottom'
 import { useRunDrawerStore } from '@/stores/runDrawer'
 import { Icon } from '@/ui/Icon'
@@ -23,11 +18,10 @@ export function RunDrawerContent({ runId }: RunDrawerContentProps) {
 	const tab = useRunDrawerStore((s) => s.tab)
 	const setTab = useRunDrawerStore((s) => s.setTab)
 	const closeDrawer = useRunDrawerStore((s) => s.closeDrawer)
-	const detail = useRunDetail(runId)
-	const stream = useEventStream(runId, detail.syncRun)
+	const detail = useRunSession(runId)
 	// Follow the live feed to the newest event (per active tab) unless the
 	// reader has scrolled up to read history.
-	const body = useStickToBottom<HTMLDivElement>(`${tab}:${stream.events.length}`)
+	const body = useStickToBottom<HTMLDivElement>(`${tab}:${detail.events.length}`)
 
 	if (detail.loading) {
 		return (
@@ -96,19 +90,17 @@ export function RunDrawerContent({ runId }: RunDrawerContentProps) {
 			<RunMetaStrip run={run} sessions={sessions} density="compact" />
 			<RunDrawerTabs />
 			<div className="drawer__body" ref={body.ref} onScroll={body.onScroll}>
-				{tab === 'activity' ? (
-					<ActivityTab
-						events={stream.events}
-						sessions={sessions}
-						attentionRequests={attentionRequests}
-					/>
-				) : null}
-				{tab === 'tools' ? <ToolsTab runId={run.id} events={stream.events} /> : null}
-				{tab === 'files' ? <ChangesTab pr={pr} run={run} /> : null}
-				{tab === 'logs' ? (
-					<LogsTab events={stream.events} onOpenTerminal={() => setTab('terminal')} />
-				) : null}
-				{tab === 'terminal' ? <ShellTab runId={run.id} isTerminal={isTerminal} /> : null}
+				<RunSessionTabs
+					tab={tab}
+					onSelectTab={setTab}
+					runId={run.id}
+					run={run}
+					pr={pr}
+					sessions={sessions}
+					attentionRequests={attentionRequests}
+					events={detail.events}
+					isTerminal={isTerminal}
+				/>
 			</div>
 		</div>
 	)

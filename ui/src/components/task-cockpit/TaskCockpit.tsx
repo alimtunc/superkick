@@ -1,18 +1,20 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
+import { LaunchTaskCompletionSummary } from '@/components/issue-detail/launch-task-feed/LaunchTaskCompletionSummary'
+import { LaunchTaskNeedsHumanCallout } from '@/components/issue-detail/launch-task-feed/LaunchTaskNeedsHumanCallout'
 import { LaunchPlanStrip } from '@/components/launch/LaunchPlanStrip'
+import { InterventionList } from '@/components/task-cockpit/InterventionList'
 import { TaskCockpitNowPanel } from '@/components/task-cockpit/TaskCockpitNowPanel'
 import { TaskCockpitParentBanner } from '@/components/task-cockpit/TaskCockpitParentBanner'
-import { TaskCockpitTabPanel } from '@/components/task-cockpit/TaskCockpitTabPanel'
-import { TaskCockpitTabs, type TaskCockpitTabId } from '@/components/task-cockpit/TaskCockpitTabs'
-import { TaskCockpitTimeline } from '@/components/task-cockpit/TaskCockpitTimeline'
+import { TaskSessionView } from '@/components/task-cockpit/TaskSessionView'
 import { Pill } from '@/components/ui/pill'
-import { useEventStream } from '@/hooks/useEventStream'
+import { TabEmptyState } from '@/components/ui/state-empty-tab'
 import { useLaunchTaskFeedState } from '@/hooks/useLaunchTaskFeedState'
 import { LAUNCH_TASK_STATUS_LABEL, LAUNCH_TASK_STATUS_TONE, fmtRelativeTime } from '@/lib/domain'
 import { TopbarBackButton } from '@/shell/TopbarBackButton'
 import { usePageActions } from '@/shell/usePageActions'
 import type { LaunchTask, LaunchTaskStep } from '@/types'
+import { Terminal } from 'lucide-react'
 
 interface TaskCockpitProps {
 	task: LaunchTask
@@ -20,7 +22,6 @@ interface TaskCockpitProps {
 }
 
 export function TaskCockpit({ task, steps }: TaskCockpitProps) {
-	const [activeTab, setActiveTab] = useState<TaskCockpitTabId>('activity')
 	const {
 		blocking,
 		canRetry,
@@ -35,7 +36,6 @@ export function TaskCockpit({ task, steps }: TaskCockpitProps) {
 		pr,
 		interventions
 	} = useLaunchTaskFeedState(task, steps)
-	const stream = useEventStream(linkedRunId)
 
 	const status = task.status
 	const issueId = task.linear_issue_id.trim()
@@ -60,30 +60,61 @@ export function TaskCockpit({ task, steps }: TaskCockpitProps) {
 		back: <TopbarBackButton fallbackTo={issueId ? `/issues/${issueId}` : '/'} />
 	})
 
+	const hasInterventions = interventions.delivered.length > 0 || interventions.pending.length > 0
+
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			<LaunchPlanStrip task={task} steps={steps} variant="stepper" />
 			<TaskCockpitParentBanner task={task} />
-			<TaskCockpitTabs steps={steps} activeTab={activeTab} onChangeTab={setActiveTab} />
-			<div className="flex min-h-0 flex-1">
-				{activeTab === 'activity' ? (
-					<TaskCockpitTimeline
-						task={task}
-						steps={steps}
-						blocking={blocking}
+			{terminalKind ? (
+				<LaunchTaskCompletionSummary
+					kind={terminalKind}
+					task={task}
+					finalStep={finalStep}
+					classification={finalClassification}
+					linkedRunId={linkedRunId}
+					worktreePath={worktreePath}
+					branchName={branchName}
+				/>
+			) : null}
+			{blocking && !hideCallout ? (
+				<div className="px-6 pt-5">
+					<LaunchTaskNeedsHumanCallout
+						linearIssueId={task.linear_issue_id}
+						taskId={task.id}
+						headline={blocking.headline}
+						hint={blocking.hint}
+						blockingStep={blocking.step}
+						classification={blocking.classification}
 						canRetry={canRetry}
-						terminalKind={terminalKind}
-						hideCallout={hideCallout}
-						finalStep={finalStep}
-						finalClassification={finalClassification}
-						linkedRunId={linkedRunId}
-						worktreePath={worktreePath}
-						branchName={branchName}
-						interventions={interventions}
-						runEvents={stream.events}
 					/>
+				</div>
+			) : null}
+			{hasInterventions ? (
+				<div className="border-b border-border px-6 py-3">
+					<InterventionList
+						label="Delivered interventions"
+						rows={interventions.delivered}
+						variant="above"
+					/>
+					<InterventionList
+						label="Queued for next step"
+						rows={interventions.pending}
+						variant="below"
+					/>
+				</div>
+			) : null}
+			<div className="flex min-h-0 flex-1">
+				{linkedRunId ? (
+					<TaskSessionView runId={linkedRunId} steps={steps} />
 				) : (
-					<TaskCockpitTabPanel tab={activeTab} steps={steps} linkedRunId={linkedRunId} />
+					<div className="min-h-0 flex-1">
+						<TabEmptyState
+							icon={Terminal}
+							title="No session yet"
+							description="The structured session appears once the first step starts a run."
+						/>
+					</div>
 				)}
 				<TaskCockpitNowPanel
 					task={task}
