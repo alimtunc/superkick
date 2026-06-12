@@ -21,6 +21,7 @@ import {
 	fetchSearch,
 	fetchSkills,
 	listAgents,
+	listImportableSkills,
 	listLaunchTaskInterventions
 } from '@/api'
 import type { IssuePullRequest, SearchParams } from '@/types'
@@ -191,6 +192,14 @@ export const skillsQuery = () =>
 		queryKey: queryKeys.skills.all,
 		queryFn: fetchSkills,
 		staleTime: 30_000
+	})
+
+export const importableSkillsQuery = (enabled: boolean) =>
+	queryOptions({
+		queryKey: queryKeys.skills.importable,
+		queryFn: enabled ? listImportableSkills : skipToken,
+		staleTime: 0,
+		gcTime: 0
 	})
 
 export const launchProfilesQuery = () =>

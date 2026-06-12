@@ -161,7 +161,9 @@ pub use search::{
 };
 pub use session_lifecycle::{SessionLifecycleEvent, SessionLifecyclePhase};
 pub use session_policy::{SessionPolicy, SessionPolicyError};
-pub use skill::{SkillDefinition, SkillKind, SkillOrigin, SkillSource};
+pub use skill::{
+    MAX_PROMPT_TEMPLATE_CHARS, SkillArtifact, SkillDefinition, SkillKind, SkillOrigin, SkillSource,
+};
 pub use step::{RunStep, StepKey, StepStatus};
 pub use step_executor::StepExecutor;
 pub use step_result::{

@@ -21,29 +21,43 @@ impl StepResultScanner {
         Self::default()
     }
 
-    /// Feed a chunk of raw bytes from the PTY.
-    pub(crate) fn feed(&mut self, chunk: &[u8]) {
+    /// Feed a chunk of raw bytes from the PTY. Returns the freshly-completed
+    /// marker block on the chunk that closes one with a `STEP_RESULT_END`, so
+    /// callers can act on a self-iterating REPL's completion mid-stream instead
+    /// of waiting for PTY EOF. `Ok(None)` = no block closed in this chunk;
+    /// `Err` = the closed block's body was not valid JSON.
+    pub(crate) fn feed(&mut self, chunk: &[u8]) -> Result<Option<StepResult>, MarkerError> {
+        let mut completed = false;
         for &b in chunk {
             if b == b'\n' {
                 let line_bytes = std::mem::take(&mut self.line_buf);
                 let line = String::from_utf8_lossy(&line_bytes);
-                self.handle_line(line.trim_end_matches('\r'));
+                completed |= self.handle_line(line.trim_end_matches('\r'));
             } else {
                 self.line_buf.push(b);
             }
         }
+        if !completed {
+            return Ok(None);
+        }
+        match &self.last_complete {
+            Some(raw) => Ok(Some(serde_json::from_str(raw.trim())?)),
+            None => Ok(None),
+        }
     }
 
-    fn handle_line(&mut self, line: &str) {
+    /// Returns `true` when this line closed a marker block.
+    fn handle_line(&mut self, line: &str) -> bool {
         if line == STEP_RESULT_BEGIN {
             self.inside = Some(String::new());
-            return;
+            return false;
         }
         if line == STEP_RESULT_END {
             if let Some(body) = self.inside.take() {
                 self.last_complete = Some(body);
+                return true;
             }
-            return;
+            return false;
         }
         if let Some(body) = self.inside.as_mut() {
             if !body.is_empty() {
@@ -51,6 +65,7 @@ impl StepResultScanner {
             }
             body.push_str(line);
         }
+        false
     }
 
     /// Finalise. `Ok(None)` covers both "no marker" and "BEGIN without END".
@@ -82,7 +97,7 @@ mod tests {
     fn scan(chunks: &[&[u8]]) -> Result<Option<StepResult>, MarkerError> {
         let mut s = StepResultScanner::new();
         for c in chunks {
-            s.feed(c);
+            s.feed(c)?;
         }
         s.finish()
     }
@@ -208,5 +223,38 @@ mod tests {
     fn empty_stream_yields_none() {
         let sr = scan(&[]).expect("ok");
         assert!(sr.is_none());
+    }
+
+    #[test]
+    fn feed_returns_the_block_on_the_closing_chunk() {
+        let mut s = StepResultScanner::new();
+        // No block closes while the REPL is still streaming the body.
+        assert!(
+            s.feed(format!("{STEP_RESULT_BEGIN}\n").as_bytes())
+                .expect("ok")
+                .is_none()
+        );
+        let sr = s
+            .feed(
+                format!(
+                    "{body}\n{STEP_RESULT_END}\n",
+                    body = r#"{"status":"completed","summary":"mid-stream"}"#,
+                )
+                .as_bytes(),
+            )
+            .expect("ok")
+            .expect("block closed");
+        assert_eq!(sr.status, StepResultStatus::Completed);
+        assert_eq!(sr.summary, "mid-stream");
+    }
+
+    #[test]
+    fn feed_propagates_malformed_block_error_mid_stream() {
+        let mut s = StepResultScanner::new();
+        let err = s.feed(format!("{STEP_RESULT_BEGIN}\nnot json\n{STEP_RESULT_END}\n").as_bytes());
+        assert!(
+            err.is_err(),
+            "closing a malformed block must surface an error"
+        );
     }
 }

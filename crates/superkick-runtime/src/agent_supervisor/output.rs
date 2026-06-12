@@ -102,6 +102,15 @@ async fn persist_chunks<T: TranscriptRepo>(
 
 /// Drain raw PTY chunks into both the marker scanner and the provider-aware
 /// failure-hint scanner, then forward each verdict when the sender closes.
+///
+/// First-wins on the step-result `oneshot`, but only on a *successful*
+/// completion (`Ok(Some)`): the marker block is forwarded the instant `feed`
+/// closes a valid one (so a self-iterating REPL that prints its completion JSON
+/// but never exits still wakes the supervisor). A malformed (`Err`) or
+/// not-yet-closed (`Ok(None)`) block does NOT consume the sender — scanning
+/// continues so a later valid block can supersede it, and `finish()` reports
+/// the final `last_complete`/error at EOF. This mirrors `await_completed_marker`
+/// in lifecycle.rs, which only treats `Ok(Ok(Some(_)))` as a clean completion.
 async fn scan_chunks(
     mut rx: mpsc::Receiver<Vec<u8>>,
     provider: AgentProvider,
@@ -110,10 +119,59 @@ async fn scan_chunks(
 ) {
     let mut marker = StepResultScanner::new();
     let mut hints = FailureHintScanner::new(provider);
+    let mut result_tx = Some(result_tx);
     while let Some(bytes) = rx.recv().await {
-        marker.feed(&bytes);
+        if let Ok(Some(sr)) = marker.feed(&bytes) {
+            if let Some(tx) = result_tx.take() {
+                let _ = tx.send(Ok(Some(sr)));
+            }
+        }
         hints.feed(&bytes);
     }
-    let _ = result_tx.send(marker.finish());
+    if let Some(tx) = result_tx.take() {
+        let _ = tx.send(marker.finish());
+    }
     let _ = hints_tx.send(hints.into_hints());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use superkick_core::{STEP_RESULT_BEGIN, STEP_RESULT_END, StepResultStatus};
+
+    fn block(body: &str) -> Vec<u8> {
+        format!("{STEP_RESULT_BEGIN}\n{body}\n{STEP_RESULT_END}\n").into_bytes()
+    }
+
+    #[tokio::test]
+    async fn malformed_then_valid_block_completes_with_the_valid_one() {
+        let (scan_tx, scan_rx) = mpsc::channel::<Vec<u8>>(8);
+        let (result_tx, result_rx) = oneshot::channel();
+        let (hints_tx, _hints_rx) = oneshot::channel();
+
+        let scanner = tokio::spawn(scan_chunks(
+            scan_rx,
+            AgentProvider::Claude,
+            result_tx,
+            hints_tx,
+        ));
+
+        // First feed: a malformed block must NOT latch the oneshot.
+        scan_tx
+            .send(block("not json at all"))
+            .await
+            .expect("send malformed");
+        // Second feed: a later valid block supersedes the malformed one.
+        scan_tx
+            .send(block(r#"{"status":"completed","summary":"recovered"}"#))
+            .await
+            .expect("send valid");
+        drop(scan_tx);
+
+        scanner.await.expect("scanner task");
+        let outcome = result_rx.await.expect("sender not dropped");
+        let sr = outcome.expect("not MalformedMarker").expect("some block");
+        assert_eq!(sr.status, StepResultStatus::Completed);
+        assert_eq!(sr.summary, "recovered");
+    }
 }

@@ -50,6 +50,29 @@ function shadowRunStateChangedNotice(): LaunchTaskEvent {
 	}
 }
 
+function stepSessionLiveNotice(): LaunchTaskEvent {
+	return {
+		kind: 'step_session_live',
+		task_id: TASK_ID,
+		linear_issue_id: ISSUE_ID,
+		step_id: 'step-1',
+		run_id: RUN_ID,
+		at: '2026-05-25T00:00:00Z'
+	}
+}
+
+function interventionAddedNotice(): LaunchTaskEvent {
+	return {
+		kind: 'intervention_added',
+		task_id: TASK_ID,
+		linear_issue_id: ISSUE_ID,
+		intervention_id: 'iv-1',
+		target_step_id: null,
+		body: 'try the other adapter',
+		created_at: '2026-05-25T00:00:00Z'
+	}
+}
+
 describe('invalidateForWorkspaceNotice — state_change', () => {
 	it('invalidates run detail, runs list, issues list, and dashboard queue', () => {
 		const client = makeClient()
@@ -85,5 +108,35 @@ describe('invalidateForLaunchTaskNotice — shadow_run_state_changed', () => {
 		expect(isInvalidated(client, queryKeys.runs.all)).toBe(true)
 		expect(isInvalidated(client, queryKeys.issues.all)).toBe(true)
 		expect(isInvalidated(client, queryKeys.dashboard.queue)).toBe(true)
+	})
+})
+
+describe('invalidateForLaunchTaskNotice — step_session_live', () => {
+	it('invalidates task detail/steps so the cockpit reflects the live session', () => {
+		const client = makeClient()
+		seed(client, queryKeys.launchTasks.detail(TASK_ID))
+		seed(client, queryKeys.launchTasks.steps(TASK_ID))
+		seed(client, queryKeys.launchTasks.forIssue(ISSUE_ID))
+		seed(client, queryKeys.dashboard.queue)
+
+		invalidateForLaunchTaskNotice(client, stepSessionLiveNotice())
+
+		expect(isInvalidated(client, queryKeys.launchTasks.detail(TASK_ID))).toBe(true)
+		expect(isInvalidated(client, queryKeys.launchTasks.steps(TASK_ID))).toBe(true)
+		expect(isInvalidated(client, queryKeys.launchTasks.forIssue(ISSUE_ID))).toBe(true)
+		expect(isInvalidated(client, queryKeys.dashboard.queue)).toBe(true)
+	})
+})
+
+describe('invalidateForLaunchTaskNotice — intervention_added', () => {
+	it('invalidates the interventions feed and the issue launch-task views', () => {
+		const client = makeClient()
+		seed(client, queryKeys.launchTasks.interventions(TASK_ID))
+		seed(client, queryKeys.launchTasks.forIssue(ISSUE_ID))
+
+		invalidateForLaunchTaskNotice(client, interventionAddedNotice())
+
+		expect(isInvalidated(client, queryKeys.launchTasks.interventions(TASK_ID))).toBe(true)
+		expect(isInvalidated(client, queryKeys.launchTasks.forIssue(ISSUE_ID))).toBe(true)
 	})
 })

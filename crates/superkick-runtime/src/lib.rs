@@ -36,6 +36,7 @@ mod run_events;
 pub mod run_service;
 pub mod runner_mode;
 pub mod session_bus;
+pub mod skill_import;
 pub mod step_engine;
 pub mod step_failure_classifier;
 pub mod terminal_takeover;
@@ -95,6 +96,7 @@ pub use run_context_snapshot_builder::{
 pub use run_diff::{DiffError, collect_run_diff};
 pub use run_service::{LaunchTaskCanceller, RunService, RunServiceError, RunSpawn};
 pub use session_bus::SessionBus;
+pub use skill_import::{SkillImportCandidate, scan_import_dirs};
 pub use step_engine::{StepEngine, StepEngineDeps};
 pub use step_failure_classifier::DiffSnapshot;
 pub use terminal_takeover::{OpenTakeoverParams, SpawnedTakeover, TerminalTakeoverService};

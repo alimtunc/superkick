@@ -27,7 +27,7 @@ use superkick_runtime::{LaunchTaskEvent, LaunchTaskEventBus, LaunchTaskExecutor,
 use superkick_storage::repo::{LaunchTaskInterventionRepo, LaunchTaskRepo};
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo, SqliteRunRepo,
-    SqliteRunStepRepo, SqliteTranscriptRepo,
+    SqliteRunStepRepo, SqliteSkillDefinitionRepo, SqliteTranscriptRepo,
 };
 
 use crate::error::AppError;
@@ -57,6 +57,7 @@ pub type ProdRealStepRunner = RealStepRunner<
     SqliteTranscriptRepo,
     SqliteLaunchTaskRepo,
     SqliteLaunchTaskInterventionRepo,
+    SqliteSkillDefinitionRepo,
 >;
 pub type ProdLaunchTaskExecutor = LaunchTaskExecutor<SqliteLaunchTaskRepo, ProdRealStepRunner>;
 

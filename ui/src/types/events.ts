@@ -213,6 +213,31 @@ export type LaunchTaskEvent =
 			run_id: string
 			state: RunState
 	  }
+	| {
+			kind: 'intervention_added'
+			task_id: string
+			linear_issue_id: string
+			intervention_id: string
+			target_step_id: string | null
+			body: string
+			created_at: string
+	  }
+	| {
+			kind: 'intervention_consumed'
+			task_id: string
+			linear_issue_id: string
+			intervention_id: string
+			step_id: string
+			consumed_at: string
+	  }
+	| {
+			kind: 'step_session_live'
+			task_id: string
+			linear_issue_id: string
+			step_id: string
+			run_id: string
+			at: string
+	  }
 
 /**
  * Discriminant of `LaunchTaskEvent`. Exhaustive switches over this type catch a

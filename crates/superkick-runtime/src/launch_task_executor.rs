@@ -1460,6 +1460,7 @@ mod tests {
             mode: None,
             label: None,
             skill_source: None,
+            skill_kind: None,
             reasoning: None,
             executor: None,
             session_policy: None,

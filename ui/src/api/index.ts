@@ -43,7 +43,14 @@ export {
 export { fetchRuntimes, prepareSessionAttach, refreshRuntimes } from './runtimes'
 export { listAgents } from './agents'
 export { fetchProviderSettings, patchProviderSettings } from './providerSettings'
-export { createSkill, deleteSkill, fetchSkills, updateSkill } from './skills'
+export {
+	createSkill,
+	deleteSkill,
+	fetchSkills,
+	importSkills,
+	listImportableSkills,
+	updateSkill
+} from './skills'
 export {
 	createLaunchProfile,
 	deleteLaunchProfile,

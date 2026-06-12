@@ -19,7 +19,7 @@ use superkick_core::{
     ConversationId, FailureClassification, LaunchRecipe, LaunchStepKind, LaunchTask, LaunchTaskId,
     LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus,
     OrchestratorSessionId, OutputExpectation, ProfileSnapshot, ReasoningEffort, RunId,
-    SessionPolicy, SkillSource, StepExecutor, StepResult,
+    SessionPolicy, SkillKind, SkillSource, StepExecutor, StepResult,
 };
 
 use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
@@ -107,6 +107,7 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
                 .transpose()?;
             let skill_source_kind = step.skill_source.as_ref().map(|s| s.kind_tag());
             let skill_source_value = step.skill_source.as_ref().map(|s| s.value().to_string());
+            let skill_kind = step.skill_kind.map(|k| serialize_enum(&k)).transpose()?;
             sqlx::query(
                 "INSERT INTO launch_task_steps (\
                      id, launch_task_id, sequence, step_kind, agent_name, \
@@ -114,11 +115,12 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
                      linked_run_id, linked_conversation_id, linked_orchestrator_session_id, \
                      summary, structured_result, failure_classification, \
                      auto_resume_count, resume_key, \
-                     label, skill_source_kind, skill_source_value, reasoning_effort, executor, \
+                     label, skill_source_kind, skill_source_value, skill_kind, \
+                     reasoning_effort, executor, \
                      session_policy, output_expectation, enabled, \
                      created_at, updated_at\
                  ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, \
-                     ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27)",
+                     ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28)",
             )
             .bind(step.id.0.to_string())
             .bind(step.launch_task_id.0.to_string())
@@ -143,6 +145,7 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
             .bind(step.label.clone())
             .bind(skill_source_kind)
             .bind(skill_source_value)
+            .bind(skill_kind)
             .bind(reasoning)
             .bind(executor)
             .bind(session_policy)
@@ -654,6 +657,7 @@ struct LaunchTaskStepRow {
     label: Option<String>,
     skill_source_kind: Option<String>,
     skill_source_value: Option<String>,
+    skill_kind: Option<String>,
     reasoning_effort: Option<String>,
     executor: Option<String>,
     session_policy: Option<String>,
@@ -692,6 +696,11 @@ impl LaunchTaskStepRow {
             (Some(kind), Some(value)) => Some(SkillSource::from_parts(&kind, value)?),
             _ => None,
         };
+        let skill_kind = self
+            .skill_kind
+            .as_deref()
+            .map(deserialize_enum::<SkillKind>)
+            .transpose()?;
         let reasoning = self
             .reasoning_effort
             .as_deref()
@@ -725,6 +734,7 @@ impl LaunchTaskStepRow {
             mode: self.mode,
             label: self.label,
             skill_source,
+            skill_kind,
             reasoning,
             executor,
             session_policy,

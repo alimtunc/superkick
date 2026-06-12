@@ -26,7 +26,9 @@ use tokio::time::{Instant, timeout};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
-use superkick_core::{Failure, ProtocolEvent, ResumeKey, TurnOutcome, TurnRequest};
+use superkick_core::{
+    Failure, ProtocolEvent, ReasoningEffort, ResumeKey, TurnOutcome, TurnRequest,
+};
 
 use super::codex_stream::{ParserState, parse_line};
 use super::process::{Termination, append_stderr_tail, emit_terminal, kill_with_grace, send_event};
@@ -69,6 +71,9 @@ pub struct CodexAdapterOptions {
     pub model: Option<String>,
     /// Sandbox posture. Defaults to `workspace-write`.
     pub sandbox: CodexSandboxMode,
+    /// Reasoning effort forwarded as `-c model_reasoning_effort=<v>` on fresh
+    /// turns only — `codex exec resume` rejects per-session config overrides.
+    pub reasoning_effort: Option<ReasoningEffort>,
     /// When `true`, append `--skip-git-repo-check` so the run does not require
     /// the workdir to be a git repo. The supervisor always runs in a worktree
     /// today, but tests + ad-hoc invocations need this off the happy path.
@@ -85,6 +90,7 @@ impl Default for CodexAdapterOptions {
             codex_executable: None,
             model: None,
             sandbox: CodexSandboxMode::default(),
+            reasoning_effort: None,
             skip_git_repo_check: true,
             stderr_tail_lines: 64,
         }
@@ -232,6 +238,13 @@ pub(crate) fn build_argv(
         if let Some(model) = &options.model {
             argv.push("--model".to_string());
             argv.push(model.clone());
+        }
+        if let Some(effort) = options.reasoning_effort {
+            argv.push("-c".to_string());
+            argv.push(format!(
+                "model_reasoning_effort={}",
+                effort.codex_config_value()
+            ));
         }
     }
 
@@ -588,6 +601,63 @@ mod tests {
         let argv = build_argv(&opts, None, Path::new("/tmp/work"));
         let pos = argv.iter().position(|a| a == "--model").expect("model");
         assert_eq!(argv[pos + 1], "o3");
+    }
+
+    #[test]
+    fn build_argv_fresh_emits_reasoning_effort_pair_before_stdin_marker() {
+        let opts = CodexAdapterOptions {
+            reasoning_effort: Some(ReasoningEffort::High),
+            ..CodexAdapterOptions::default()
+        };
+        let argv = build_argv(&opts, None, Path::new("/tmp/work"));
+        let pos = argv.iter().position(|a| a == "-c").expect("-c config flag");
+        assert_eq!(argv[pos + 1], "model_reasoning_effort=high");
+        assert!(
+            pos + 1 < argv.len() - 1,
+            "pair sits before the trailing `-`"
+        );
+        assert_eq!(argv.last().map(String::as_str), Some("-"));
+    }
+
+    #[test]
+    fn build_argv_fresh_clamps_max_to_xhigh_for_codex() {
+        let opts = CodexAdapterOptions {
+            reasoning_effort: Some(ReasoningEffort::Max),
+            ..CodexAdapterOptions::default()
+        };
+        let argv = build_argv(&opts, None, Path::new("/tmp/work"));
+        assert!(argv.iter().any(|a| a == "model_reasoning_effort=xhigh"));
+    }
+
+    #[test]
+    fn build_argv_resume_omits_reasoning_effort_per_cli_contract() {
+        // `codex exec resume` rejects per-session config overrides — the
+        // reasoning pair must never appear on the resume argv.
+        let opts = CodexAdapterOptions {
+            reasoning_effort: Some(ReasoningEffort::High),
+            ..CodexAdapterOptions::default()
+        };
+        let argv = build_argv(
+            &opts,
+            Some(&ResumeKey::new("019d-uuid")),
+            Path::new("/tmp/work"),
+        );
+        assert!(
+            !argv.iter().any(|a| a == "-c"),
+            "-c must not appear on resume argv: {argv:?}"
+        );
+        assert!(!argv.iter().any(|a| a.starts_with("model_reasoning_effort")));
+    }
+
+    #[test]
+    fn build_argv_without_reasoning_emits_no_config_override() {
+        let argv = build_argv(
+            &CodexAdapterOptions::default(),
+            None,
+            Path::new("/tmp/work"),
+        );
+        assert!(!argv.iter().any(|a| a == "-c"));
+        assert!(!argv.iter().any(|a| a.starts_with("model_reasoning_effort")));
     }
 
     #[test]

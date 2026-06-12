@@ -16,6 +16,7 @@ export type ProfileKind =
 	| 'implement_only'
 	| 'review_only'
 	| 'claude_workflow'
+	| 'full_session'
 	| 'custom'
 
 export interface ProfileStep {

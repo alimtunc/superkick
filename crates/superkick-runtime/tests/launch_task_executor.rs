@@ -56,6 +56,7 @@ fn dyn_step(
         label: kind.to_string(),
         skill_ref: kind.to_string(),
         skill_source: SkillSource::Installed(kind.to_string()),
+        skill_kind: None,
         step_kind: kind,
         provider: AgentProvider::Codex,
         model: None,

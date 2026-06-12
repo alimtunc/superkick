@@ -1,5 +1,6 @@
 //! PTY-backed agent lifecycle — spawn, stream, wait/cancel/timeout, persist.
 
+use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -7,14 +8,16 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use chrono::Utc;
 use portable_pty::CommandBuilder;
-use tokio::sync::watch;
+use tokio::sync::{oneshot, watch};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
 use superkick_core::{
-    AgentSession, AgentStatus, EventKind, EventLevel, RunId, SessionLifecyclePhase,
+    AgentSession, AgentStatus, EventKind, EventLevel, RunId, SessionLifecyclePhase, StepResult,
 };
 use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
+
+use crate::protocol_adapter::MarkerError;
 
 use super::output::spawn_output_reader;
 use super::process::{SpawnedPty, kill_by_pid, open_pty_and_spawn, spawn_initial_input_injection};
@@ -35,6 +38,9 @@ pub(crate) struct SupervisedDeps<S, E, T> {
     /// Kill the process after this much output silence (no-output watchdog),
     /// reset on every chunk. `None` disables it.
     pub idle_timeout: Option<Duration>,
+    /// Fired once the child is spawned and registered (the session is
+    /// attachable). `None` on every non-launch-task path.
+    pub session_live: Option<super::SessionLiveHook>,
 }
 
 /// Spawn the agent via PTY and supervise it to completion.
@@ -59,6 +65,7 @@ where
         registry,
         lifecycle_bus,
         idle_timeout,
+        session_live,
     } = deps;
     let run_id = session.run_id;
     let step_id = session.run_step_id;
@@ -70,6 +77,11 @@ where
 
     // Register the live session so API handlers can attach.
     registry.register(run_id, Arc::clone(&pty_session));
+    // The child is spawned and attachable now — pulse the launch-task "session
+    // live" hook so the cockpit can distinguish a live session from spawning.
+    if let Some(hook) = session_live {
+        hook();
+    }
 
     let pid = child.process_id();
     session.pid = pid;
@@ -131,6 +143,11 @@ where
         step_result_rx,
         transcript_hints_rx,
     } = output_pipeline;
+    // Held in an `Option` so the marker arm of the select can resolve it early
+    // (a self-iterating REPL that prints its completion JSON without exiting)
+    // while the child-exit / deadline / cancel arms still read it afterwards.
+    // The marker arm `take()`s it; the others fall back to awaiting it.
+    let mut step_result_rx = Some(step_result_rx);
 
     if let Some(payload) = initial_stdin {
         spawn_initial_input_injection(Arc::clone(&pty_session), payload, run_id);
@@ -139,7 +156,47 @@ where
     // child.wait() is blocking (portable-pty API), so wrap in spawn_blocking.
     let wait_handle = tokio::task::spawn_blocking(move || child.wait());
 
+    // The scanner forwards the marker on the oneshot the first time it parses a
+    // complete block (see `scan_chunks`). The early value is consumed once and
+    // stashed here so the other select arms can still read it without
+    // double-awaiting the oneshot.
+    let mut stashed_step_result: Option<Result<Option<StepResult>, MarkerError>> = None;
+
     let exit_status = tokio::select! {
+        sr = await_completed_marker(&mut step_result_rx, &mut stashed_step_result) => {
+            // A self-iterating PTY REPL printed its completion JSON but the child
+            // is still alive — kill it and finalize as a clean Completed.
+            warn!(pid = ?pid, "step-result marker observed mid-stream; terminating live PTY session");
+            kill_by_pid(pid);
+            session.status = AgentStatus::Completed;
+            session.exit_code = Some(0);
+            session.finished_at = Some(Utc::now());
+            emit_event(
+                &*event_repo, run_id, Some(step_id),
+                EventKind::AgentOutput, EventLevel::Info,
+                format!("agent {} completed via step-result marker", session.provider),
+            ).await;
+            let _ = output_task.await;
+            let transcript_hints = transcript_hints_rx.await.unwrap_or_default();
+            session_repo.update(&session).await?;
+            let terminal_phase = SessionLifecyclePhase::Completed { exit_code: 0 };
+            record_lifecycle(
+                lifecycle_bus.as_deref(),
+                &*event_repo,
+                &session,
+                terminal_phase.clone(),
+            )
+            .await;
+            schedule_cleanup(registry, run_id);
+            return Ok(AgentResult {
+                session,
+                step_result: Ok(Some(sr)),
+                lifecycle_phase: terminal_phase,
+                timeout_after: None,
+                transcript_hints,
+                resume_key: None,
+            });
+        }
         result = wait_handle => {
             result
                 .context("agent wait task panicked")?
@@ -168,7 +225,7 @@ where
                 EventKind::Error, EventLevel::Error, message,
             ).await;
             let _ = output_task.await;
-            let step_result = step_result_rx.await.unwrap_or(Ok(None));
+            let step_result = take_step_result(step_result_rx, stashed_step_result).await;
             let transcript_hints = transcript_hints_rx.await.unwrap_or_default();
             session_repo.update(&session).await?;
             record_lifecycle(
@@ -199,7 +256,7 @@ where
                 format!("agent {} cancelled", session.provider),
             ).await;
             let _ = output_task.await;
-            let step_result = step_result_rx.await.unwrap_or(Ok(None));
+            let step_result = take_step_result(step_result_rx, stashed_step_result).await;
             let transcript_hints = transcript_hints_rx.await.unwrap_or_default();
             session_repo.update(&session).await?;
             record_lifecycle(
@@ -224,7 +281,7 @@ where
     // Flush remaining output from the PTY master.
     let _ = output_task.await;
     // Degrade a dropped scanner task to "no marker observed" rather than crashing.
-    let step_result = step_result_rx.await.unwrap_or(Ok(None));
+    let step_result = take_step_result(step_result_rx, stashed_step_result).await;
     let transcript_hints = transcript_hints_rx.await.unwrap_or_default();
 
     finalize_session(&mut session, &exit_status, &event_repo, &session_repo).await?;
@@ -254,6 +311,56 @@ where
         transcript_hints,
         resume_key: None,
     })
+}
+
+/// Resolve only when the scanner forwards a usable step-result completion
+/// (`Ok(Some(_))`) on the oneshot. A non-usable early value (a malformed-marker
+/// `Err`, or the `Ok(None)` finish-fallback) is stashed for the other select
+/// arms to consume and the future then stays pending — so a marker parse error
+/// can never be mistaken for a clean mid-stream completion.
+///
+/// The receiver is polled in place and only removed from `rx` once it actually
+/// resolves; dropping this future before then (another select arm wins) leaves
+/// the still-pending oneshot in `rx` for `take_step_result` to read — so no
+/// in-flight EOF marker is lost.
+async fn await_completed_marker(
+    rx: &mut Option<oneshot::Receiver<Result<Option<StepResult>, MarkerError>>>,
+    stash: &mut Option<Result<Option<StepResult>, MarkerError>>,
+) -> StepResult {
+    let resolved = std::future::poll_fn(|cx| {
+        let Some(receiver) = rx.as_mut() else {
+            return std::task::Poll::Pending;
+        };
+        std::pin::Pin::new(receiver).poll(cx)
+    })
+    .await;
+    *rx = None;
+    match resolved {
+        Ok(Ok(Some(sr))) => sr,
+        other => {
+            // Sender dropped, malformed marker, or no marker: not a clean
+            // completion — hand it back to the terminal arms and wait them out.
+            *stash = Some(other.unwrap_or(Ok(None)));
+            std::future::pending::<()>().await;
+            unreachable!("pending never resolves");
+        }
+    }
+}
+
+/// Read the step-result the supervisor will report: the value already consumed
+/// by the marker arm (`stash`), else what the oneshot still holds, degrading a
+/// dropped scanner task to "no marker observed" rather than crashing.
+async fn take_step_result(
+    rx: Option<oneshot::Receiver<Result<Option<StepResult>, MarkerError>>>,
+    stash: Option<Result<Option<StepResult>, MarkerError>>,
+) -> Result<Option<StepResult>, MarkerError> {
+    if let Some(value) = stash {
+        return value;
+    }
+    match rx {
+        Some(receiver) => receiver.await.unwrap_or(Ok(None)),
+        None => Ok(None),
+    }
 }
 
 /// Which deadline tripped — the total wall-clock budget, or the no-output (idle) window.
@@ -378,10 +485,226 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use superkick_core::{
+        AgentProvider, AgentSessionId, ExecutionMode, Run, RunStep, StepKey, StepStatus,
+        TriggerSource,
+    };
+    use superkick_storage::repo::{AgentSessionRepo as _, RunRepo as _, RunStepRepo as _};
+    use superkick_storage::{
+        SqliteAgentSessionRepo, SqliteRunEventRepo, SqliteRunStepRepo, SqliteTranscriptRepo,
+        connect_with_capacity,
+    };
+
     use super::*;
 
     // Real (short) durations: timers fire at-or-after their deadline, never
     // early, so every assertion here is a robust lower-bound / never-completes.
+
+    const MARKER_BLOCK: &str = concat!(
+        "SUPERKICK_STEP_RESULT_BEGIN\n",
+        r#"{"status":"completed","summary":"mid-stream done","changed_files":[],"questions":[]}"#,
+        "\n",
+        "SUPERKICK_STEP_RESULT_END\n",
+    );
+
+    struct Harness {
+        session_repo: Arc<SqliteAgentSessionRepo>,
+        event_repo: Arc<SqliteRunEventRepo>,
+        transcript_repo: Arc<SqliteTranscriptRepo>,
+        registry: Arc<PtySessionRegistry>,
+        session: AgentSession,
+    }
+
+    async fn harness() -> Harness {
+        let pool = connect_with_capacity("sqlite::memory:", 1)
+            .await
+            .expect("db");
+        let run_repo = superkick_storage::SqliteRunRepo::new(pool.clone());
+        let step_repo = SqliteRunStepRepo::new(pool.clone());
+        let event_repo = Arc::new(SqliteRunEventRepo::new(pool.clone()));
+        let session_repo = Arc::new(SqliteAgentSessionRepo::new(pool.clone()));
+        let transcript_repo = Arc::new(SqliteTranscriptRepo::new(pool.clone()));
+
+        let run = Run::new(
+            "T-PTY".into(),
+            "T-PTY".into(),
+            "owner/repo".into(),
+            TriggerSource::LaunchTask,
+            ExecutionMode::FullAuto,
+            "main".into(),
+            true,
+            None,
+        );
+        let run_id = run.id;
+        run_repo.insert(&run).await.expect("insert run");
+        let mut step = RunStep::new(run_id, StepKey::Code, 1);
+        step.status = StepStatus::Running;
+        step_repo.insert(&step).await.expect("insert step");
+
+        let session = AgentSession {
+            id: AgentSessionId::new(),
+            run_id,
+            run_step_id: step.id,
+            provider: AgentProvider::Claude,
+            command: "sh".into(),
+            pid: None,
+            status: AgentStatus::Starting,
+            started_at: Utc::now(),
+            finished_at: None,
+            exit_code: None,
+            linear_context_mode: None,
+            mcp_servers_used: Vec::new(),
+            tools_allow_snapshot: None,
+            tool_approval_required: false,
+            tool_results_persisted: true,
+            role: Some("coder".into()),
+            purpose: Some("pty marker test".into()),
+            parent_session_id: None,
+            launch_reason: Some(superkick_core::LaunchReason::InitialStep),
+            handoff_id: None,
+            provider_session_id: None,
+            runner_mode: None,
+            billing_profile: None,
+        };
+        session_repo.insert(&session).await.expect("insert session");
+
+        Harness {
+            session_repo,
+            event_repo,
+            transcript_repo,
+            registry: Arc::new(PtySessionRegistry::new()),
+            session,
+        }
+    }
+
+    fn sh_args(script: &str) -> Vec<String> {
+        vec!["/bin/sh".into(), "-c".into(), script.into()]
+    }
+
+    #[tokio::test]
+    async fn mid_stream_marker_completes_a_live_pty_without_child_exit() {
+        let h = harness().await;
+        let session_id = h.session.id;
+        let deps = SupervisedDeps {
+            session_repo: Arc::clone(&h.session_repo),
+            event_repo: Arc::clone(&h.event_repo),
+            transcript_repo: Arc::clone(&h.transcript_repo),
+            registry: Arc::clone(&h.registry),
+            lifecycle_bus: None,
+            idle_timeout: None,
+            session_live: None,
+        };
+        // Print the completion marker, then block forever: the child never
+        // exits, so only the mid-stream marker arm can terminate the session.
+        let script = format!("printf '%s' '{MARKER_BLOCK}'; sleep 600");
+        let result = tokio::time::timeout(
+            Duration::from_secs(20),
+            run_supervised(
+                h.session,
+                sh_args(&script),
+                std::env::temp_dir(),
+                Duration::from_secs(600),
+                None,
+                CancellationToken::new(),
+                deps,
+            ),
+        )
+        .await
+        .expect("must complete via marker, not hang")
+        .expect("supervised ok");
+
+        assert!(matches!(
+            result.lifecycle_phase,
+            SessionLifecyclePhase::Completed { .. }
+        ));
+        let sr = result.step_result.expect("marker parsed").expect("present");
+        assert_eq!(sr.summary, "mid-stream done");
+
+        let reloaded = h
+            .session_repo
+            .get(session_id)
+            .await
+            .expect("get")
+            .expect("present");
+        assert_eq!(reloaded.status, AgentStatus::Completed);
+    }
+
+    #[tokio::test]
+    async fn markerless_live_repl_is_bounded_by_the_idle_watchdog() {
+        let h = harness().await;
+        let deps = SupervisedDeps {
+            session_repo: Arc::clone(&h.session_repo),
+            event_repo: Arc::clone(&h.event_repo),
+            transcript_repo: Arc::clone(&h.transcript_repo),
+            registry: Arc::clone(&h.registry),
+            lifecycle_bus: None,
+            // The safety net the v1 revert restores: a quiet REPL that never
+            // prints a marker is killed by the no-output watchdog.
+            idle_timeout: Some(Duration::from_millis(300)),
+            session_live: None,
+        };
+        // Emit one banner line (so the session is alive), then go silent forever
+        // without ever printing a marker.
+        let result = tokio::time::timeout(
+            Duration::from_secs(20),
+            run_supervised(
+                h.session,
+                sh_args("printf 'starting\\n'; sleep 600"),
+                std::env::temp_dir(),
+                Duration::from_secs(600),
+                None,
+                CancellationToken::new(),
+                deps,
+            ),
+        )
+        .await
+        .expect("idle watchdog must bound a markerless REPL")
+        .expect("supervised ok");
+
+        assert!(matches!(
+            result.lifecycle_phase,
+            SessionLifecyclePhase::TimedOut
+        ));
+        assert!(result.step_result.expect("no marker").is_none());
+    }
+
+    #[tokio::test]
+    async fn session_live_hook_fires_once_when_the_child_is_registered() {
+        let h = harness().await;
+        let fires = Arc::new(AtomicUsize::new(0));
+        let fires_hook = Arc::clone(&fires);
+        let deps = SupervisedDeps {
+            session_repo: Arc::clone(&h.session_repo),
+            event_repo: Arc::clone(&h.event_repo),
+            transcript_repo: Arc::clone(&h.transcript_repo),
+            registry: Arc::clone(&h.registry),
+            lifecycle_bus: None,
+            idle_timeout: None,
+            session_live: Some(Box::new(move || {
+                fires_hook.fetch_add(1, Ordering::SeqCst);
+            })),
+        };
+        // A trivially-terminating child: spawn → register (hook fires) → exit.
+        run_supervised(
+            h.session,
+            sh_args("exit 0"),
+            std::env::temp_dir(),
+            Duration::from_secs(10),
+            None,
+            CancellationToken::new(),
+            deps,
+        )
+        .await
+        .expect("supervised ok");
+
+        assert_eq!(
+            fires.load(Ordering::SeqCst),
+            1,
+            "session-live hook must fire exactly once per step"
+        );
+    }
 
     #[tokio::test]
     async fn idle_deadline_trips_after_configured_silence() {

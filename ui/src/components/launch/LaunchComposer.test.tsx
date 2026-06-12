@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { LaunchComposer } from '@/components/launch/LaunchComposer'
-import { agentsQuery, issuesQuery, launchQueueQuery } from '@/lib/queries'
+import { agentsQuery, issuesQuery, launchQueueQuery, skillsQuery } from '@/lib/queries'
 import type {
 	Agent,
 	CreateLaunchTaskRequest,
@@ -144,6 +144,7 @@ function buildClient(overrides: { config?: ServerConfigResponse; issues?: Linear
 		total_count: (overrides.issues ?? [ISSUE]).length
 	})
 	client.setQueryData(launchQueueQuery().queryKey, EMPTY_LAUNCH_QUEUE)
+	client.setQueryData(skillsQuery().queryKey, [])
 	return client
 }
 

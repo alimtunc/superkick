@@ -109,6 +109,7 @@ where
                         agent_name, run.issue_identifier
                     ),
                     launch_reason: LaunchReason::ReviewFanout,
+                    reasoning: None,
                 },
             );
 

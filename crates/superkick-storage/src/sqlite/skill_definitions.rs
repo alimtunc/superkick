@@ -4,8 +4,8 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
 use superkick_core::{
-    AgentProvider, OutputExpectation, ReasoningEffort, SessionPolicy, SkillDefinition, SkillKind,
-    SkillOrigin, SkillSource, StepExecutor,
+    AgentProvider, OutputExpectation, ReasoningEffort, SessionPolicy, SkillArtifact,
+    SkillDefinition, SkillKind, SkillOrigin, SkillSource, StepExecutor,
 };
 
 use super::codec::{deserialize_enum, serialize_enum};
@@ -25,20 +25,25 @@ impl SqliteSkillDefinitionRepo {
 const UPSERT_SQL: &str = "INSERT INTO skill_definitions (\
      id, label, kind, source_kind, source_value, default_provider, default_model, \
      default_reasoning, default_executor, default_session_policy, \
-     default_output_expectation, enabled, origin, created_at, updated_at\
- ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14) \
+     default_output_expectation, enabled, origin, body, artifact_kind, created_at, updated_at\
+ ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16) \
  ON CONFLICT(id) DO UPDATE SET \
      label = ?2, kind = ?3, source_kind = ?4, source_value = ?5, default_provider = ?6, \
      default_model = ?7, default_reasoning = ?8, default_executor = ?9, \
      default_session_policy = ?10, default_output_expectation = ?11, enabled = ?12, \
-     origin = ?13, updated_at = ?14";
+     origin = ?13, body = ?14, artifact_kind = ?15, updated_at = ?16";
 
 const INSERT_IF_ABSENT_SQL: &str = "INSERT INTO skill_definitions (\
      id, label, kind, source_kind, source_value, default_provider, default_model, \
      default_reasoning, default_executor, default_session_policy, \
-     default_output_expectation, enabled, origin, created_at, updated_at\
- ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14) \
+     default_output_expectation, enabled, origin, body, artifact_kind, created_at, updated_at\
+ ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16) \
  ON CONFLICT(id) DO NOTHING";
+
+// WHERE body IS NULL keeps an operator-edited builtin body intact across re-seeds.
+const BACKFILL_BUILTIN_BODY_SQL: &str = "UPDATE skill_definitions \
+     SET body = ?2, artifact_kind = ?3, updated_at = ?4 \
+     WHERE id = ?1 AND body IS NULL AND origin = 'builtin'";
 
 impl SqliteSkillDefinitionRepo {
     async fn write(&self, skill: &SkillDefinition, sql: &'static str) -> Result<()> {
@@ -57,6 +62,8 @@ impl SqliteSkillDefinitionRepo {
             .bind(serialize_enum(&skill.default_output_expectation)?)
             .bind(i64::from(skill.enabled))
             .bind(serialize_enum(&skill.origin)?)
+            .bind(skill.body.clone())
+            .bind(serialize_enum(&skill.artifact_kind)?)
             .bind(now)
             .execute(&self.pool)
             .await
@@ -95,6 +102,19 @@ impl SkillDefinitionRepo for SqliteSkillDefinitionRepo {
         self.write(skill, INSERT_IF_ABSENT_SQL).await
     }
 
+    async fn backfill_builtin_body(&self, skill: &SkillDefinition) -> Result<()> {
+        let now = Utc::now().to_rfc3339();
+        sqlx::query(BACKFILL_BUILTIN_BODY_SQL)
+            .bind(&skill.id)
+            .bind(skill.body.clone())
+            .bind(serialize_enum(&skill.artifact_kind)?)
+            .bind(now)
+            .execute(&self.pool)
+            .await
+            .with_context(|| format!("backfill builtin body {}", skill.id))?;
+        Ok(())
+    }
+
     async fn delete(&self, id: &str) -> Result<()> {
         let result = sqlx::query("DELETE FROM skill_definitions WHERE id = ?1")
             .bind(id)
@@ -120,6 +140,8 @@ struct SkillDefinitionRow {
     default_output_expectation: String,
     enabled: i64,
     origin: String,
+    body: Option<String>,
+    artifact_kind: String,
 }
 
 impl SkillDefinitionRow {
@@ -141,6 +163,8 @@ impl SkillDefinitionRow {
             )?,
             enabled: self.enabled != 0,
             origin: deserialize_enum::<SkillOrigin>(&self.origin)?,
+            body: self.body,
+            artifact_kind: deserialize_enum::<SkillArtifact>(&self.artifact_kind)?,
         })
     }
 }

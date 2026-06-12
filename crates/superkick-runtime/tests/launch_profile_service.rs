@@ -2,7 +2,9 @@
 //! SQLite (seeded with the builtin profiles/skills) per CLAUDE.md rule 9.
 
 use anyhow::Result;
-use superkick_core::{LaunchRecipe, LaunchTaskOverrides, ProfileKind, StepExecutor};
+use superkick_core::{
+    LaunchRecipe, LaunchTaskOverrides, ProfileKind, SkillKind, SkillSource, StepExecutor,
+};
 use superkick_runtime::LaunchProfileService;
 use superkick_runtime::launch_profile_service::LaunchCompositionError;
 use superkick_storage::repo::{LaunchProfileRepo, LaunchTaskRepo};
@@ -27,6 +29,37 @@ async fn resolve_snapshot_reads_the_builtin_profile() -> Result<()> {
         .collect();
     assert_eq!(refs, ["plan", "implement", "review"]);
     assert!(snapshot.steps.iter().all(|s| s.enabled));
+    let kinds: Vec<_> = snapshot.steps.iter().map(|s| s.skill_kind).collect();
+    assert_eq!(
+        kinds,
+        [
+            Some(SkillKind::Plan),
+            Some(SkillKind::Implement),
+            Some(SkillKind::Review)
+        ]
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn resolve_snapshot_degrades_unknown_skill_ref_without_a_kind() -> Result<()> {
+    let pool = connect("sqlite::memory:").await?;
+    let svc = LaunchProfileService::new(
+        SqliteLaunchProfileRepo::new(pool.clone()),
+        SqliteSkillDefinitionRepo::new(pool.clone()),
+        SqliteLaunchTaskRepo::new(pool.clone()),
+    );
+    let profiles = SqliteLaunchProfileRepo::new(pool.clone());
+
+    let mut steps = profiles.get("standard").await?.expect("standard").steps;
+    steps[0].skill_ref = "typo".into();
+
+    let snapshot = svc.resolve_snapshot("standard", Some(steps)).await?;
+    assert_eq!(
+        snapshot.steps[0].skill_source,
+        SkillSource::Installed("typo".into())
+    );
+    assert_eq!(snapshot.steps[0].skill_kind, None);
     Ok(())
 }
 

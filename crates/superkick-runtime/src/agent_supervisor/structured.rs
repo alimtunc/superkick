@@ -309,10 +309,12 @@ where
         self.persist(&envelope).await;
     }
 
-    /// Feed assistant text to the marker scanner and the raw transcript.
+    /// Feed assistant text to the marker scanner and the raw transcript. The
+    /// early-completion verdict is ignored here — the structured path harvests
+    /// the marker from `finish()` once the provider stream closes.
     fn feed_text(&mut self, text: &str) {
-        self.marker.feed(text.as_bytes());
-        self.marker.feed(b"\n");
+        let _ = self.marker.feed(text.as_bytes());
+        let _ = self.marker.feed(b"\n");
         if !self.transcript.is_empty() {
             self.transcript.push('\n');
         }
@@ -527,6 +529,7 @@ mod tests {
                 AgentProvider::Codex,
                 RunnerMode::ExecJson,
             ),
+            session_live: None,
         };
         let session = build_agent_session(&config);
         let session_id = session.id;
@@ -653,6 +656,7 @@ mod tests {
                 AgentProvider::Codex,
                 RunnerMode::ExecJson,
             ),
+            session_live: None,
         };
         let session = build_agent_session(&config);
         session_repo.insert(&session).await.expect("insert session");

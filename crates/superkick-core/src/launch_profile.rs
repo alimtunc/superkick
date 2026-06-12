@@ -1,7 +1,7 @@
 //! Launch profiles — editable, ordered step lists.
 //!
 //! A `LaunchProfile` is a named, reorderable sequence of [`ProfileStep`]s the
-//! operator picks (and overrides) in the Launch Composer. The seven builtins
+//! operator picks (and overrides) in the Launch Composer. The eight builtins
 //! ship as canonical code constants ([`LaunchProfile::builtins`]); the runtime
 //! seeds editable DB copies. `Standard` reproduces the legacy
 //! Plan → Implement → Review recipe and is the default.
@@ -23,7 +23,7 @@ use crate::output_expectation::OutputExpectation;
 use crate::reasoning::ReasoningEffort;
 use crate::serde_util::default_true;
 use crate::session_policy::SessionPolicy;
-use crate::skill::SkillSource;
+use crate::skill::{SkillKind, SkillSource};
 use crate::step_executor::StepExecutor;
 
 /// The product-level shape of a profile. Each named kind appears once among the
@@ -38,6 +38,7 @@ pub enum ProfileKind {
     ImplementOnly,
     ReviewOnly,
     ClaudeWorkflow,
+    FullSession,
     Custom,
 }
 
@@ -50,6 +51,7 @@ impl ProfileKind {
             Self::ImplementOnly => "implement_only",
             Self::ReviewOnly => "review_only",
             Self::ClaudeWorkflow => "claude_workflow",
+            Self::FullSession => "full_session",
             Self::Custom => "custom",
         }
     }
@@ -132,7 +134,7 @@ impl LaunchProfile {
         !self.is_readonly
     }
 
-    /// The seven canonical builtin profiles. `seed_defaults` writes editable DB
+    /// The eight canonical builtin profiles. `seed_defaults` writes editable DB
     /// copies. `Standard` is the default and reproduces the legacy recipe.
     pub fn builtins() -> Vec<LaunchProfile> {
         vec![
@@ -178,6 +180,13 @@ impl LaunchProfile {
                 false,
                 vec![claude_plan(1), claude_implement(2), claude_review(3)],
             ),
+            profile(
+                "full_session",
+                "Full session",
+                ProfileKind::FullSession,
+                false,
+                vec![full_session_ticket(1)],
+            ),
             profile("custom", "Custom", ProfileKind::Custom, false, Vec::new()),
         ]
     }
@@ -193,6 +202,10 @@ pub struct StepSnapshot {
     pub label: String,
     pub skill_ref: String,
     pub skill_source: SkillSource,
+    /// Resolved [`SkillKind`] of the referenced skill; `None` when the ref
+    /// degraded (unknown skill) or on snapshots persisted before this field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skill_kind: Option<SkillKind>,
     pub step_kind: LaunchStepKind,
     pub provider: AgentProvider,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -282,13 +295,25 @@ fn claude_implement(ordering: u32) -> ProfileStep {
 fn claude_review(ordering: u32) -> ProfileStep {
     claude_step(ordering, "review", "Review", OutputExpectation::Review)
 }
+fn full_session_ticket(ordering: u32) -> ProfileStep {
+    ProfileStep {
+        executor: StepExecutor::InteractivePty,
+        reasoning: ReasoningEffort::High,
+        ..claude_step(
+            ordering,
+            "ticket",
+            "Ticket (full session)",
+            OutputExpectation::Patch,
+        )
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn builtins_cover_the_seven_profiles() {
+    fn builtins_cover_the_eight_profiles() {
         let kinds: Vec<_> = LaunchProfile::builtins()
             .into_iter()
             .map(|p| p.kind)
@@ -302,9 +327,28 @@ mod tests {
                 ProfileKind::ImplementOnly,
                 ProfileKind::ReviewOnly,
                 ProfileKind::ClaudeWorkflow,
+                ProfileKind::FullSession,
                 ProfileKind::Custom,
             ]
         );
+    }
+
+    #[test]
+    fn full_session_builtin_runs_the_ticket_skill_on_an_interactive_pty() {
+        let full_session = LaunchProfile::builtins()
+            .into_iter()
+            .find(|p| p.kind == ProfileKind::FullSession)
+            .expect("full_session builtin");
+        assert_eq!(full_session.id, "full_session");
+        assert_eq!(full_session.steps.len(), 1);
+        let step = &full_session.steps[0];
+        assert_eq!(step.skill_ref, "ticket");
+        assert_eq!(step.provider, AgentProvider::Claude);
+        assert_eq!(step.executor, StepExecutor::InteractivePty);
+        assert_eq!(step.reasoning, ReasoningEffort::High);
+        assert_eq!(step.session_policy, SessionPolicy::Fresh);
+        assert_eq!(step.output_expectation, OutputExpectation::Patch);
+        assert!(step.enabled);
     }
 
     #[test]
@@ -364,5 +408,24 @@ mod tests {
         for profile in LaunchProfile::builtins() {
             assert!(!profile.is_deletable());
         }
+    }
+
+    #[test]
+    fn step_snapshot_json_without_skill_kind_parses_as_none() {
+        let historical = r#"{
+            "ordering": 1,
+            "label": "Plan",
+            "skill_ref": "plan",
+            "skill_source": {"kind": "installed", "value": "plan"},
+            "step_kind": "plan",
+            "provider": "codex",
+            "reasoning": "medium",
+            "executor": "codex_structured",
+            "session_policy": "fresh",
+            "output_expectation": "plan",
+            "enabled": true
+        }"#;
+        let snapshot: StepSnapshot = serde_json::from_str(historical).unwrap();
+        assert_eq!(snapshot.skill_kind, None);
     }
 }

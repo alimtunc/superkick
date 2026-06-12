@@ -97,15 +97,16 @@ where
                     executor: step.executor,
                 });
             }
-            let skill_source = match self.skills.get(&step.skill_ref).await? {
-                Some(skill) => skill.source,
-                None => SkillSource::Installed(step.skill_ref.clone()),
+            let (skill_source, skill_kind) = match self.skills.get(&step.skill_ref).await? {
+                Some(skill) => (skill.source, Some(skill.kind)),
+                None => (SkillSource::Installed(step.skill_ref.clone()), None),
             };
             snapshot_steps.push(StepSnapshot {
                 ordering: step.ordering,
                 label: step.label.clone(),
                 skill_ref: step.skill_ref.clone(),
                 skill_source,
+                skill_kind,
                 step_kind: LaunchStepKind::for_output(step.output_expectation),
                 provider: step.provider,
                 model: step.model.clone(),

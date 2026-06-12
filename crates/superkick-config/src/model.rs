@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::time::Duration;
 use superkick_core::{
     AgentBackend, AgentCatalog, AgentOrigin, AgentProvider, BillingProfile,
@@ -53,6 +54,10 @@ pub struct SuperkickConfig {
     /// [`SuperkickConfig::effective_mcp_servers`].
     #[serde(default)]
     pub mcp_servers: HashMap<String, McpServerSpec>,
+    /// Managed-skill settings. Currently only the directories the repo-import
+    /// scanner walks for `SKILL.md` / command files. Empty by default.
+    #[serde(default)]
+    pub skills: SkillsConfig,
 }
 
 impl SuperkickConfig {
@@ -103,6 +108,7 @@ impl SuperkickConfig {
             orchestration: OrchestrationConfig::default(),
             recovery: RecoverySettings::default(),
             mcp_servers: HashMap::new(),
+            skills: SkillsConfig::default(),
         }
     }
 }
@@ -670,6 +676,41 @@ impl RecoverySettings {
             cfg.thresholds.insert(*state, Duration::from_secs(*secs));
         }
         cfg
+    }
+}
+
+// ── Skills ──────────────────────────────────────────────────────────
+
+/// Standard skill locations scanned when `import_dirs` is left empty, so the
+/// import picker finds an operator's global Claude/Codex skills with zero
+/// config. `~` is expanded by the scanner; non-existent entries are skipped.
+pub const DEFAULT_SKILL_IMPORT_DIRS: &[&str] =
+    &["~/.claude/skills", "~/.agents/skills", "~/.codex/prompts"];
+
+/// Managed-skill settings. `import_dirs` lists the directories the repo-import
+/// scanner walks for `*/SKILL.md` (skill form) and command markdown files.
+/// Leave it empty to scan the standard global locations
+/// ([`DEFAULT_SKILL_IMPORT_DIRS`]); set it to override with project paths. No
+/// validation needed: non-existent dirs are skipped at scan time.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SkillsConfig {
+    #[serde(default)]
+    pub import_dirs: Vec<PathBuf>,
+}
+
+impl SkillsConfig {
+    /// The directories the import scanner should walk: the operator's explicit
+    /// `import_dirs` when set, otherwise the standard global locations.
+    #[must_use]
+    pub fn effective_import_dirs(&self) -> Vec<PathBuf> {
+        if self.import_dirs.is_empty() {
+            DEFAULT_SKILL_IMPORT_DIRS
+                .iter()
+                .map(PathBuf::from)
+                .collect()
+        } else {
+            self.import_dirs.clone()
+        }
     }
 }
 

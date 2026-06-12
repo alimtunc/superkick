@@ -13,6 +13,7 @@ import { ErrorState } from '@/components/ui/state-error'
 import { useAgents } from '@/hooks/useAgents'
 import { useConfig } from '@/hooks/useConfig'
 import { useCreateLaunchTask } from '@/hooks/useCreateLaunchTask'
+import { useSkills } from '@/hooks/useSkills'
 import { errorMessageOr } from '@/lib/errors'
 import { bodyFromIssue, selectionFromDetail, selectionFromListItem } from '@/lib/launch/composerSelection'
 import { useLaunchComposerState } from '@/stores/launchComposerState'
@@ -40,6 +41,7 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 	const agentsQuery = useAgents()
 	const agentsData = agentsQuery.data
 	const agents = agentsData ?? []
+	const { skills, isLoading: skillsLoading, error: skillsError } = useSkills()
 
 	const profileId = useLaunchComposerState((state) => state.profileId)
 	const composerSteps = useLaunchComposerState((state) => state.steps)
@@ -223,8 +225,15 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 				</div>
 
 				{profileMode ? (
-					<div className="mt-3 border-t border-border pt-3">
-						<LaunchStepListEditor />
+					<div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
+						{skillsError ? (
+							<ErrorState
+								title="Could not load skills"
+								message={skillsError}
+								density="compact"
+							/>
+						) : null}
+						<LaunchStepListEditor skills={skills} skillsLoading={skillsLoading} />
 					</div>
 				) : null}
 

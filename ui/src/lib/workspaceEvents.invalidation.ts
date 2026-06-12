@@ -127,6 +127,9 @@ export function invalidateForLaunchTaskNotice(
 		case 'task_status_changed':
 		case 'step_started':
 		case 'step_finished':
+		// The PTY child went live — the step flips from "spawning" to an
+		// attachable session, so the cockpit's detail/steps views are stale.
+		case 'step_session_live':
 			queryClient.invalidateQueries({
 				queryKey: queryKeys.launchTasks.forIssue(notice.linear_issue_id)
 			})
@@ -137,6 +140,15 @@ export function invalidateForLaunchTaskNotice(
 				queryKey: queryKeys.launchTasks.steps(notice.task_id)
 			})
 			queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.queue })
+			return
+		case 'intervention_added':
+		case 'intervention_consumed':
+			queryClient.invalidateQueries({
+				queryKey: queryKeys.launchTasks.interventions(notice.task_id)
+			})
+			queryClient.invalidateQueries({
+				queryKey: queryKeys.launchTasks.forIssue(notice.linear_issue_id)
+			})
 			return
 		case 'shadow_run_state_changed':
 			// Shadow runs bypass the workspace event bus; this branch is the only

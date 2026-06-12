@@ -227,6 +227,14 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "042_issue_pull_requests",
             include_str!("../migrations/042_issue_pull_requests.sql"),
         ),
+        (
+            "043_reasoning_per_provider",
+            include_str!("../migrations/043_reasoning_per_provider.sql"),
+        ),
+        (
+            "044_skill_body_artifact",
+            include_str!("../migrations/044_skill_body_artifact.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

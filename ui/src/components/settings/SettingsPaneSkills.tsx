@@ -3,30 +3,51 @@ import { useState } from 'react'
 import { SettingsPaneHeader } from '@/components/settings/SettingsPaneHeader'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSection } from '@/components/settings/SettingsSection'
+import { SkillEditor } from '@/components/settings/SkillEditor'
+import { SkillImportDialog } from '@/components/settings/SkillImportDialog'
 import { Button } from '@/components/ui/button'
 import { Pill } from '@/components/ui/pill'
 import { AsyncSection } from '@/components/ui/state-async'
 import { useSkills } from '@/hooks/useSkills'
 import { SKILL_KIND_LABEL } from '@/lib/launchConfigOptions'
-import { buildCustomSkill } from '@/lib/skills'
+import { blankSkill, isDeletableSkill, skillSourceLabel } from '@/lib/skills'
+import type { SkillDefinition } from '@/types'
 import { Toggle } from '@/ui/Toggle'
 import { toast } from 'sonner'
 
+type EditorState = { open: false } | { open: true; mode: 'create' | 'edit'; seed: SkillDefinition }
+
 export function SettingsPaneSkills() {
 	const { skills, isLoading, error, createSkill, updateSkill, deleteSkill, isMutating } = useSkills()
-	const [label, setLabel] = useState('')
-	const [prompt, setPrompt] = useState('')
+	const [editor, setEditor] = useState<EditorState>({ open: false })
+	const [importOpen, setImportOpen] = useState(false)
 
-	async function handleCreate() {
-		const trimmedLabel = label.trim()
-		const trimmedPrompt = prompt.trim()
-		if (!trimmedLabel || !trimmedPrompt) return
+	function openCreate(sourceKind: 'prompt' | 'installed') {
+		setEditor({ open: true, mode: 'create', seed: blankSkill(sourceKind) })
+	}
+
+	function openEdit(skill: SkillDefinition) {
+		setEditor({ open: true, mode: 'edit', seed: skill })
+	}
+
+	async function handleSubmit(skill: SkillDefinition) {
 		try {
-			await createSkill(buildCustomSkill(trimmedLabel, trimmedPrompt))
-			setLabel('')
-			setPrompt('')
+			if (editor.open && editor.mode === 'edit') {
+				await updateSkill({ id: skill.id, skill })
+			} else {
+				await createSkill(skill)
+			}
+			setEditor({ open: false })
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : 'Failed to create skill')
+			toast.error(err instanceof Error ? err.message : 'Failed to save skill')
+		}
+	}
+
+	async function handleDelete(id: string) {
+		try {
+			await deleteSkill(id)
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : 'Failed to delete skill')
 		}
 	}
 
@@ -34,7 +55,7 @@ export function SettingsPaneSkills() {
 		<section>
 			<SettingsPaneHeader
 				title="Skills"
-				description="The default skills (Plan, Implement, Review, Pre-PR review) plus your own custom skills. Builtins can be disabled but not deleted."
+				description="The default skills (Plan, Implement, Review, Pre-PR review) plus your own custom and imported skills. Builtins and imported skills can be edited and disabled but not deleted."
 			/>
 			<AsyncSection
 				isLoading={isLoading}
@@ -47,11 +68,11 @@ export function SettingsPaneSkills() {
 						<SettingsRow
 							key={skill.id}
 							label={skill.label}
-							hint={`${SKILL_KIND_LABEL[skill.kind]} · ${skill.source.kind}`}
+							hint={`${SKILL_KIND_LABEL[skill.kind]} · ${skillSourceLabel(skill)}`}
 							last={index === skills.length - 1}
 						>
 							<div className="flex items-center gap-2">
-								<Pill tone={skill.origin === 'builtin' ? 'neutral' : 'accent'}>
+								<Pill tone={skill.origin === 'custom' ? 'accent' : 'neutral'}>
 									{skill.origin}
 								</Pill>
 								<Toggle
@@ -62,12 +83,20 @@ export function SettingsPaneSkills() {
 										updateSkill({ id: skill.id, skill: { ...skill, enabled: next } })
 									}
 								/>
-								{skill.origin === 'custom' ? (
+								<Button
+									variant="ghost"
+									size="sm"
+									disabled={isMutating}
+									onClick={() => openEdit(skill)}
+								>
+									Edit
+								</Button>
+								{isDeletableSkill(skill) ? (
 									<Button
 										variant="ghost"
 										size="sm"
 										disabled={isMutating}
-										onClick={() => deleteSkill(skill.id)}
+										onClick={() => handleDelete(skill.id)}
 									>
 										Delete
 									</Button>
@@ -78,35 +107,32 @@ export function SettingsPaneSkills() {
 				</SettingsSection>
 			</AsyncSection>
 
-			<SettingsSection title="New custom skill">
-				<SettingsRow label="Name">
-					<input
-						className="w-56 rounded-[6px] border border-border bg-raised px-2 py-1 text-[13px] text-fg"
-						value={label}
-						placeholder="My skill"
-						aria-label="New skill name"
-						onChange={(event) => setLabel(event.target.value)}
-					/>
-				</SettingsRow>
-				<SettingsRow label="Prompt template" last>
-					<div className="flex flex-1 flex-col items-end gap-2">
-						<textarea
-							className="h-20 w-full rounded-[6px] border border-border bg-raised px-2 py-1 text-[13px] text-fg"
-							value={prompt}
-							placeholder="Instructions for the agent…"
-							aria-label="New skill prompt template"
-							onChange={(event) => setPrompt(event.target.value)}
-						/>
-						<Button
-							size="sm"
-							disabled={isMutating || !label.trim() || !prompt.trim()}
-							onClick={handleCreate}
-						>
-							Add skill
-						</Button>
-					</div>
-				</SettingsRow>
-			</SettingsSection>
+			<div className="flex flex-wrap gap-2">
+				<Button size="sm" onClick={() => openCreate('prompt')}>
+					New prompt skill
+				</Button>
+				<Button variant="outline" size="sm" onClick={() => openCreate('installed')}>
+					New installed skill
+				</Button>
+				<Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+					Import from repo
+				</Button>
+			</div>
+
+			{editor.open ? (
+				<SkillEditor
+					open={editor.open}
+					seed={editor.seed}
+					mode={editor.mode}
+					busy={isMutating}
+					onOpenChange={(open) => {
+						if (!open) setEditor({ open: false })
+					}}
+					onSubmit={handleSubmit}
+				/>
+			) : null}
+
+			<SkillImportDialog open={importOpen} onOpenChange={setImportOpen} />
 		</section>
 	)
 }

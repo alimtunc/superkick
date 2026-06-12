@@ -15,7 +15,6 @@ import type {
 
 export const LAUNCH_PROVIDER_OPTIONS: AgentProvider[] = ['codex', 'claude']
 
-export const REASONING_OPTIONS: ReasoningEffort[] = ['low', 'medium', 'high', 'xhigh', 'ultra_code']
 export const EXECUTOR_OPTIONS: StepExecutor[] = ['codex_structured', 'claude_workflow', 'interactive_pty']
 export const SESSION_POLICY_OPTIONS: SessionPolicy[] = [
 	'fresh',
@@ -35,11 +34,28 @@ export const BILLING_OPTIONS: BillingProfile[] = [
 ]
 
 export const REASONING_LABEL: Record<ReasoningEffort, string> = {
+	minimal: 'Minimal',
 	low: 'Low',
 	medium: 'Medium',
 	high: 'High',
 	xhigh: 'X-High',
-	ultra_code: 'Ultra-code'
+	max: 'Max'
+}
+
+const REASONING_OPTIONS_BY_PROVIDER: Record<AgentProvider, ReasoningEffort[]> = {
+	codex: ['minimal', 'low', 'medium', 'high', 'xhigh'],
+	claude: ['low', 'medium', 'high', 'xhigh', 'max']
+}
+
+export function reasoningOptionsFor(provider: AgentProvider): ReasoningEffort[] {
+	return REASONING_OPTIONS_BY_PROVIDER[provider]
+}
+
+// Mirrors `ReasoningEffort::clamp_for` in superkick-core.
+export function clampReasoningForProvider(value: ReasoningEffort, provider: AgentProvider): ReasoningEffort {
+	if (provider === 'codex' && value === 'max') return 'xhigh'
+	if (provider === 'claude' && value === 'minimal') return 'low'
+	return value
 }
 export const EXECUTOR_LABEL: Record<StepExecutor, string> = {
 	codex_structured: 'Codex (structured)',
@@ -70,6 +86,21 @@ export const SKILL_KIND_LABEL: Record<SkillKind, string> = {
 	pre_pr_review: 'Pre-PR review',
 	custom: 'Custom'
 }
+export const SKILL_KIND_OPTIONS: SkillKind[] = ['plan', 'implement', 'review', 'pre_pr_review', 'custom']
+export const SESSION_POLICY_LABEL: Record<SessionPolicy, string> = {
+	fresh: 'Fresh',
+	resume: 'Resume',
+	same_session: 'Same session',
+	same_workflow: 'Same workflow',
+	takeover: 'Takeover'
+}
+export const OUTPUT_EXPECTATION_LABEL: Record<OutputExpectation, string> = {
+	plan: 'Plan',
+	patch: 'Patch',
+	review: 'Review',
+	comment: 'Comment',
+	no_op: 'No-op'
+}
 export const PROFILE_KIND_LABEL: Record<ProfileKind, string> = {
 	standard: 'Standard',
 	fast_fix: 'Fast fix',
@@ -77,8 +108,20 @@ export const PROFILE_KIND_LABEL: Record<ProfileKind, string> = {
 	implement_only: 'Implement only',
 	review_only: 'Review only',
 	claude_workflow: 'Claude workflow',
+	full_session: 'Full session',
 	custom: 'Custom'
 }
+
+export const PROFILE_KIND_OPTIONS: ProfileKind[] = [
+	'standard',
+	'fast_fix',
+	'plan_only',
+	'implement_only',
+	'review_only',
+	'claude_workflow',
+	'full_session',
+	'custom'
+]
 
 export const CURATED_MODELS: Record<string, string[]> = {
 	codex: ['gpt-5-codex', 'gpt-5', 'o4-mini'],

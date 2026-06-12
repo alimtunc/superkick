@@ -35,6 +35,7 @@ fn dynamic_snapshot() -> ProfileSnapshot {
                 label: "Plan".into(),
                 skill_ref: "plan".into(),
                 skill_source: SkillSource::Installed("plan".into()),
+                skill_kind: Some(SkillKind::Plan),
                 step_kind: LaunchStepKind::Plan,
                 provider: AgentProvider::Codex,
                 model: None,
@@ -49,6 +50,7 @@ fn dynamic_snapshot() -> ProfileSnapshot {
                 label: "Implement".into(),
                 skill_ref: "implement".into(),
                 skill_source: SkillSource::Prompt("apply the diff".into()),
+                skill_kind: Some(SkillKind::Custom),
                 step_kind: LaunchStepKind::Implement,
                 provider: AgentProvider::Codex,
                 model: Some("gpt-5-codex".into()),
@@ -63,6 +65,7 @@ fn dynamic_snapshot() -> ProfileSnapshot {
                 label: "Review".into(),
                 skill_ref: "review".into(),
                 skill_source: SkillSource::Installed("review".into()),
+                skill_kind: None,
                 step_kind: LaunchStepKind::Review,
                 provider: AgentProvider::Codex,
                 model: None,
@@ -183,6 +186,54 @@ fn standard_first_step() -> superkick_core::ProfileStep {
 }
 
 #[tokio::test]
+async fn seed_includes_full_session_profile_and_ticket_skill() -> Result<()> {
+    let pool = pool().await?;
+    let profiles = SqliteLaunchProfileRepo::new(pool.clone());
+    let skills = SqliteSkillDefinitionRepo::new(pool.clone());
+
+    let full_session = profiles
+        .get("full_session")
+        .await?
+        .expect("full_session profile");
+    assert_eq!(full_session.kind, ProfileKind::FullSession);
+    assert!(full_session.is_readonly);
+    assert_eq!(full_session.steps.len(), 1);
+    let step = &full_session.steps[0];
+    assert_eq!(step.skill_ref, "ticket");
+    assert_eq!(step.provider, AgentProvider::Claude);
+    assert_eq!(step.executor, StepExecutor::InteractivePty);
+    assert_eq!(step.reasoning, ReasoningEffort::High);
+
+    let ticket = skills.get("ticket").await?.expect("ticket skill");
+    assert_eq!(ticket.source, SkillSource::Installed("ticket".into()));
+    assert_eq!(ticket.default_provider, AgentProvider::Claude);
+    assert_eq!(ticket.default_executor, StepExecutor::InteractivePty);
+    Ok(())
+}
+
+#[tokio::test]
+async fn profile_step_round_trips_minimal_and_max_reasoning() -> Result<()> {
+    let pool = pool().await?;
+    let profiles = SqliteLaunchProfileRepo::new(pool.clone());
+
+    let mut minimal = standard_first_step();
+    minimal.ordering = 1;
+    minimal.reasoning = ReasoningEffort::Minimal;
+    let mut max = standard_first_step();
+    max.ordering = 2;
+    max.reasoning = ReasoningEffort::Max;
+
+    let mut custom = profiles.get("custom").await?.expect("custom profile");
+    custom.steps = vec![minimal, max];
+    profiles.upsert(&custom).await?;
+
+    let reloaded = profiles.get("custom").await?.expect("custom profile");
+    let efforts: Vec<_> = reloaded.steps.iter().map(|s| s.reasoning).collect();
+    assert_eq!(efforts, [ReasoningEffort::Minimal, ReasoningEffort::Max]);
+    Ok(())
+}
+
+#[tokio::test]
 async fn dynamic_task_round_trips_snapshot_and_step_fields() -> Result<()> {
     let pool = pool().await?;
     let repo = SqliteLaunchTaskRepo::new(pool.clone());
@@ -209,6 +260,7 @@ async fn dynamic_task_round_trips_snapshot_and_step_fields() -> Result<()> {
         steps[0].skill_source,
         Some(SkillSource::Installed("plan".into()))
     );
+    assert_eq!(steps[0].skill_kind, Some(SkillKind::Plan));
 
     assert_eq!(steps[1].model.as_deref(), Some("gpt-5-codex"));
     assert_eq!(steps[1].reasoning, Some(ReasoningEffort::Medium));
@@ -216,10 +268,12 @@ async fn dynamic_task_round_trips_snapshot_and_step_fields() -> Result<()> {
         steps[1].skill_source,
         Some(SkillSource::Prompt("apply the diff".into()))
     );
+    assert_eq!(steps[1].skill_kind, Some(SkillKind::Custom));
 
     // disabled step persists with enabled = false.
     assert!(!steps[2].enabled);
     assert_eq!(steps[2].output_expectation, Some(OutputExpectation::Review));
+    assert_eq!(steps[2].skill_kind, None);
     Ok(())
 }
 

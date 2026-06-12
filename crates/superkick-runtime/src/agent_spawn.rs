@@ -27,7 +27,7 @@ use tracing::warn;
 use superkick_config::McpServerSpec;
 use superkick_core::{
     AgentBackend, AgentProvider, EventKind, EventLevel, LaunchReason, LinearContextMode,
-    ResolvedAgent, Run, RunId, StepId,
+    ReasoningEffort, ResolvedAgent, Run, RunId, RunnerMode, StepId,
 };
 use superkick_storage::repo::RunEventRepo;
 
@@ -241,6 +241,9 @@ pub struct LaunchConfigInputs<'a> {
     /// Free-form purpose recorded on the `AgentSession` row.
     pub purpose: String,
     pub launch_reason: LaunchReason,
+    /// Per-step reasoning effort. `Some` only for dynamic Launch Task steps;
+    /// the legacy catalog path passes `None` and keeps its argv unchanged.
+    pub reasoning: Option<ReasoningEffort>,
 }
 
 /// Compose an `AgentLaunchConfig` from a resolved spawn plan and run-side
@@ -248,7 +251,8 @@ pub struct LaunchConfigInputs<'a> {
 ///
 /// argv layout:
 /// `[program, ...prepend_args, ...resolved.args, ...backend_extra_args,
-///  ...append_args, ...spawn_plan.extra_cli_args, (--, prompt)?]`
+///  ...append_args, ...spawn_plan.extra_cli_args,
+///  (claude: --model/--effort)?, (--, prompt)?]`
 ///
 /// `prepend_args` / `append_args` come from
 /// [`apply_runner_mode`]; `(--, prompt)` is appended only when the runner
@@ -270,6 +274,7 @@ pub fn build_launch_config(
         default_timeout,
         purpose,
         launch_reason,
+        reasoning,
     } = inputs;
 
     let (backend_extra_args, prompt) = apply_claude_backend(resolved, prompt);
@@ -281,6 +286,32 @@ pub fn build_launch_config(
     args.extend(backend_extra_args);
     args.extend(mode_applied.append_args.iter().cloned());
     args.extend(spawn_plan.extra_cli_args.iter().cloned());
+    if matches!(resolved.provider, AgentProvider::Claude) {
+        // The structured Codex adapter carries model on its own argv; the
+        // Claude PTY path would otherwise silently drop a resolved model.
+        if resolved.runner_mode == RunnerMode::InteractivePty
+            && let Some(model) = resolved.model.as_ref()
+        {
+            args.push("--model".to_string());
+            args.push(model.clone());
+        }
+        if let Some(effort) = reasoning {
+            args.push("--effort".to_string());
+            args.push(effort.claude_effort_value().to_string());
+        }
+    }
+    // Codex ExecJson never spawns from this argv (the structured adapter owns
+    // its own), so the override is takeover-PTY-only and cannot double-emit.
+    if matches!(resolved.provider, AgentProvider::Codex)
+        && resolved.runner_mode == RunnerMode::InteractivePty
+        && let Some(effort) = reasoning
+    {
+        args.push("-c".to_string());
+        args.push(format!(
+            "model_reasoning_effort={}",
+            effort.codex_config_value()
+        ));
+    }
     if mode_applied.stdin_payload.is_none() {
         args.push("--".to_string());
         args.push(prompt);
@@ -309,12 +340,18 @@ pub fn build_launch_config(
         initial_stdin: mode_applied.stdin_payload,
         runner_mode: resolved.runner_mode,
         billing_profile: resolved.billing_profile,
+        // Set by the Launch Task step runner after this returns (PTY path only);
+        // every other caller leaves the session-live hook disabled.
+        session_live: None,
     }
 }
 
 /// Idempotence sentinel. Opaque on purpose so a hand-written operator brief
-/// cannot organically start with it and silently suppress the directive.
-const BACKEND_DIRECTIVE_MARKER: &str = "__SUPERKICK_BACKEND_DIRECTIVE_v1__";
+/// cannot organically start with it and silently suppress the directive. A
+/// prompt that already emits its own skill directive (the lean interactive
+/// path) prepends this so [`apply_claude_backend`] short-circuits instead of
+/// double-injecting.
+pub const BACKEND_DIRECTIVE_MARKER: &str = "__SUPERKICK_BACKEND_DIRECTIVE_v1__";
 
 /// Translate an optional [`AgentBackend`] into argv + prompt mutations at
 /// spawn time. See [`AgentBackend`] for the fallback contract. Pure, no I/O,
@@ -554,6 +591,7 @@ mod tests {
             default_timeout: Duration::from_secs(60),
             purpose: "test".into(),
             launch_reason: LaunchReason::InitialStep,
+            reasoning: None,
         };
 
         let cfg = build_launch_config(&plan, inputs);
@@ -603,6 +641,7 @@ mod tests {
             default_timeout: Duration::from_secs(60),
             purpose: "test".into(),
             launch_reason: LaunchReason::InitialStep,
+            reasoning: None,
         };
 
         let cfg = build_launch_config(&plan, inputs);
@@ -642,6 +681,7 @@ mod tests {
             default_timeout: Duration::from_secs(60),
             purpose: "test".into(),
             launch_reason: LaunchReason::InitialStep,
+            reasoning: None,
         };
 
         let cfg = build_launch_config(&plan, inputs);
@@ -673,6 +713,7 @@ mod tests {
             default_timeout: Duration::from_secs(60),
             purpose: "test".into(),
             launch_reason: LaunchReason::InitialStep,
+            reasoning: None,
         };
         let cfg = build_launch_config(&plan, inputs);
         // argv = [codex, exec, --, p]
@@ -680,5 +721,155 @@ mod tests {
         assert_eq!(cfg.args[1], "exec");
         assert!(cfg.args.iter().any(|a| a == "--"));
         assert!(cfg.initial_stdin.is_none());
+    }
+
+    fn empty_plan() -> AgentSpawnPlan {
+        AgentSpawnPlan {
+            effective_mode: LinearContextMode::None,
+            snapshot_block: None,
+            extra_cli_args: Vec::new(),
+            policy_audit: PolicyAudit::default(),
+        }
+    }
+
+    fn inputs_with_reasoning<'a>(
+        resolved: &'a ResolvedAgent,
+        reasoning: Option<ReasoningEffort>,
+    ) -> LaunchConfigInputs<'a> {
+        use superkick_core::{RunId, StepId};
+        LaunchConfigInputs {
+            run_id: RunId::new(),
+            step_id: StepId::new(),
+            resolved,
+            prompt: "brief".into(),
+            workdir: std::path::PathBuf::from("/tmp"),
+            default_timeout: Duration::from_secs(60),
+            purpose: "test".into(),
+            launch_reason: LaunchReason::InitialStep,
+            reasoning,
+        }
+    }
+
+    #[test]
+    fn build_launch_config_claude_pty_appends_model_and_effort() {
+        let mut r = resolved(AgentProvider::Claude, None);
+        r.model = Some("opus".into());
+
+        let cfg = build_launch_config(
+            &empty_plan(),
+            inputs_with_reasoning(&r, Some(ReasoningEffort::High)),
+        );
+
+        let model_pos = cfg
+            .args
+            .iter()
+            .position(|a| a == "--model")
+            .expect("model flag on claude PTY argv");
+        assert_eq!(cfg.args[model_pos + 1], "opus");
+        let effort_pos = cfg
+            .args
+            .iter()
+            .position(|a| a == "--effort")
+            .expect("effort flag on claude PTY argv");
+        assert_eq!(cfg.args[effort_pos + 1], "high");
+        assert!(!cfg.args.iter().any(|a| a == "--"));
+        assert_eq!(cfg.initial_stdin.as_deref(), Some("brief"));
+    }
+
+    #[test]
+    fn build_launch_config_claude_print_stream_json_appends_effort_before_prompt_tail() {
+        let mut r = resolved(AgentProvider::Claude, None);
+        r.runner_mode = RunnerMode::PrintStreamJson;
+        r.billing_profile = BillingProfile::AgentSdkCredits;
+        r.model = Some("opus".into());
+
+        let cfg = build_launch_config(
+            &empty_plan(),
+            inputs_with_reasoning(&r, Some(ReasoningEffort::Minimal)),
+        );
+
+        let effort_pos = cfg
+            .args
+            .iter()
+            .position(|a| a == "--effort")
+            .expect("effort flag on headless claude argv");
+        assert_eq!(
+            cfg.args[effort_pos + 1],
+            "low",
+            "minimal clamps to claude's floor"
+        );
+        let sep = cfg.args.iter().position(|a| a == "--").expect("`--` tail");
+        assert!(effort_pos < sep, "effort flag sits before the prompt tail");
+        assert!(
+            !cfg.args.iter().any(|a| a == "--model"),
+            "model stays PTY-only: {:?}",
+            cfg.args
+        );
+    }
+
+    #[test]
+    fn build_launch_config_claude_without_reasoning_emits_no_effort_flag() {
+        let r = resolved(AgentProvider::Claude, None);
+        let cfg = build_launch_config(&empty_plan(), inputs_with_reasoning(&r, None));
+        assert!(!cfg.args.iter().any(|a| a == "--effort"));
+        assert!(!cfg.args.iter().any(|a| a == "--model"));
+    }
+
+    #[test]
+    fn build_launch_config_codex_exec_json_ignores_reasoning() {
+        let mut r = resolved(AgentProvider::Codex, None);
+        r.model = Some("o3".into());
+        assert_eq!(r.runner_mode, RunnerMode::ExecJson);
+        let cfg = build_launch_config(
+            &empty_plan(),
+            inputs_with_reasoning(&r, Some(ReasoningEffort::Max)),
+        );
+        assert!(
+            !cfg.args.iter().any(|a| a == "--effort"),
+            "effort is claude-only; codex carries it via the structured adapter"
+        );
+        assert!(
+            !cfg.args
+                .iter()
+                .any(|a| a.contains("model_reasoning_effort")),
+            "exec_json reasoning belongs to the structured adapter, not this argv: {:?}",
+            cfg.args
+        );
+        assert!(!cfg.args.iter().any(|a| a == "--model"));
+    }
+
+    #[test]
+    fn build_launch_config_codex_pty_appends_reasoning_config_override() {
+        let mut r = resolved(AgentProvider::Codex, None);
+        r.runner_mode = RunnerMode::InteractivePty;
+        r.billing_profile = BillingProfile::default_for(AgentProvider::Codex, r.runner_mode);
+        let cfg = build_launch_config(
+            &empty_plan(),
+            inputs_with_reasoning(&r, Some(ReasoningEffort::Max)),
+        );
+        let c_pos = cfg
+            .args
+            .iter()
+            .position(|a| a == "-c")
+            .expect("-c override on codex PTY argv");
+        assert_eq!(
+            cfg.args[c_pos + 1],
+            "model_reasoning_effort=xhigh",
+            "max clamps to codex's ceiling"
+        );
+    }
+
+    #[test]
+    fn build_launch_config_codex_pty_without_reasoning_emits_no_override() {
+        let mut r = resolved(AgentProvider::Codex, None);
+        r.runner_mode = RunnerMode::InteractivePty;
+        r.billing_profile = BillingProfile::default_for(AgentProvider::Codex, r.runner_mode);
+        let cfg = build_launch_config(&empty_plan(), inputs_with_reasoning(&r, None));
+        assert!(!cfg.args.iter().any(|a| a == "-c"));
+        assert!(
+            !cfg.args
+                .iter()
+                .any(|a| a.contains("model_reasoning_effort"))
+        );
     }
 }

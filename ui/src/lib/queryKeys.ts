@@ -64,7 +64,8 @@ export const queryKeys = {
 		all: ['provider-settings'] as const
 	},
 	skills: {
-		all: ['skills'] as const
+		all: ['skills'] as const,
+		importable: ['skills', 'importable'] as const
 	},
 	launchProfiles: {
 		all: ['launch-profiles'] as const,
