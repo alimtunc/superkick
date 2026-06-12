@@ -1,7 +1,7 @@
-//! Pins migration 040's legacy-data remap on a real SQLite. The pre-040
+//! Pins migration 043's legacy-data remap on a real SQLite. The pre-043
 //! schema is rebuilt from the frozen migration files (applied migrations
 //! never change), seeded with `ultra_code` rows in all four reasoning
-//! columns, then 040 runs and the remapped rows must load through the real
+//! columns, then 043 runs and the remapped rows must load through the real
 //! repos — the codec hard-errors on unknown reasoning tags.
 
 use anyhow::Result;
@@ -18,7 +18,7 @@ use superkick_storage::{
 };
 use uuid::Uuid;
 
-const PRE_040_SCHEMA: &[&str] = &[
+const PRE_043_SCHEMA: &[&str] = &[
     include_str!("../migrations/023_launch_tasks.sql"),
     include_str!("../migrations/024_launch_task_steps_linked_run_index.sql"),
     include_str!("../migrations/026_launch_task_steps_structured_result.sql"),
@@ -31,8 +31,8 @@ const PRE_040_SCHEMA: &[&str] = &[
     include_str!("../migrations/039_launch_task_profile_snapshot.sql"),
 ];
 
-const MIGRATION_040: &str = include_str!("../migrations/040_reasoning_per_provider.sql");
-const MIGRATION_041: &str = include_str!("../migrations/041_skill_body_artifact.sql");
+const MIGRATION_043: &str = include_str!("../migrations/043_reasoning_per_provider.sql");
+const MIGRATION_044: &str = include_str!("../migrations/044_skill_body_artifact.sql");
 
 const TS: &str = "2026-01-01T00:00:00Z";
 const TASK_ID: &str = "00000000-0000-0000-0000-00000000a001";
@@ -46,7 +46,7 @@ async fn apply(pool: &SqlitePool, sql: &str) -> Result<()> {
     Ok(())
 }
 
-async fn pre_040_pool_with_ultra_code_rows() -> Result<SqlitePool> {
+async fn pre_043_pool_with_ultra_code_rows() -> Result<SqlitePool> {
     let options = SqliteConnectOptions::from_str("sqlite::memory:")?
         .create_if_missing(true)
         .foreign_keys(true);
@@ -55,7 +55,7 @@ async fn pre_040_pool_with_ultra_code_rows() -> Result<SqlitePool> {
         .connect_with(options)
         .await?;
 
-    for sql in PRE_040_SCHEMA {
+    for sql in PRE_043_SCHEMA {
         apply(&pool, sql).await?;
     }
 
@@ -141,10 +141,10 @@ async fn pre_040_pool_with_ultra_code_rows() -> Result<SqlitePool> {
 }
 
 #[tokio::test]
-async fn migration_040_remaps_ultra_code_by_provider_and_rows_load() -> Result<()> {
-    let pool = pre_040_pool_with_ultra_code_rows().await?;
-    apply(&pool, MIGRATION_040).await?;
-    apply(&pool, MIGRATION_041).await?;
+async fn migration_043_remaps_ultra_code_by_provider_and_rows_load() -> Result<()> {
+    let pool = pre_043_pool_with_ultra_code_rows().await?;
+    apply(&pool, MIGRATION_043).await?;
+    apply(&pool, MIGRATION_044).await?;
 
     let providers = SqliteProviderSettingsRepo::new(pool.clone());
     let settings = providers.list().await?;
@@ -200,10 +200,10 @@ async fn migration_040_remaps_ultra_code_by_provider_and_rows_load() -> Result<(
 }
 
 #[tokio::test]
-async fn migration_040_rebuild_keeps_step_cascade_on_profile_delete() -> Result<()> {
-    let pool = pre_040_pool_with_ultra_code_rows().await?;
-    apply(&pool, MIGRATION_040).await?;
-    apply(&pool, MIGRATION_041).await?;
+async fn migration_043_rebuild_keeps_step_cascade_on_profile_delete() -> Result<()> {
+    let pool = pre_043_pool_with_ultra_code_rows().await?;
+    apply(&pool, MIGRATION_043).await?;
+    apply(&pool, MIGRATION_044).await?;
 
     apply(&pool, "DELETE FROM launch_profiles WHERE id = 'legacy'").await?;
 

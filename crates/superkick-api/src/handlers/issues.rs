@@ -2,7 +2,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use axum::extract::{FromRef, Path, State};
+use axum::extract::{FromRef, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json};
 use chrono::NaiveDate;
@@ -59,8 +59,36 @@ pub async fn get_issue(
     }))
     .await;
     detail.linked_runs = summaries;
+    detail.linked_prs = state.issue_pr_service.sync_issue_prs(&detail).await;
 
     Ok(Json(detail))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IssuePullRequestDiffParams {
+    repo_slug: String,
+    number: u32,
+}
+
+pub async fn get_issue_pull_request_diff(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(params): Query<IssuePullRequestDiffParams>,
+) -> Result<impl IntoResponse, AppError> {
+    let client = state.linear()?;
+    let detail = client.get_issue(&id).await?;
+    let _ = state.issue_pr_service.sync_issue_prs(&detail).await;
+    let diff = state
+        .issue_pr_service
+        .diff_files(
+            &detail.id,
+            &detail.identifier,
+            &params.repo_slug,
+            params.number,
+        )
+        .await?;
+
+    Ok(Json(diff))
 }
 
 /// Operator-facing target state for `PATCH /issues/{id}` — only lanes that map to a Linear workflow-state `type`.

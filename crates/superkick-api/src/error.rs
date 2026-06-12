@@ -5,8 +5,8 @@ use superkick_config::RunnerPatchError;
 use superkick_core::{AgentProvider, CoreError};
 use superkick_integrations::linear::LinearError;
 use superkick_runtime::{
-    AttentionServiceError, ConversationRunnerError, LaunchCompositionError, RetryError,
-    RunServiceError, SnapshotError,
+    AttentionServiceError, ConversationRunnerError, IssuePullRequestError, LaunchCompositionError,
+    RetryError, RunServiceError, SnapshotError,
 };
 
 #[derive(Debug)]
@@ -163,6 +163,24 @@ impl From<LaunchCompositionError> for AppError {
             }
             LaunchCompositionError::Core(e) => AppError::from(e),
             LaunchCompositionError::Storage(e) => AppError::Internal(e),
+        }
+    }
+}
+
+impl From<IssuePullRequestError> for AppError {
+    fn from(err: IssuePullRequestError) -> Self {
+        match err {
+            IssuePullRequestError::PullRequestNotFound => {
+                AppError::NotFound("pull request not found for issue")
+            }
+            IssuePullRequestError::MissingHeadSha => {
+                AppError::Unprocessable("pull request metadata unavailable".into())
+            }
+            IssuePullRequestError::Storage(e) => AppError::Internal(e),
+            IssuePullRequestError::GitHub(e) => {
+                tracing::warn!(error = %e, "GitHub API unavailable");
+                AppError::ServiceUnavailable("GitHub API unavailable")
+            }
         }
     }
 }

@@ -112,6 +112,8 @@ mod tests {
             team_id: None,
             comments,
             linked_runs: vec![],
+            linked_prs: vec![],
+            attachments: vec![],
             history: vec![],
             history_has_more: false,
         }

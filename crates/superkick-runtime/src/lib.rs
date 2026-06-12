@@ -10,6 +10,7 @@ pub mod git;
 pub mod git_ship;
 pub mod heartbeat;
 pub mod interrupt_service;
+pub mod issue_pr_service;
 pub mod launch_profile_service;
 pub mod launch_queue_blockers;
 pub mod launch_task_context;
@@ -57,6 +58,7 @@ pub use conversation_runner::{
 pub use detector::{RuntimeDetector, boot_refresh, capabilities_for};
 pub use heartbeat::spawn_heartbeat_listener;
 pub use interrupt_service::InterruptService;
+pub use issue_pr_service::{IssuePullRequestDiff, IssuePullRequestError, IssuePullRequestService};
 pub use launch_queue_blockers::reconcile_blockers;
 pub use launch_task_event_bus::{LaunchTaskEvent, LaunchTaskEventBus};
 pub use launch_task_executor::{

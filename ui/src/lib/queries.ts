@@ -3,6 +3,7 @@ import {
 	fetchDashboardQueue,
 	fetchIssueDetail,
 	fetchIssueMemoryEntries,
+	fetchIssuePullRequestDiff,
 	fetchIssues,
 	fetchIssueWorkspaceContext,
 	fetchLaunchProfiles,
@@ -13,6 +14,7 @@ import {
 	fetchRun,
 	fetchRunDiff,
 	fetchRunEvents,
+	fetchRunReview,
 	fetchRuns,
 	fetchRunToolCalls,
 	fetchRuntimes,
@@ -22,7 +24,7 @@ import {
 	listImportableSkills,
 	listLaunchTaskInterventions
 } from '@/api'
-import type { SearchParams } from '@/types'
+import type { IssuePullRequest, SearchParams } from '@/types'
 import { infiniteQueryOptions, queryOptions, skipToken } from '@tanstack/react-query'
 
 import { queryKeys } from './queryKeys'
@@ -41,6 +43,16 @@ export const issueDetailQuery = (id: string) =>
 		staleTime: 15_000,
 		refetchInterval: 30_000,
 		refetchIntervalInBackground: false
+	})
+
+export const issuePullRequestDiffQuery = (issueId: string, pr: IssuePullRequest | null, enabled: boolean) =>
+	queryOptions({
+		queryKey: pr
+			? queryKeys.issues.prDiff(issueId, pr.repo_slug, pr.number, pr.head_sha || 'pending')
+			: ['issues', issueId, 'pull-request-diff', 'pending'],
+		queryFn:
+			pr && enabled ? () => fetchIssuePullRequestDiff(issueId, pr.repo_slug, pr.number) : skipToken,
+		staleTime: 30_000
 	})
 
 export const issueWorkspaceContextQuery = (id: string | null) =>
@@ -93,6 +105,13 @@ export const runDiffQuery = (id: string | null, enabled: boolean) =>
 		queryKey: id ? queryKeys.runs.diff(id) : ['runs', 'pending', 'diff'],
 		queryFn: id && enabled ? () => fetchRunDiff(id) : skipToken,
 		staleTime: 10_000
+	})
+
+export const runReviewQuery = (id: string | null, enabled: boolean) =>
+	queryOptions({
+		queryKey: id ? queryKeys.runs.review(id) : ['runs', 'pending', 'review'],
+		queryFn: id && enabled ? () => fetchRunReview(id) : skipToken,
+		staleTime: 5_000
 	})
 
 export const conversationDetailQuery = (id: string | null) =>

@@ -1,3 +1,4 @@
+import { IssuePullRequestsBlock } from '@/components/issue-detail/IssuePullRequestsBlock'
 import { AssigneeRow } from '@/components/issue-detail/properties/AssigneeRow'
 import { DueDateRow } from '@/components/issue-detail/properties/DueDateRow'
 import { EstimateRow } from '@/components/issue-detail/properties/EstimateRow'
@@ -6,7 +7,6 @@ import { PriorityRow } from '@/components/issue-detail/properties/PriorityRow'
 import { ProjectRow } from '@/components/issue-detail/properties/ProjectRow'
 import { PropertyRow } from '@/components/issue-detail/properties/PropertyRow'
 import { StatusRow } from '@/components/issue-detail/properties/StatusRow'
-import { PrBadge } from '@/components/pr/PrBadge'
 import { pickLatestPr } from '@/lib/pr'
 import type { IssueDetailResponse } from '@/types'
 import { StatusIcon, statusIconKindFor } from '@/ui'
@@ -23,19 +23,7 @@ export function IssuePropertiesBlock({ issue }: IssuePropertiesBlockProps) {
 		<section aria-label="Issue properties">
 			<div className="rail__group">
 				<StatusRow issue={issue} />
-				{pr ? (
-					<PropertyRow label="Pull request">
-						<a
-							href={pr.url}
-							target="_blank"
-							rel="noreferrer"
-							className="inline-flex items-center hover:opacity-80"
-							title="Open pull request"
-						>
-							<PrBadge pr={pr} size="sm" />
-						</a>
-					</PropertyRow>
-				) : null}
+				<IssuePullRequestsBlock issue={issue} runPr={pr} />
 				<PriorityRow issue={issue} />
 				<AssigneeRow issue={issue} />
 			</div>

@@ -216,12 +216,24 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             include_str!("../migrations/039_launch_task_profile_snapshot.sql"),
         ),
         (
-            "040_reasoning_per_provider",
-            include_str!("../migrations/040_reasoning_per_provider.sql"),
+            "040_diff_reviews",
+            include_str!("../migrations/040_diff_reviews.sql"),
         ),
         (
-            "041_skill_body_artifact",
-            include_str!("../migrations/041_skill_body_artifact.sql"),
+            "041_diff_review_line_ranges",
+            include_str!("../migrations/041_diff_review_line_ranges.sql"),
+        ),
+        (
+            "042_issue_pull_requests",
+            include_str!("../migrations/042_issue_pull_requests.sql"),
+        ),
+        (
+            "043_reasoning_per_provider",
+            include_str!("../migrations/043_reasoning_per_provider.sql"),
+        ),
+        (
+            "044_skill_body_artifact",
+            include_str!("../migrations/044_skill_body_artifact.sql"),
         ),
     ];
 
@@ -233,11 +245,20 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
                 .await?;
 
         if !already_applied {
+            let diff_review_line_ranges_already_present = *name == "041_diff_review_line_ranges"
+                && diff_review_line_range_columns_exist(pool).await?;
             let mut tx = pool.begin().await?;
 
-            sqlx::raw_sql(sqlx::AssertSqlSafe(sql.to_string()))
-                .execute(&mut *tx)
-                .await?;
+            if diff_review_line_ranges_already_present {
+                tracing::info!(
+                    migration = name,
+                    "marking migration applied; line range columns already exist"
+                );
+            } else {
+                sqlx::raw_sql(sqlx::AssertSqlSafe(sql.to_string()))
+                    .execute(&mut *tx)
+                    .await?;
+            }
 
             sqlx::query("INSERT INTO _migrations (name) VALUES (?1)")
                 .bind(name)
@@ -251,4 +272,18 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
     }
 
     Ok(())
+}
+
+async fn diff_review_line_range_columns_exist(pool: &SqlitePool) -> Result<bool> {
+    let old_exists: bool = sqlx::query_scalar(
+        "SELECT COUNT(*) > 0 FROM pragma_table_info('diff_review_threads') WHERE name = 'old_line_end'",
+    )
+    .fetch_one(pool)
+    .await?;
+    let new_exists: bool = sqlx::query_scalar(
+        "SELECT COUNT(*) > 0 FROM pragma_table_info('diff_review_threads') WHERE name = 'new_line_end'",
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(old_exists && new_exists)
 }

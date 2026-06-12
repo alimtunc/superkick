@@ -3,6 +3,8 @@ export const queryKeys = {
 		all: ['issues'] as const,
 		list: (limit: number) => ['issues', limit] as const,
 		detail: (id: string) => ['issues', 'detail', id] as const,
+		prDiff: (id: string, repoSlug: string, number: number, headSha: string) =>
+			['issues', id, 'pull-request-diff', repoSlug, number, headSha] as const,
 		workspaceContext: (id: string) => ['issues', id, 'workspace-context'] as const,
 		memory: (id: string) => ['issues', id, 'memory'] as const
 	},
@@ -11,7 +13,8 @@ export const queryKeys = {
 		detail: (id: string) => ['runs', id] as const,
 		events: (id: string) => ['runs', id, 'events'] as const,
 		toolCalls: (id: string) => ['runs', id, 'tool-calls'] as const,
-		diff: (id: string) => ['runs', id, 'diff'] as const
+		diff: (id: string) => ['runs', id, 'diff'] as const,
+		review: (id: string) => ['runs', id, 'review'] as const
 	},
 	dashboard: {
 		all: ['dashboard'] as const,
