@@ -247,6 +247,21 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
         if !already_applied {
             let diff_review_line_ranges_already_present = *name == "041_diff_review_line_ranges"
                 && diff_review_line_range_columns_exist(pool).await?;
+
+            // A precursor build of #196 added skill_kind under a different migration name, so
+            // the bare ADD COLUMN collides on drifted DBs. Drop just that statement; the rest of
+            // 043 (the reasoning CHECK rebuilds) is re-run-safe and still needs to apply.
+            let migration_sql = if *name == "043_reasoning_per_provider"
+                && launch_task_steps_has_skill_kind(pool).await?
+            {
+                sql.replace(
+                    "ALTER TABLE launch_task_steps ADD COLUMN skill_kind TEXT;",
+                    "",
+                )
+            } else {
+                sql.to_string()
+            };
+
             let mut tx = pool.begin().await?;
 
             if diff_review_line_ranges_already_present {
@@ -255,7 +270,7 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
                     "marking migration applied; line range columns already exist"
                 );
             } else {
-                sqlx::raw_sql(sqlx::AssertSqlSafe(sql.to_string()))
+                sqlx::raw_sql(sqlx::AssertSqlSafe(migration_sql))
                     .execute(&mut *tx)
                     .await?;
             }
@@ -272,6 +287,15 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
     }
 
     Ok(())
+}
+
+async fn launch_task_steps_has_skill_kind(pool: &SqlitePool) -> Result<bool> {
+    let exists: bool = sqlx::query_scalar(
+        "SELECT COUNT(*) > 0 FROM pragma_table_info('launch_task_steps') WHERE name = 'skill_kind'",
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(exists)
 }
 
 async fn diff_review_line_range_columns_exist(pool: &SqlitePool) -> Result<bool> {

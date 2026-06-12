@@ -228,7 +228,6 @@ describe('DiffPatchView review hooks', () => {
 				patch="@@ -1,2 +1,3 @@\n line\n+added"
 				path="src/foo.ts"
 				mode="unified"
-				deletions={0}
 				review={{
 					runId: 'run-1',
 					filePath: 'src/foo.ts',
@@ -270,7 +269,6 @@ describe('DiffPatchView review hooks', () => {
 				patch="@@ -1,2 +1,3 @@\n line\n+added"
 				path="src/foo.ts"
 				mode="unified"
-				deletions={0}
 				review={{
 					runId: 'run-1',
 					filePath: 'src/foo.ts',
@@ -313,7 +311,6 @@ describe('DiffPatchView review hooks', () => {
 				patch="@@ -1,4 +1,5 @@\n line\n+added\n+more\n+done"
 				path="src/foo.ts"
 				mode="unified"
-				deletions={0}
 				review={{
 					runId: 'run-1',
 					filePath: 'src/foo.ts',
@@ -353,7 +350,6 @@ describe('DiffPatchView review hooks', () => {
 				patch="@@ -1,2 +1,3 @@\n line\n+added"
 				path="src/foo.ts"
 				mode="unified"
-				deletions={0}
 				review={{
 					runId: 'run-1',
 					filePath: 'src/foo.ts',

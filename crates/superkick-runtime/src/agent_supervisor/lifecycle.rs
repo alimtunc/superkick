@@ -13,7 +13,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
 use superkick_core::{
-    AgentSession, AgentStatus, EventKind, EventLevel, RunId, SessionLifecyclePhase, StepResult,
+    AgentProvider, AgentSession, AgentStatus, EventKind, EventLevel, RunId, SessionLifecyclePhase,
+    StepResult,
 };
 use superkick_storage::repo::{AgentSessionRepo, RunEventRepo, TranscriptRepo};
 
@@ -69,6 +70,13 @@ where
     } = deps;
     let run_id = session.run_id;
     let step_id = session.run_step_id;
+
+    // A fresh run worktree is an untrusted path: the interactive Claude TUI
+    // would open its trust modal and swallow the injected opening prompt. Seed
+    // trust before spawning so the directive lands in a clean composer.
+    if session.provider == AgentProvider::Claude {
+        crate::claude_trust::ensure_claude_trusts(&workdir);
+    }
 
     let spawned = spawn_pty_child(&args, &workdir, &session.command, run_id)?;
     let mut child = spawned.child;
@@ -150,7 +158,8 @@ where
     let mut step_result_rx = Some(step_result_rx);
 
     if let Some(payload) = initial_stdin {
-        spawn_initial_input_injection(Arc::clone(&pty_session), payload, run_id);
+        let output_rx = pty_session.subscribe();
+        spawn_initial_input_injection(Arc::clone(&pty_session), payload, run_id, output_rx);
     }
 
     // child.wait() is blocking (portable-pty API), so wrap in spawn_blocking.
@@ -733,6 +742,91 @@ mod tests {
             );
         }
         task.abort();
+    }
+
+    #[tokio::test]
+    #[ignore = "spawns the real `claude` binary; run with --ignored"]
+    async fn real_claude_pty_submits_injected_directive() {
+        let home = std::env::var("HOME").expect("HOME");
+        let claude = std::env::var("SUPERKICK_TEST_CLAUDE")
+            .unwrap_or_else(|_| format!("{home}/.local/bin/claude"));
+        if !std::path::Path::new(&claude).exists() {
+            eprintln!("skip: claude not found at {claude}");
+            return;
+        }
+
+        let h = harness().await;
+        let run_id = h.session.run_id;
+        let deps = SupervisedDeps {
+            session_repo: Arc::clone(&h.session_repo),
+            event_repo: Arc::clone(&h.event_repo),
+            transcript_repo: Arc::clone(&h.transcript_repo),
+            registry: Arc::clone(&h.registry),
+            lifecycle_bus: None,
+            // claude prints PONG then goes idle (no completion marker) — bound it.
+            idle_timeout: Some(Duration::from_secs(10)),
+            session_live: None,
+        };
+
+        // A FRESH temp dir is untrusted — claude would open its trust modal and
+        // swallow the injection. run_supervised must seed trust (claude_trust)
+        // so the directive still submits. This exercises the whole SUP-66 fix.
+        let tmp = tempfile::tempdir().expect("tmp workdir");
+        let workdir = tmp.path().to_path_buf();
+        let directive = "__SUPERKICK_BACKEND_DIRECTIVE_v1__\n\
+             Reply with exactly the single word PONG and nothing else. Do not use \
+             any tools, do not read or edit files, do not run commands.\n";
+        let args = vec![claude, "--dangerously-skip-permissions".into()];
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(120),
+            run_supervised(
+                h.session,
+                args,
+                workdir.clone(),
+                Duration::from_secs(110),
+                Some(directive.to_string()),
+                CancellationToken::new(),
+                deps,
+            ),
+        )
+        .await
+        .expect("run_supervised must not hang")
+        .expect("supervised ok");
+
+        let chunks = h
+            .transcript_repo
+            .list_by_run(run_id)
+            .await
+            .expect("transcript");
+        let mut bytes = Vec::new();
+        for c in &chunks {
+            bytes.extend_from_slice(&c.payload);
+        }
+        let text = String::from_utf8_lossy(&bytes);
+
+        // Best-effort: drop the trust entry the seed added for this temp path so
+        // the dev's ~/.claude.json doesn't accrue dead worktree keys.
+        if let (Ok(cfg), Ok(key)) = (
+            std::fs::read_to_string(format!("{home}/.claude.json")),
+            workdir.canonicalize(),
+        ) && let Ok(mut v) = serde_json::from_str::<serde_json::Value>(&cfg)
+            && let Some(projects) = v.get_mut("projects").and_then(|p| p.as_object_mut())
+        {
+            projects.remove(&key.to_string_lossy().into_owned());
+            let _ = std::fs::write(
+                format!("{home}/.claude.json"),
+                serde_json::to_string_pretty(&v).unwrap_or(cfg),
+            );
+        }
+
+        assert!(
+            text.contains("PONG"),
+            "injected directive was never submitted — no PONG in transcript. \
+             lifecycle={:?}, transcript_len={}",
+            result.lifecycle_phase,
+            bytes.len()
+        );
     }
 
     #[tokio::test]

@@ -199,7 +199,8 @@ where
         // Seed the fresh interactive process with the redacted snapshot,
         // best-effort — mirrors the supervisor's initial-prompt injection.
         if let Some(payload) = opening_context {
-            spawn_initial_input_injection(inject_session, payload, run_id);
+            let output_rx = inject_session.subscribe();
+            spawn_initial_input_injection(inject_session, payload, run_id, output_rx);
         }
 
         Ok(SpawnedTakeover {
