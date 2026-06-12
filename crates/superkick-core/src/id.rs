@@ -54,3 +54,5 @@ define_id!(IssueWorkspaceContextCommentExcerptId);
 define_id!(IssueWorkspaceContextLinkId);
 define_id!(MemoryEntryId);
 define_id!(LaunchTaskInterventionId);
+define_id!(DiffReviewThreadId);
+define_id!(DiffReviewCommentId);
