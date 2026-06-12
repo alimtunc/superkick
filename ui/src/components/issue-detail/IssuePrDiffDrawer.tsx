@@ -103,6 +103,7 @@ export function IssuePrDiffDrawer({ issue, pr, open, onClose }: IssuePrDiffDrawe
 									key={`${file.path}:${file.oldPath ?? ''}`}
 									file={file}
 									mode={mode}
+									showReview={false}
 								/>
 							))}
 						</div>

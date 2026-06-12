@@ -1,15 +1,24 @@
 import type {
 	CreateRunRequest,
+	CreateDiffReviewCommentRequest,
+	CreateDiffReviewThreadRequest,
+	DiffReviewComment,
+	DiffReviewFileState,
+	DiffReviewState,
+	DiffReviewThread,
+	FixRunReviewWithAiResponse,
+	PatchDiffReviewThreadRequest,
 	Run,
 	RunDetailResponse,
 	RunDiffResponse,
 	RunDiffResult,
 	RunEvent,
+	SetDiffReviewFileReviewedRequest,
 	ShipRunRequest,
 	ShipRunResponse
 } from '@/types'
 
-import { BASE, getJson, postJson, postJsonChecked } from './_shared'
+import { BASE, deleteVoid, getJson, patchJson, postJson, postJsonChecked } from './_shared'
 
 export async function createRun(req: CreateRunRequest): Promise<Run> {
 	return postJsonChecked('/runs', 'create run failed', req)
@@ -43,4 +52,46 @@ export async function fetchRunDiff(id: string): Promise<RunDiffResult> {
 	if (res.status === 422) return { kind: 'unavailable', reason: 'not_worktree_backed' }
 	if (!res.ok) throw new Error(`GET /runs/${id}/diff failed: ${res.status}`)
 	return { kind: 'ok', value: (await res.json()) as RunDiffResponse }
+}
+
+export async function fetchRunReview(id: string): Promise<DiffReviewState> {
+	return getJson(`/runs/${id}/review`, 'fetch run review failed')
+}
+
+export async function createRunReviewThread(
+	id: string,
+	body: CreateDiffReviewThreadRequest
+): Promise<DiffReviewThread> {
+	return postJson(`/runs/${id}/review/threads`, 'create review thread failed', body)
+}
+
+export async function createRunReviewComment(
+	id: string,
+	threadId: string,
+	body: CreateDiffReviewCommentRequest
+): Promise<DiffReviewComment> {
+	return postJson(`/runs/${id}/review/threads/${threadId}/comments`, 'create review comment failed', body)
+}
+
+export async function patchRunReviewThread(
+	id: string,
+	threadId: string,
+	body: PatchDiffReviewThreadRequest
+): Promise<DiffReviewThread> {
+	return patchJson(`/runs/${id}/review/threads/${threadId}`, 'update review thread failed', body)
+}
+
+export async function deleteRunReviewThread(id: string, threadId: string): Promise<void> {
+	await deleteVoid(`/runs/${id}/review/threads/${threadId}`, 'delete review thread failed')
+}
+
+export async function setRunReviewFileReviewed(
+	id: string,
+	body: SetDiffReviewFileReviewedRequest
+): Promise<DiffReviewFileState> {
+	return postJson(`/runs/${id}/review/files/reviewed`, 'set file reviewed failed', body)
+}
+
+export async function fixRunReviewWithAi(id: string): Promise<FixRunReviewWithAiResponse> {
+	return postJsonChecked(`/runs/${id}/review/fix-with-ai`, 'fix review with ai failed')
 }

@@ -28,6 +28,7 @@ pub mod me;
 pub mod orchestrator_sessions;
 pub mod ownership;
 pub mod provider_settings;
+pub mod run_reviews;
 pub mod runs;
 pub mod runtimes;
 pub mod search;

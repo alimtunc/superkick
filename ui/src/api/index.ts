@@ -1,6 +1,21 @@
 export { DuplicateRunError, TurnAlreadyStreamingError } from './_shared'
 export { fetchConfig } from './config'
-export { cancelRun, createRun, fetchRun, fetchRunDiff, fetchRunEvents, fetchRuns, shipRun } from './runs'
+export {
+	cancelRun,
+	createRun,
+	createRunReviewComment,
+	createRunReviewThread,
+	deleteRunReviewThread,
+	fetchRun,
+	fetchRunDiff,
+	fetchRunEvents,
+	fetchRunReview,
+	fetchRuns,
+	fixRunReviewWithAi,
+	patchRunReviewThread,
+	setRunReviewFileReviewed,
+	shipRun
+} from './runs'
 export {
 	createIssue,
 	createIssueComment,

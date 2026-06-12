@@ -9,8 +9,8 @@ pub use db::{connect, connect_with_capacity};
 pub use seed::seed_defaults;
 pub use sqlite::{
     ProviderUpsert, RecoveryEventKind, RecoveryEventRow, SqliteAgentSessionRepo,
-    SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo, SqliteHandoffRepo,
-    SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssuePullRequestRepo,
+    SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo, SqliteDiffReviewRepo,
+    SqliteHandoffRepo, SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssuePullRequestRepo,
     SqliteIssueWorkspaceContextRepo, SqliteLaunchProfileRepo, SqliteLaunchTaskInterventionRepo,
     SqliteLaunchTaskRepo, SqliteMemoryEntryRepo, SqliteOrchestratorSessionRepo,
     SqliteProviderSettingsRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo,

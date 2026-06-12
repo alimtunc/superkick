@@ -13,7 +13,8 @@ export const queryKeys = {
 		detail: (id: string) => ['runs', id] as const,
 		events: (id: string) => ['runs', id, 'events'] as const,
 		toolCalls: (id: string) => ['runs', id, 'tool-calls'] as const,
-		diff: (id: string) => ['runs', id, 'diff'] as const
+		diff: (id: string) => ['runs', id, 'diff'] as const,
+		review: (id: string) => ['runs', id, 'review'] as const
 	},
 	dashboard: {
 		all: ['dashboard'] as const,

@@ -6,6 +6,7 @@ pub mod attach;
 pub mod attention;
 pub mod blocker;
 pub mod conversation;
+pub mod diff_review;
 pub mod error;
 pub mod event;
 pub mod handoff;
@@ -57,18 +58,25 @@ pub use blocker::{IssueBlocker, TERMINAL_BLOCKER_STATES, is_terminal_blocker_sta
 pub use conversation::{
     Conversation, ConversationStatus, ConversationSubject, Turn, TurnEvent, TurnFailure, TurnStatus,
 };
+pub use diff_review::{
+    DEFAULT_REVIEW_AUTHOR, DiffReviewAnchor, DiffReviewComment, DiffReviewFileReviewedChange,
+    DiffReviewFileState, DiffReviewFixPromptComment, DiffReviewLineSide, DiffReviewState,
+    DiffReviewThread, DiffReviewThreadState, NewDiffReviewComment, NewDiffReviewThread,
+    normalize_diff_review_comment_body, render_diff_review_fix_prompt,
+    unresolved_diff_review_fix_prompt_comments,
+};
 pub use error::CoreError;
 pub use event::{EventKind, EventLevel, RunEvent};
 pub use handoff::{
     Handoff, HandoffFailure, HandoffKind, HandoffPayload, HandoffResult, HandoffStatus,
 };
 pub use id::{
-    AgentSessionId, ArtifactId, AttentionRequestId, ConversationId, EventId, HandoffId,
-    InterruptId, IssueWorkspaceContextCommentExcerptId, IssueWorkspaceContextId,
-    IssueWorkspaceContextLinkId, LaunchTaskId, LaunchTaskInterventionId, LaunchTaskStepId,
-    MemoryEntryId, OrchestratorCheckpointId, OrchestratorSessionId, OwnershipEventId,
-    PullRequestId, RunId, RuntimeId, RuntimeProviderId, SessionLifecycleEventId, StepId,
-    TakeoverSessionId, TranscriptChunkId, TurnEventId, TurnId,
+    AgentSessionId, ArtifactId, AttentionRequestId, ConversationId, DiffReviewCommentId,
+    DiffReviewThreadId, EventId, HandoffId, InterruptId, IssueWorkspaceContextCommentExcerptId,
+    IssueWorkspaceContextId, IssueWorkspaceContextLinkId, LaunchTaskId, LaunchTaskInterventionId,
+    LaunchTaskStepId, MemoryEntryId, OrchestratorCheckpointId, OrchestratorSessionId,
+    OwnershipEventId, PullRequestId, RunId, RuntimeId, RuntimeProviderId, SessionLifecycleEventId,
+    StepId, TakeoverSessionId, TranscriptChunkId, TurnEventId, TurnId,
 };
 pub use interrupt::{Interrupt, InterruptAction, InterruptStatus};
 pub use issue_event::{DependencyResolvedPayload, IssueEvent};
