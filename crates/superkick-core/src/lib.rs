@@ -93,7 +93,7 @@ pub use launch_queue::{
 };
 pub use launch_task::{
     LaunchRecipe, LaunchStepKind, LaunchTask, LaunchTaskOverrides, LaunchTaskStatus,
-    LaunchTaskStep, LaunchTaskStepStatus, PlanImplementReviewAgents,
+    LaunchTaskStep, LaunchTaskStepStatus, PlanImplementReviewAgents, RetryPath,
 };
 pub use launch_task_intervention::{DEFAULT_INTERVENTION_AUTHOR, LaunchTaskIntervention};
 pub use linear_context::{

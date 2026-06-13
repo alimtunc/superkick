@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import { RUN_SESSION_TAB_ITEMS, type RunSessionTab } from '@/components/run-tabs/runSessionTabItems'
 import { RunSessionTabs } from '@/components/run-tabs/RunSessionTabs'
+import { StepActionBar } from '@/components/task-cockpit/StepActionBar'
 import { StepFocusSelector } from '@/components/task-cockpit/StepFocusSelector'
 import { ErrorState } from '@/components/ui/state-error'
 import { LoadingState } from '@/components/ui/state-loading'
@@ -9,16 +10,19 @@ import { TabBar } from '@/components/ui/tab-bar'
 import { useRunSession } from '@/hooks/useRunSession'
 import { useStickToBottom } from '@/hooks/useStickToBottom'
 import { runStepIdForLaunchStep } from '@/lib/launch/runStepMap'
-import type { LaunchTaskStep } from '@/types'
+import type { LaunchTask, LaunchTaskStep } from '@/types'
 
 interface TaskSessionViewProps {
+	task: LaunchTask
 	runId: string
 	steps: readonly LaunchTaskStep[]
 }
 
 // The shadow run as a structured session; the step selector scopes
 // Activity/Tools/Logs to one step's run_step_id ("All steps" shows the run).
-export function TaskSessionView({ runId, steps }: TaskSessionViewProps) {
+// A focused step exposes its SUP-203 operator actions (retry / fix-forward /
+// takeover) over the derived snapshot.
+export function TaskSessionView({ task, runId, steps }: TaskSessionViewProps) {
 	const session = useRunSession(runId)
 	const [activeTab, setActiveTab] = useState<RunSessionTab>('activity')
 	const [selectedStepId, setSelectedStepId] = useState<string | null>(null)
@@ -64,6 +68,9 @@ export function TaskSessionView({ runId, steps }: TaskSessionViewProps) {
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<StepFocusSelector steps={steps} selectedStepId={selectedStepId} onSelect={setSelectedStepId} />
+			{selectedStep ? (
+				<StepActionBar task={task} step={selectedStep} onTakeover={() => setActiveTab('terminal')} />
+			) : null}
 			<TabBar
 				tabs={RUN_SESSION_TAB_ITEMS}
 				activeId={activeTab}

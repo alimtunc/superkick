@@ -1,6 +1,6 @@
 import { TaskSessionView } from '@/components/task-cockpit/TaskSessionView'
 import type { UseRunSessionReturn } from '@/hooks/useRunSession'
-import type { LaunchStepKind, LaunchTaskStep, Run, RunEvent, RunStep, StepKey } from '@/types'
+import type { LaunchStepKind, LaunchTask, LaunchTaskStep, Run, RunEvent, RunStep, StepKey } from '@/types'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,6 +14,20 @@ vi.mock('@/components/run-tabs/RunSessionTabs', () => ({
 		<div data-testid="tabs">{events.length} events</div>
 	)
 }))
+
+vi.mock('@/components/task-cockpit/StepActionBar', () => ({
+	StepActionBar: () => <div data-testid="step-actions" />
+}))
+
+const TASK: LaunchTask = {
+	id: 'task-1',
+	linear_issue_id: 'SUP-1',
+	recipe_kind: 'plan_implement_review',
+	status: 'running',
+	current_step_id: null,
+	created_at: '2026-06-01T10:00:00.000Z',
+	updated_at: '2026-06-01T10:00:00.000Z'
+}
 
 function launchStep(kind: LaunchStepKind, id: string): LaunchTaskStep {
 	return {
@@ -93,7 +107,7 @@ describe('TaskSessionView', () => {
 
 	it('shows the whole run by default and scopes events to the selected step', async () => {
 		const steps = [launchStep('plan', 'ls-plan'), launchStep('implement', 'ls-impl')]
-		render(<TaskSessionView runId="run-1" steps={steps} />)
+		render(<TaskSessionView task={TASK} runId="run-1" steps={steps} />)
 
 		expect(screen.getByTestId('tabs')).toHaveTextContent('5 events')
 
@@ -106,14 +120,14 @@ describe('TaskSessionView', () => {
 
 	it('falls back to the whole run when the step→run_step mapping is ambiguous', async () => {
 		const steps = [launchStep('implement', 'ls-impl-a'), launchStep('implement', 'ls-impl-b')]
-		render(<TaskSessionView runId="run-1" steps={steps} />)
+		render(<TaskSessionView task={TASK} runId="run-1" steps={steps} />)
 
 		await userEvent.click(screen.getAllByRole('tab', { name: /Implement/ })[0])
 		expect(screen.getByTestId('tabs')).toHaveTextContent('5 events')
 	})
 
 	it('defaults the active tab to Activity, not Terminal', () => {
-		render(<TaskSessionView runId="run-1" steps={[launchStep('plan', 'ls-plan')]} />)
+		render(<TaskSessionView task={TASK} runId="run-1" steps={[launchStep('plan', 'ls-plan')]} />)
 
 		expect(screen.getByRole('tab', { name: 'Activity' })).toHaveAttribute('aria-selected', 'true')
 		expect(screen.getByRole('tab', { name: 'Terminal' })).toHaveAttribute('aria-selected', 'false')

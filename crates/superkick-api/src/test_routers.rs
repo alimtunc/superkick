@@ -123,10 +123,15 @@ pub fn agents_test_router(catalog: Arc<AgentCatalog>) -> Router {
 /// Launch-task read/create/cancel/SSE routes against a fresh in-memory
 /// `LaunchTaskState` with the stub step runner — sufficient for HTTP-shape
 /// tests; behavioural tests of the executor live in `superkick-runtime/tests`.
+#[allow(clippy::too_many_arguments)]
 pub fn launch_task_test_router(
     repo: Arc<SqliteLaunchTaskRepo>,
     intervention_repo: Arc<SqliteLaunchTaskInterventionRepo>,
     run_repo: Arc<SqliteRunRepo>,
+    session_repo: Arc<SqliteAgentSessionRepo>,
+    event_repo: Arc<EventRepo>,
+    issue_workspace_context_repo: Arc<SqliteIssueWorkspaceContextRepo>,
+    snapshot_repo: Arc<SqliteRunContextSnapshotRepo>,
     catalog: Arc<AgentCatalog>,
 ) -> Router {
     use superkick_runtime::StubStepRunner;
@@ -137,10 +142,17 @@ pub fn launch_task_test_router(
         Arc::new(LaunchTaskRegistry::new()),
         Arc::new(StubStepRunner::new()),
     );
+    // SUP-203 — the retry handler refreshes the derived snapshot, so the test
+    // router wires the same read repos + snapshot cache the production
+    // `FromRef<AppState>` provides (callers build them off the shared pool).
     let state = handlers::launch_tasks::LaunchTaskState::<StubStepRunner> {
         repo,
         intervention_repo,
         run_repo,
+        session_repo,
+        event_repo,
+        issue_workspace_context_repo,
+        snapshot_repo,
         catalog,
         bus,
         executor,

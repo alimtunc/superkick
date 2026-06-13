@@ -14,7 +14,7 @@ export function LaunchTaskRetryButton({ linearIssueId, taskId }: LaunchTaskRetry
 		<Button
 			variant="outline"
 			size="xs"
-			onClick={() => retry.mutate()}
+			onClick={() => retry.mutate('fix_forward')}
 			disabled={retry.isPending}
 			className="font-data text-[11px]"
 		>

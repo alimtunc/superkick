@@ -22,8 +22,8 @@ use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
-    AgentProvider, ExecutionMode, LaunchStepKind, LaunchTaskStatus, LaunchTaskStepStatus, Run,
-    RunId, RunState, RunStep, StepKey, StepStatus, TriggerSource,
+    AgentProvider, ExecutionMode, LaunchStepKind, LaunchTaskStatus, LaunchTaskStepStatus,
+    RetryPath, Run, RunId, RunState, RunStep, StepKey, StepStatus, TriggerSource,
 };
 use superkick_runtime::test_support::{agents, catalog};
 use superkick_runtime::{
@@ -527,7 +527,9 @@ async fn retry_clearing_classification_on_subsequent_completion() -> Result<()> 
         .unwrap();
     assert!(after_first.failure_classification.is_some());
 
-    exec.retry_needs_human_step(task.id).await.unwrap();
+    exec.retry_needs_human_step(task.id, RetryPath::FixForward)
+        .await
+        .unwrap();
     let after_retry = repo
         .list_steps(task.id)
         .await?

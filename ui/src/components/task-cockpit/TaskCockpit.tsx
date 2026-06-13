@@ -106,7 +106,7 @@ export function TaskCockpit({ task, steps }: TaskCockpitProps) {
 			) : null}
 			<div className="flex min-h-0 flex-1">
 				{linkedRunId ? (
-					<TaskSessionView runId={linkedRunId} steps={steps} />
+					<TaskSessionView task={task} runId={linkedRunId} steps={steps} />
 				) : (
 					<div className="min-h-0 flex-1">
 						<TabEmptyState

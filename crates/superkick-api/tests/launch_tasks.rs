@@ -19,15 +19,23 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::response::IntoResponse;
 use serde_json::{Value, json};
+use sqlx::SqlitePool;
 use superkick_api::launch_task_test_router;
 use superkick_core::{
     AgentCatalog, AgentProvider, CoreAgentDefinition, CoreError, ExecutionMode, HandoffStatus,
-    LaunchTaskId, LaunchTaskStatus, LaunchTaskStepStatus, LinearContextMode, ResolvedMcpPolicy,
-    ResolvedToolPolicy, Run, RunState, TriggerSource,
+    LaunchTaskId, LaunchTaskStatus, LaunchTaskStepStatus, LinearContextMode,
+    RUN_CONTEXT_SNAPSHOT_VERSION, ResolvedMcpPolicy, ResolvedToolPolicy, Run, RunState,
+    TriggerSource,
 };
+use superkick_runtime::{PublishingRunEventRepo, WorkspaceEventBus};
 use superkick_storage::connect;
-use superkick_storage::repo::{LaunchTaskInterventionRepo, LaunchTaskRepo, RunRepo};
-use superkick_storage::{SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo, SqliteRunRepo};
+use superkick_storage::repo::{
+    LaunchTaskInterventionRepo, LaunchTaskRepo, RunContextSnapshotRepo, RunRepo,
+};
+use superkick_storage::{
+    SqliteAgentSessionRepo, SqliteIssueWorkspaceContextRepo, SqliteLaunchTaskInterventionRepo,
+    SqliteLaunchTaskRepo, SqliteRunContextSnapshotRepo, SqliteRunEventRepo, SqliteRunRepo,
+};
 use tower::ServiceExt;
 
 fn agent(name: &str, provider: AgentProvider, model: Option<&str>) -> CoreAgentDefinition {
@@ -66,12 +74,44 @@ fn catalog() -> AgentCatalog {
     AgentCatalog::new(roles)
 }
 
+/// SUP-203 — the read repos + snapshot cache the retry handler regenerates the
+/// derived `RunContextSnapshot` from. Built off the shared test pool so the
+/// snapshot row lands in the same SQLite the assertions read.
+fn snapshot_repos(
+    pool: &SqlitePool,
+) -> (
+    Arc<SqliteAgentSessionRepo>,
+    Arc<PublishingRunEventRepo<SqliteRunEventRepo>>,
+    Arc<SqliteIssueWorkspaceContextRepo>,
+    Arc<SqliteRunContextSnapshotRepo>,
+) {
+    (
+        Arc::new(SqliteAgentSessionRepo::new(pool.clone())),
+        Arc::new(PublishingRunEventRepo::new(
+            SqliteRunEventRepo::new(pool.clone()),
+            WorkspaceEventBus::new(),
+        )),
+        Arc::new(SqliteIssueWorkspaceContextRepo::new(pool.clone())),
+        Arc::new(SqliteRunContextSnapshotRepo::new(pool.clone())),
+    )
+}
+
 async fn router() -> axum::Router {
     let pool = connect("sqlite::memory:").await.expect("pool");
     let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
     let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
-    let run_repo = Arc::new(SqliteRunRepo::new(pool));
-    launch_task_test_router(repo, interventions, run_repo, Arc::new(catalog()))
+    let run_repo = Arc::new(SqliteRunRepo::new(pool.clone()));
+    let (sessions, events, workspaces, snapshots) = snapshot_repos(&pool);
+    launch_task_test_router(
+        repo,
+        interventions,
+        run_repo,
+        sessions,
+        events,
+        workspaces,
+        snapshots,
+        Arc::new(catalog()),
+    )
 }
 
 /// Variant of `router()` that returns the run repo so the dedup-guard test can
@@ -80,11 +120,16 @@ async fn router_with_run_repo() -> (axum::Router, Arc<SqliteRunRepo>) {
     let pool = connect("sqlite::memory:").await.expect("pool");
     let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
     let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
-    let run_repo = Arc::new(SqliteRunRepo::new(pool));
+    let run_repo = Arc::new(SqliteRunRepo::new(pool.clone()));
+    let (sessions, events, workspaces, snapshots) = snapshot_repos(&pool);
     let router = launch_task_test_router(
         repo,
         interventions,
         Arc::clone(&run_repo),
+        sessions,
+        events,
+        workspaces,
+        snapshots,
         Arc::new(catalog()),
     );
     (router, run_repo)
@@ -97,11 +142,16 @@ async fn router_with_repo() -> (axum::Router, Arc<SqliteLaunchTaskRepo>) {
     let pool = connect("sqlite::memory:").await.expect("pool");
     let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
     let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
-    let run_repo = Arc::new(SqliteRunRepo::new(pool));
+    let run_repo = Arc::new(SqliteRunRepo::new(pool.clone()));
+    let (sessions, events, workspaces, snapshots) = snapshot_repos(&pool);
     let router = launch_task_test_router(
         Arc::clone(&repo),
         interventions,
         run_repo,
+        sessions,
+        events,
+        workspaces,
+        snapshots,
         Arc::new(catalog()),
     );
     (router, repo)
@@ -118,11 +168,16 @@ async fn router_with_intervention_repo() -> (
     let pool = connect("sqlite::memory:").await.expect("pool");
     let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
     let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
-    let run_repo = Arc::new(SqliteRunRepo::new(pool));
+    let run_repo = Arc::new(SqliteRunRepo::new(pool.clone()));
+    let (sessions, events, workspaces, snapshots) = snapshot_repos(&pool);
     let router = launch_task_test_router(
         Arc::clone(&repo),
         Arc::clone(&interventions),
         run_repo,
+        sessions,
+        events,
+        workspaces,
+        snapshots,
         Arc::new(catalog()),
     );
     (router, repo, interventions)
@@ -404,6 +459,58 @@ async fn retry_returns_200_when_task_is_needs_human() {
     // retry drives the rest of the recipe to Completed.
     assert_eq!(body["status"], "completed", "body: {body}");
     assert!(body["step_id"].is_string());
+}
+
+/// SUP-203 — a retry regenerates the derived `RunContextSnapshot` before
+/// re-running the parked step. The snapshot stays derived: one row per launch
+/// task (PK), versioned, replaced wholesale — never canonical. Also exercises
+/// the `?path=fresh` discriminator deserialization.
+#[tokio::test]
+async fn retry_regenerates_the_run_context_snapshot() {
+    let pool = connect("sqlite::memory:").await.expect("pool");
+    let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
+    let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
+    let run_repo = Arc::new(SqliteRunRepo::new(pool.clone()));
+    let (sessions, events, workspaces, snapshots) = snapshot_repos(&pool);
+    let app = launch_task_test_router(
+        Arc::clone(&repo),
+        interventions,
+        run_repo,
+        sessions,
+        events,
+        workspaces,
+        snapshots,
+        Arc::new(catalog()),
+    );
+    let task_id = seed_needs_human_task(&app, &repo).await;
+
+    let snapshot_repo = SqliteRunContextSnapshotRepo::new(pool.clone());
+    assert!(
+        snapshot_repo
+            .get_by_launch_task(task_id)
+            .await
+            .unwrap()
+            .is_none(),
+        "no snapshot cached before the first retry"
+    );
+
+    let (status, body) = post_no_body(
+        &app,
+        &format!("/launch-tasks/{}/retry?path=fresh", task_id.0),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+
+    let snapshot = snapshot_repo
+        .get_by_launch_task(task_id)
+        .await
+        .unwrap()
+        .expect("retry regenerates the derived run context snapshot");
+    assert_eq!(snapshot.launch_task_id, task_id);
+    assert_eq!(
+        snapshot.version, RUN_CONTEXT_SNAPSHOT_VERSION,
+        "regenerated snapshot is the current derived projection version"
+    );
 }
 
 #[tokio::test]
