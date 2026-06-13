@@ -47,6 +47,9 @@ pub fn apply_runner_mode(resolved: &ResolvedAgent, prompt: String) -> RunnerMode
             append_args: Vec::new(),
             stdin_payload: None,
         },
+        // `claude --bg` builds its own argv in the `claude_background`
+        // controller — no PTY/structured argv shaping here.
+        (Claude, BackgroundSession) => RunnerModeApplied::default(),
         (provider, mode) => unreachable!(
             "bug: apply_runner_mode received an invalid (provider, runner_mode) pair: \
              ({provider:?}, {mode:?}); RoleRouter::resolve must reject this via \
@@ -128,5 +131,14 @@ mod tests {
         assert!(out.prepend_args.is_empty());
         assert!(out.append_args.is_empty());
         assert_eq!(out.stdin_payload.as_deref(), Some("the prompt"));
+    }
+
+    #[test]
+    fn apply_runner_mode_claude_background_is_noop() {
+        // The background controller owns the real argv; this shaping must not
+        // panic (the `unreachable!` arm) and must inject nothing.
+        let r = resolved(AgentProvider::Claude, RunnerMode::BackgroundSession, &[]);
+        let out = apply_runner_mode(&r, "the prompt".into());
+        assert_eq!(out, RunnerModeApplied::default());
     }
 }

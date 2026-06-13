@@ -27,6 +27,12 @@ pub enum RunnerMode {
     PrintStreamJson,
     /// Codex-only headless path via the `exec` subcommand.
     ExecJson,
+    /// Claude-only detached autonomous path via `claude --bg`. Superkick
+    /// launches a named background session from the worktree `cwd` (never
+    /// `--cwd`), polls `claude agents --json` for coarse state, reads
+    /// `claude logs` for best-effort evidence, cancels via `claude stop`.
+    /// Believed subscription-billed (local evidence, not externally proven).
+    BackgroundSession,
 }
 
 /// Which credit pool a spawn consumes. Declarative metadata, not a runtime
@@ -62,6 +68,7 @@ impl RunnerMode {
             Self::InteractivePty => "interactive_pty",
             Self::PrintStreamJson => "print_stream_json",
             Self::ExecJson => "exec_json",
+            Self::BackgroundSession => "background_session",
         }
     }
 
@@ -76,11 +83,16 @@ impl RunnerMode {
     /// Reject `(provider, mode)` pairs that have no runner implementation.
     pub const fn validate_with(self, provider: AgentProvider) -> Result<(), RunnerModeError> {
         match (provider, self) {
+            // `BackgroundSession` is Claude-only (`claude --bg`); Codex has no
+            // equivalent. `ExecJson` is Codex-only.
             (AgentProvider::Claude, Self::ExecJson)
-            | (AgentProvider::Codex, Self::PrintStreamJson) => Err(RunnerModeError::Incompatible {
-                mode: self,
-                provider,
-            }),
+            | (AgentProvider::Codex, Self::PrintStreamJson)
+            | (AgentProvider::Codex, Self::BackgroundSession) => {
+                Err(RunnerModeError::Incompatible {
+                    mode: self,
+                    provider,
+                })
+            }
             _ => Ok(()),
         }
     }
@@ -100,6 +112,7 @@ impl std::str::FromStr for RunnerMode {
             "interactive_pty" => Ok(Self::InteractivePty),
             "print_stream_json" => Ok(Self::PrintStreamJson),
             "exec_json" => Ok(Self::ExecJson),
+            "background_session" => Ok(Self::BackgroundSession),
             other => Err(format!("unknown runner_mode `{other}`")),
         }
     }
@@ -120,6 +133,8 @@ impl BillingProfile {
         match (provider, mode) {
             (AgentProvider::Claude, RunnerMode::PrintStreamJson) => Self::AgentSdkCredits,
             (AgentProvider::Claude, RunnerMode::InteractivePty) => Self::Subscription,
+            // `claude --bg` runs on the local subscription, not Agent SDK credits.
+            (AgentProvider::Claude, RunnerMode::BackgroundSession) => Self::Subscription,
             (AgentProvider::Codex, RunnerMode::ExecJson) => Self::Subscription,
             (AgentProvider::Codex, RunnerMode::InteractivePty) => Self::Subscription,
             _ => Self::Unknown,
@@ -239,6 +254,47 @@ mod tests {
     }
 
     #[test]
+    fn validate_with_accepts_claude_background_session() {
+        assert!(
+            RunnerMode::BackgroundSession
+                .validate_with(AgentProvider::Claude)
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn validate_with_rejects_codex_background_session() {
+        assert!(
+            RunnerMode::BackgroundSession
+                .validate_with(AgentProvider::Codex)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn billing_profile_default_claude_background_is_subscription() {
+        assert_eq!(
+            BillingProfile::default_for(AgentProvider::Claude, RunnerMode::BackgroundSession),
+            BillingProfile::Subscription
+        );
+    }
+
+    #[test]
+    fn billing_profile_resolve_does_not_force_credits_for_background() {
+        // Only `print_stream_json` is force-pinned to Agent SDK credits; the
+        // subscription background path must resolve to Subscription.
+        assert_eq!(
+            BillingProfile::resolve(
+                "r",
+                AgentProvider::Claude,
+                RunnerMode::BackgroundSession,
+                None,
+            ),
+            BillingProfile::Subscription
+        );
+    }
+
+    #[test]
     fn validate_with_accepts_claude_interactive_and_print() {
         assert!(
             RunnerMode::InteractivePty
@@ -272,6 +328,7 @@ mod tests {
             RunnerMode::InteractivePty,
             RunnerMode::PrintStreamJson,
             RunnerMode::ExecJson,
+            RunnerMode::BackgroundSession,
         ] {
             let json = serde_json::to_string(&mode).unwrap();
             let back: RunnerMode = serde_json::from_str(&json).unwrap();

@@ -396,7 +396,7 @@ async fn run_list_all() -> Result<()> {
 }
 
 #[tokio::test]
-async fn run_lookup_by_issue_identifier_and_active_guard() -> Result<()> {
+async fn run_lookup_by_issue_identifier_allows_multiple_active() -> Result<()> {
     let pool = setup().await?;
     let repo = SqliteRunRepo::new(pool);
 
@@ -437,7 +437,10 @@ async fn run_lookup_by_issue_identifier_and_active_guard() -> Result<()> {
     let all = repo.list_by_issue_identifier("SK-9").await?;
     assert_eq!(all.len(), 2);
 
-    let duplicate = Run::new(
+    // A second active run on the same issue is now ALLOWED — the single-active
+    // dedup index was dropped (migration 046). The operator decides whether to
+    // launch a second run; runs are run-id-scoped (branch + worktree).
+    let second_active = Run::new(
         "linear-3".into(),
         "SK-9".into(),
         "o/r".into(),
@@ -447,11 +450,12 @@ async fn run_lookup_by_issue_identifier_and_active_guard() -> Result<()> {
         true,
         None,
     );
-    let err = repo
-        .insert(&duplicate)
+    repo.insert(&second_active)
         .await
-        .expect_err("insert should fail");
-    assert!(format!("{err:#}").to_lowercase().contains("unique"));
+        .expect("second active run on the same issue is allowed");
+
+    let all = repo.list_by_issue_identifier("SK-9").await?;
+    assert_eq!(all.len(), 3, "two active + one completed run for the issue");
 
     Ok(())
 }

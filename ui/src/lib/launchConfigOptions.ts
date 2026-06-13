@@ -15,7 +15,12 @@ import type {
 
 export const LAUNCH_PROVIDER_OPTIONS: AgentProvider[] = ['codex', 'claude']
 
-export const EXECUTOR_OPTIONS: StepExecutor[] = ['codex_structured', 'claude_workflow', 'interactive_pty']
+export const EXECUTOR_OPTIONS: StepExecutor[] = [
+	'codex_structured',
+	'claude_workflow',
+	'claude_background',
+	'interactive_pty'
+]
 export const SESSION_POLICY_OPTIONS: SessionPolicy[] = [
 	'fresh',
 	'resume',
@@ -60,6 +65,7 @@ export function clampReasoningForProvider(value: ReasoningEffort, provider: Agen
 export const EXECUTOR_LABEL: Record<StepExecutor, string> = {
 	codex_structured: 'Codex (structured)',
 	claude_workflow: 'Claude workflow',
+	claude_background: 'Claude background',
 	interactive_pty: 'Interactive PTY',
 	future: 'Future'
 }
@@ -108,6 +114,7 @@ export const PROFILE_KIND_LABEL: Record<ProfileKind, string> = {
 	implement_only: 'Implement only',
 	review_only: 'Review only',
 	claude_workflow: 'Claude workflow',
+	claude_background: 'Claude background',
 	full_session: 'Full session',
 	custom: 'Custom'
 }
@@ -119,6 +126,7 @@ export const PROFILE_KIND_OPTIONS: ProfileKind[] = [
 	'implement_only',
 	'review_only',
 	'claude_workflow',
+	'claude_background',
 	'full_session',
 	'custom'
 ]

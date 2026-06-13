@@ -102,11 +102,23 @@ mod tests {
         for executor in [
             StepExecutor::CodexStructured,
             StepExecutor::ClaudeWorkflow,
+            StepExecutor::ClaudeBackground,
             StepExecutor::InteractivePty,
             StepExecutor::Future,
         ] {
             assert!(SessionPolicy::Fresh.is_compatible_with(executor));
         }
+    }
+
+    #[test]
+    fn claude_background_supports_fresh_only() {
+        // A `claude --bg` step starts a brand-new background session; it has no
+        // captured resume key and no live PTY, so only `Fresh` applies.
+        assert!(SessionPolicy::Fresh.is_compatible_with(StepExecutor::ClaudeBackground));
+        assert!(!SessionPolicy::Resume.is_compatible_with(StepExecutor::ClaudeBackground));
+        assert!(!SessionPolicy::SameSession.is_compatible_with(StepExecutor::ClaudeBackground));
+        assert!(!SessionPolicy::SameWorkflow.is_compatible_with(StepExecutor::ClaudeBackground));
+        assert!(!SessionPolicy::Takeover.is_compatible_with(StepExecutor::ClaudeBackground));
     }
 
     #[test]

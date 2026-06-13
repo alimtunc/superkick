@@ -24,6 +24,10 @@ pub enum StepExecutor {
     /// Claude `--print --output-format stream-json`. Opt-in; consumes Agent
     /// SDK credits.
     ClaudeWorkflow,
+    /// Claude `--bg` detached background session: Superkick polls
+    /// `claude agents --json` for state and reads `claude logs` for evidence.
+    /// See [`RunnerMode::BackgroundSession`].
+    ClaudeBackground,
     /// Provider CLI over a live PTY the operator can attach to.
     InteractivePty,
     /// Not-yet-implemented executor. Reserved so persisted snapshots can name
@@ -37,6 +41,7 @@ impl StepExecutor {
         match self {
             Self::CodexStructured => "codex_structured",
             Self::ClaudeWorkflow => "claude_workflow",
+            Self::ClaudeBackground => "claude_background",
             Self::InteractivePty => "interactive_pty",
             Self::Future => "future",
         }
@@ -48,6 +53,7 @@ impl StepExecutor {
         match self {
             Self::CodexStructured => Some(RunnerMode::ExecJson),
             Self::ClaudeWorkflow => Some(RunnerMode::PrintStreamJson),
+            Self::ClaudeBackground => Some(RunnerMode::BackgroundSession),
             Self::InteractivePty => Some(RunnerMode::InteractivePty),
             Self::Future => None,
         }
@@ -90,6 +96,8 @@ mod tests {
     fn claude_workflow_is_the_only_paid_sdk_path() {
         assert!(StepExecutor::ClaudeWorkflow.is_paid_sdk());
         assert!(!StepExecutor::CodexStructured.is_paid_sdk());
+        // The background path is subscription-billed, not Agent SDK credits.
+        assert!(!StepExecutor::ClaudeBackground.is_paid_sdk());
         assert!(!StepExecutor::InteractivePty.is_paid_sdk());
         assert!(!StepExecutor::Future.is_paid_sdk());
     }
@@ -103,6 +111,10 @@ mod tests {
         assert_eq!(
             StepExecutor::ClaudeWorkflow.runner_mode(),
             Some(RunnerMode::PrintStreamJson)
+        );
+        assert_eq!(
+            StepExecutor::ClaudeBackground.runner_mode(),
+            Some(RunnerMode::BackgroundSession)
         );
         assert_eq!(
             StepExecutor::InteractivePty.runner_mode(),
@@ -129,6 +141,7 @@ mod tests {
         for executor in [
             StepExecutor::CodexStructured,
             StepExecutor::ClaudeWorkflow,
+            StepExecutor::ClaudeBackground,
             StepExecutor::InteractivePty,
             StepExecutor::Future,
         ] {

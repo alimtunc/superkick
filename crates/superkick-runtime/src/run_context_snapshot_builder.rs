@@ -12,9 +12,10 @@ use chrono::{DateTime, Utc};
 use superkick_core::{
     BlockingKind, LaunchTask, LaunchTaskId, LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepStatus,
     PauseKind, PendingDecisionKind, RUN_CONTEXT_SNAPSHOT_VERSION, Run, RunContextSnapshot,
-    RunState, SnapshotBlocking, SnapshotChangedFiles, SnapshotCurrentStep, SnapshotDiffRef,
-    SnapshotEventPointer, SnapshotIssue, SnapshotMemoryRef, SnapshotPendingDecision,
-    SnapshotProvider, SnapshotRun, SnapshotStep, SnapshotTask, SnapshotWorktree,
+    RunState, RunnerMode, SnapshotBlocking, SnapshotChangedFiles, SnapshotCurrentStep,
+    SnapshotDiffRef, SnapshotEventPointer, SnapshotIssue, SnapshotMemoryRef,
+    SnapshotPendingDecision, SnapshotProvider, SnapshotRun, SnapshotStep, SnapshotTask,
+    SnapshotWorktree,
 };
 use superkick_storage::repo::{
     AgentSessionRepo, IssueWorkspaceContextRepo, LaunchTaskRepo, RunContextSnapshotRepo,
@@ -151,9 +152,15 @@ pub async fn build_run_context_snapshot(
         agent: focus_step.map(|s| s.agent_name.clone()),
         model: focus_step.and_then(|s| s.model.clone()),
         // Opaque provider thread id (resume key) — not a credential, carried as-is.
+        // Background sessions are excluded: their `provider_session_id` is the
+        // `claude --bg` control handle, not a `claude --resume` key, so surfacing
+        // it would make takeover spawn an invalid `claude --resume <bg-id>`.
+        // Operator takeover via `claude attach` is a follow-up; until then a
+        // background step falls back to a Fresh takeover PTY.
         provider_session_id: sessions_list
             .iter()
             .rev()
+            .filter(|s| s.runner_mode != Some(RunnerMode::BackgroundSession))
             .find_map(|s| s.provider_session_id.clone()),
     };
 

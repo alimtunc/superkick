@@ -12,8 +12,8 @@ use superkick_core::{
     AgentProvider, AgentSession, AgentSessionId, AgentStatus, BlockingKind, EventKind, EventLevel,
     ExecutionMode, FailureClassification, IssueWorkspaceContext, IssueWorkspaceContextSnapshot,
     LaunchTask, LaunchTaskId, LaunchTaskStepStatus, PlanImplementReviewAgents,
-    RUN_CONTEXT_SNAPSHOT_VERSION, Run, RunEvent, RunState, RunStep, StepKey, StepResult,
-    StepResultStatus, TriggerSource,
+    RUN_CONTEXT_SNAPSHOT_VERSION, Run, RunEvent, RunState, RunStep, RunnerMode, StepKey,
+    StepResult, StepResultStatus, TriggerSource,
 };
 use superkick_runtime::test_support::catalog;
 use superkick_runtime::{SnapshotError, build_run_context_snapshot};
@@ -354,6 +354,61 @@ async fn provider_resume_key_is_surfaced() -> Result<()> {
     assert_eq!(
         snap.provider.provider_session_id.as_deref(),
         Some("codex-thread-abc"),
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn background_session_id_is_excluded_from_resume_key() -> Result<()> {
+    // The `claude --bg` id is persisted in `provider_session_id` as the control
+    // handle for logs/stop/attach — but it is NOT a `claude --resume` key.
+    // Surfacing it would make takeover spawn an invalid `claude --resume <bg-id>`,
+    // so the snapshot must exclude `BackgroundSession` rows (falls back to Fresh).
+    let repos = setup().await?;
+    let (task, steps) = seed_task(&repos).await?;
+    let run = seed_run(&repos).await?;
+    repos
+        .launch
+        .add_step_links(steps[0].id, Some(run.id), None, None)
+        .await?;
+
+    let run_step = RunStep::new(run.id, StepKey::Code, 1);
+    repos.steps.insert(&run_step).await?;
+    let session = AgentSession {
+        id: AgentSessionId::new(),
+        run_id: run.id,
+        run_step_id: run_step.id,
+        provider: AgentProvider::Claude,
+        command: "claude --bg --name superkick-x".into(),
+        pid: None,
+        status: AgentStatus::Running,
+        started_at: Utc::now(),
+        finished_at: None,
+        exit_code: None,
+        linear_context_mode: None,
+        mcp_servers_used: Vec::new(),
+        tools_allow_snapshot: None,
+        tool_approval_required: false,
+        tool_results_persisted: true,
+        role: None,
+        purpose: None,
+        parent_session_id: None,
+        launch_reason: None,
+        handoff_id: None,
+        provider_session_id: None,
+        runner_mode: Some(RunnerMode::BackgroundSession),
+        billing_profile: None,
+    };
+    repos.sessions.insert(&session).await?;
+    repos
+        .sessions
+        .set_provider_session_id(session.id, "6106fcf5")
+        .await?;
+
+    let snap = build(&repos, task.id).await?;
+    assert!(
+        snap.provider.provider_session_id.is_none(),
+        "background control-handle id must not surface as a claude --resume key"
     );
     Ok(())
 }

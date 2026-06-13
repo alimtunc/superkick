@@ -13,6 +13,7 @@ import { ErrorState } from '@/components/ui/state-error'
 import { useAgents } from '@/hooks/useAgents'
 import { useConfig } from '@/hooks/useConfig'
 import { useCreateLaunchTask } from '@/hooks/useCreateLaunchTask'
+import { useIssueActiveTask } from '@/hooks/useIssueLaunchTasks'
 import { useSkills } from '@/hooks/useSkills'
 import { errorMessageOr } from '@/lib/errors'
 import { bodyFromIssue, selectionFromDetail, selectionFromListItem } from '@/lib/launch/composerSelection'
@@ -111,6 +112,10 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 			navigate({ to: '/tasks/$taskId', params: { taskId: result.task.id } })
 		}
 	})
+
+	// Advisory only — launching a second run on an issue is allowed (the API no
+	// longer hard-blocks). Surface, don't gate.
+	const activeRunTask = useIssueActiveTask(selectedIssue?.identifier ?? '')
 
 	const planAgent = selection.plan
 	const implementAgent = selection.implement
@@ -279,6 +284,22 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 				</span>
 				<span>Pick an issue, then Plan → Implement → Review.</span>
 			</div>
+
+			{activeRunTask && !createLaunchTask.isPending ? (
+				<div className="toast toast--accent">
+					<span className="toast__icon">
+						<Icon name="alert" size={18} className="ic" />
+					</span>
+					<div className="toast__body">
+						<div className="toast__title">
+							{selectedIssue?.identifier} already has an active run ({activeRunTask.status})
+						</div>
+						<div className="toast__sub">
+							You can still launch another — each run gets its own branch and worktree.
+						</div>
+					</div>
+				</div>
+			) : null}
 
 			{submitError ? (
 				<ErrorState

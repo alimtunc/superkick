@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use anyhow::Result;
 use superkick_core::{ExecutionMode, LaunchTaskId, Run, RunId, RunState, TriggerSource};
-use superkick_runtime::{LaunchTaskCanceller, RunService, RunServiceError, RunSpawn};
+use superkick_runtime::{LaunchTaskCanceller, RunService, RunSpawn};
 use superkick_storage::repo::{RunEventRepo, RunRepo};
 use superkick_storage::{SqliteLaunchTaskRepo, SqliteRunEventRepo, SqliteRunRepo, connect};
 use tokio_util::sync::CancellationToken;
@@ -108,23 +108,23 @@ async fn spawn_run_persists_and_drives_spawner() -> Result<()> {
 }
 
 #[tokio::test]
-async fn spawn_run_duplicate_active_is_conflict() -> Result<()> {
+async fn spawn_run_allows_duplicate_active_after_dedup_drop() -> Result<()> {
+    // The single-active DB index was dropped (migration 046): an issue may carry
+    // more than one active run. `spawn_run` no longer conflicts on a duplicate —
+    // the legacy POST /runs handler keeps its own app-level guard for that surface.
     let h = build_service().await?;
 
     h.service
         .spawn_run(sample_run("SUP-RS-2"))
         .await
         .expect("first spawn ok");
-    let err = h
-        .service
+    h.service
         .spawn_run(sample_run("SUP-RS-2"))
         .await
-        .expect_err("second spawn for same active issue must conflict");
+        .expect("second active run on the same issue is allowed");
 
-    assert!(
-        matches!(err, RunServiceError::Conflict(_)),
-        "expected Conflict, got {err:?}"
-    );
+    let all = h.run_repo.list_by_issue_identifier("SUP-RS-2").await?;
+    assert_eq!(all.len(), 2, "both active runs persist for the issue");
     Ok(())
 }
 

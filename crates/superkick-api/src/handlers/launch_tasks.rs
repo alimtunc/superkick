@@ -73,15 +73,12 @@ pub type ProdLaunchTaskExecutor = LaunchTaskExecutor<SqliteLaunchTaskRepo, ProdR
 pub struct LaunchTaskState<S: StepRunner> {
     pub repo: Arc<SqliteLaunchTaskRepo>,
     pub intervention_repo: Arc<SqliteLaunchTaskInterventionRepo>,
-    /// Runs repo used only for the active-run dedup guard at create time, so
-    /// launching a task for an issue that already has an active run returns a
-    /// clean 409 instead of crashing the shadow-run insert later (SUP-66).
+    /// Part of the retry snapshot read set (see `session_repo`).
     pub run_repo: Arc<SqliteRunRepo>,
-    /// SUP-203 — read repos the snapshot builder derives from, plus the
-    /// regenerable snapshot cache, so an operator retry can refresh the derived
-    /// `RunContextSnapshot` before re-running the parked step. `run_repo` above
-    /// completes the set. Reads only; the snapshot stays derived (no FK,
-    /// replaced wholesale).
+    /// SUP-203 — read repos the snapshot builder derives from (with `run_repo`),
+    /// plus the regenerable snapshot cache, so an operator retry can refresh the
+    /// derived `RunContextSnapshot` before re-running the parked step. Reads
+    /// only; the snapshot stays derived (no FK, replaced wholesale).
     pub session_repo: Arc<SqliteAgentSessionRepo>,
     pub event_repo: Arc<EventRepo>,
     pub issue_workspace_context_repo: Arc<SqliteIssueWorkspaceContextRepo>,
@@ -171,7 +168,8 @@ pub async fn create_launch_task<S: StepRunner>(
     Json(body): Json<CreateLaunchTaskRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let linear_issue_id = body.linear_issue_id.trim().to_string();
-    crate::handlers::runs::guard_no_active_run(&state.run_repo, &linear_issue_id).await?;
+    // No active-run hard block: the operator may launch a second run on an issue
+    // already in flight (UI shows a non-blocking advisory; runs are run-id-scoped).
 
     let (task, steps) = if let Some(profile_id) = body.profile_id.as_deref() {
         // Dynamic path — compose from the chosen profile + overrides.

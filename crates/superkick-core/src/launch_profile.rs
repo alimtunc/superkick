@@ -38,6 +38,7 @@ pub enum ProfileKind {
     ImplementOnly,
     ReviewOnly,
     ClaudeWorkflow,
+    ClaudeBackground,
     FullSession,
     Custom,
 }
@@ -51,6 +52,7 @@ impl ProfileKind {
             Self::ImplementOnly => "implement_only",
             Self::ReviewOnly => "review_only",
             Self::ClaudeWorkflow => "claude_workflow",
+            Self::ClaudeBackground => "claude_background",
             Self::FullSession => "full_session",
             Self::Custom => "custom",
         }
@@ -134,7 +136,7 @@ impl LaunchProfile {
         !self.is_readonly
     }
 
-    /// The eight canonical builtin profiles. `seed_defaults` writes editable DB
+    /// The nine canonical builtin profiles. `seed_defaults` writes editable DB
     /// copies. `Standard` is the default and reproduces the legacy recipe.
     pub fn builtins() -> Vec<LaunchProfile> {
         vec![
@@ -179,6 +181,17 @@ impl LaunchProfile {
                 ProfileKind::ClaudeWorkflow,
                 false,
                 vec![claude_plan(1), claude_implement(2), claude_review(3)],
+            ),
+            profile(
+                "claude_background",
+                "Claude background",
+                ProfileKind::ClaudeBackground,
+                false,
+                vec![
+                    claude_background_plan(1),
+                    claude_background_implement(2),
+                    claude_background_review(3),
+                ],
             ),
             profile(
                 "full_session",
@@ -295,6 +308,26 @@ fn claude_implement(ordering: u32) -> ProfileStep {
 fn claude_review(ordering: u32) -> ProfileStep {
     claude_step(ordering, "review", "Review", OutputExpectation::Review)
 }
+fn claude_background_step(
+    ordering: u32,
+    skill_ref: &str,
+    label: &str,
+    output: OutputExpectation,
+) -> ProfileStep {
+    ProfileStep {
+        executor: StepExecutor::ClaudeBackground,
+        ..claude_step(ordering, skill_ref, label, output)
+    }
+}
+fn claude_background_plan(ordering: u32) -> ProfileStep {
+    claude_background_step(ordering, "plan", "Plan", OutputExpectation::Plan)
+}
+fn claude_background_implement(ordering: u32) -> ProfileStep {
+    claude_background_step(ordering, "implement", "Implement", OutputExpectation::Patch)
+}
+fn claude_background_review(ordering: u32) -> ProfileStep {
+    claude_background_step(ordering, "review", "Review", OutputExpectation::Review)
+}
 fn full_session_ticket(ordering: u32) -> ProfileStep {
     ProfileStep {
         executor: StepExecutor::InteractivePty,
@@ -313,7 +346,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builtins_cover_the_eight_profiles() {
+    fn builtins_cover_the_canonical_profiles() {
         let kinds: Vec<_> = LaunchProfile::builtins()
             .into_iter()
             .map(|p| p.kind)
@@ -327,10 +360,29 @@ mod tests {
                 ProfileKind::ImplementOnly,
                 ProfileKind::ReviewOnly,
                 ProfileKind::ClaudeWorkflow,
+                ProfileKind::ClaudeBackground,
                 ProfileKind::FullSession,
                 ProfileKind::Custom,
             ]
         );
+    }
+
+    #[test]
+    fn claude_background_builtin_uses_subscription_background_executor() {
+        let profile = LaunchProfile::builtins()
+            .into_iter()
+            .find(|p| p.kind == ProfileKind::ClaudeBackground)
+            .expect("claude_background builtin");
+        assert_eq!(profile.steps.len(), 3);
+        assert!(
+            profile
+                .steps
+                .iter()
+                .all(|s| s.provider == AgentProvider::Claude
+                    && s.executor == StepExecutor::ClaudeBackground)
+        );
+        // Subscription path: no builtin step is on the paid SDK path.
+        assert!(!profile.steps.iter().any(|s| s.executor.is_paid_sdk()));
     }
 
     #[test]
