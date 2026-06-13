@@ -19,6 +19,7 @@ pub(crate) fn no_output_watchdog_message(
         "agent {provider} produced no output for {idle:?} — terminated as hung (no-output watchdog)"
     )
 }
+pub(crate) mod background;
 pub(crate) mod output;
 pub(crate) mod process;
 pub(crate) mod structured;
@@ -371,6 +372,107 @@ where
         let command = adapter.command_preview();
         self.spawn_structured(adapter, config, command, prompt, resume)
             .await
+    }
+
+    /// Launch a Claude step as a `claude --bg` background session — the
+    /// subscription autonomous runner. The third spawn path: not a PTY, not a
+    /// structured `ProtocolAdapter`. Returns the same `(AgentHandle, JoinHandle)`
+    /// shape, so the step runner stays path-agnostic; the spawned task polls
+    /// `claude agents --json` for state, backfills `claude logs` as best-effort
+    /// evidence, and produces an `AgentResult` the existing transition owner
+    /// (`process_completion`) classifies unchanged.
+    ///
+    /// `name` is the Superkick background-session name (`superkick-<step>`). The
+    /// launched background id is persisted as `provider_session_id` — the control
+    /// handle for `logs`/`stop`/`attach`. Billing posture: local binary evidence
+    /// suggests the Claude subscription, but it is not externally billing-proven
+    /// (see [`RunnerMode::BackgroundSession`]).
+    ///
+    /// A launch failure (e.g. missing `claude`) surfaces here so the caller maps
+    /// it via `classify_spawn_error`, mirroring `launch` / `spawn_structured`.
+    pub async fn launch_claude_background<A>(
+        &self,
+        cli: A,
+        config: AgentLaunchConfig,
+        prompt: String,
+        name: String,
+        poll_interval: Duration,
+    ) -> Result<(AgentHandle, tokio::task::JoinHandle<Result<AgentResult>>)>
+    where
+        A: crate::claude_background::ClaudeBackgroundCli,
+    {
+        use crate::claude_background::{BackgroundFilter, BackgroundLaunch};
+
+        let mut session = build_agent_session(&config);
+        session.command = format!("claude --bg --name {name}");
+        let session_id = session.id;
+        self.session_repo.insert(&session).await?;
+        record_lifecycle(
+            self.lifecycle_bus.as_deref(),
+            &*self.event_repo,
+            &session,
+            SessionLifecyclePhase::Spawning,
+        )
+        .await;
+
+        let launch = BackgroundLaunch {
+            name: name.clone(),
+            prompt,
+            cwd: config.workdir.clone(),
+        };
+        let launched = cli.launch(launch).await?;
+
+        if let Err(e) = self
+            .session_repo
+            .set_provider_session_id(session_id, &launched.id)
+            .await
+        {
+            tracing::warn!(session_id = %session_id, error = %e, "failed to persist background provider_session_id");
+        }
+        session.provider_session_id = Some(launched.id.clone());
+
+        let mut launched_event = RunEvent::new(
+            config.run_id,
+            Some(config.step_id),
+            EventKind::AgentOutput,
+            EventLevel::Info,
+            format!("claude background session launched: {}", launched.id),
+        );
+        launched_event.payload_json = Some(serde_json::json!({
+            "background_id": launched.id,
+            "session_id": launched.session_id,
+            "name": name,
+            "cwd": config.workdir.to_string_lossy(),
+        }));
+        if let Err(e) = self.event_repo.insert(&launched_event).await {
+            tracing::warn!(error = %e, "failed to emit background-launch run event");
+        }
+
+        let cancel_token = CancellationToken::new();
+        let handle = AgentHandle::from_parts(session_id, cancel_token.clone());
+
+        let filter = BackgroundFilter {
+            id: launched.id.clone(),
+            name,
+            cwd: config.workdir.clone(),
+        };
+        let deps = background::BackgroundDeps {
+            session_repo: Arc::clone(&self.session_repo),
+            event_repo: Arc::clone(&self.event_repo),
+            lifecycle_bus: self.lifecycle_bus.clone(),
+        };
+        let timeout = config.timeout;
+        let join = tokio::spawn(background::run(
+            cli,
+            session,
+            filter,
+            timeout,
+            poll_interval,
+            cancel_token,
+            deps,
+        ));
+
+        Ok((handle, join))
     }
 
     /// Shared structured spawn for every `ProtocolAdapter`: insert the audited

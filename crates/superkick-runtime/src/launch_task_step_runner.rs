@@ -105,6 +105,18 @@ fn is_structured_executor(provider: AgentProvider, mode: RunnerMode) -> bool {
     )
 }
 
+/// Whether a resolved `(provider, mode)` pair runs on the `claude --bg`
+/// background-session path (SUP — subscription autonomous runner). Claude-only;
+/// it is neither structured (no provider event stream) nor PTY (no attachable
+/// terminal). Superkick polls `claude agents --json` for state and produces an
+/// `AgentResult` the same transition owner classifies.
+fn is_background_executor(provider: AgentProvider, mode: RunnerMode) -> bool {
+    matches!(
+        (provider, mode),
+        (AgentProvider::Claude, RunnerMode::BackgroundSession)
+    )
+}
+
 fn resolve_dynamic_agent(
     step: &LaunchTaskStep,
     executor: StepExecutor,
@@ -1264,10 +1276,12 @@ where
         // other (provider, mode) pair — subscription Claude and Codex/Claude
         // interactive takeover — keeps the unchanged PTY supervisor path.
         let structured = is_structured_executor(resolved.provider, resolved.runner_mode);
-        // The structured path feeds the prompt to the adapter via stdin,
-        // separately from the launch config, so it needs its own copy; the PTY
+        let background = is_background_executor(resolved.provider, resolved.runner_mode);
+        // The structured and background paths feed the prompt to their driver
+        // separately from the launch config, so each needs its own copy; the PTY
         // path moves the prompt straight into the config.
         let structured_prompt = structured.then(|| prompt.clone());
+        let background_prompt = background.then(|| prompt.clone());
 
         // Legacy catalog steps (executor None) never carry reasoning, so their
         // argv stays byte-for-byte unchanged.
@@ -1298,9 +1312,9 @@ where
 
         // The PTY path registers an attachable session; pulse `StepSessionLive`
         // the moment that happens so the cockpit shows a live session instead of
-        // an indistinguishable "running". The structured path has no PTY to
-        // attach, so it leaves the hook unset.
-        if structured_prompt.is_none() {
+        // an indistinguishable "running". The structured and background paths
+        // have no attachable PTY, so they leave the hook unset.
+        if structured_prompt.is_none() && background_prompt.is_none() {
             let bus = Arc::clone(&self.launch_task_bus);
             let task_id = task.id;
             let linear_issue_id = task.linear_issue_id.clone();
@@ -1316,48 +1330,66 @@ where
             }));
         }
 
-        let spawn_result = match structured_prompt {
-            // SUP-185/SUP-201: a structured (provider, mode) pair drives its
-            // adapter. `resume` continues a prior timed-out segment on the SAME
-            // structured path — `codex exec resume <thread_id>` for Codex,
-            // `claude --resume <session_id>` for Claude (SUP-191). A resume the
-            // CLI cannot honour fails closed as a structured `Failure`; it is
-            // never silently dropped onto the PTY supervisor.
-            Some(prompt) => match resolved.provider {
-                AgentProvider::Codex => {
-                    let adapter = CodexProtocolAdapter::with_options(CodexAdapterOptions {
-                        codex_executable: Some(PathBuf::from(resolved.program.clone())),
-                        model: resolved.model.clone(),
-                        reasoning_effort: step_reasoning,
-                        ..CodexAdapterOptions::default()
-                    });
-                    self.supervisor
-                        .launch_codex_structured(adapter, launch_cfg, prompt, resume)
-                        .await
+        let spawn_result = if let Some(bg_prompt) = background_prompt {
+            // Subscription background runner: `claude --bg` from the worktree
+            // cwd. Not resumable in this ticket (auto-resume budget is 0 for
+            // ClaudeBackground), so any stray `resume` key is unused.
+            let cli =
+                crate::claude_background::RealClaudeBackgroundCli::new(resolved.program.clone());
+            let name = format!("superkick-{run_step_id}");
+            self.supervisor
+                .launch_claude_background(
+                    cli,
+                    launch_cfg,
+                    bg_prompt,
+                    name,
+                    crate::agent_supervisor::background::DEFAULT_POLL_INTERVAL,
+                )
+                .await
+        } else {
+            match structured_prompt {
+                // SUP-185/SUP-201: a structured (provider, mode) pair drives its
+                // adapter. `resume` continues a prior timed-out segment on the SAME
+                // structured path — `codex exec resume <thread_id>` for Codex,
+                // `claude --resume <session_id>` for Claude (SUP-191). A resume the
+                // CLI cannot honour fails closed as a structured `Failure`; it is
+                // never silently dropped onto the PTY supervisor.
+                Some(prompt) => match resolved.provider {
+                    AgentProvider::Codex => {
+                        let adapter = CodexProtocolAdapter::with_options(CodexAdapterOptions {
+                            codex_executable: Some(PathBuf::from(resolved.program.clone())),
+                            model: resolved.model.clone(),
+                            reasoning_effort: step_reasoning,
+                            ..CodexAdapterOptions::default()
+                        });
+                        self.supervisor
+                            .launch_codex_structured(adapter, launch_cfg, prompt, resume)
+                            .await
+                    }
+                    AgentProvider::Claude => {
+                        let adapter = ClaudeProtocolAdapter::with_options(ClaudeAdapterOptions {
+                            claude_executable: Some(PathBuf::from(resolved.program.clone())),
+                            model: resolved.model.clone(),
+                            ..ClaudeAdapterOptions::default()
+                        });
+                        self.supervisor
+                            .launch_claude_structured(adapter, launch_cfg, prompt, resume)
+                            .await
+                    }
+                },
+                None => {
+                    // The PTY path has no resume mechanic, so a stray resume key
+                    // here is dropped (unreachable in practice — resume keys only
+                    // come from a structured step's own timeouts).
+                    if resume.is_some() {
+                        warn!(
+                            launch_task_id = %task.id,
+                            step_id = %step.id,
+                            "resume key supplied for a non-structured step — ignoring, running fresh"
+                        );
+                    }
+                    self.supervisor.launch(launch_cfg).await
                 }
-                AgentProvider::Claude => {
-                    let adapter = ClaudeProtocolAdapter::with_options(ClaudeAdapterOptions {
-                        claude_executable: Some(PathBuf::from(resolved.program.clone())),
-                        model: resolved.model.clone(),
-                        ..ClaudeAdapterOptions::default()
-                    });
-                    self.supervisor
-                        .launch_claude_structured(adapter, launch_cfg, prompt, resume)
-                        .await
-                }
-            },
-            None => {
-                // The PTY path has no resume mechanic, so a stray resume key
-                // here is dropped (unreachable in practice — resume keys only
-                // come from a structured step's own timeouts).
-                if resume.is_some() {
-                    warn!(
-                        launch_task_id = %task.id,
-                        step_id = %step.id,
-                        "resume key supplied for a non-structured step — ignoring, running fresh"
-                    );
-                }
-                self.supervisor.launch(launch_cfg).await
             }
         };
 

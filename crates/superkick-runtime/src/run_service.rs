@@ -74,13 +74,6 @@ pub enum RunServiceError {
     /// to the existing 409 shapes via `AppError::from(CoreError)`.
     #[error(transparent)]
     Conflict(CoreError),
-    /// Unique-violation re-check found no active run — the conflicting run
-    /// finished between guard and insert. Maps to 500 with the existing
-    /// "concurrent race resolved" log.
-    #[error(
-        "unique constraint violated but no active run for issue {0} — concurrent race resolved"
-    )]
-    RaceResolved(String),
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
@@ -122,28 +115,13 @@ where
         })
     }
 
-    /// Insert a fully-constructed+validated run, resolving the dedup race on a
-    /// unique-violation, then kick off execution via the spawner seam.
+    /// Insert a fully-constructed+validated run, then kick off execution via the
+    /// spawner seam.
     pub async fn spawn_run(&self, run: Run) -> Result<Run, RunServiceError> {
-        if let Err(err) = self.run_repo.insert(&run).await {
-            if superkick_storage::is_unique_violation(&err) {
-                // Re-check: the conflicting run may have finished between our
-                // guard and insert.
-                let existing = self
-                    .run_repo
-                    .find_active_by_issue_identifier(&run.issue_identifier)
-                    .await
-                    .map_err(RunServiceError::Internal)?;
-                return match Run::guard_no_active(existing.as_ref(), &run.issue_identifier) {
-                    // Still active → 409 Conflict
-                    Err(core_err) => Err(RunServiceError::Conflict(core_err)),
-                    // Race resolved: conflicting run finished between guard and insert.
-                    Ok(()) => Err(RunServiceError::RaceResolved(run.issue_identifier.clone())),
-                };
-            }
-            return Err(RunServiceError::Internal(err));
-        }
-
+        self.run_repo
+            .insert(&run)
+            .await
+            .map_err(RunServiceError::Internal)?;
         self.spawner.spawn(run.clone());
         Ok(run)
     }

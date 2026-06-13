@@ -43,7 +43,12 @@ export type LaunchStepKind = 'plan' | 'implement' | 'review'
 
 export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
-export type StepExecutor = 'codex_structured' | 'claude_workflow' | 'interactive_pty' | 'future'
+export type StepExecutor =
+	| 'codex_structured'
+	| 'claude_workflow'
+	| 'claude_background'
+	| 'interactive_pty'
+	| 'future'
 
 export type SessionPolicy = 'fresh' | 'resume' | 'same_session' | 'same_workflow' | 'takeover'
 

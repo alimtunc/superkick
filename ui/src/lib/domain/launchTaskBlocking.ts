@@ -41,6 +41,10 @@ export function findBlockingContext(
 	steps: LaunchTaskStep[],
 	linkedRun?: LinkedRunLike
 ): BlockingContext | null {
+	// Terminal task is never "needs you", even if a step was left non-terminal
+	// after a reject — guard up front so it can't keep the banner alive.
+	if (TERMINAL_LAUNCH_TASK_STATUSES.has(task.status)) return null
+
 	const stepNeedsHuman = steps.find((s) => s.status === 'needs_human') ?? null
 	if (stepNeedsHuman) {
 		const kind = stepNeedsHuman.step_kind

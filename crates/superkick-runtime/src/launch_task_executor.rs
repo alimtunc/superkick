@@ -429,10 +429,27 @@ where
                         signalled: false,
                     }));
                 }
-                self.move_task_to_cancelled(&task, None).await?;
                 // No live executor (Reserved) means the in-process step-runner
-                // cancel arm never ran, so the shadow run is stranded — finalize
-                // it here so cancel is terminal everywhere.
+                // cancel arm never ran. Cancel any still-active step too — a
+                // parked step left at `needs_human` keeps the UI's needs-you
+                // banner up (blocking is step-driven), so a task-only flip looks
+                // like "nothing happened". Then finalize the stranded shadow run.
+                let steps = self.repo.list_steps(task_id).await?;
+                let mut cancelled_step_id = None;
+                for step in steps.iter().filter(|s| {
+                    matches!(
+                        s.status,
+                        LaunchTaskStepStatus::NeedsHuman | LaunchTaskStepStatus::Running
+                    )
+                }) {
+                    if let Err(e) = self.cancel_step(&task, step).await {
+                        warn!(task_id = %task.id, step_id = %step.id, error = %e, "failed to cancel parked step on reject");
+                    } else {
+                        cancelled_step_id = Some(step.id);
+                    }
+                }
+                self.move_task_to_cancelled(&task, cancelled_step_id.or(task.current_step_id))
+                    .await?;
                 self.finalize_task_shadow_run(
                     &task,
                     ShadowRunTerminal::Cancelled,

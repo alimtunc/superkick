@@ -103,9 +103,6 @@ impl From<RunServiceError> for AppError {
             // Preserves the DuplicateActiveRun 409 ConflictRun shape and the
             // InvalidTransition 409 shape via the existing CoreError mapping.
             RunServiceError::Conflict(e) => AppError::from(e),
-            RunServiceError::RaceResolved(issue_identifier) => AppError::Internal(anyhow::anyhow!(
-                "unique constraint violated but no active run for issue {issue_identifier} — concurrent race resolved"
-            )),
             RunServiceError::Internal(e) => AppError::Internal(e),
         }
     }

@@ -23,6 +23,18 @@ export function pickActiveTask(tasks: LaunchTask[]): LaunchTask | null {
 	return sortByUpdatedDesc(tasks).find((t) => !isTerminal(t)) ?? null
 }
 
+// Just the active task on an issue, without step hydration. Empty identifier
+// disables the query (no issue selected yet).
+export function useIssueActiveTask(issueIdentifier: string): LaunchTask | null {
+	const tasksQuery = useQuery({
+		queryKey: queryKeys.launchTasks.forIssue(issueIdentifier),
+		queryFn: () => listLaunchTasksForIssue(issueIdentifier),
+		enabled: issueIdentifier.length > 0,
+		staleTime: 5_000
+	})
+	return pickActiveTask(tasksQuery.data ?? [])
+}
+
 interface UseIssueLaunchTasksResult {
 	tasks: LaunchTask[]
 	activeTask: LaunchTask | null

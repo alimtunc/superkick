@@ -6,7 +6,7 @@ export type AgentStatus = 'starting' | 'running' | 'completed' | 'failed' | 'can
 
 export type LaunchReason = 'initial_step' | 'handoff' | 'review_fanout' | 'operator_escalation'
 
-export type RunnerMode = 'interactive_pty' | 'print_stream_json' | 'exec_json'
+export type RunnerMode = 'interactive_pty' | 'print_stream_json' | 'exec_json' | 'background_session'
 
 export type BillingProfile = 'subscription' | 'agent_sdk_credits' | 'api_credits' | 'unknown'
 

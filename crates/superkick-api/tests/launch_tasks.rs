@@ -237,9 +237,11 @@ async fn create_with_empty_linear_issue_id_is_400() {
 }
 
 #[tokio::test]
-async fn create_is_409_when_issue_already_has_active_run() {
+async fn create_allows_second_run_when_issue_already_has_active_run() {
     let (app, run_repo) = router_with_run_repo().await;
-    // Seed a non-terminal run for the issue so the dedup guard must fire.
+    // Seed a non-terminal run for the issue: create must NOT hard-block. The
+    // operator decides whether to launch a second run (the UI warns instead);
+    // runs are run-id-scoped, so they don't collide.
     let run = Run::new(
         "SUP-66".into(),
         "SUP-66".into(),
@@ -250,7 +252,6 @@ async fn create_is_409_when_issue_already_has_active_run() {
         true,
         None,
     );
-    let active_id = run.id;
     run_repo.insert(&run).await.expect("seed active run");
 
     let (status, body) = create_request(
@@ -264,18 +265,14 @@ async fn create_is_409_when_issue_already_has_active_run() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::CONFLICT, "unexpected body: {body}");
-    assert_eq!(body["active_run_id"], active_id.0.to_string());
-    assert!(
-        body["error"].as_str().unwrap().contains("SUP-66"),
-        "unexpected: {body}"
-    );
+    assert_eq!(status, StatusCode::CREATED, "unexpected body: {body}");
 
-    // The guard must reject before any launch task row is created.
+    // The launch task is created despite the pre-existing active run.
     let (_, list) = get_json(&app, "/launch-tasks?linear_issue_id=SUP-66").await;
-    assert!(
-        list.as_array().unwrap().is_empty(),
-        "no launch task should be created on conflict: {list}"
+    assert_eq!(
+        list.as_array().unwrap().len(),
+        1,
+        "launch task should be created even with an active run: {list}"
     );
 }
 

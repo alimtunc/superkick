@@ -516,6 +516,52 @@ async fn planner_failure_drives_task_to_needs_human_with_pending_implement_and_r
 }
 
 #[tokio::test]
+async fn cancel_parked_needs_human_task_cancels_task_and_step() -> Result<()> {
+    // Rejecting a parked task (no live executor → Reserved cancel path) must
+    // cancel the parked step too, not just the task. Otherwise the step stays
+    // `needs_human` and the UI keeps the needs-you banner up (blocking is
+    // step-driven), so the reject looks like "nothing happened".
+    let repo = fresh_repo().await?;
+    let (task, _) = create_task(&repo, "TEAM-REJECT").await?;
+
+    let runner = Arc::new(FakeStepRunner::new());
+    runner.script(
+        LaunchStepKind::Plan,
+        ScriptedAction::Fail {
+            reason: "parked for human".into(),
+        },
+    );
+    let (exec, _bus, _registry) = build_executor(Arc::clone(&repo), Arc::clone(&runner));
+    exec.run(task.id).await?;
+    assert_eq!(
+        repo.get(task.id).await?.unwrap().status,
+        LaunchTaskStatus::NeedsHuman,
+        "precondition: task parked at needs_human with no live executor"
+    );
+
+    let outcome = exec
+        .cancel(task.id)
+        .await?
+        .expect("cancel returns an outcome");
+    assert_eq!(outcome.status, LaunchTaskStatus::Cancelled);
+    assert!(
+        !outcome.signalled,
+        "no live executor → reserved path, not signalled"
+    );
+
+    assert_eq!(
+        repo.get(task.id).await?.unwrap().status,
+        LaunchTaskStatus::Cancelled
+    );
+    assert_eq!(
+        step_status(&repo, task.id, LaunchStepKind::Plan).await,
+        LaunchTaskStepStatus::Cancelled,
+        "the parked step must be cancelled too, or the needs-you banner persists"
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn coder_failure_drives_task_to_needs_human_with_completed_plan_and_pending_review()
 -> Result<()> {
     let repo = fresh_repo().await?;

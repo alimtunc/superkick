@@ -235,6 +235,14 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "044_skill_body_artifact",
             include_str!("../migrations/044_skill_body_artifact.sql"),
         ),
+        (
+            "045_claude_background_executor",
+            include_str!("../migrations/045_claude_background_executor.sql"),
+        ),
+        (
+            "046_drop_active_run_dedup",
+            include_str!("../migrations/046_drop_active_run_dedup.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {
