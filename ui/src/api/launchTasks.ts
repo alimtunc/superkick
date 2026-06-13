@@ -6,7 +6,8 @@ import type {
 	LaunchTaskIntervention,
 	LaunchTaskStep,
 	LaunchTaskWithSteps,
-	RetryLaunchTaskResponse
+	RetryLaunchTaskResponse,
+	RetryPath
 } from '@/types'
 
 import { getJson, postJson, postJsonChecked } from './_shared'
@@ -34,8 +35,11 @@ export async function cancelLaunchTask(taskId: string): Promise<CancelLaunchTask
 	return postJson(`/launch-tasks/${encodeURIComponent(taskId)}/cancel`, 'cancel launch task failed')
 }
 
-export async function retryLaunchTask(taskId: string): Promise<RetryLaunchTaskResponse> {
-	return postJson(`/launch-tasks/${encodeURIComponent(taskId)}/retry`, 'retry launch task failed')
+export async function retryLaunchTask(taskId: string, path: RetryPath): Promise<RetryLaunchTaskResponse> {
+	return postJson(
+		`/launch-tasks/${encodeURIComponent(taskId)}/retry?path=${encodeURIComponent(path)}`,
+		'retry launch task failed'
+	)
 }
 
 export async function listLaunchTaskInterventions(taskId: string): Promise<LaunchTaskIntervention[]> {

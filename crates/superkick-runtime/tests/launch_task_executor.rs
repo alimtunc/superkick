@@ -19,7 +19,7 @@ use superkick_core::{
 };
 use superkick_core::{
     CoreError, FailureClassification, LaunchStepKind, LaunchTask, LaunchTaskId, LaunchTaskStatus,
-    LaunchTaskStep, LaunchTaskStepStatus, ResumeKey, RunId,
+    LaunchTaskStep, LaunchTaskStepStatus, ResumeKey, RetryPath, RunId,
 };
 use superkick_runtime::test_support::{agents, catalog, drain_events};
 use superkick_runtime::{
@@ -804,7 +804,10 @@ async fn retry_from_running_is_rejected_with_invalid_transition() -> Result<()> 
     let runner = Arc::new(FakeStepRunner::new());
     let (exec, _, _) = build_executor(Arc::clone(&repo), Arc::clone(&runner));
 
-    let err = exec.retry_needs_human_step(task.id).await.unwrap_err();
+    let err = exec
+        .retry_needs_human_step(task.id, RetryPath::FixForward)
+        .await
+        .unwrap_err();
     match err {
         RetryError::Core(CoreError::InvalidLaunchTaskTransition {
             from: LaunchTaskStatus::Running,
@@ -828,7 +831,10 @@ async fn retry_from_pending_is_rejected_with_invalid_transition() -> Result<()> 
     let runner = Arc::new(FakeStepRunner::new());
     let (exec, _, _) = build_executor(Arc::clone(&repo), Arc::clone(&runner));
 
-    let err = exec.retry_needs_human_step(task.id).await.unwrap_err();
+    let err = exec
+        .retry_needs_human_step(task.id, RetryPath::FixForward)
+        .await
+        .unwrap_err();
     assert!(matches!(
         err,
         RetryError::Core(CoreError::InvalidLaunchTaskTransition {
@@ -850,7 +856,10 @@ async fn retry_from_terminal_failed_is_rejected() -> Result<()> {
     let runner = Arc::new(FakeStepRunner::new());
     let (exec, _, _) = build_executor(Arc::clone(&repo), Arc::clone(&runner));
 
-    let err = exec.retry_needs_human_step(task.id).await.unwrap_err();
+    let err = exec
+        .retry_needs_human_step(task.id, RetryPath::FixForward)
+        .await
+        .unwrap_err();
     assert!(matches!(
         err,
         RetryError::Core(CoreError::InvalidLaunchTaskTransition {
@@ -900,7 +909,9 @@ async fn retry_after_planner_failure_drives_recipe_to_completed() -> Result<()> 
     let mut rx = bus.subscribe();
 
     // Retry — should re-run Plan, then Implement, then Review.
-    let outcome = exec.retry_needs_human_step(task.id).await?;
+    let outcome = exec
+        .retry_needs_human_step(task.id, RetryPath::FixForward)
+        .await?;
     assert_eq!(outcome.task_status, LaunchTaskStatus::Completed);
 
     let reloaded = repo.get(task.id).await?.unwrap();
@@ -992,7 +1003,9 @@ async fn retry_records_a_new_run_id_distinct_from_the_previous_attempt() -> Resu
         LaunchTaskStepStatus::NeedsHuman
     );
 
-    let outcome = exec.retry_needs_human_step(task.id).await?;
+    let outcome = exec
+        .retry_needs_human_step(task.id, RetryPath::FixForward)
+        .await?;
     assert_eq!(outcome.task_status, LaunchTaskStatus::Completed);
     assert_eq!(
         outcome.new_linked_run_id,
@@ -1286,7 +1299,9 @@ async fn manual_retry_resumes_the_persisted_session() -> Result<()> {
         ScriptedAction::Complete { summary: None },
     );
 
-    let outcome = exec.retry_needs_human_step(task.id).await?;
+    let outcome = exec
+        .retry_needs_human_step(task.id, RetryPath::FixForward)
+        .await?;
     assert_eq!(outcome.task_status, LaunchTaskStatus::Completed);
 
     // The first call after the retry resumed the persisted thread, not a fresh run.
@@ -1295,6 +1310,70 @@ async fn manual_retry_resumes_the_persisted_session() -> Result<()> {
         implement_resumes.last(),
         Some(&Some("thread-1".into())),
         "manual retry resumes the persisted session; full sequence: {implement_resumes:?}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn fresh_retry_discards_the_persisted_session() -> Result<()> {
+    // SUP-203 — `RetryPath::Fresh` ignores the persisted resume key so the
+    // parked step re-runs on a new provider thread (`resume == None`), the
+    // counterpart to `manual_retry_resumes_the_persisted_session`.
+    let repo = fresh_repo().await?;
+    let (task, _) = create_task(&repo, "TEAM-203F").await?;
+
+    let runner = Arc::new(FakeStepRunner::new());
+    runner.script(
+        LaunchStepKind::Plan,
+        ScriptedAction::Complete { summary: None },
+    );
+    // Exhaust the budget (max=1) so Implement parks at NeedsHuman with
+    // "thread-1" persisted on the step row.
+    runner.script(
+        LaunchStepKind::Implement,
+        ScriptedAction::TimeOut {
+            resume_key: Some("thread-0".into()),
+            diff_token: "diff-0".into(),
+        },
+    );
+    runner.script(
+        LaunchStepKind::Implement,
+        ScriptedAction::TimeOut {
+            resume_key: Some("thread-1".into()),
+            diff_token: "diff-1".into(),
+        },
+    );
+
+    let (exec, _bus, _) = build_executor_with_max(Arc::clone(&repo), Arc::clone(&runner), 1);
+    exec.run(task.id).await?;
+    assert_eq!(
+        step_status(&repo, task.id, LaunchStepKind::Implement).await,
+        LaunchTaskStepStatus::NeedsHuman,
+    );
+
+    runner.script(
+        LaunchStepKind::Implement,
+        ScriptedAction::Complete {
+            summary: Some("done on fresh retry".into()),
+        },
+    );
+    runner.script(
+        LaunchStepKind::Review,
+        ScriptedAction::Complete { summary: None },
+    );
+
+    let outcome = exec
+        .retry_needs_human_step(task.id, RetryPath::Fresh)
+        .await?;
+    assert_eq!(outcome.task_status, LaunchTaskStatus::Completed);
+
+    // Fresh retry started a new turn: the first call after the retry carried no
+    // resume key, despite "thread-1" being persisted on the step.
+    let implement_resumes = runner.resumes_for(LaunchStepKind::Implement);
+    assert_eq!(
+        implement_resumes.last(),
+        Some(&None),
+        "fresh retry must not resume the persisted session; full sequence: {implement_resumes:?}"
     );
     Ok(())
 }

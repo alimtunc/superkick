@@ -45,7 +45,7 @@ export function NeedsBanner({ linearIssueId, taskId, linkedRunId, blocking }: Ne
 						kind="success"
 						size="sm"
 						icon="check"
-						onClick={() => retry.mutate()}
+						onClick={() => retry.mutate('fix_forward')}
 						disabled={retry.isPending}
 					>
 						Approve

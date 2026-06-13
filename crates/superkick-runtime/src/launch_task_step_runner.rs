@@ -50,7 +50,10 @@ use crate::launch_task_event_bus::{LaunchTaskEvent, LaunchTaskEventBus};
 use crate::launch_task_executor::{ShadowRunTerminal, StepLinks, StepOutcome, StepRunner};
 use crate::launch_task_liveness::{ShadowRunRepos, terminalize_shadow_run};
 use crate::linear_context::OptionalLinearClient;
-use crate::protocol_adapter::{CodexAdapterOptions, CodexProtocolAdapter, MarkerError};
+use crate::protocol_adapter::{
+    ClaudeAdapterOptions, ClaudeProtocolAdapter, CodexAdapterOptions, CodexProtocolAdapter,
+    MarkerError,
+};
 use crate::repo_cache::RepoCache;
 use crate::session_bus::SessionBus;
 use crate::step_engine::prompts::{
@@ -85,6 +88,21 @@ fn resolve_step_agent(
             .resolve(&step.agent_name)
             .map_err(|e| format!("agent role '{}' resolution failed: {e}", step.agent_name)),
     }
+}
+
+/// Whether a resolved `(provider, mode)` pair runs on the structured
+/// `ProtocolAdapter` path (real provider events into `run_events`) rather than
+/// the PTY supervisor. The two structured executors are `CodexStructured`
+/// (`Codex`, `ExecJson`) and the opt-in paid `ClaudeWorkflow` (`Claude`,
+/// `PrintStreamJson`). Every other pair — subscription Claude (`InteractivePty`)
+/// and Codex interactive takeover — stays on PTY. Subscription Claude staying
+/// off this path is the `default_for(Claude) == InteractivePty` invariant.
+fn is_structured_executor(provider: AgentProvider, mode: RunnerMode) -> bool {
+    matches!(
+        (provider, mode),
+        (AgentProvider::Codex, RunnerMode::ExecJson)
+            | (AgentProvider::Claude, RunnerMode::PrintStreamJson)
+    )
 }
 
 fn resolve_dynamic_agent(
@@ -1239,16 +1257,17 @@ where
             }
         };
 
-        // SUP-185: route Codex `ExecJson` steps through the structured adapter
-        // (codex exec --json) so Activity/Tools/Logs see real provider events.
-        // Every other (provider, mode) pair — including all Claude modes and
-        // Codex interactive takeover — keeps the unchanged PTY supervisor path.
-        let codex_structured = resolved.provider == AgentProvider::Codex
-            && resolved.runner_mode == RunnerMode::ExecJson;
+        // SUP-185/SUP-201: route structured executors through their
+        // `ProtocolAdapter` — `(Codex, ExecJson)` via `codex exec --json`,
+        // `(Claude, PrintStreamJson)` via `claude --print --output-format
+        // stream-json` — so Activity/Tools/Logs see real provider events. Every
+        // other (provider, mode) pair — subscription Claude and Codex/Claude
+        // interactive takeover — keeps the unchanged PTY supervisor path.
+        let structured = is_structured_executor(resolved.provider, resolved.runner_mode);
         // The structured path feeds the prompt to the adapter via stdin,
         // separately from the launch config, so it needs its own copy; the PTY
         // path moves the prompt straight into the config.
-        let structured_prompt = codex_structured.then(|| prompt.clone());
+        let structured_prompt = structured.then(|| prompt.clone());
 
         // Legacy catalog steps (executor None) never carry reasoning, so their
         // argv stays byte-for-byte unchanged.
@@ -1298,24 +1317,39 @@ where
         }
 
         let spawn_result = match structured_prompt {
-            Some(prompt) => {
-                let adapter = CodexProtocolAdapter::with_options(CodexAdapterOptions {
-                    codex_executable: Some(PathBuf::from(resolved.program.clone())),
-                    model: resolved.model.clone(),
-                    reasoning_effort: step_reasoning,
-                    ..CodexAdapterOptions::default()
-                });
-                // SUP-191: `resume` continues a prior timed-out segment via
-                // `codex exec resume <thread_id>` on this same structured path.
-                self.supervisor
-                    .launch_codex_structured(adapter, launch_cfg, prompt, resume)
-                    .await
-            }
+            // SUP-185/SUP-201: a structured (provider, mode) pair drives its
+            // adapter. `resume` continues a prior timed-out segment on the SAME
+            // structured path — `codex exec resume <thread_id>` for Codex,
+            // `claude --resume <session_id>` for Claude (SUP-191). A resume the
+            // CLI cannot honour fails closed as a structured `Failure`; it is
+            // never silently dropped onto the PTY supervisor.
+            Some(prompt) => match resolved.provider {
+                AgentProvider::Codex => {
+                    let adapter = CodexProtocolAdapter::with_options(CodexAdapterOptions {
+                        codex_executable: Some(PathBuf::from(resolved.program.clone())),
+                        model: resolved.model.clone(),
+                        reasoning_effort: step_reasoning,
+                        ..CodexAdapterOptions::default()
+                    });
+                    self.supervisor
+                        .launch_codex_structured(adapter, launch_cfg, prompt, resume)
+                        .await
+                }
+                AgentProvider::Claude => {
+                    let adapter = ClaudeProtocolAdapter::with_options(ClaudeAdapterOptions {
+                        claude_executable: Some(PathBuf::from(resolved.program.clone())),
+                        model: resolved.model.clone(),
+                        ..ClaudeAdapterOptions::default()
+                    });
+                    self.supervisor
+                        .launch_claude_structured(adapter, launch_cfg, prompt, resume)
+                        .await
+                }
+            },
             None => {
-                // Only the Codex structured path is resumable; the PTY path has
-                // no resume mechanic, so a stray resume key here is dropped
-                // (unreachable in practice — resume keys only come from this
-                // path's own timeouts).
+                // The PTY path has no resume mechanic, so a stray resume key
+                // here is dropped (unreachable in practice — resume keys only
+                // come from a structured step's own timeouts).
                 if resume.is_some() {
                     warn!(
                         launch_task_id = %task.id,
@@ -1448,6 +1482,31 @@ mod tests {
 
     use chrono::Utc;
     use superkick_core::{LaunchRecipe, LaunchTaskStatus, LaunchTaskStepStatus};
+
+    /// SUP-201: the structured-routing matrix. The two structured executors run
+    /// on the `ProtocolAdapter` path; subscription Claude (`InteractivePty`) and
+    /// interactive takeover stay on the PTY supervisor — the
+    /// `default_for(Claude) == InteractivePty` "keeps Claude off the paid path"
+    /// invariant, enforced at the routing seam.
+    #[test]
+    fn is_structured_executor_routes_only_the_two_structured_pairs() {
+        assert!(
+            is_structured_executor(AgentProvider::Codex, RunnerMode::ExecJson),
+            "Codex ExecJson is the existing structured path"
+        );
+        assert!(
+            is_structured_executor(AgentProvider::Claude, RunnerMode::PrintStreamJson),
+            "Claude PrintStreamJson (claude_workflow) is now structured"
+        );
+        assert!(
+            !is_structured_executor(AgentProvider::Claude, RunnerMode::InteractivePty),
+            "subscription Claude must stay on the PTY supervisor"
+        );
+        assert!(
+            !is_structured_executor(AgentProvider::Codex, RunnerMode::InteractivePty),
+            "Codex interactive takeover must stay on the PTY supervisor"
+        );
+    }
 
     fn dynamic_step(
         provider: &str,

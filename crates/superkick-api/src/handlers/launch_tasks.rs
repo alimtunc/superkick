@@ -20,14 +20,18 @@ use serde::{Deserialize, Serialize};
 use superkick_core::{
     AgentCatalog, LaunchTask, LaunchTaskId, LaunchTaskIntervention, LaunchTaskOverrides,
     LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, PlanImplementReviewAgents, ProfileStep,
-    RunId,
+    RetryPath, RunId,
 };
 use superkick_runtime::launch_task::RealStepRunner;
-use superkick_runtime::{LaunchTaskEvent, LaunchTaskEventBus, LaunchTaskExecutor, StepRunner};
+use superkick_runtime::{
+    LaunchTaskEvent, LaunchTaskEventBus, LaunchTaskExecutor, StepRunner,
+    refresh_run_context_snapshot,
+};
 use superkick_storage::repo::{LaunchTaskInterventionRepo, LaunchTaskRepo};
 use superkick_storage::{
-    SqliteAgentSessionRepo, SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo, SqliteRunRepo,
-    SqliteRunStepRepo, SqliteSkillDefinitionRepo, SqliteTranscriptRepo,
+    SqliteAgentSessionRepo, SqliteIssueWorkspaceContextRepo, SqliteLaunchTaskInterventionRepo,
+    SqliteLaunchTaskRepo, SqliteRunContextSnapshotRepo, SqliteRunRepo, SqliteRunStepRepo,
+    SqliteSkillDefinitionRepo, SqliteTranscriptRepo,
 };
 
 use crate::error::AppError;
@@ -73,6 +77,15 @@ pub struct LaunchTaskState<S: StepRunner> {
     /// launching a task for an issue that already has an active run returns a
     /// clean 409 instead of crashing the shadow-run insert later (SUP-66).
     pub run_repo: Arc<SqliteRunRepo>,
+    /// SUP-203 — read repos the snapshot builder derives from, plus the
+    /// regenerable snapshot cache, so an operator retry can refresh the derived
+    /// `RunContextSnapshot` before re-running the parked step. `run_repo` above
+    /// completes the set. Reads only; the snapshot stays derived (no FK,
+    /// replaced wholesale).
+    pub session_repo: Arc<SqliteAgentSessionRepo>,
+    pub event_repo: Arc<EventRepo>,
+    pub issue_workspace_context_repo: Arc<SqliteIssueWorkspaceContextRepo>,
+    pub snapshot_repo: Arc<SqliteRunContextSnapshotRepo>,
     pub catalog: Arc<AgentCatalog>,
     pub bus: Arc<LaunchTaskEventBus>,
     pub executor: Arc<LaunchTaskExecutor<SqliteLaunchTaskRepo, S>>,
@@ -93,6 +106,10 @@ impl<S: StepRunner> Clone for LaunchTaskState<S> {
             repo: Arc::clone(&self.repo),
             intervention_repo: Arc::clone(&self.intervention_repo),
             run_repo: Arc::clone(&self.run_repo),
+            session_repo: Arc::clone(&self.session_repo),
+            event_repo: Arc::clone(&self.event_repo),
+            issue_workspace_context_repo: Arc::clone(&self.issue_workspace_context_repo),
+            snapshot_repo: Arc::clone(&self.snapshot_repo),
             catalog: Arc::clone(&self.catalog),
             bus: Arc::clone(&self.bus),
             executor: Arc::clone(&self.executor),
@@ -108,6 +125,10 @@ impl FromRef<AppState> for LaunchTaskState<ProdRealStepRunner> {
             repo: Arc::clone(&state.launch_task_repo),
             intervention_repo: Arc::clone(&state.launch_task_intervention_repo),
             run_repo: Arc::clone(&state.run_repo),
+            session_repo: Arc::clone(&state.session_repo),
+            event_repo: Arc::clone(&state.event_repo),
+            issue_workspace_context_repo: Arc::clone(&state.issue_workspace_context_repo),
+            snapshot_repo: Arc::clone(&state.run_context_snapshot_repo),
             catalog: Arc::clone(&state.agent_catalog),
             bus: Arc::clone(&state.launch_task_event_bus),
             executor: Arc::clone(&state.launch_task_executor),
@@ -338,6 +359,16 @@ pub struct RetryLaunchTaskResponse {
     pub new_linked_run_id: Option<RunId>,
 }
 
+/// SUP-203 — selects how the retry re-enters the runner. `fix_forward` (the
+/// default) keeps the persisted provider thread (`resume_turn`); `fresh` starts
+/// a new turn. An absent `path` query resolves to `fix_forward`, so existing
+/// no-argument retry callers keep their behaviour.
+#[derive(Debug, Default, Deserialize)]
+pub struct RetryLaunchTaskQuery {
+    #[serde(default)]
+    pub path: RetryPath,
+}
+
 /// Retry the step that put a launch task into `NeedsHuman`. Validates the
 /// task is in `NeedsHuman` and that its `current_step_id` is itself in
 /// `NeedsHuman`; both checks raise `CoreError::InvalidLaunchTask*Transition`,
@@ -347,12 +378,35 @@ pub struct RetryLaunchTaskResponse {
 /// loop uses, producing a new run id (and overwriting the step's
 /// `linked_run_id`; the previous run remains queryable via `linear_issue_id`
 /// — see SUP-120 plan, "append-only des liens").
+///
+/// SUP-203 — before re-running, the derived `RunContextSnapshot` is regenerated
+/// so the snapshot cache (read by takeover + the snapshot endpoint) reflects the
+/// pre-retry context. The refresh is best-effort and reads only; the snapshot
+/// stays derived (no FK, replaced wholesale), never canonical.
 pub async fn retry_launch_task<S: StepRunner>(
     State(state): State<LaunchTaskState<S>>,
     Path(id): Path<uuid::Uuid>,
+    Query(query): Query<RetryLaunchTaskQuery>,
 ) -> Result<Json<RetryLaunchTaskResponse>, AppError> {
     let task_id = LaunchTaskId(id);
-    let outcome = state.executor.retry_needs_human_step(task_id).await?;
+    if let Err(error) = refresh_run_context_snapshot(
+        state.repo.as_ref(),
+        state.run_repo.as_ref(),
+        state.session_repo.as_ref(),
+        state.event_repo.as_ref(),
+        state.issue_workspace_context_repo.as_ref(),
+        state.snapshot_repo.as_ref(),
+        task_id,
+        chrono::Utc::now(),
+    )
+    .await
+    {
+        tracing::warn!(%task_id, error = %error, "retry: snapshot refresh failed; retrying without refreshed context");
+    }
+    let outcome = state
+        .executor
+        .retry_needs_human_step(task_id, query.path)
+        .await?;
     Ok(Json(RetryLaunchTaskResponse {
         task_id,
         status: outcome.task_status,

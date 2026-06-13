@@ -1,6 +1,6 @@
 import { cancelLaunchTask, retryLaunchTask } from '@/api'
 import { invalidateAfterRunOrTaskStateChange } from '@/lib/queryInvalidation'
-import type { CancelLaunchTaskResponse, RetryLaunchTaskResponse } from '@/types'
+import type { CancelLaunchTaskResponse, RetryLaunchTaskResponse, RetryPath } from '@/types'
 import { type QueryClient, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -32,8 +32,8 @@ export function useCancelLaunchTask(params: UseLaunchTaskActionParams) {
 
 export function useRetryLaunchTask(params: UseLaunchTaskActionParams) {
 	const queryClient = useQueryClient()
-	return useMutation<RetryLaunchTaskResponse, Error, void>({
-		mutationFn: () => retryLaunchTask(params.taskId),
+	return useMutation<RetryLaunchTaskResponse, Error, RetryPath>({
+		mutationFn: (path) => retryLaunchTask(params.taskId, path),
 		onSuccess: () => invalidateLaunchTaskCaches(queryClient, params),
 		onError: (err) => toast.error('Retry failed', { description: err.message })
 	})

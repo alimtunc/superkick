@@ -154,6 +154,9 @@ export type LaunchWorktreeStrategy = 'new_worktree' | 'current_checkout'
 // SUP-120 — operator action responses. Mirror the Rust structs exactly; only
 // fields the UI consumes are typed.
 
+// Mirrors `superkick_core::RetryPath`.
+export type RetryPath = 'fix_forward' | 'fresh'
+
 export interface CancelLaunchTaskResponse {
 	task_id: string
 	status: LaunchTaskStatus

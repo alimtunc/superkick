@@ -117,6 +117,22 @@ impl ClaudeProtocolAdapter {
         &self.options
     }
 
+    /// Operator-facing preview of the argv this adapter spawns for a fresh
+    /// turn. The prompt is written on stdin, so it never appears here — callers
+    /// record an honest `agent_sessions.command` for the structured path
+    /// instead of the unused, prompt-inlined PTY-style argv that
+    /// `build_launch_config` produces. Unlike codex, the claude argv carries no
+    /// `--cd`, so it is workdir-independent and takes no path.
+    pub(crate) fn command_preview(&self) -> String {
+        let executable = self
+            .options
+            .claude_executable
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "claude".to_string());
+        format!("{executable} {}", build_argv(&self.options, None).join(" "))
+    }
+
     fn spawn(&self, request: TurnRequest, resume: Option<ResumeKey>) -> Result<ProtocolStream> {
         let argv = build_argv(&self.options, resume.as_ref());
         let executable = self

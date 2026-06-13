@@ -34,7 +34,7 @@ use tracing::{info, warn};
 use superkick_core::{
     ConversationId, CoreError, FailureClassification, FailureDisposition, LaunchTask, LaunchTaskId,
     LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus, MemoryEntryId,
-    OrchestratorSessionId, ResumeKey, Run, RunId, RunState, StepExecutor,
+    OrchestratorSessionId, ResumeKey, RetryPath, Run, RunId, RunState, StepExecutor,
 };
 use superkick_storage::repo::LaunchTaskRepo;
 
@@ -1157,6 +1157,7 @@ where
     pub async fn retry_needs_human_step(
         &self,
         task_id: LaunchTaskId,
+        path: RetryPath,
     ) -> Result<RetryOutcome, RetryError> {
         let cancel = CancellationToken::new();
         if self.registry.try_register(task_id, cancel.clone()).is_err() {
@@ -1228,7 +1229,14 @@ where
         // auto-resume loop honours the remaining `max_auto_resumes` budget
         // (the step's `auto_resume_count` seeds it), so a manual retry after
         // an exhausted auto-resume gets one resumed segment then re-parks.
-        let initial_resume = steps[idx].resume_key.clone().map(ResumeKey::new);
+        //
+        // SUP-203 — `RetryPath::Fresh` discards the persisted key so the step
+        // re-runs on a new provider thread; `FixForward` keeps it (the SUP-191
+        // behaviour). The new run overwrites `resume_key` either way.
+        let initial_resume = match path {
+            RetryPath::FixForward => steps[idx].resume_key.clone().map(ResumeKey::new),
+            RetryPath::Fresh => None,
+        };
         let should_continue = self
             .run_step_with_auto_resume(&task, &steps[idx], initial_resume, &cancel)
             .await?;

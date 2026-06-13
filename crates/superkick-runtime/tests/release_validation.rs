@@ -22,7 +22,9 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use superkick_config::SuperkickConfig;
-use superkick_core::{AgentProvider, LaunchStepKind, LaunchTaskStatus, LaunchTaskStepStatus};
+use superkick_core::{
+    AgentProvider, LaunchStepKind, LaunchTaskStatus, LaunchTaskStepStatus, RetryPath,
+};
 use superkick_runtime::launch_task::{RealStepRunner, RealStepRunnerDeps};
 use superkick_runtime::test_support::drain_events;
 use superkick_runtime::{
@@ -408,7 +410,7 @@ async fn retry_from_needs_human_records_new_run_id() -> Result<()> {
 
         let outcome = harness
             .executor
-            .retry_needs_human_step(harness.task_id)
+            .retry_needs_human_step(harness.task_id, RetryPath::FixForward)
             .await?;
         assert_eq!(
             outcome.task_status,

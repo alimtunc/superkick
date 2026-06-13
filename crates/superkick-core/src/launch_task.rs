@@ -51,6 +51,18 @@ impl std::fmt::Display for LaunchRecipe {
     }
 }
 
+/// How an operator retry of a parked `NeedsHuman` step re-enters the runner
+/// (SUP-203). `FixForward` keeps the persisted provider resume key so the same
+/// provider thread continues (`resume_turn`); `Fresh` discards it and starts a
+/// new turn. Defaults to `FixForward` so a no-argument retry behaves as before.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RetryPath {
+    #[default]
+    FixForward,
+    Fresh,
+}
+
 /// Lifecycle of the parent launch task.
 ///
 /// Design rationale (asymmetries):

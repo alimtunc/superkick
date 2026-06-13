@@ -343,14 +343,61 @@ where
         prompt: String,
         resume: Option<ResumeKey>,
     ) -> Result<(AgentHandle, tokio::task::JoinHandle<Result<AgentResult>>)> {
-        use crate::protocol_adapter::ProtocolAdapter;
+        let command = adapter.command_preview(&config.workdir);
+        self.spawn_structured(adapter, config, command, prompt, resume)
+            .await
+    }
+
+    /// Launch a Claude step headlessly via `claude --print --output-format
+    /// stream-json` (SUP-201). The structured twin of
+    /// [`Self::launch_codex_structured`]: same `(AgentHandle, JoinHandle)`
+    /// shape, same `structured::consume` driver, same `run_events`
+    /// (`EventKind::AgentProtocol`) + `provider_session_id` capture — so the
+    /// launch-task Activity/Tools/Logs UI lights up for Claude with zero new UI.
+    ///
+    /// This is the opt-in **paid** `ClaudeWorkflow` path; subscription Claude
+    /// stays on the PTY supervisor (`Self::launch`). `resume` carries the Claude
+    /// `session_id` from a prior timed-out segment: when `Some`, the turn
+    /// resumes via `claude --resume <id>`. A resume that the CLI cannot honour
+    /// surfaces as a structured `Failure` on this same path — the step is never
+    /// silently dropped back onto PTY.
+    pub async fn launch_claude_structured(
+        &self,
+        adapter: crate::protocol_adapter::ClaudeProtocolAdapter,
+        config: AgentLaunchConfig,
+        prompt: String,
+        resume: Option<ResumeKey>,
+    ) -> Result<(AgentHandle, tokio::task::JoinHandle<Result<AgentResult>>)> {
+        let command = adapter.command_preview();
+        self.spawn_structured(adapter, config, command, prompt, resume)
+            .await
+    }
+
+    /// Shared structured spawn for every `ProtocolAdapter`: insert the audited
+    /// `AgentSession`, start (or resume) the turn, and hand the protocol stream
+    /// to `structured::consume`. `launch_codex_structured` and
+    /// `launch_claude_structured` differ only in the adapter type and the
+    /// `command` preview string, so they both funnel here and can never drift.
+    ///
+    /// `command` is the real adapter argv (prompt elided — it is fed on stdin);
+    /// it replaces the unused PTY-style argv `build_launch_config` produced.
+    /// A spawn failure surfaces here and the caller maps it via
+    /// `classify_spawn_error`, mirroring `launch`.
+    async fn spawn_structured<A>(
+        &self,
+        adapter: A,
+        config: AgentLaunchConfig,
+        command: String,
+        prompt: String,
+        resume: Option<ResumeKey>,
+    ) -> Result<(AgentHandle, tokio::task::JoinHandle<Result<AgentResult>>)>
+    where
+        A: crate::protocol_adapter::ProtocolAdapter,
+    {
         use superkick_core::{TurnOptions, TurnRequest};
 
         let mut session = build_agent_session(&config);
-        // Audit the real argv the adapter spawns (prompt is fed via stdin, so
-        // it never appears here) rather than the unused PTY-style argv that
-        // `build_launch_config` produced for this (Codex, ExecJson) step.
-        session.command = adapter.command_preview(&config.workdir);
+        session.command = command;
         let session_id = session.id;
         self.session_repo.insert(&session).await?;
         record_lifecycle(
@@ -372,10 +419,6 @@ where
             },
         };
 
-        // `start_turn`/`resume_turn` spawn the `codex` child; a spawn failure
-        // surfaces here and the caller maps it via `classify_spawn_error`,
-        // mirroring `launch`. `resume_turn` continues an existing thread via
-        // `codex exec resume <id>` instead of starting a fresh session.
         let stream = match resume {
             Some(key) => adapter.resume_turn(key, request).await?,
             None => adapter.start_turn(request).await?,
