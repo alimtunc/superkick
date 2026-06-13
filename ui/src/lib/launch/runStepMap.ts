@@ -1,7 +1,6 @@
 import type { LaunchStepKind, LaunchTaskStep, RunStep, StepKey } from '@/types'
 
-// Mirrors the runtime's `ensure_run_step` kind→key mapping (the only link
-// between a launch step and its shadow run_step).
+// Mirrors the runtime's `ensure_run_step` kind→key mapping.
 const STEP_KIND_TO_RUN_STEP_KEY: Record<LaunchStepKind, StepKey> = {
 	plan: 'plan',
 	implement: 'code',
@@ -12,8 +11,7 @@ function byStartedAt(a: RunStep, b: RunStep): number {
 	return (a.started_at ?? '').localeCompare(b.started_at ?? '')
 }
 
-// run_step_id whose events belong to `step`, or `null` (caller falls back to the
-// whole run) when the kind→key map is ambiguous or the step has no run_step yet.
+// null (caller uses the whole run) when the kind is ambiguous or the step has no run_step yet.
 export function runStepIdForLaunchStep(
 	step: LaunchTaskStep,
 	launchSteps: readonly LaunchTaskStep[],

@@ -96,49 +96,17 @@ fn snapshot_repos(
     )
 }
 
-async fn router() -> axum::Router {
-    let pool = connect("sqlite::memory:").await.expect("pool");
-    let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
-    let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
-    let run_repo = Arc::new(SqliteRunRepo::new(pool.clone()));
-    let (sessions, events, workspaces, snapshots) = snapshot_repos(&pool);
-    launch_task_test_router(
-        repo,
-        interventions,
-        run_repo,
-        sessions,
-        events,
-        workspaces,
-        snapshots,
-        Arc::new(catalog()),
-    )
-}
-
-/// Variant of `router()` that returns the run repo so the dedup-guard test can
-/// seed an active run for an issue before the launch-task POST.
-async fn router_with_run_repo() -> (axum::Router, Arc<SqliteRunRepo>) {
-    let pool = connect("sqlite::memory:").await.expect("pool");
-    let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
-    let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
-    let run_repo = Arc::new(SqliteRunRepo::new(pool.clone()));
-    let (sessions, events, workspaces, snapshots) = snapshot_repos(&pool);
-    let router = launch_task_test_router(
-        repo,
-        interventions,
-        Arc::clone(&run_repo),
-        sessions,
-        events,
-        workspaces,
-        snapshots,
-        Arc::new(catalog()),
-    );
-    (router, run_repo)
-}
-
-/// Variant of `router()` that returns the repo handle alongside the router so
-/// retry tests can seed state directly (move a task into `NeedsHuman` etc.)
-/// without a real executor loop.
-async fn router_with_repo() -> (axum::Router, Arc<SqliteLaunchTaskRepo>) {
+/// Wires the `/launch-tasks` router against a fresh in-memory SQLite and the
+/// inlined three-role catalog, returning the repo handles and pool so tests can
+/// seed state or read rows directly. The `router*` helpers project the subset
+/// each test needs.
+async fn test_app() -> (
+    axum::Router,
+    Arc<SqliteLaunchTaskRepo>,
+    Arc<SqliteRunRepo>,
+    Arc<SqliteLaunchTaskInterventionRepo>,
+    SqlitePool,
+) {
     let pool = connect("sqlite::memory:").await.expect("pool");
     let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
     let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
@@ -146,14 +114,33 @@ async fn router_with_repo() -> (axum::Router, Arc<SqliteLaunchTaskRepo>) {
     let (sessions, events, workspaces, snapshots) = snapshot_repos(&pool);
     let router = launch_task_test_router(
         Arc::clone(&repo),
-        interventions,
-        run_repo,
+        Arc::clone(&interventions),
+        Arc::clone(&run_repo),
         sessions,
         events,
         workspaces,
         snapshots,
         Arc::new(catalog()),
     );
+    (router, repo, run_repo, interventions, pool)
+}
+
+async fn router() -> axum::Router {
+    test_app().await.0
+}
+
+/// Variant of `router()` that returns the run repo so the dedup-guard test can
+/// seed an active run for an issue before the launch-task POST.
+async fn router_with_run_repo() -> (axum::Router, Arc<SqliteRunRepo>) {
+    let (router, _, run_repo, ..) = test_app().await;
+    (router, run_repo)
+}
+
+/// Variant of `router()` that returns the repo handle alongside the router so
+/// retry tests can seed state directly (move a task into `NeedsHuman` etc.)
+/// without a real executor loop.
+async fn router_with_repo() -> (axum::Router, Arc<SqliteLaunchTaskRepo>) {
+    let (router, repo, ..) = test_app().await;
     (router, repo)
 }
 
@@ -165,21 +152,7 @@ async fn router_with_intervention_repo() -> (
     Arc<SqliteLaunchTaskRepo>,
     Arc<SqliteLaunchTaskInterventionRepo>,
 ) {
-    let pool = connect("sqlite::memory:").await.expect("pool");
-    let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
-    let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
-    let run_repo = Arc::new(SqliteRunRepo::new(pool.clone()));
-    let (sessions, events, workspaces, snapshots) = snapshot_repos(&pool);
-    let router = launch_task_test_router(
-        Arc::clone(&repo),
-        Arc::clone(&interventions),
-        run_repo,
-        sessions,
-        events,
-        workspaces,
-        snapshots,
-        Arc::new(catalog()),
-    );
+    let (router, repo, _, interventions, _) = test_app().await;
     (router, repo, interventions)
 }
 
@@ -467,21 +440,7 @@ async fn retry_returns_200_when_task_is_needs_human() {
 /// the `?path=fresh` discriminator deserialization.
 #[tokio::test]
 async fn retry_regenerates_the_run_context_snapshot() {
-    let pool = connect("sqlite::memory:").await.expect("pool");
-    let repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
-    let interventions = Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
-    let run_repo = Arc::new(SqliteRunRepo::new(pool.clone()));
-    let (sessions, events, workspaces, snapshots) = snapshot_repos(&pool);
-    let app = launch_task_test_router(
-        Arc::clone(&repo),
-        interventions,
-        run_repo,
-        sessions,
-        events,
-        workspaces,
-        snapshots,
-        Arc::new(catalog()),
-    );
+    let (app, repo, _, _, pool) = test_app().await;
     let task_id = seed_needs_human_task(&app, &repo).await;
 
     let snapshot_repo = SqliteRunContextSnapshotRepo::new(pool.clone());

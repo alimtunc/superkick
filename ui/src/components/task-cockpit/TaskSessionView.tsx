@@ -1,11 +1,10 @@
 import { useState } from 'react'
 
+import { RunSessionGate } from '@/components/run-shared/RunSessionGate'
 import { RUN_SESSION_TAB_ITEMS, type RunSessionTab } from '@/components/run-tabs/runSessionTabItems'
 import { RunSessionTabs } from '@/components/run-tabs/RunSessionTabs'
 import { StepActionBar } from '@/components/task-cockpit/StepActionBar'
 import { StepFocusSelector } from '@/components/task-cockpit/StepFocusSelector'
-import { ErrorState } from '@/components/ui/state-error'
-import { LoadingState } from '@/components/ui/state-loading'
 import { TabBar } from '@/components/ui/tab-bar'
 import { useRunSession } from '@/hooks/useRunSession'
 import { useStickToBottom } from '@/hooks/useStickToBottom'
@@ -18,79 +17,71 @@ interface TaskSessionViewProps {
 	steps: readonly LaunchTaskStep[]
 }
 
-// The shadow run as a structured session; the step selector scopes
-// Activity/Tools/Logs to one step's run_step_id ("All steps" shows the run).
-// A focused step exposes its SUP-203 operator actions (retry / fix-forward /
-// takeover) over the derived snapshot.
 export function TaskSessionView({ task, runId, steps }: TaskSessionViewProps) {
 	const session = useRunSession(runId)
 	const [activeTab, setActiveTab] = useState<RunSessionTab>('activity')
 	const [selectedStepId, setSelectedStepId] = useState<string | null>(null)
 	const body = useStickToBottom<HTMLDivElement>(`${activeTab}:${session.events.length}`)
 
-	if (session.loading) {
-		return (
-			<div className="min-h-0 flex-1 px-4 py-6">
-				<LoadingState rows={4} />
-			</div>
-		)
-	}
-
-	if (session.error) {
-		return (
-			<div className="min-h-0 flex-1 px-4 py-6">
-				<ErrorState
-					title="Session load failed"
-					message={session.error}
-					onRetry={() => session.refresh()}
-				/>
-			</div>
-		)
-	}
-
-	if (!session.run) {
-		return (
-			<div className="min-h-0 flex-1 px-4 py-6">
-				<ErrorState
-					title="Run not found"
-					message="The shadow run for this launch task may have been deleted."
-				/>
-			</div>
-		)
-	}
-
-	const selectedStep = selectedStepId ? (steps.find((step) => step.id === selectedStepId) ?? null) : null
-	const scopedRunStepId = selectedStep ? runStepIdForLaunchStep(selectedStep, steps, session.steps) : null
-	const scopedEvents = scopedRunStepId
-		? session.events.filter((event) => event.run_step_id === scopedRunStepId)
-		: session.events
-
 	return (
-		<div className="flex min-h-0 flex-1 flex-col">
-			<StepFocusSelector steps={steps} selectedStepId={selectedStepId} onSelect={setSelectedStepId} />
-			{selectedStep ? (
-				<StepActionBar task={task} step={selectedStep} onTakeover={() => setActiveTab('terminal')} />
-			) : null}
-			<TabBar
-				tabs={RUN_SESSION_TAB_ITEMS}
-				activeId={activeTab}
-				onChange={setActiveTab}
-				ariaLabel="Run session"
-				className="border-border bg-surface"
-			/>
-			<div className="min-h-0 flex-1 overflow-y-auto" ref={body.ref} onScroll={body.onScroll}>
-				<RunSessionTabs
-					tab={activeTab}
-					onSelectTab={setActiveTab}
-					runId={runId}
-					run={session.run}
-					pr={session.pr}
-					sessions={session.sessions}
-					attentionRequests={session.attentionRequests}
-					events={scopedEvents}
-					isTerminal={session.isTerminal}
-				/>
-			</div>
-		</div>
+		<RunSessionGate
+			session={session}
+			errorTitle="Session load failed"
+			notFoundMessage="The shadow run for this launch task may have been deleted."
+			className="min-h-0 flex-1 px-4 py-6"
+		>
+			{(loaded) => {
+				const selectedStep = selectedStepId
+					? (steps.find((step) => step.id === selectedStepId) ?? null)
+					: null
+				const scopedRunStepId = selectedStep
+					? runStepIdForLaunchStep(selectedStep, steps, loaded.steps)
+					: null
+				const scopedEvents = scopedRunStepId
+					? loaded.events.filter((event) => event.run_step_id === scopedRunStepId)
+					: loaded.events
+
+				return (
+					<div className="flex min-h-0 flex-1 flex-col">
+						<StepFocusSelector
+							steps={steps}
+							selectedStepId={selectedStepId}
+							onSelect={setSelectedStepId}
+						/>
+						{selectedStep ? (
+							<StepActionBar
+								task={task}
+								step={selectedStep}
+								onTakeover={() => setActiveTab('terminal')}
+							/>
+						) : null}
+						<TabBar
+							tabs={RUN_SESSION_TAB_ITEMS}
+							activeId={activeTab}
+							onChange={setActiveTab}
+							ariaLabel="Run session"
+							className="border-border bg-surface"
+						/>
+						<div
+							className="min-h-0 flex-1 overflow-y-auto"
+							ref={body.ref}
+							onScroll={body.onScroll}
+						>
+							<RunSessionTabs
+								tab={activeTab}
+								onSelectTab={setActiveTab}
+								runId={runId}
+								run={loaded.run}
+								pr={loaded.pr}
+								sessions={loaded.sessions}
+								attentionRequests={loaded.attentionRequests}
+								events={scopedEvents}
+								isTerminal={loaded.isTerminal}
+							/>
+						</div>
+					</div>
+				)
+			}}
+		</RunSessionGate>
 	)
 }

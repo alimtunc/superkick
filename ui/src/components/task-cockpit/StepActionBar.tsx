@@ -10,11 +10,6 @@ interface StepActionBarProps {
 	onTakeover: () => void
 }
 
-// SUP-203 — per-step operator actions over the derived RunContextSnapshot:
-// retry (fresh provider thread), fix-forward (resume the same thread), and
-// takeover (the run-level PTY escape hatch, already snapshot-wired). Retry and
-// fix-forward show only on the parked `needs_human` step; takeover is always
-// available.
 export function StepActionBar({ task, step, onTakeover }: StepActionBarProps) {
 	const retry = useRetryLaunchTask({
 		linearIssueId: task.linear_issue_id,

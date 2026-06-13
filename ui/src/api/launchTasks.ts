@@ -37,7 +37,7 @@ export async function cancelLaunchTask(taskId: string): Promise<CancelLaunchTask
 
 export async function retryLaunchTask(taskId: string, path: RetryPath): Promise<RetryLaunchTaskResponse> {
 	return postJson(
-		`/launch-tasks/${encodeURIComponent(taskId)}/retry?path=${path}`,
+		`/launch-tasks/${encodeURIComponent(taskId)}/retry?path=${encodeURIComponent(path)}`,
 		'retry launch task failed'
 	)
 }
