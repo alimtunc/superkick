@@ -2,8 +2,6 @@ import type { QueryClient } from '@tanstack/react-query'
 import { createRouter } from '@tanstack/react-router'
 
 import { Route as rootRoute } from './__root'
-import { Route as agentsRoute } from './_shell/agents'
-import { Route as attentionRoute } from './_shell/attention'
 import { Route as boardRoute } from './_shell/board'
 import { Route as indexRoute } from './_shell/index'
 import { Route as issuesRoute } from './_shell/issues'
@@ -25,8 +23,6 @@ const routeTree = rootRoute.addChildren([
 		queueRoute,
 		runsRoute,
 		runDetailRoute,
-		attentionRoute,
-		agentsRoute,
 		tasksNewRoute,
 		tasksDetailRoute
 	]),

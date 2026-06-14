@@ -44,12 +44,18 @@ function BoardPage() {
 				onRefresh={queue.refresh}
 			/>
 
-			<div className="mx-auto flex min-h-0 w-full max-w-360 flex-1 flex-col gap-4 p-5">
+			<div className="flex min-h-0 flex-1 flex-col">
 				{queue.error ? (
-					<ErrorState message={queue.error} onRetry={queue.refresh} density="compact" />
+					<div className="px-6 py-4">
+						<ErrorState message={queue.error} onRetry={queue.refresh} density="compact" />
+					</div>
 				) : null}
 
-				{queue.loading && total === 0 ? <LoadingState rows={5} /> : null}
+				{queue.loading && total === 0 ? (
+					<div className="px-6 py-4">
+						<LoadingState rows={5} />
+					</div>
+				) : null}
 
 				{!queue.loading && total === 0 ? (
 					<EmptyState title="No launched work." description="Start one from an issue." />

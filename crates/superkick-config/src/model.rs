@@ -580,6 +580,10 @@ pub struct LaunchProfileConfig {
     /// The orchestrator refuses to spawn any role outside this set.
     #[serde(default)]
     pub allowed_agents: Option<Vec<String>>,
+    /// Best-effort: on launch, move the linked Linear issue to its team's first
+    /// "started"-type state, skipping issues already started/completed.
+    #[serde(default = "bool_true")]
+    pub auto_transition_in_progress: bool,
 }
 
 impl Default for LaunchProfileConfig {
@@ -589,6 +593,7 @@ impl Default for LaunchProfileConfig {
             default_instructions: String::new(),
             handoff_instructions: String::new(),
             allowed_agents: None,
+            auto_transition_in_progress: bool_true(),
         }
     }
 }

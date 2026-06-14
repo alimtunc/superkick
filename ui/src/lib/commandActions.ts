@@ -46,6 +46,5 @@ export const JUMP_TO_TARGETS: Omit<JumpTarget, 'badge'>[] = [
 	{ id: 'jump-inbox', label: 'Inbox', icon: 'inbox', target: '/' },
 	{ id: 'jump-issues', label: 'Issues', icon: 'issue', target: '/issues' },
 	{ id: 'jump-tasks', label: 'Tasks', icon: 'task', target: '/queue' },
-	{ id: 'jump-runs', label: 'Runs', icon: 'loop', target: '/runs' },
-	{ id: 'jump-agents', label: 'Agents', icon: 'agent', target: '/agents' }
+	{ id: 'jump-runs', label: 'Runs', icon: 'loop', target: '/runs' }
 ]

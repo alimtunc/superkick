@@ -53,11 +53,6 @@ describe('IssueFilterDropdown', () => {
 		expect(screen.getByText('SK')).toBeInTheDocument()
 	})
 
-	it('offers the "Save current as view…" footer row', () => {
-		renderOpen()
-		expect(screen.getByText('Save current as view…')).toBeInTheDocument()
-	})
-
 	it('gives axis and picker rows motion feedback instead of flat hover only', () => {
 		renderOpen()
 

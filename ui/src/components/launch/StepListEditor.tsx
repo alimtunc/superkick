@@ -5,9 +5,9 @@ import { Pill } from '@/components/ui/pill'
 import { providerLabel } from '@/lib/domain'
 import {
 	EXECUTOR_LABEL,
-	EXECUTOR_OPTIONS,
 	LAUNCH_PROVIDER_OPTIONS,
 	REASONING_LABEL,
+	executorOptionsFor,
 	isPaidExecutor,
 	reasoningOptionsFor
 } from '@/lib/launchConfigOptions'
@@ -87,7 +87,7 @@ export function StepListEditor({
 					<ConfigSelect
 						ariaLabel={`${step.label} executor`}
 						value={step.executor}
-						options={EXECUTOR_OPTIONS}
+						options={executorOptionsFor(step.provider)}
 						labels={EXECUTOR_LABEL}
 						onChange={(value) => onUpdateStep(step.ordering, { executor: value })}
 					/>

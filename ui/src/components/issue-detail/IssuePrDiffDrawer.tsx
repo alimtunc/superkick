@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 
+import { DiffErrorBoundary } from '@/components/diff/DiffErrorBoundary'
 import { DiffFileNavigator } from '@/components/diff/DiffFileNavigator'
 import { PrBadge } from '@/components/pr/PrBadge'
 import { FileDiffRow } from '@/components/run-detail/RunWorkspaceTabs/FileDiffRow'
@@ -40,6 +41,7 @@ export function IssuePrDiffDrawer({ issue, pr, open, onClose }: IssuePrDiffDrawe
 	const [fileFilter, setFileFilter] = useState('')
 	const { data, isLoading, error } = useQuery(issuePullRequestDiffQuery(issue.id, pr, open))
 	const files = useMemo(() => data?.files.map(toFileDiff) ?? [], [data])
+	const rawPatch = useMemo(() => combinePatches(files), [files])
 	const linkedRunId = useMemo(() => resolveLinkedRunId(issue, pr), [issue, pr])
 	const {
 		reviewReady,
@@ -204,20 +206,22 @@ export function IssuePrDiffDrawer({ issue, pr, open, onClose }: IssuePrDiffDrawe
 								showReview={showReview}
 							/>
 							<div className="min-h-0 overflow-y-auto md:col-start-2 md:row-start-1">
-								{files.map((file, index) => (
-									<FileDiffRow
-										key={`${file.path}:${file.oldPath ?? ''}`}
-										id={fileSectionId(SECTION_ID_PREFIX, index)}
-										file={file}
-										mode={mode}
-										showReview={showReview}
-										reviewed={reviewedFiles.has(file.path)}
-										unresolvedCount={unresolvedByFile.get(file.path) ?? 0}
-										reviewDisabled={!reviewReady}
-										review={reviewForFile(file)}
-										onReviewedChange={onReviewedChange}
-									/>
-								))}
+								<DiffErrorBoundary patch={rawPatch}>
+									{files.map((file, index) => (
+										<FileDiffRow
+											key={`${file.path}:${file.oldPath ?? ''}`}
+											id={fileSectionId(SECTION_ID_PREFIX, index)}
+											file={file}
+											mode={mode}
+											showReview={showReview}
+											reviewed={reviewedFiles.has(file.path)}
+											unresolvedCount={unresolvedByFile.get(file.path) ?? 0}
+											reviewDisabled={!reviewReady}
+											review={reviewForFile(file)}
+											onReviewedChange={onReviewedChange}
+										/>
+									))}
+								</DiffErrorBoundary>
 							</div>
 						</div>
 					</>
@@ -233,6 +237,13 @@ function EmptyDiffState({ title }: { title: string }) {
 			<EmptyState icon={FileDiffIcon} title={title} density="compact" className="w-full max-w-sm" />
 		</div>
 	)
+}
+
+function combinePatches(files: FileDiff[]): string {
+	return files
+		.map((file) => file.patch)
+		.filter((patch): patch is string => typeof patch === 'string')
+		.join('\n')
 }
 
 function resolveLinkedRunId(issue: IssueDetailResponse, pr: IssuePullRequest | null): string | null {

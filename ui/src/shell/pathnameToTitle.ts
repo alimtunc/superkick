@@ -8,9 +8,7 @@ const ROOT_TITLES: Partial<Record<string, ShellTitle>> = {
 	'/issues': { active: 'issues', title: 'Issues' },
 	'/queue': { active: null, title: 'Launch queue' },
 	'/tasks': { active: null, title: 'Tasks' },
-	'/runs': { active: null, title: 'Runs' },
-	'/agents': { active: 'agents', title: 'Agents' },
-	'/attention': { active: null, title: 'Attention' }
+	'/runs': { active: null, title: 'Runs' }
 }
 
 function humanizeSegment(segment: string): string {

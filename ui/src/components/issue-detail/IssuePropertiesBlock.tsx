@@ -5,6 +5,7 @@ import { EstimateRow } from '@/components/issue-detail/properties/EstimateRow'
 import { LabelsRow } from '@/components/issue-detail/properties/LabelsRow'
 import { PriorityRow } from '@/components/issue-detail/properties/PriorityRow'
 import { ProjectRow } from '@/components/issue-detail/properties/ProjectRow'
+import { PropertyGroup } from '@/components/issue-detail/properties/PropertyGroup'
 import { PropertyRow } from '@/components/issue-detail/properties/PropertyRow'
 import { StatusRow } from '@/components/issue-detail/properties/StatusRow'
 import { pickLatestPr } from '@/lib/pr'
@@ -21,13 +22,13 @@ export function IssuePropertiesBlock({ issue }: IssuePropertiesBlockProps) {
 
 	return (
 		<section aria-label="Issue properties">
-			<div className="rail__group">
+			<PropertyGroup label="Status">
 				<StatusRow issue={issue} />
 				<IssuePullRequestsBlock issue={issue} runPr={pr} />
 				<PriorityRow issue={issue} />
 				<AssigneeRow issue={issue} />
-			</div>
-			<div className="rail__group">
+			</PropertyGroup>
+			<PropertyGroup label="Details">
 				<LabelsRow issue={issue} />
 				<ProjectRow issue={issue} />
 				<PropertyRow label="Cycle">
@@ -35,7 +36,7 @@ export function IssuePropertiesBlock({ issue }: IssuePropertiesBlockProps) {
 				</PropertyRow>
 				<EstimateRow issue={issue} />
 				<DueDateRow issue={issue} />
-			</div>
+			</PropertyGroup>
 			{issue.blocked_by.length > 0 ? (
 				<div className="rail__group">
 					{issue.blocked_by.map((blocker) => (

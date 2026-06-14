@@ -29,10 +29,9 @@ describe('IssueViewTabs', () => {
 		expect(screen.getByRole('button', { name: /Recently shipped/ })).toHaveTextContent('3')
 	})
 
-	it('disables the New view stub', () => {
+	it('does not render a New view stub', () => {
 		render(<IssueViewTabs tab="mine" counts={COUNTS} onChange={() => {}} />)
-		const stub = screen.getByRole('button', { name: /New view/ })
-		expect(stub).toBeDisabled()
+		expect(screen.queryByRole('button', { name: /New view/ })).not.toBeInTheDocument()
 	})
 
 	it('fires onChange with the selected tab value', async () => {

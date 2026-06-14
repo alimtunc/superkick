@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { ProfileEditorDialog } from '@/components/settings/ProfileEditorDialog'
+import { ProfileHideToggle } from '@/components/settings/ProfileHideToggle'
 import { SettingsPaneHeader } from '@/components/settings/SettingsPaneHeader'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSection } from '@/components/settings/SettingsSection'
@@ -29,7 +30,7 @@ export function SettingsPaneProfiles() {
 		<section>
 			<SettingsPaneHeader
 				title="Launch profiles"
-				description="Ordered step lists you pick (and override) in the Launch Composer. Edit any profile here — including builtins; edits persist across restarts. Restore a builtin to roll back to its shipped recipe."
+				description="Ordered step lists you pick (and override) in the Launch Composer. Edit any profile here — including builtins; edits persist across restarts. Restore a builtin to roll back to its shipped recipe. Hide a profile to keep it out of the launcher picker without deleting it."
 			/>
 			<div className="mb-4 flex justify-end">
 				<Button size="sm" onClick={() => setEditor({ mode: 'new' })}>
@@ -44,6 +45,12 @@ export function SettingsPaneProfiles() {
 			>
 				{profiles.map((profile) => (
 					<SettingsSection key={profile.id} title={profile.name}>
+						<SettingsRow
+							label="Hidden from launcher"
+							hint="Keep this profile out of the Launch Composer picker without deleting it"
+						>
+							<ProfileHideToggle profileId={profile.id} profileName={profile.name} />
+						</SettingsRow>
 						<SettingsRow label="Kind" hint={`${profile.steps.length} step(s)`}>
 							<div className="flex items-center gap-2">
 								<Pill tone="neutral">{PROFILE_KIND_LABEL[profile.kind]}</Pill>

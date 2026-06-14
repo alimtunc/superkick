@@ -126,16 +126,6 @@ export function IssueFilterDropdown({
 		return ROWS.filter((row) => row.axis.label.toLowerCase().includes(q))
 	}, [query])
 
-	function close() {
-		onOpenChange?.(false)
-	}
-
-	function resetAndClose() {
-		setActiveAxis(null)
-		setQuery('')
-		close()
-	}
-
 	return (
 		<Popover.Root
 			open={open}
@@ -213,16 +203,6 @@ export function IssueFilterDropdown({
 								)
 							)}
 						</ul>
-						<div className="mx-1 my-1 h-px bg-border" />
-						<button
-							type="button"
-							disabled
-							title="Saved views — coming soon"
-							className="flex w-full cursor-default items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-fg-muted"
-						>
-							<Icon name="filter" size={13} className="shrink-0 text-fg-dim" />
-							<span>Save current as view…</span>
-						</button>
 					</div>
 				) : (
 					<AxisPicker
@@ -231,7 +211,6 @@ export function IssueFilterDropdown({
 						onChange={onChange}
 						options={options}
 						onBack={() => setActiveAxis(null)}
-						onApply={resetAndClose}
 					/>
 				)}
 			</PopoverPopup>
@@ -258,15 +237,13 @@ function AxisPicker({
 	filters,
 	onChange,
 	options,
-	onBack,
-	onApply
+	onBack
 }: {
 	axis: AxisKey
 	filters: IssueFilterState
 	onChange: (next: IssueFilterState) => void
 	options: FilterOptionSet
 	onBack: () => void
-	onApply: () => void
 }) {
 	const items = pickerItems(axis, options)
 
@@ -286,15 +263,6 @@ function AxisPicker({
 					<Icon name="chev" size={11} className="rotate-180" />
 					<span>{axisLabel(axis)}</span>
 				</button>
-				<span className="ml-auto">
-					<button
-						type="button"
-						onClick={onApply}
-						className="inline-flex h-6 items-center rounded px-1.5 text-[11.5px] text-fg-dim transition-[background,color] duration-100 ease-out hover:bg-(--bg-active) hover:text-fg focus-visible:bg-(--bg-active) focus-visible:text-fg focus-visible:outline-none"
-					>
-						Done
-					</button>
-				</span>
 			</div>
 			<ul className="max-h-72 overflow-y-auto py-1">
 				{items.map((item) => {

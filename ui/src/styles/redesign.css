@@ -1359,6 +1359,22 @@
 	color: var(--fg);
 }
 
+/* Editable variant: strip native input/button chrome so the control matches the
+   static heading. `--button` adds the resting (non-editing) affordances. */
+.issue-title--field {
+	appearance: none;
+	background: none;
+	border: none;
+	padding: 0;
+	margin: 0;
+	width: 100%;
+	font-family: inherit;
+}
+.issue-title--button {
+	text-align: left;
+	cursor: text;
+}
+
 /* markdown body */
 .md {
 	color: var(--fg);

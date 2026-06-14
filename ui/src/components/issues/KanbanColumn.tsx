@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { type CSSProperties, useState } from 'react'
 
 import { KanbanCard } from '@/components/issues/KanbanCard'
 import { EmptyState } from '@/components/ui/state-empty'
@@ -9,6 +9,8 @@ import { Btn, StatusIcon } from '@/ui'
 import { useDroppable } from '@dnd-kit/core'
 
 const DONE_COLLAPSED_COUNT = 2
+
+const EMPTY_COLUMN_STYLE: CSSProperties = { width: 160 }
 
 const STATE_STATUS_KIND: Record<IssueState, StatusIconKind> = {
 	needs_human: 'needs',
@@ -28,6 +30,18 @@ interface KanbanColumnProps {
 	recentUnblocks: RecentUnblocks
 	/** Identifier of the currently-dragged card; drives the ghost placeholder in the target column. */
 	activeDragId: string | null
+	/** Render the header "+" button only when provided. */
+	onCreateIssue?: () => void
+	/** Disable droppable wiring + drop ghost (board uses static columns). */
+	enableDnd?: boolean
+	/** Header label override; falls back to `issueStateAccent[state].label`. */
+	label?: string
+	/** Header status glyph override; falls back to `STATE_STATUS_KIND[state]`. */
+	statusKind?: StatusIconKind
+	/** Force run-card rendering regardless of the feature flag. */
+	forceRunCards?: boolean
+	/** Collapse threshold for "done"-style columns; falls back to the issue default. */
+	collapseDoneCount?: number
 }
 
 function dispatchPositionsFor(items: LaunchQueueItem[]): readonly (number | undefined)[] {
@@ -46,14 +60,22 @@ export function KanbanColumn({
 	onDispatch,
 	dispatchPending,
 	recentUnblocks,
-	activeDragId
+	activeDragId,
+	onCreateIssue,
+	enableDnd = true,
+	label,
+	statusKind,
+	forceRunCards,
+	collapseDoneCount = DONE_COLLAPSED_COUNT
 }: KanbanColumnProps) {
 	const [showAllDone, setShowAllDone] = useState(false)
 	const accent = issueStateAccent[state]
+	const headerLabel = label ?? accent.label
+	const headerKind = statusKind ?? STATE_STATUS_KIND[state]
 	const dispatchPositions = dispatchPositionsFor(items)
 	const droppable = isDroppableIssueState(state)
-	const collapseDone = state === 'done' && !showAllDone && items.length > DONE_COLLAPSED_COUNT
-	const visibleItems = collapseDone ? items.slice(0, DONE_COLLAPSED_COUNT) : items
+	const collapseDone = state === 'done' && !showAllDone && items.length > collapseDoneCount
+	const visibleItems = collapseDone ? items.slice(0, collapseDoneCount) : items
 	const hiddenDoneCount = items.length - visibleItems.length
 	const { setNodeRef, isOver } = useDroppable({
 		id: state,
@@ -61,32 +83,39 @@ export function KanbanColumn({
 	})
 
 	const hasGhost =
+		enableDnd &&
 		isOver &&
 		activeDragId !== null &&
 		!items.some((item) => launchQueueItemIdentifier(item) === activeDragId)
 
+	const isEmpty = items.length === 0 && !hasGhost
+
 	return (
 		<div
-			ref={setNodeRef}
+			ref={enableDnd ? setNodeRef : undefined}
 			data-issue-state={state}
+			style={isEmpty ? EMPTY_COLUMN_STYLE : undefined}
 			className={cn(
-				'column transition-colors duration-150 motion-reduce:transition-none',
-				isOver && droppable ? 'bg-accent-soft' : null,
-				isOver && !droppable ? 'bg-danger-soft' : null
+				'column transition-[width,background-color] duration-150 motion-reduce:transition-none',
+				enableDnd && isOver && droppable ? 'bg-accent-soft' : null,
+				enableDnd && isOver && !droppable ? 'bg-danger-soft' : null
 			)}
 		>
 			<div className="column__head">
-				<StatusIcon kind={STATE_STATUS_KIND[state]} size={14} />
-				<span className="column__name">{accent.label}</span>
+				<StatusIcon kind={headerKind} size={14} />
+				<span className="column__name">{headerLabel}</span>
 				<span className="column__count">{items.length}</span>
-				<Btn
-					kind="ghost"
-					icon="plus"
-					className="column__add"
-					aria-label={`New ${accent.label} issue`}
-				/>
+				{onCreateIssue ? (
+					<Btn
+						kind="ghost"
+						icon="plus"
+						className="column__add"
+						aria-label={`New ${headerLabel} issue`}
+						onClick={onCreateIssue}
+					/>
+				) : null}
 			</div>
-			{items.length === 0 && !hasGhost ? (
+			{isEmpty ? (
 				<div className="column__cards">
 					<EmptyState density="compact" title="Empty" />
 				</div>
@@ -103,6 +132,7 @@ export function KanbanColumn({
 							dispatchPending={dispatchPending}
 							unblockedAt={unblockedAtFor(item, recentUnblocks)}
 							dispatchPosition={dispatchPositions[index]}
+							forceRunCards={forceRunCards}
 						/>
 					))}
 					{hiddenDoneCount > 0 ? (

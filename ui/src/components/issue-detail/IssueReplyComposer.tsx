@@ -3,7 +3,7 @@ import { useCallback, useState, type KeyboardEvent } from 'react'
 import { AuthorAvatar } from '@/components/issue-detail/AuthorAvatar'
 import { useCreateIssueComment } from '@/hooks/useCreateIssueComment'
 import { useViewer } from '@/hooks/useViewer'
-import { Btn, Icon } from '@/ui'
+import { Btn } from '@/ui'
 import { Kbd } from '@/ui/Kbd'
 
 export const ISSUE_REPLY_COMPOSER_ID = 'issue-reply-composer'
@@ -59,33 +59,6 @@ export function IssueReplyComposer({ issueId }: IssueReplyComposerProps) {
 					/>
 				</div>
 				<div className="composer__bar">
-					<button
-						type="button"
-						disabled
-						className="iconbtn"
-						style={{ width: 26, height: 26 }}
-						aria-label="Attach link"
-					>
-						<Icon name="link" size={15} className="ic" />
-					</button>
-					<button
-						type="button"
-						disabled
-						className="iconbtn"
-						style={{ width: 26, height: 26 }}
-						aria-label="Attach file"
-					>
-						<Icon name="doc" size={15} className="ic" />
-					</button>
-					<button
-						type="button"
-						disabled
-						className="iconbtn"
-						style={{ width: 26, height: 26 }}
-						aria-label="Insert code block"
-					>
-						<Icon name="terminal" size={15} className="ic" />
-					</button>
 					<span className="spacer" />
 					<span className="inline-flex items-center gap-1 text-[11px] text-fg-dim">
 						<Kbd>⌘</Kbd>

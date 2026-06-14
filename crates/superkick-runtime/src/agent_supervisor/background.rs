@@ -37,8 +37,8 @@ use tokio_util::sync::CancellationToken;
 
 use superkick_core::{
     AgentSession, AgentStatus, Cancelled, Completion, EventKind, EventLevel, Failure, LogEntry,
-    LogLevel, ProtocolEvent, ProtocolEventEnvelope, ResumeKey, RunEvent, RunId,
-    SessionLifecyclePhase, SessionMeta, StepId, StepResult, StepResultStatus,
+    LogLevel, ProtocolEvent, ProtocolEventEnvelope, ResumeKey, RunEvent, RunId, STEP_RESULT_BEGIN,
+    STEP_RESULT_END, SessionLifecyclePhase, SessionMeta, StepId, StepResult, StepResultStatus,
 };
 use superkick_storage::repo::{AgentSessionRepo, RunEventRepo};
 
@@ -518,14 +518,43 @@ fn scan_marker_from_transcript(jsonl: &str) -> Result<Option<StepResult>, Marker
     scanner.finish()
 }
 
-fn with_log_tail(base: &str, logs: Option<&str>) -> String {
-    match logs.map(str::trim).filter(|s| !s.is_empty()) {
-        Some(tail) => format!(
-            "{base}\n\nRecent background log tail:\n{}",
-            crate::text::tail_chars(tail, 600)
-        ),
-        None => base.to_string(),
+/// Cleaned scrollback lines kept as supplementary evidence on a blocked/failed
+/// result. The base message already explains the state, so an over-drawn
+/// scrollback that denoises to nothing is fine — the tail is bonus context.
+const LOG_TAIL_LINES: usize = 8;
+
+/// Cut a scrollback line at the step-result marker: those sentinels (and the
+/// structured JSON block they wrap) are protocol tokens, never human prose, and
+/// must never leak into a user-facing reason.
+fn strip_step_markers(line: &str) -> &str {
+    let mut cut = line.len();
+    for marker in [STEP_RESULT_BEGIN, STEP_RESULT_END] {
+        if let Some(i) = line.find(marker) {
+            cut = cut.min(i);
+        }
     }
+    line[..cut].trim_end()
+}
+
+/// Append a best-effort, DE-NOISED tail of the background scrollback. Raw
+/// `claude logs` is TUI overdraw — spinner frames ("Levitating…"), dingbat
+/// glyphs, live token counters, and bleed of the step-result marker — so it is
+/// run through the same `denoise_log_lines` scrubber the Activity rows use and
+/// the marker is stripped, instead of dumping raw characters into the reason.
+fn with_log_tail(base: &str, logs: Option<&str>) -> String {
+    let cleaned: Vec<String> = logs
+        .map(denoise_log_lines)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|line| strip_step_markers(&line).to_string())
+        .filter(|line| !line.trim().is_empty())
+        .collect();
+    if cleaned.is_empty() {
+        return base.to_string();
+    }
+    let start = cleaned.len().saturating_sub(LOG_TAIL_LINES);
+    let tail = cleaned[start..].join("\n");
+    format!("{base}\n\nRecent background log tail:\n{tail}")
 }
 
 fn blocked_result(logs: Option<&str>) -> StepResult {
@@ -615,7 +644,29 @@ mod tests {
 
     #[test]
     fn blocked_result_appends_log_tail_when_present() {
-        let sr = blocked_result(Some("waiting for your approval"));
+        let sr = blocked_result(Some("waiting for your approval please"));
         assert!(sr.summary.contains("waiting for your approval"));
+    }
+
+    #[test]
+    fn with_log_tail_scrubs_spinner_glyphs_and_step_markers() {
+        let garbled = "Should the run be marked complete with no code changes?\"]}\
+             SUPERKICK_STEP_RESULT_END\n\
+             ✻ Levitating… ✶ Levitating… ✻ Levitating…\n\
+             ✶✶ Cooked for 29s";
+        let summary = with_log_tail("base message", Some(garbled));
+        assert!(
+            !summary.contains("SUPERKICK_STEP_RESULT_END"),
+            "step-result marker must be stripped: {summary}"
+        );
+        assert!(
+            !summary.contains('✻'),
+            "dingbat spinner glyphs must be stripped: {summary}"
+        );
+        assert!(
+            !summary.contains('✶'),
+            "dingbat spinner glyphs must be stripped: {summary}"
+        );
+        assert!(summary.starts_with("base message"));
     }
 }

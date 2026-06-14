@@ -14,20 +14,21 @@ import {
 	Sidebar as SidebarRoot
 } from '@/components/ui/sidebar'
 import { isDesktopShell } from '@/lib/desktop'
+import type { IssuesSearch } from '@/lib/issues/searchParams'
 import { cn } from '@/lib/utils'
 import type { ShellNavId } from '@/types'
 import type { SKIconName } from '@/types/icons'
 import type { TaskBadgeKind } from '@/types/lifecycle'
 import { Icon } from '@/ui/Icon'
-import { Link } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 
 import { ProjectSwitcher } from './ProjectSwitcher'
+import { SidebarSearch } from './SidebarSearch'
 import { UserMenu } from './UserMenu'
 
 interface SidebarProps {
 	active: ShellNavId
 	counts?: Partial<Record<Exclude<ShellNavId, null>, number>>
-	agentActive?: boolean
 }
 
 interface PrimaryNavItem {
@@ -40,25 +41,47 @@ interface PrimaryNavItem {
 const PRIMARY: PrimaryNavItem[] = [
 	{ id: 'inbox', to: '/', icon: 'inbox', label: 'Inbox' },
 	{ id: 'board', to: '/board', icon: 'layers', label: 'Board' },
-	{ id: 'issues', to: '/issues', icon: 'issue', label: 'Issues' },
-	{ id: 'agents', to: '/agents', icon: 'agent', label: 'Agents' }
+	{ id: 'issues', to: '/issues', icon: 'issue', label: 'Issues' }
 ]
 
 interface SavedView {
 	to: string
+	search?: IssuesSearch
 	icon: SKIconName
 	label: string
 }
 
 const SAVED_VIEWS: SavedView[] = [
-	{ to: '/attention', icon: 'pin', label: 'Needs you' },
-	{ to: '/issues', icon: 'star', label: 'My issues' },
-	{ to: '/issues', icon: 'pr', label: 'In review' },
-	{ to: '/issues', icon: 'clock', label: 'Shipped this week' }
+	{ to: '/', icon: 'inbox', label: 'Needs you' },
+	{ to: '/issues', search: { tab: 'mine', sort: 'updated' }, icon: 'star', label: 'My issues' },
+	{
+		to: '/issues',
+		search: { tab: 'all-open', group: 'status', task: ['review'] },
+		icon: 'pr',
+		label: 'In review'
+	},
+	{ to: '/issues', search: { tab: 'shipped', sort: 'updated' }, icon: 'clock', label: 'Shipped this week' }
 ]
+
+function isSavedViewActive(view: SavedView, pathname: string, search: Record<string, unknown>): boolean {
+	if (view.to !== pathname) return false
+	if (!view.search) return true
+	return Object.entries(view.search).every(([key, value]) => {
+		const current = search[key]
+		if (Array.isArray(value)) {
+			return (
+				Array.isArray(current) &&
+				current.length === value.length &&
+				value.every((v) => current.includes(v))
+			)
+		}
+		return current === value
+	})
+}
 
 interface NavRowProps {
 	to: string
+	search?: IssuesSearch
 	icon: SKIconName
 	label: string
 	active?: boolean
@@ -66,13 +89,13 @@ interface NavRowProps {
 	dot?: TaskBadgeKind
 }
 
-function NavRow({ to, icon, label, active = false, count, dot }: NavRowProps) {
+function NavRow({ to, search, icon, label, active = false, count, dot }: NavRowProps) {
 	return (
 		<SidebarMenuItem>
 			<SidebarMenuButton
 				isActive={active}
 				tooltip={label}
-				render={<Link to={to} />}
+				render={<Link to={to} search={search} />}
 				className={active ? 'bg-accent-soft' : undefined}
 			>
 				<Icon
@@ -97,7 +120,10 @@ function NavRow({ to, icon, label, active = false, count, dot }: NavRowProps) {
 	)
 }
 
-export function Sidebar({ active, counts, agentActive = false }: SidebarProps) {
+export function Sidebar({ active, counts }: SidebarProps) {
+	const location = useRouterState({ select: (s) => s.location })
+	const currentSearch = location.search as Record<string, unknown>
+
 	return (
 		<SidebarRoot collapsible="icon">
 			<SidebarHeader className="h-(--topbar-h) justify-center border-b border-(--border-faint)">
@@ -121,6 +147,7 @@ export function Sidebar({ active, counts, agentActive = false }: SidebarProps) {
 				<SidebarGroup>
 					<SidebarGroupContent>
 						<SidebarMenu>
+							<SidebarSearch />
 							{PRIMARY.map((item) => (
 								<NavRow
 									key={item.id}
@@ -129,7 +156,6 @@ export function Sidebar({ active, counts, agentActive = false }: SidebarProps) {
 									label={item.label}
 									active={active === item.id}
 									count={counts?.[item.id]}
-									dot={item.id === 'agents' && agentActive ? 'running' : undefined}
 								/>
 							))}
 						</SidebarMenu>
@@ -141,7 +167,14 @@ export function Sidebar({ active, counts, agentActive = false }: SidebarProps) {
 					<SidebarGroupContent>
 						<SidebarMenu>
 							{SAVED_VIEWS.map((view) => (
-								<NavRow key={view.label} to={view.to} icon={view.icon} label={view.label} />
+								<NavRow
+									key={view.label}
+									to={view.to}
+									search={view.search}
+									icon={view.icon}
+									label={view.label}
+									active={isSavedViewActive(view, location.pathname, currentSearch)}
+								/>
 							))}
 						</SidebarMenu>
 					</SidebarGroupContent>

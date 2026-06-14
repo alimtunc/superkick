@@ -14,14 +14,21 @@ pub fn router() -> Router {
 
 async fn spa_handler(uri: Uri) -> Response {
     let path = uri.path().trim_start_matches('/');
-    serve_asset(path).unwrap_or_else(|| {
-        serve_asset("index.html").unwrap_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                "dashboard assets missing — rebuild with `just install`",
-            )
-                .into_response()
-        })
+    if let Some(asset) = serve_asset(path) {
+        return asset;
+    }
+    // Content-hashed bundle requests must 404 cleanly rather than fall back to the
+    // SPA shell: serving index.html (text/html) for a missing /assets/*.js chunk makes
+    // the browser reject it with an invalid-MIME error instead of a chunk-load failure.
+    if path.starts_with("assets/") {
+        return (StatusCode::NOT_FOUND, "asset not found").into_response();
+    }
+    serve_asset("index.html").unwrap_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            "dashboard assets missing — rebuild with `just install`",
+        )
+            .into_response()
     })
 }
 

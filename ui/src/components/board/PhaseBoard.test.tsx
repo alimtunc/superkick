@@ -30,6 +30,6 @@ describe('PhaseBoard', () => {
 
 	it('shows an empty state in every column when there is no work', () => {
 		render(<PhaseBoard columns={toPhaseColumns(EMPTY_GROUPS)} refTime={0} />)
-		expect(screen.getAllByText('Nothing here.')).toHaveLength(6)
+		expect(screen.getAllByText('Empty')).toHaveLength(6)
 	})
 })

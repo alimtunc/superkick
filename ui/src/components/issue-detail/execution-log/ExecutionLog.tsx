@@ -10,6 +10,7 @@ import { ReviewReadySection } from '@/components/issue-detail/execution-log/Revi
 import { RunOnlyCard } from '@/components/issue-detail/execution-log/RunOnlyCard'
 import { useExecutionLogState } from '@/components/issue-detail/execution-log/useExecutionLogState'
 import { WorktreeSection } from '@/components/issue-detail/execution-log/WorktreeSection'
+import { LaunchTaskCancelButton } from '@/components/issue-detail/launch-task-feed/LaunchTaskCancelButton'
 import { deriveActivityRows, deriveChangedFiles, pickRepresentativeStep } from '@/lib/domain'
 import type { IssueDetailResponse } from '@/types'
 
@@ -24,8 +25,7 @@ export function ExecutionLog({ issue }: ExecutionLogProps) {
 		return <ExecutionLogLoading />
 	}
 
-	if (state.kind === 'idle')
-		return <ExecutionLogIdle issueIdentifier={issue.identifier} issueId={issue.id} />
+	if (state.kind === 'idle') return <ExecutionLogIdle issue={issue} />
 	if (state.kind === 'run_only') return <RunOnlyCard run={state.run} />
 
 	const { task, run, phases, past } = state
@@ -45,12 +45,25 @@ export function ExecutionLog({ issue }: ExecutionLogProps) {
 				/>
 			) : null}
 			<section aria-label="Execution log" className="execlog">
-				<ExecutionLogHeader kind={state.kind} currentStep={currentStep} run={run} />
+				<ExecutionLogHeader
+					kind={state.kind}
+					currentStep={currentStep}
+					run={run}
+					cancel={
+						state.kind === 'running' ? (
+							<LaunchTaskCancelButton
+								linearIssueId={issue.identifier}
+								taskId={task.task.id}
+								linkedRunId={run?.id}
+							/>
+						) : null
+					}
+				/>
 				<PhaseStrip phases={phases} />
 				<RecentActivitySection rows={activityRows} runId={run?.id ?? null} />
 				<FilesChangedSection files={changedFiles} runId={run?.id ?? null} />
 				{state.kind === 'done' && state.worktree ? <WorktreeSection facts={state.worktree} /> : null}
-				<PastRunsSection past={past} />
+				<PastRunsSection past={past} linkedRuns={issue.linked_runs} />
 			</section>
 			{state.kind === 'needs' && blocking ? (
 				<NeedsBanner

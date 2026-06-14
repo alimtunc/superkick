@@ -19,8 +19,7 @@ import { RunDock } from './RunDock'
 const SECTION_ICON: Record<Exclude<ShellNavId, null>, SKIconName> = {
 	inbox: 'inbox',
 	board: 'layers',
-	issues: 'issue',
-	agents: 'agent'
+	issues: 'issue'
 }
 
 export function AppShell() {
@@ -37,7 +36,7 @@ export function AppShell() {
 	return (
 		<AppFrame>
 			<SidebarProvider className="w-auto min-w-0 flex-1">
-				<Sidebar active={active} agentActive={dashboard.active.length > 0} />
+				<Sidebar active={active} />
 				<SidebarInset>
 					<Topbar
 						title={pageTitle ?? title}

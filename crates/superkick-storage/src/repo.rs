@@ -673,6 +673,39 @@ pub trait LaunchTaskRepo: Send + Sync {
     ) -> impl Future<Output = Result<()>> + Send;
 }
 
+/// Row counts touched by an issue-clean operation. Returned so the API can
+/// report how much was archived or purged without a follow-up read.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
+pub struct IssueCleanOutcome {
+    pub runs: u64,
+    pub launch_tasks: u64,
+}
+
+/// "Clean issue" operations spanning the run and launch-task aggregates for a
+/// single Linear issue (keyed by the stable identifier, e.g. `SUP-122`).
+///
+/// `archive` is stats-safe: it stamps `archived_at` so the rows drop out of the
+/// issue feed but remain queryable for stats/history. `purge` is the only
+/// destructive path — it hard-deletes the runs, launch tasks, their steps, and
+/// every linked child row. Both run in a single transaction so a partial clean
+/// can never be observed.
+pub trait IssueCleanRepo: Send + Sync {
+    /// Stamp `archived_at = now` on every non-archived run + launch task linked
+    /// to `issue_identifier`. Idempotent — already-archived rows are skipped.
+    fn archive_issue(
+        &self,
+        issue_identifier: &str,
+        now: DateTime<Utc>,
+    ) -> impl Future<Output = Result<IssueCleanOutcome>> + Send;
+
+    /// Hard-delete every run + launch task (and their steps/events/linked child
+    /// rows) for `issue_identifier`. Destructive and irreversible.
+    fn purge_issue(
+        &self,
+        issue_identifier: &str,
+    ) -> impl Future<Output = Result<IssueCleanOutcome>> + Send;
+}
+
 /// Repository for `IssueWorkspaceContext` aggregates (SUP-147).
 ///
 /// The parent + comment excerpts + links are always written in a single

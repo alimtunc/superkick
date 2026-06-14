@@ -4,7 +4,7 @@ use axum::extract::{FromRef, State};
 use axum::response::Json;
 use serde::Serialize;
 
-use superkick_config::{RunnerConfig, RunnerPatch};
+use superkick_config::{LaunchProfileConfig, LaunchProfilePatch, RunnerConfig, RunnerPatch};
 
 use crate::AppState;
 use crate::error::AppError;
@@ -54,4 +54,12 @@ pub async fn put_runner_config(
 ) -> Result<Json<RunnerConfigResponse>, AppError> {
     let runner = superkick_config::update_runner_config(&state.config_path, patch)?;
     Ok(Json(runner_response(runner, &state.boot_runner)))
+}
+
+pub async fn patch_launch_profile(
+    State(state): State<RunnerConfigState>,
+    Json(patch): Json<LaunchProfilePatch>,
+) -> Result<Json<LaunchProfileConfig>, AppError> {
+    let launch_profile = superkick_config::update_launch_profile_config(&state.config_path, patch)?;
+    Ok(Json(launch_profile))
 }

@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from 'react'
 
 import { SidebarTrigger } from '@/components/ui/sidebar'
+import { cn } from '@/lib/utils'
 import type { SKIconName } from '@/types/icons'
 import { Icon } from '@/ui/Icon'
 
@@ -26,12 +27,24 @@ export function Topbar({ title, icon, crumbs, sub, right, back }: TopbarProps) {
 				{hasCrumbs
 					? crumbs.map((crumb) => (
 							<Fragment key={crumb}>
-								<span className={IDENTIFIER.test(crumb) ? 'mono' : undefined}>{crumb}</span>
-								<span className="sep">/</span>
+								<span
+									className={cn(
+										'max-w-[18ch] shrink truncate',
+										IDENTIFIER.test(crumb) ? 'mono' : undefined
+									)}
+								>
+									{crumb}
+								</span>
+								<span className="sep shrink-0">/</span>
 							</Fragment>
 						))
 					: null}
-				<span className="cur truncate">{title}</span>
+				<span
+					className="cur min-w-0 flex-1 truncate"
+					title={typeof title === 'string' ? title : undefined}
+				>
+					{title}
+				</span>
 				{sub}
 			</div>
 			{right ? <div className="topbar__actions">{right}</div> : null}

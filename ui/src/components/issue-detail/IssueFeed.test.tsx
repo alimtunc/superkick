@@ -174,20 +174,6 @@ describe('IssueFeed — activity timeline', () => {
 		expect(older.compareDocumentPosition(newer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 	})
 
-	it('renders the "Newest first" sort affordance in the Activity header when populated', () => {
-		render(
-			<IssueFeed
-				issue={buildIssue({
-					comments: [
-						comment({ id: 'c1', body: 'a comment', created_at: '2026-05-25T08:00:00.000Z' })
-					]
-				})}
-			/>
-		)
-
-		expect(screen.getByRole('button', { name: /newest first/i })).toBeInTheDocument()
-	})
-
 	it('renders a compact empty state when there are no comments and no qualifying run events', () => {
 		render(<IssueFeed issue={buildIssue()} />)
 

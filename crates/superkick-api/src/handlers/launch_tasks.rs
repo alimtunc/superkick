@@ -20,8 +20,9 @@ use serde::{Deserialize, Serialize};
 use superkick_core::{
     AgentCatalog, LaunchTask, LaunchTaskId, LaunchTaskIntervention, LaunchTaskOverrides,
     LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, PlanImplementReviewAgents, ProfileStep,
-    RetryPath, RunId,
+    RetryPath, ReuseWorktree, RunId,
 };
+use superkick_integrations::linear::{IssueUpdateInput, LinearClient};
 use superkick_runtime::launch_task::RealStepRunner;
 use superkick_runtime::{
     LaunchTaskEvent, LaunchTaskEventBus, LaunchTaskExecutor, StepRunner,
@@ -48,6 +49,21 @@ fn require_agent(value: Option<&str>, field: &str) -> Result<String, AppError> {
         .ok_or_else(|| {
             AppError::BadRequest(format!("{field} is required when profile_id is absent"))
         })
+}
+
+/// Worktree reuse is opt-in and atomic: a path with no branch (or vice versa)
+/// is a malformed request, not a partial reuse.
+fn reuse_worktree_override(
+    path: Option<String>,
+    branch: Option<String>,
+) -> Result<Option<ReuseWorktree>, AppError> {
+    match (path, branch) {
+        (Some(path), Some(branch)) => Ok(Some(ReuseWorktree { path, branch })),
+        (None, None) => Ok(None),
+        _ => Err(AppError::BadRequest(
+            "reuse_worktree_path and reuse_worktree_branch must be provided together".into(),
+        )),
+    }
 }
 
 /// Production wiring of the executor: spawns a real agent process per step.
@@ -93,6 +109,12 @@ pub struct LaunchTaskState<S: StepRunner> {
     /// in production; the test router opts out so create-time status
     /// assertions stay deterministic.
     pub auto_trigger_executor: bool,
+    /// Linear client used to move the issue to "In Progress" on launch.
+    /// `None` when the integration is unconfigured (or in the test router).
+    pub linear_client: Option<Arc<LinearClient>>,
+    /// `launch_profile.auto_transition_in_progress` snapshot — gates the
+    /// on-launch Linear workflow-state move.
+    pub auto_transition_in_progress: bool,
 }
 
 // Manual `Clone` so the derive doesn't infect `S` with a `Clone` bound — the
@@ -112,6 +134,8 @@ impl<S: StepRunner> Clone for LaunchTaskState<S> {
             executor: Arc::clone(&self.executor),
             launch_profile_service: self.launch_profile_service.clone(),
             auto_trigger_executor: self.auto_trigger_executor,
+            linear_client: self.linear_client.clone(),
+            auto_transition_in_progress: self.auto_transition_in_progress,
         }
     }
 }
@@ -131,6 +155,8 @@ impl FromRef<AppState> for LaunchTaskState<ProdRealStepRunner> {
             executor: Arc::clone(&state.launch_task_executor),
             launch_profile_service: Some(Arc::clone(&state.launch_profile_service)),
             auto_trigger_executor: true,
+            linear_client: state.linear_client.clone(),
+            auto_transition_in_progress: state.launch_profile.auto_transition_in_progress,
         }
     }
 }
@@ -155,6 +181,13 @@ pub struct CreateLaunchTaskRequest {
     pub base_branch: Option<String>,
     #[serde(default)]
     pub use_worktree: Option<bool>,
+    /// Reuse an issue's surviving finished worktree. Both fields are
+    /// supplied together (detected via `GET /issues/{id}/reusable-worktree`)
+    /// or both omitted.
+    #[serde(default)]
+    pub reuse_worktree_path: Option<String>,
+    #[serde(default)]
+    pub reuse_worktree_branch: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -170,6 +203,9 @@ pub async fn create_launch_task<S: StepRunner>(
     let linear_issue_id = body.linear_issue_id.trim().to_string();
     // No active-run hard block: the operator may launch a second run on an issue
     // already in flight (UI shows a non-blocking advisory; runs are run-id-scoped).
+
+    let reuse_worktree =
+        reuse_worktree_override(body.reuse_worktree_path, body.reuse_worktree_branch)?;
 
     let (task, steps) = if let Some(profile_id) = body.profile_id.as_deref() {
         // Dynamic path — compose from the chosen profile + overrides.
@@ -187,6 +223,7 @@ pub async fn create_launch_task<S: StepRunner>(
                 LaunchTaskOverrides {
                     base_branch: body.base_branch,
                     use_worktree: body.use_worktree,
+                    reuse_worktree,
                 },
             )
             .await?
@@ -197,11 +234,15 @@ pub async fn create_launch_task<S: StepRunner>(
             coder: require_agent(body.coder_agent.as_deref(), "coder_agent")?,
             reviewer: require_agent(body.reviewer_agent.as_deref(), "reviewer_agent")?,
         };
-        let (mut task, steps) =
-            LaunchTask::new_with_v1_recipe(linear_issue_id, agents, state.catalog.as_ref())?;
+        let (mut task, steps) = LaunchTask::new_with_v1_recipe(
+            linear_issue_id.clone(),
+            agents,
+            state.catalog.as_ref(),
+        )?;
         task.apply_overrides(LaunchTaskOverrides {
             base_branch: body.base_branch,
             use_worktree: body.use_worktree,
+            reuse_worktree,
         })?;
         state.repo.insert_with_steps(&task, &steps).await?;
         (task, steps)
@@ -213,10 +254,68 @@ pub async fn create_launch_task<S: StepRunner>(
         Arc::clone(&state.executor).spawn(task.id);
     }
 
+    // Best-effort: move the Linear issue to "In Progress" on launch. Never
+    // fails the create — a transition error only logs.
+    if state.auto_transition_in_progress {
+        if let Some(client) = state.linear_client.as_ref() {
+            maybe_transition_to_started(client, &linear_issue_id).await;
+        }
+    }
+
     Ok((
         StatusCode::CREATED,
         Json(LaunchTaskWithSteps { task, steps }),
     ))
+}
+
+/// State types that mean "do not move backward": the issue is already underway
+/// or finished, so a launch must not drag it back to In Progress.
+const ALREADY_PROGRESSED_STATE_TYPES: &[&str] = &["started", "completed"];
+
+/// Move the Linear issue identified by `issue_ref` (identifier like `SUP-122`
+/// or a UUID) to its team's first "started"-type workflow state. Skips issues
+/// already in a started/completed state. Best-effort — every failure path logs
+/// and returns without propagating, so the launch is never blocked.
+async fn maybe_transition_to_started(client: &LinearClient, issue_ref: &str) {
+    let detail = match client.get_issue(issue_ref).await {
+        Ok(detail) => detail,
+        Err(err) => {
+            tracing::warn!(issue = issue_ref, error = %err, "auto-transition: issue lookup failed");
+            return;
+        }
+    };
+
+    if ALREADY_PROGRESSED_STATE_TYPES.contains(&detail.status.state_type.as_str()) {
+        return;
+    }
+
+    let state_id = match client
+        .resolve_workflow_state_for_type(detail.team_id.as_deref(), "started", Some(&detail.id))
+        .await
+    {
+        Ok(id) => id,
+        Err(err) => {
+            tracing::warn!(
+                issue = issue_ref,
+                error = %err,
+                "auto-transition: no started-type workflow state resolved"
+            );
+            return;
+        }
+    };
+
+    if let Err(err) = client
+        .update_issue(
+            &detail.id,
+            IssueUpdateInput {
+                state_id: Some(state_id),
+                ..Default::default()
+            },
+        )
+        .await
+    {
+        tracing::warn!(issue = issue_ref, error = %err, "auto-transition: update_issue failed");
+    }
 }
 
 #[derive(Deserialize)]

@@ -1,17 +1,16 @@
-import { LaunchDialog } from '@/components/launch/LaunchDialog'
-import { useConfig } from '@/hooks/useConfig'
-import { useLaunchFromInbox } from '@/hooks/useLaunchFromInbox'
+import { useState } from 'react'
+
+import { LaunchComposerDialog } from '@/components/launch/LaunchComposerDialog'
+import type { IssueDetailResponse } from '@/types'
 import { Btn, Icon } from '@/ui'
+import { toast } from 'sonner'
 
 interface ExecutionLogIdleProps {
-	issueIdentifier: string
-	issueId?: string
+	issue: IssueDetailResponse
 }
 
-export function ExecutionLogIdle({ issueIdentifier, issueId }: ExecutionLogIdleProps) {
-	const { config } = useConfig()
-	const launchProfile = config?.launch_profile
-	const launch = useLaunchFromInbox({ launchProfile })
+export function ExecutionLogIdle({ issue }: ExecutionLogIdleProps) {
+	const [launchOpen, setLaunchOpen] = useState(false)
 
 	return (
 		<section aria-label="No execution yet" className="execlog">
@@ -31,35 +30,23 @@ export function ExecutionLogIdle({ issueIdentifier, issueId }: ExecutionLogIdleP
 						No execution yet on this issue.
 					</div>
 					<div style={{ fontSize: 'var(--text-12)', color: 'var(--fg-dim)', marginTop: 2 }}>
-						Launch the plan → implement → review recipe against this issue.
+						Launch a task against this issue.
 					</div>
 				</div>
-				<Btn
-					kind="primary"
-					size="sm"
-					icon="play"
-					disabled={!launchProfile}
-					onClick={() => launch.openFor(issueIdentifier, issueId)}
-				>
+				<Btn kind="primary" size="sm" icon="play" onClick={() => setLaunchOpen(true)}>
 					Launch task
 				</Btn>
 			</div>
-			{launchProfile ? (
-				<LaunchDialog
-					open={launch.dialog.open}
-					profile={launchProfile}
-					useWorktree={launch.dialog.useWorktree}
-					isPending={launch.isPending}
-					canLaunch={launch.canLaunch}
-					agents={launch.agents}
-					selection={launch.selection}
-					agentsLoading={launch.agentsLoading}
-					onAgentChange={launch.setAgent}
-					onUseWorktreeChange={launch.dialog.setUseWorktree}
-					onLaunch={launch.confirm}
-					onClose={launch.close}
-				/>
-			) : null}
+			<LaunchComposerDialog
+				open={launchOpen}
+				onOpenChange={setLaunchOpen}
+				issue={issue}
+				title="Launch task"
+				onLaunched={(result) => {
+					setLaunchOpen(false)
+					toast.success(`Launched ${result.task.linear_issue_id}`)
+				}}
+			/>
 		</section>
 	)
 }

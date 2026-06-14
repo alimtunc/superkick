@@ -12,6 +12,7 @@ export interface LaunchProfileSettings {
 	use_worktree: boolean
 	default_instructions: string
 	handoff_instructions: string
+	auto_transition_in_progress: boolean
 }
 
 export interface ServerConfigResponse {
@@ -152,9 +153,22 @@ export interface CreateLaunchTaskRequest {
 	reviewer_agent?: string
 	base_branch?: string
 	use_worktree?: boolean
+	/** Reuse a finished worktree from this issue's last task. Send both or neither. */
+	reuse_worktree_path?: string
+	reuse_worktree_branch?: string
 }
 
-export type LaunchWorktreeStrategy = 'new_worktree' | 'current_checkout'
+export type LaunchWorktreeStrategy = 'new_worktree' | 'current_checkout' | 'reuse_worktree'
+
+export interface ReusableWorktree {
+	runId: string
+	worktreePath: string
+	branchName: string
+}
+
+export interface LaunchProfilePatch {
+	auto_transition_in_progress: boolean
+}
 
 // SUP-120 — operator action responses. Mirror the Rust structs exactly; only
 // fields the UI consumes are typed.

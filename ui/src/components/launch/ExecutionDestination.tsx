@@ -5,12 +5,25 @@ interface ExecutionDestinationProps {
 	repoSlug: string | null
 	baseBranch: string
 	strategy: LaunchWorktreeStrategy
+	reuseBranch: string | null
 }
 
-export function ExecutionDestination({ repoSlug, baseBranch, strategy }: ExecutionDestinationProps) {
+function destinationLabel(strategy: LaunchWorktreeStrategy, reuseBranch: string | null): string {
+	if (strategy === 'reuse_worktree') {
+		return reuseBranch ? `existing worktree (${reuseBranch})` : 'existing worktree'
+	}
+	if (strategy === 'current_checkout') return 'current checkout on base'
+	return 'new worktree from base'
+}
+
+export function ExecutionDestination({
+	repoSlug,
+	baseBranch,
+	strategy,
+	reuseBranch
+}: ExecutionDestinationProps) {
 	const repoLabel = repoSlug ?? 'this repository'
-	const destinationText =
-		strategy === 'new_worktree' ? 'new worktree from base' : 'current checkout on base'
+	const destinationText = destinationLabel(strategy, reuseBranch)
 
 	return (
 		<div

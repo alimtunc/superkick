@@ -1,15 +1,20 @@
+import { readAutoTransitionInProgress } from '@/components/settings/readAutoTransition'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSection } from '@/components/settings/SettingsSection'
 import { Button } from '@/components/ui/button'
 import { Pill } from '@/components/ui/pill'
+import { useAutoTransitionToggle } from '@/hooks/useAutoTransitionToggle'
+import { useConfig } from '@/hooks/useConfig'
 import { THEME_OPTIONS } from '@/lib/themeOptions'
 import { useThemeStore } from '@/stores/theme'
-import { Icon } from '@/ui/Icon'
 import { Toggle } from '@/ui/Toggle'
 
 export function SettingsPaneGeneral() {
 	const mode = useThemeStore((s) => s.mode)
 	const setMode = useThemeStore((s) => s.setMode)
+	const { config } = useConfig()
+	const autoTransition = readAutoTransitionInProgress(config)
+	const autoTransitionMutation = useAutoTransitionToggle()
 
 	return (
 		<section>
@@ -32,13 +37,17 @@ export function SettingsPaneGeneral() {
 						Re-sync
 					</Button>
 				</SettingsRow>
-				<SettingsRow label="Default team" last>
-					<button type="button" className="select" aria-label="Default team">
-						Superkick
-						<span className="chev">
-							<Icon name="chevDown" size={14} className="ic" />
-						</span>
-					</button>
+				<SettingsRow
+					label="Move issue to In Progress on launch"
+					hint="Auto-transition the Linear issue when you launch a task"
+					last
+				>
+					<Toggle
+						checked={autoTransition}
+						disabled={autoTransitionMutation.isPending}
+						onChange={(next) => autoTransitionMutation.mutate(next)}
+						ariaLabel="Move issue to In Progress on launch"
+					/>
 				</SettingsRow>
 			</SettingsSection>
 

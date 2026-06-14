@@ -14,6 +14,7 @@ import { useAgents } from '@/hooks/useAgents'
 import { useConfig } from '@/hooks/useConfig'
 import { useCreateLaunchTask } from '@/hooks/useCreateLaunchTask'
 import { useIssueActiveTask } from '@/hooks/useIssueLaunchTasks'
+import { useIssueReusableWorktree } from '@/hooks/useIssueReusableWorktree'
 import { useSkills } from '@/hooks/useSkills'
 import { errorMessageOr } from '@/lib/errors'
 import { bodyFromIssue, selectionFromDetail, selectionFromListItem } from '@/lib/launch/composerSelection'
@@ -22,6 +23,7 @@ import type {
 	IssueChipPickerValue,
 	IssueDetailResponse,
 	LaunchStepKind,
+	LaunchTaskWithSteps,
 	LaunchWorktreeStrategy
 } from '@/types'
 import { Btn } from '@/ui/Btn'
@@ -32,11 +34,13 @@ import { useNavigate } from '@tanstack/react-router'
 interface LaunchComposerProps {
 	issue: IssueDetailResponse | null
 	prefill?: string | null
+	/** When set, runs instead of the default navigate-to-task-page on a successful launch (e.g. dialog stays on the issue). */
+	onLaunched?: (result: LaunchTaskWithSteps) => void
 }
 
 const DEFAULT_BASE_BRANCH = 'main'
 
-export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
+export function LaunchComposer({ issue, prefill = null, onLaunched }: LaunchComposerProps) {
 	const navigate = useNavigate()
 	const { config } = useConfig()
 	const agentsQuery = useAgents()
@@ -109,13 +113,19 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 		issueIdentifier: selectedIssue?.identifier ?? '',
 		issueId: selectedIssue?.id,
 		onSuccess: (result) => {
+			if (onLaunched) {
+				onLaunched(result)
+				return
+			}
 			navigate({ to: '/tasks/$taskId', params: { taskId: result.task.id } })
 		}
 	})
 
-	// Advisory only — launching a second run on an issue is allowed (the API no
+	// Advisory only — launching a second task on an issue is allowed (the API no
 	// longer hard-blocks). Surface, don't gate.
 	const activeRunTask = useIssueActiveTask(selectedIssue?.identifier ?? '')
+
+	const reusableWorktree = useIssueReusableWorktree(selectedIssue?.identifier ?? '')
 
 	const planAgent = selection.plan
 	const implementAgent = selection.implement
@@ -131,8 +141,22 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 		!agentsQuery.isLoading
 	const submitError = createLaunchTask.error ? errorMessageOr(createLaunchTask.error) : null
 
+	function worktreeFields() {
+		if (strategy === 'reuse_worktree' && reusableWorktree) {
+			return {
+				use_worktree: true,
+				reuse_worktree_path: reusableWorktree.worktreePath,
+				reuse_worktree_branch: reusableWorktree.branchName
+			}
+		}
+		// Reuse picked but the detect query raced to `null` — fall back to a fresh worktree.
+		if (strategy === 'current_checkout') return { use_worktree: false }
+		return { use_worktree: true }
+	}
+
 	function handleSubmit() {
 		if (!selectedIssue) return
+		const worktree = worktreeFields()
 		if (profileMode && profileId !== null) {
 			if (enabledStepCount === 0) return
 			createLaunchTask.mutate({
@@ -140,7 +164,7 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 				profile_id: profileId,
 				step_overrides: composerSteps,
 				base_branch: baseBranch.trim(),
-				use_worktree: strategy === 'new_worktree'
+				...worktree
 			})
 			return
 		}
@@ -151,7 +175,7 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 			coder_agent: implementAgent,
 			reviewer_agent: reviewAgent,
 			base_branch: baseBranch.trim(),
-			use_worktree: strategy === 'new_worktree'
+			...worktree
 		})
 	}
 
@@ -252,13 +276,18 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 							configDefault={configBase}
 							onChange={setBaseOverride}
 						/>
-						<WorktreeStrategyChip value={strategy} onChange={setStrategyOverride} />
+						<WorktreeStrategyChip
+							value={strategy}
+							onChange={setStrategyOverride}
+							reusable={reusableWorktree}
+						/>
 					</div>
 					<div className="flex flex-wrap items-center gap-3">
 						<ExecutionDestination
 							repoSlug={config?.repo_slug ?? null}
 							baseBranch={baseBranch}
 							strategy={strategy}
+							reuseBranch={reusableWorktree?.branchName ?? null}
 						/>
 						<span className="flex-1" />
 						<Btn
@@ -292,10 +321,10 @@ export function LaunchComposer({ issue, prefill = null }: LaunchComposerProps) {
 					</span>
 					<div className="toast__body">
 						<div className="toast__title">
-							{selectedIssue?.identifier} already has an active run ({activeRunTask.status})
+							{selectedIssue?.identifier} already has an active task ({activeRunTask.status})
 						</div>
 						<div className="toast__sub">
-							You can still launch another — each run gets its own branch and worktree.
+							You can still launch another — each task gets its own branch and worktree.
 						</div>
 					</div>
 				</div>

@@ -3,7 +3,7 @@
 //! A thin, testable wrapper over the four `claude` background commands Superkick
 //! drives for the subscription autonomous runner:
 //!
-//! - launch: `claude --bg --name <name> "<prompt>"` from the worktree `cwd`
+//! - launch: `claude --bg --name <name> [--effort <level>] "<prompt>"` from the worktree `cwd`
 //!   (never `--cwd`, which the spike observed launching a session that
 //!   immediately `failed`).
 //! - poll:   `claude agents --json --all`, filtered by the persisted background
@@ -90,6 +90,9 @@ pub struct BackgroundLaunch {
     pub name: String,
     pub prompt: String,
     pub cwd: PathBuf,
+    /// Resolved `--effort <value>` for the session. `None` lets the CLI pick its
+    /// own default; `Some` forwards the operator's per-step reasoning effort.
+    pub effort: Option<String>,
 }
 
 /// Result of launching: the control handle id and (when known) the longer
@@ -166,10 +169,11 @@ impl ClaudeBackgroundCli for RealClaudeBackgroundCli {
         let executable = self.executable.clone();
         async move {
             let mut cmd = Command::new(&executable);
-            cmd.arg("--bg")
-                .arg("--name")
-                .arg(&params.name)
-                .arg(&params.prompt)
+            cmd.arg("--bg").arg("--name").arg(&params.name);
+            if let Some(effort) = &params.effort {
+                cmd.arg("--effort").arg(effort);
+            }
+            cmd.arg(&params.prompt)
                 .current_dir(&params.cwd)
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())

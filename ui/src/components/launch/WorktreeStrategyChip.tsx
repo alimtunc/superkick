@@ -1,12 +1,14 @@
 import { MenuPopup } from '@/components/ui/menu-shell'
 import { cn } from '@/lib/utils'
-import type { LaunchWorktreeStrategy } from '@/types'
+import type { LaunchWorktreeStrategy, ReusableWorktree } from '@/types'
 import { Icon } from '@/ui/Icon'
 import { Menu } from '@base-ui/react/menu'
 
 interface WorktreeStrategyChipProps {
 	value: LaunchWorktreeStrategy
 	onChange: (next: LaunchWorktreeStrategy) => void
+	/** The worktree from this issue's last finished task, or `null` when none exists. */
+	reusable: ReusableWorktree | null
 }
 
 interface StrategyOption {
@@ -25,11 +27,17 @@ const OPTIONS: readonly StrategyOption[] = [
 		value: 'current_checkout',
 		label: 'current checkout',
 		hint: 'Run in the configured repo checkout — shares state with other launches'
+	},
+	{
+		value: 'reuse_worktree',
+		label: 'reuse worktree',
+		hint: "Continue in the worktree from this issue's last finished task"
 	}
 ] as const
 
-export function WorktreeStrategyChip({ value, onChange }: WorktreeStrategyChipProps) {
-	const current = OPTIONS.find((o) => o.value === value)?.label ?? value
+export function WorktreeStrategyChip({ value, onChange, reusable }: WorktreeStrategyChipProps) {
+	const options = reusable ? OPTIONS : OPTIONS.filter((o) => o.value !== 'reuse_worktree')
+	const current = options.find((o) => o.value === value)?.label ?? value
 	return (
 		<Menu.Root>
 			<Menu.Trigger aria-label={`Worktree strategy: ${current}`} className="select">
@@ -45,7 +53,7 @@ export function WorktreeStrategyChip({ value, onChange }: WorktreeStrategyChipPr
 					value={value}
 					onValueChange={(next) => onChange(next as LaunchWorktreeStrategy)}
 				>
-					{OPTIONS.map((opt) => (
+					{options.map((opt) => (
 						<Menu.RadioItem
 							key={opt.value}
 							value={opt.value}

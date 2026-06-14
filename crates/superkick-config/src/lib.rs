@@ -6,6 +6,7 @@
 
 mod boot;
 mod builtin_agents;
+mod launch_profile_patch;
 mod model;
 mod repo_slug;
 mod runner_patch;
@@ -15,6 +16,7 @@ pub use boot::{
     DEFAULT_CACHE_DIR, DEFAULT_DATABASE_URL, DEFAULT_PORT, ENV_CACHE_DIR, ENV_CONFIG,
     ENV_DATABASE_URL, ENV_LINEAR_API_KEY, ENV_PORT, ENV_PORT_FILE, port_file_path,
 };
+pub use launch_profile_patch::{LaunchProfilePatch, update_launch_profile_config};
 pub use model::*;
 pub use repo_slug::{detect_repo_slug, parse_repo_slug};
 pub use runner_patch::{RunnerPatch, RunnerPatchError, update_runner_config};

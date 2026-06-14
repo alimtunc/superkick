@@ -1,7 +1,7 @@
 // Pure step-list transforms shared by the Launch Composer store and the
 // settings ProfileEditor's local state, so both apply identical clamp /
 // reconcile-model semantics (see superkick-core `ReasoningEffort::clamp_for`).
-import { clampReasoningForProvider } from '@/lib/launchConfigOptions'
+import { clampExecutorForProvider, clampReasoningForProvider } from '@/lib/launchConfigOptions'
 import type { AgentProvider, ProfileStep, SkillDefinition } from '@/types'
 
 export function renumberSteps(steps: ProfileStep[]): ProfileStep[] {
@@ -16,7 +16,7 @@ export function seedStepFromSkill(step: ProfileStep, skill: SkillDefinition): Pr
 		provider: skill.default_provider,
 		model: skill.default_model ?? (skill.default_provider === step.provider ? step.model : null),
 		reasoning: clampReasoningForProvider(skill.default_reasoning, skill.default_provider),
-		executor: skill.default_executor,
+		executor: clampExecutorForProvider(skill.default_executor, skill.default_provider),
 		session_policy: skill.default_session_policy,
 		output_expectation: skill.default_output_expectation
 	}
@@ -27,7 +27,8 @@ export function reconcileStepProvider(step: ProfileStep, provider: AgentProvider
 		...step,
 		provider,
 		model: provider === step.provider ? step.model : null,
-		reasoning: clampReasoningForProvider(step.reasoning, provider)
+		reasoning: clampReasoningForProvider(step.reasoning, provider),
+		executor: clampExecutorForProvider(step.executor, provider)
 	}
 }
 

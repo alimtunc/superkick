@@ -5,10 +5,31 @@ import type {
 	IssueListResponse,
 	IssuePullRequestDiffResponse,
 	IssueStateMutable,
-	IssueUpdateRequest
+	IssueUpdateRequest,
+	ReusableWorktree
 } from '@/types'
+import type { CleanIssueMode, CleanIssueResponse } from '@/types/cleanIssue'
 
-import { BASE, getJson, patchVoid, throwLinearError } from './_shared'
+import { BASE, getJson, patchVoid, postJson, throwLinearError } from './_shared'
+
+interface ReusableWorktreeResponse {
+	run_id: string
+	worktree_path: string
+	branch_name: string
+}
+
+/** `null` when the issue has no finished worktree-backed run to continue (404). */
+export async function fetchReusableWorktree(id: string): Promise<ReusableWorktree | null> {
+	const res = await fetch(`${BASE}/issues/${encodeURIComponent(id)}/reusable-worktree`)
+	if (res.status === 404) return null
+	if (!res.ok) throw new Error(`GET /issues/${id}/reusable-worktree failed: ${res.status}`)
+	const body = (await res.json()) as ReusableWorktreeResponse
+	return {
+		runId: body.run_id,
+		worktreePath: body.worktree_path,
+		branchName: body.branch_name
+	}
+}
 
 export async function fetchIssues(limit = 200): Promise<IssueListResponse> {
 	return getJson(`/issues?limit=${limit}`, 'fetch failed: GET /issues')
@@ -59,6 +80,10 @@ export async function patchIssue(id: string, patch: IssueUpdateRequest): Promise
 	})
 	if (!res.ok) await throwLinearError(res, `PATCH /issues/${id} failed`)
 	return res.json()
+}
+
+export async function cleanIssue(id: string, mode: CleanIssueMode): Promise<CleanIssueResponse> {
+	return postJson(`/issues/${encodeURIComponent(id)}/clean`, 'clean issue failed', { mode })
 }
 
 export async function createIssueComment(issueId: string, body: string): Promise<IssueComment> {

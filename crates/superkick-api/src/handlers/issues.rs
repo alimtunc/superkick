@@ -7,14 +7,14 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json};
 use chrono::NaiveDate;
 use serde::de::{MapAccess, Visitor};
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use superkick_core::LinkedRunSummary;
 use superkick_integrations::linear::{
     IssueComment, IssueCreateInput, IssueDetailResponse, IssueStateMutation, IssueUpdateInput,
     LinearClient, LinearError, LinearOptions,
 };
-use superkick_storage::repo::RunRepo;
+use superkick_storage::repo::{IssueCleanOutcome, IssueCleanRepo, RunRepo};
 
 use crate::AppState;
 use crate::error::AppError;
@@ -477,6 +477,132 @@ pub async fn create_comment(
     }
     let comment = writer.create_comment(&id, trimmed).await?;
     Ok((StatusCode::CREATED, Json(comment)).into_response())
+}
+
+/// Operator-chosen clean mode. `Archive` is stats-safe (hides from the feed,
+/// retains rows); `Purge` hard-deletes and is the only destructive path, so it
+/// must be requested explicitly.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CleanMode {
+    Archive,
+    Purge,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CleanIssueRequest {
+    pub mode: CleanMode,
+}
+
+#[derive(Serialize)]
+pub struct CleanIssueResponse {
+    pub mode: &'static str,
+    #[serde(flatten)]
+    pub outcome: IssueCleanOutcome,
+}
+
+/// Resolve whatever `{id}` the UI sent (Linear identifier like `SUP-122` or a
+/// Linear UUID) to the stable identifier the local run/launch-task tables key
+/// off. Without Linear configured the raw param is the identifier, so the
+/// purely-local clean still works. With Linear configured a lookup failure is
+/// propagated rather than swallowed — a destructive purge must not silently key
+/// off the wrong identifier and report success while deleting nothing.
+async fn resolve_issue_identifier(state: &AppState, id: &str) -> Result<String, AppError> {
+    let Some(client) = state.linear_client.as_ref() else {
+        return Ok(id.to_string());
+    };
+    Ok(client.get_issue(id).await?.identifier)
+}
+
+/// `POST /issues/{id}/clean` — archive (stats-safe) or purge (destructive) every
+/// run + launch task linked to the issue. `purge` hard-deletes and must be
+/// requested explicitly via `{ "mode": "purge" }`.
+pub async fn clean_issue(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<CleanIssueRequest>,
+) -> Result<Json<CleanIssueResponse>, AppError> {
+    let identifier = resolve_issue_identifier(&state, &id).await?;
+    let (mode, outcome) = match body.mode {
+        CleanMode::Archive => (
+            "archive",
+            state
+                .issue_clean_repo
+                .archive_issue(&identifier, chrono::Utc::now())
+                .await?,
+        ),
+        CleanMode::Purge => (
+            "purge",
+            state.issue_clean_repo.purge_issue(&identifier).await?,
+        ),
+    };
+    Ok(Json(CleanIssueResponse { mode, outcome }))
+}
+
+#[derive(Clone)]
+pub struct ReusableWorktreeState {
+    pub run_repo: Arc<superkick_storage::SqliteRunRepo>,
+}
+
+impl FromRef<AppState> for ReusableWorktreeState {
+    fn from_ref(state: &AppState) -> Self {
+        Self {
+            run_repo: Arc::clone(&state.run_repo),
+        }
+    }
+}
+
+#[derive(Serialize)]
+pub struct ReusableWorktreeResponse {
+    pub run_id: String,
+    pub worktree_path: String,
+    pub branch_name: String,
+}
+
+const NO_REUSABLE_WORKTREE: &str = "no reusable worktree for issue";
+
+/// Return the newest non-archived finished run whose worktree still survives on
+/// disk, so a fresh launch can run against it instead of minting a new worktree.
+/// 404 when the issue has an active run (reuse would collide with the live
+/// worktree) or no reusable worktree exists.
+pub async fn get_reusable_worktree(
+    State(state): State<ReusableWorktreeState>,
+    Path(identifier): Path<String>,
+) -> Result<Json<ReusableWorktreeResponse>, AppError> {
+    if state
+        .run_repo
+        .find_active_by_issue_identifier(&identifier)
+        .await?
+        .is_some()
+    {
+        return Err(AppError::NotFound(NO_REUSABLE_WORKTREE));
+    }
+
+    let runs = state.run_repo.list_by_issue_identifier(&identifier).await?;
+    let run = runs
+        .into_iter()
+        .find(reusable_worktree_run)
+        .ok_or(AppError::NotFound(NO_REUSABLE_WORKTREE))?;
+
+    let (worktree_path, branch_name) = run
+        .worktree_path
+        .zip(run.branch_name)
+        .ok_or(AppError::NotFound(NO_REUSABLE_WORKTREE))?;
+
+    Ok(Json(ReusableWorktreeResponse {
+        run_id: run.id.0.to_string(),
+        worktree_path,
+        branch_name,
+    }))
+}
+
+fn reusable_worktree_run(run: &superkick_core::Run) -> bool {
+    run.state.is_terminal()
+        && run.use_worktree
+        && run
+            .worktree_path
+            .as_deref()
+            .is_some_and(|path| std::fs::metadata(path).is_ok())
 }
 
 #[cfg(test)]

@@ -18,8 +18,8 @@ use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 use superkick_core::{
     ConversationId, FailureClassification, LaunchRecipe, LaunchStepKind, LaunchTask, LaunchTaskId,
     LaunchTaskStatus, LaunchTaskStep, LaunchTaskStepId, LaunchTaskStepStatus,
-    OrchestratorSessionId, OutputExpectation, ProfileSnapshot, ReasoningEffort, RunId,
-    SessionPolicy, SkillKind, SkillSource, StepExecutor, StepResult,
+    OrchestratorSessionId, OutputExpectation, ProfileSnapshot, ReasoningEffort, ReuseWorktree,
+    RunId, SessionPolicy, SkillKind, SkillSource, StepExecutor, StepResult,
 };
 
 use super::codec::{decode_rfc3339, deserialize_enum, serialize_enum};
@@ -65,8 +65,9 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
             "INSERT INTO launch_tasks (\
                  id, linear_issue_id, recipe_kind, status, current_step_id, summary, \
                  base_branch, use_worktree, profile_id, profile_snapshot, \
+                 reuse_worktree_path, reuse_worktree_branch, \
                  created_at, updated_at\
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
         )
         .bind(task.id.0.to_string())
         .bind(&task.linear_issue_id)
@@ -78,6 +79,8 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         .bind(task.use_worktree.map(i64::from))
         .bind(task.profile_id.clone())
         .bind(profile_snapshot_json)
+        .bind(task.reuse_worktree.as_ref().map(|r| r.path.clone()))
+        .bind(task.reuse_worktree.as_ref().map(|r| r.branch.clone()))
         .bind(task.created_at.to_rfc3339())
         .bind(task.updated_at.to_rfc3339())
         .execute(&mut *tx)
@@ -198,6 +201,9 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
         if let Some(issue) = linear_issue_id {
             qb.push(" AND linear_issue_id = ");
             qb.push_bind(issue.to_string());
+            // The issue feed hides archived tasks; the unfiltered/status-only
+            // paths (liveness, stats) keep them.
+            qb.push(" AND archived_at IS NULL");
         }
         qb.push(" ORDER BY created_at");
         let rows: Vec<LaunchTaskRow> = qb
@@ -601,6 +607,8 @@ struct LaunchTaskRow {
     use_worktree: Option<i64>,
     profile_id: Option<String>,
     profile_snapshot: Option<String>,
+    reuse_worktree_path: Option<String>,
+    reuse_worktree_branch: Option<String>,
     created_at: String,
     updated_at: String,
 }
@@ -613,6 +621,10 @@ impl LaunchTaskRow {
             .map(serde_json::from_str::<ProfileSnapshot>)
             .transpose()
             .with_context(|| format!("decode profile_snapshot for launch_task {}", self.id))?;
+        let reuse_worktree = match (self.reuse_worktree_path, self.reuse_worktree_branch) {
+            (Some(path), Some(branch)) => Some(ReuseWorktree { path, branch }),
+            _ => None,
+        };
         Ok(LaunchTask {
             id: LaunchTaskId(uuid::Uuid::parse_str(&self.id)?),
             linear_issue_id: self.linear_issue_id,
@@ -629,6 +641,7 @@ impl LaunchTaskRow {
             use_worktree: self.use_worktree.map(|v| v != 0),
             profile_id: self.profile_id,
             profile_snapshot,
+            reuse_worktree,
             created_at: decode_rfc3339(&self.created_at)?,
             updated_at: decode_rfc3339(&self.updated_at)?,
         })

@@ -1,59 +1,66 @@
+import { useState } from 'react'
+
+import { LaunchComposerDialog } from '@/components/launch/LaunchComposerDialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { MenuPopup } from '@/components/ui/menu-shell'
+import { useIssueCleanActions } from '@/hooks/useIssueCleanActions'
+import type { IssueDetailResponse } from '@/types'
 import { Btn, Icon } from '@/ui'
 import { Menu } from '@base-ui/react/menu'
-import { useNavigate } from '@tanstack/react-router'
-import { RefreshCw } from 'lucide-react'
+import { Archive, RefreshCw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface IssueDetailTopbarRightProps {
-	identifier: string
+	issue: IssueDetailResponse
 	isDone: boolean
 	onRefresh: () => void
 }
 
-function copyCurrentUrlToClipboard() {
-	navigator.clipboard.writeText(window.location.href).then(
-		() => toast('Link copied'),
-		() => toast.error('Failed to copy link')
-	)
-}
+export function IssueDetailTopbarRight({ issue, isDone, onRefresh }: IssueDetailTopbarRightProps) {
+	const { identifier } = issue
+	const [launchOpen, setLaunchOpen] = useState(false)
+	const [purgeOpen, setPurgeOpen] = useState(false)
 
-export function IssueDetailTopbarRight({ identifier, isDone, onRefresh }: IssueDetailTopbarRightProps) {
-	const navigate = useNavigate()
-	const launchLabel = isDone ? 'Re-launch' : 'Launch new run'
-	const launchAriaLabel = isDone ? `Re-launch task for ${identifier}` : `Launch new run for ${identifier}`
+	const launchLabel = isDone ? 'Re-launch' : 'Launch task'
+	const launchAriaLabel = isDone ? `Re-launch task for ${identifier}` : `Launch task for ${identifier}`
+
+	const { archive, purge, archivePending, purgePending } = useIssueCleanActions({
+		issueIdentifier: identifier,
+		issueId: issue.id,
+		onPurged: () => setPurgeOpen(false)
+	})
 
 	return (
 		<>
 			<button
 				type="button"
-				disabled
-				aria-label="Subscribe to this issue (coming soon)"
-				title="Subscribe — coming soon"
+				onClick={onRefresh}
+				aria-label="Refresh issue data"
+				title="Refresh"
 				className="iconbtn"
 			>
-				<Icon name="star" size={16} className="ic" />
-			</button>
-			<button
-				type="button"
-				onClick={copyCurrentUrlToClipboard}
-				aria-label="Copy link to this issue"
-				title="Copy link"
-				className="iconbtn"
-			>
-				<Icon name="copy" size={16} className="ic" />
+				<RefreshCw size={15} strokeWidth={1.75} aria-hidden="true" className="text-fg-muted" />
 			</button>
 			<Menu.Root>
 				<Menu.Trigger aria-label="More actions" title="More" className="iconbtn">
 					<Icon name="more" size={16} className="ic" />
 				</Menu.Trigger>
-				<MenuPopup align="end" popupClassName="min-w-44">
+				<MenuPopup align="end" popupClassName="min-w-52">
 					<Menu.Item
-						onClick={onRefresh}
-						className="flex cursor-pointer items-center gap-2 px-3 py-2 text-[12.5px] text-fg outline-none data-highlighted:bg-raised"
+						onClick={archive}
+						disabled={archivePending}
+						className="flex cursor-pointer items-center gap-2 px-3 py-2 text-[12.5px] text-fg outline-none data-highlighted:bg-raised data-disabled:cursor-not-allowed data-disabled:opacity-50"
 					>
-						<RefreshCw size={13} strokeWidth={1.75} aria-hidden="true" />
-						Refresh issue data
+						<Archive size={13} strokeWidth={1.75} aria-hidden="true" />
+						Clean issue (archive)
+					</Menu.Item>
+					<Menu.Item
+						onClick={() => setPurgeOpen(true)}
+						disabled={purgePending}
+						className="flex cursor-pointer items-center gap-2 px-3 py-2 text-[12.5px] text-danger outline-none data-highlighted:bg-raised data-disabled:cursor-not-allowed data-disabled:opacity-50"
+					>
+						<Trash2 size={13} strokeWidth={1.75} aria-hidden="true" />
+						Purge runs & tasks…
 					</Menu.Item>
 				</MenuPopup>
 			</Menu.Root>
@@ -61,11 +68,33 @@ export function IssueDetailTopbarRight({ identifier, isDone, onRefresh }: IssueD
 				kind={isDone ? 'secondary' : 'primary'}
 				size="sm"
 				icon={isDone ? 'loop' : 'play'}
-				onClick={() => navigate({ to: '/tasks/new', search: { issue: identifier } })}
+				onClick={() => setLaunchOpen(true)}
 				aria-label={launchAriaLabel}
 			>
 				{launchLabel}
 			</Btn>
+
+			<LaunchComposerDialog
+				open={launchOpen}
+				onOpenChange={setLaunchOpen}
+				issue={issue}
+				title={launchLabel}
+				onLaunched={(result) => {
+					setLaunchOpen(false)
+					toast.success(`Launched ${result.task.linear_issue_id}`)
+				}}
+			/>
+
+			<ConfirmDialog
+				open={purgeOpen}
+				onOpenChange={setPurgeOpen}
+				title={`Purge runs & tasks on ${identifier}?`}
+				description="This permanently deletes every run, launch task, step, and event linked to this issue. It cannot be undone and removes the data from stats. To keep stats, use Clean issue (archive) instead."
+				confirmLabel="Purge"
+				destructive
+				busy={purgePending}
+				onConfirm={purge}
+			/>
 		</>
 	)
 }

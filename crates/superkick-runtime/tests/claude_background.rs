@@ -452,6 +452,7 @@ esac"#
             name: SESSION_NAME.into(),
             prompt: "p".into(),
             cwd: dir.path().to_path_buf(),
+            effort: None,
         })
         .await?;
     assert_eq!(handle.id, "fake123");
@@ -466,6 +467,34 @@ esac"#
         .expect("background agent found");
     assert_eq!(agent.state, BackgroundState::Done);
     assert_eq!(agent.session_id.as_deref(), Some("fake123-full"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn real_cli_launch_forwards_effort_flag() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let argdump = dir.path().join("args.txt");
+    let body = format!(
+        r#"case "$1" in
+  --bg) echo "$@" > "{}"; echo "backgrounded · fake123 (idle)" ;;
+  *) : ;;
+esac"#,
+        argdump.display()
+    );
+    let exe = write_fake_claude(dir.path(), &body);
+    let cli = RealClaudeBackgroundCli::new(&exe);
+    cli.launch(BackgroundLaunch {
+        name: SESSION_NAME.into(),
+        prompt: "p".into(),
+        cwd: dir.path().to_path_buf(),
+        effort: Some("high".into()),
+    })
+    .await?;
+    let dumped = std::fs::read_to_string(&argdump)?;
+    assert!(
+        dumped.contains("--effort high"),
+        "background argv must carry --effort: {dumped}"
+    );
     Ok(())
 }
 
@@ -511,6 +540,7 @@ esac"#,
             name: SESSION_NAME.into(),
             prompt: "p".into(),
             cwd: dir.path().to_path_buf(),
+            effort: None,
         })
         .await;
     unsafe {
@@ -547,6 +577,7 @@ async fn smoke_real_claude_bg() -> Result<()> {
             name: "superkick-smoke".into(),
             prompt: "Reply with the single word PONG, then stop.".into(),
             cwd: dir.path().to_path_buf(),
+            effort: None,
         })
         .await?;
     assert!(!handle.id.is_empty(), "real claude --bg returned an id");

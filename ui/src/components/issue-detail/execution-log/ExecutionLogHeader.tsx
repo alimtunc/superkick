@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import { RunChip, type RunChipVariant } from '@/components/run-shared/RunChip'
 import { useRunDrawerStore } from '@/stores/runDrawer'
 import type { LaunchTaskStep, LinkedRunSummary, RunState } from '@/types'
@@ -9,6 +11,7 @@ interface ExecutionLogHeaderProps {
 	kind: HeaderKind
 	currentStep: LaunchTaskStep | null
 	run: LinkedRunSummary | null
+	cancel?: ReactNode
 }
 
 interface ChipMeta {
@@ -24,7 +27,7 @@ function chipFor(kind: HeaderKind, runState: RunState | null): ChipMeta {
 	return { tone: 'done', label: 'Completed' }
 }
 
-export function ExecutionLogHeader({ kind, currentStep, run }: ExecutionLogHeaderProps) {
+export function ExecutionLogHeader({ kind, currentStep, run, cancel }: ExecutionLogHeaderProps) {
 	const openDrawer = useRunDrawerStore((s) => s.openDrawer)
 	const chip = chipFor(kind, run?.state ?? null)
 	const agentName = currentStep?.agent_name ?? null
@@ -39,6 +42,7 @@ export function ExecutionLogHeader({ kind, currentStep, run }: ExecutionLogHeade
 			<span className="spacer" />
 			{modelLabel ? <span className="pill pill--neutral">{modelLabel}</span> : null}
 			<RunChip variant={chip.tone} label={chip.label} glyph="icon" />
+			{cancel ?? null}
 			{run ? (
 				<Btn kind="ghost" size="sm" icon="external" onClick={() => openDrawer(run.id, 'activity')}>
 					Open run

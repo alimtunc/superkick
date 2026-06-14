@@ -32,7 +32,7 @@ export function TopbarStatus() {
 				<span className="font-mono text-[11px] text-fg-dim">idle</span>
 			)}
 			<Link
-				to="/attention"
+				to="/"
 				className={cn(
 					'inline-flex h-7 items-center gap-1.5 rounded-[7px] border px-2 transition-colors',
 					'focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none',

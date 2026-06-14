@@ -1,5 +1,6 @@
 import { Suspense, lazy, useRef, useState } from 'react'
 
+import { DiffErrorBoundary } from '@/components/diff/DiffErrorBoundary'
 import { Pill, type PillTone } from '@/components/ui/pill'
 import { useInView } from '@/hooks/useInView'
 import { splitPath } from '@/lib/path'
@@ -120,19 +121,23 @@ export function FileDiffRow({
 			{expanded && canExpand && file.patch ? (
 				<div ref={patchRef} className="mx-4 my-3">
 					{inView ? (
-						<Suspense
-							fallback={
-								<pre className="terminal overflow-x-auto whitespace-pre">{file.patch}</pre>
-							}
-						>
-							<DiffPatchView
-								patch={file.patch}
-								path={file.path}
-								oldPath={file.oldPath}
-								mode={mode}
-								review={review}
-							/>
-						</Suspense>
+						<DiffErrorBoundary patch={file.patch}>
+							<Suspense
+								fallback={
+									<pre className="terminal overflow-x-auto whitespace-pre">
+										{file.patch}
+									</pre>
+								}
+							>
+								<DiffPatchView
+									patch={file.patch}
+									path={file.path}
+									oldPath={file.oldPath}
+									mode={mode}
+									review={review}
+								/>
+							</Suspense>
+						</DiffErrorBoundary>
 					) : (
 						<pre className="terminal overflow-x-auto whitespace-pre">{file.patch}</pre>
 					)}

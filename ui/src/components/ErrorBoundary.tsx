@@ -22,6 +22,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 		console.error('[ErrorBoundary]', error, info.componentStack)
 	}
 
+	private goHome = () => {
+		this.setState({ error: null })
+		window.location.assign('/')
+	}
+
 	render() {
 		if (this.state.error) {
 			return (
@@ -32,14 +37,24 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 								Something went wrong
 							</p>
 							<p className="mb-4 text-sm text-fg-muted">{this.state.error.message}</p>
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => this.setState({ error: null })}
-								className="font-data text-[11px] text-fg-muted hover:text-fg"
-							>
-								TRY AGAIN
-							</Button>
+							<div className="flex items-center justify-center gap-2">
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => this.setState({ error: null })}
+									className="font-data text-[11px] text-fg-muted hover:text-fg"
+								>
+									TRY AGAIN
+								</Button>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={this.goHome}
+									className="font-data text-[11px] text-fg-muted hover:text-fg"
+								>
+									GO TO INBOX
+								</Button>
+							</div>
 						</div>
 					</div>
 				)

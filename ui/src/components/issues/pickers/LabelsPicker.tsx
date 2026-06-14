@@ -69,7 +69,6 @@ export function LabelsPicker({ labels, selectedIds, onApply }: LabelsPickerProps
 				)}
 			</PopBody>
 			<PopFooter>
-				<span>Hold ⌥ to exclude</span>
 				<span style={{ marginLeft: 'auto' }}>
 					<Btn kind="primary" size="sm" onClick={() => onApply([...draft])}>
 						Apply

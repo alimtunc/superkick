@@ -16,7 +16,6 @@ import type {
 	NarrativeTone,
 	RunState
 } from '@/types'
-import { Icon } from '@/ui'
 
 interface EventNode {
 	key: string
@@ -138,15 +137,6 @@ export function IssueFeed({ issue }: { issue: IssueDetailResponse }) {
 	const showFooter = issue.history_has_more === true
 	return (
 		<section aria-label="Activity">
-			<header className="mb-3 flex items-center gap-1.5 text-[12px] text-fg-dim">
-				<button
-					type="button"
-					className="ml-auto inline-flex items-center gap-1 text-[12px] text-fg-muted transition-colors hover:text-fg focus-visible:outline-none"
-				>
-					Newest first
-					<Icon name="chevDown" size={10} strokeWidth={2} />
-				</button>
-			</header>
 			{isEmpty ? (
 				<p className="md md--empty">No activity yet.</p>
 			) : (

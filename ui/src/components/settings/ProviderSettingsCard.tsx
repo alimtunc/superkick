@@ -10,12 +10,12 @@ import {
 	BILLING_OPTIONS,
 	CURATED_MODELS,
 	EXECUTOR_LABEL,
-	EXECUTOR_OPTIONS,
 	PERMISSION_LABEL,
 	PERMISSION_OPTIONS,
 	REASONING_LABEL,
 	SANDBOX_LABEL,
 	SANDBOX_OPTIONS,
+	executorOptionsFor,
 	isPaidExecutor,
 	reasoningOptionsFor
 } from '@/lib/launchConfigOptions'
@@ -79,7 +79,7 @@ export function ProviderSettingsCard({ settings, onSave, isSaving }: ProviderSet
 					<ConfigSelect
 						ariaLabel={`${title} default executor`}
 						value={draft.default_executor}
-						options={EXECUTOR_OPTIONS}
+						options={executorOptionsFor(draft.provider)}
 						labels={EXECUTOR_LABEL}
 						onChange={(value) => patch('default_executor', value)}
 					/>

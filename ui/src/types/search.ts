@@ -12,7 +12,6 @@ export type SearchActionKind =
 	| 'jump-to-issues'
 	| 'jump-to-tasks'
 	| 'jump-to-runs'
-	| 'jump-to-agents'
 
 /** Subset of `SearchActionKind` the empty-state Quick Actions row can render. */
 export type CommandActionKind = Extract<

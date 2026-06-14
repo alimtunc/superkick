@@ -415,10 +415,21 @@ where
         )
         .await;
 
+        // `build_launch_config` already resolved the per-step reasoning into a
+        // `--effort <value>` pair in `config.args`; the background launcher
+        // rebuilds its own argv, so lift the value back out here instead of
+        // letting it get dropped (the bug that pinned every session to the CLI's
+        // own default effort).
+        let effort = config
+            .args
+            .windows(2)
+            .find(|pair| pair[0] == "--effort")
+            .map(|pair| pair[1].clone());
         let launch = BackgroundLaunch {
             name: name.clone(),
             prompt,
             cwd: config.workdir.clone(),
+            effort,
         };
         let launched = cli.launch(launch).await?;
 

@@ -64,7 +64,8 @@ const CONFIG: ServerConfigResponse = {
 	launch_profile: {
 		use_worktree: true,
 		default_instructions: '',
-		handoff_instructions: ''
+		handoff_instructions: '',
+		auto_transition_in_progress: true
 	}
 }
 

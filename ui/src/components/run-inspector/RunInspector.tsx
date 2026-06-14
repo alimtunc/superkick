@@ -12,6 +12,7 @@ import { RunStatGrid } from '@/components/run-shared/RunStatGrid'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { LoadedRunDetail } from '@/hooks/useRunDetail'
 import { fmtElapsed, providerLabel, runNeedsHuman } from '@/lib/domain'
+import { FEATURES } from '@/lib/features'
 import { TopbarBackButton } from '@/shell/TopbarBackButton'
 import { usePageActions } from '@/shell/usePageActions'
 import { selectMaxReached, useWatchedSessionsStore } from '@/stores/watchedSessions'
@@ -52,7 +53,7 @@ export function RunInspector({ detail, refTime }: RunInspectorProps) {
 	const { isWatched, toggleWatch } = useWatchedSessionsStore()
 	const maxReached = useWatchedSessionsStore(selectMaxReached)
 	const watched = isWatched(run.id)
-	const elapsed = fmtElapsed(run.started_at, refTime)
+	const elapsed = fmtElapsed(run.started_at, run.finished_at ? Date.parse(run.finished_at) : refTime)
 
 	const active = activeSession(sessions)
 	const provider = active ? (providerLabel[active.provider] ?? active.provider) : null
@@ -72,17 +73,19 @@ export function RunInspector({ detail, refTime }: RunInspectorProps) {
 	const right = useMemo(
 		() => (
 			<>
-				<button
-					type="button"
-					onClick={() => toggleWatch(run.id)}
-					disabled={!watched && maxReached}
-					aria-label={pinTitle(watched, maxReached)}
-					aria-pressed={watched}
-					title={pinTitle(watched, maxReached)}
-					className={`iconbtn ${pinClass(watched, maxReached)}`}
-				>
-					<Icon name="pin" size={16} className="ic" />
-				</button>
+				{FEATURES.sessionWatchRail ? (
+					<button
+						type="button"
+						onClick={() => toggleWatch(run.id)}
+						disabled={!watched && maxReached}
+						aria-label={pinTitle(watched, maxReached)}
+						aria-pressed={watched}
+						title={pinTitle(watched, maxReached)}
+						className={`iconbtn ${pinClass(watched, maxReached)}`}
+					>
+						<Icon name="pin" size={16} className="ic" />
+					</button>
+				) : null}
 				<button
 					type="button"
 					onClick={() => refresh()}
