@@ -1,12 +1,13 @@
 import { ExecSection } from '@/components/issue-detail/execution-log/ExecSection'
 import { PastRunRow } from '@/components/issue-detail/execution-log/PastRunRow'
-import type { LaunchTaskWithSteps } from '@/types'
+import type { LaunchTaskWithSteps, LinkedRunSummary } from '@/types'
 
 interface PastRunsSectionProps {
 	past: readonly LaunchTaskWithSteps[]
+	linkedRuns: readonly LinkedRunSummary[]
 }
 
-export function PastRunsSection({ past }: PastRunsSectionProps) {
+export function PastRunsSection({ past, linkedRuns }: PastRunsSectionProps) {
 	if (past.length === 0) return null
 
 	return (
@@ -14,7 +15,7 @@ export function PastRunsSection({ past }: PastRunsSectionProps) {
 			<ul className="flex flex-col">
 				{past.map((entry, index) => (
 					<li key={entry.task.id}>
-						<PastRunRow entry={entry} last={index === past.length - 1} />
+						<PastRunRow entry={entry} linkedRuns={linkedRuns} last={index === past.length - 1} />
 					</li>
 				))}
 			</ul>

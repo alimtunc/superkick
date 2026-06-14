@@ -14,7 +14,7 @@ use anyhow::Result;
 use superkick_core::{
     AgentCatalog, AgentProvider, CoreAgentDefinition, LaunchTask, LaunchTaskOverrides,
     LaunchTaskStatus, LaunchTaskStepStatus, LinearContextMode, PlanImplementReviewAgents,
-    ResolvedMcpPolicy, ResolvedToolPolicy,
+    ResolvedMcpPolicy, ResolvedToolPolicy, ReuseWorktree,
 };
 use superkick_storage::repo::LaunchTaskRepo;
 use superkick_storage::{SqliteLaunchTaskRepo, connect};
@@ -273,6 +273,34 @@ async fn update_task_status_rejects_concurrent_state_change() -> Result<()> {
 }
 
 #[tokio::test]
+async fn reuse_worktree_round_trips() -> Result<()> {
+    let repo = setup().await?;
+
+    let (mut task, steps) = LaunchTask::new_with_v1_recipe("SUP-220", agents(), &catalog())?;
+    task.apply_overrides(LaunchTaskOverrides {
+        reuse_worktree: Some(ReuseWorktree {
+            path: "/work/sup-220".into(),
+            branch: "alimtunc/sup-220".into(),
+        }),
+        ..Default::default()
+    })?;
+    repo.insert_with_steps(&task, &steps).await?;
+
+    let reloaded = repo.get(task.id).await?.expect("reuse row");
+    let reuse = reloaded.reuse_worktree.expect("reuse persisted");
+    assert_eq!(reuse.path, "/work/sup-220");
+    assert_eq!(reuse.branch, "alimtunc/sup-220");
+
+    let (defaulted, defaulted_steps) =
+        LaunchTask::new_with_v1_recipe("SUP-220-B", agents(), &catalog())?;
+    repo.insert_with_steps(&defaulted, &defaulted_steps).await?;
+    let reloaded_default = repo.get(defaulted.id).await?.expect("default row");
+    assert!(reloaded_default.reuse_worktree.is_none());
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn execution_target_overrides_round_trip() -> Result<()> {
     let repo = setup().await?;
 
@@ -281,6 +309,7 @@ async fn execution_target_overrides_round_trip() -> Result<()> {
     overridden.apply_overrides(LaunchTaskOverrides {
         base_branch: Some("release/2026.q2".into()),
         use_worktree: Some(false),
+        ..Default::default()
     })?;
     repo.insert_with_steps(&overridden, &overridden_steps)
         .await?;
@@ -308,6 +337,7 @@ async fn apply_overrides_rejects_blank_base_branch() {
         .apply_overrides(LaunchTaskOverrides {
             base_branch: Some("   ".into()),
             use_worktree: None,
+            ..Default::default()
         })
         .unwrap_err();
     let msg = format!("{err:#}");

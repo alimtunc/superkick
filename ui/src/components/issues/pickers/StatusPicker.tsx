@@ -3,7 +3,7 @@ import { EmptyState } from '@/components/ui/state-empty'
 import type { WorkflowStateOption } from '@/types'
 import { StatusIcon, statusIconKindFor } from '@/ui'
 
-import { PopBody, PopFooter, Popline } from './popoverParts'
+import { PopBody, Popline } from './popoverParts'
 
 interface StatusPickerProps {
 	states: WorkflowStateOption[]
@@ -19,28 +19,25 @@ export function StatusPicker({ states, currentId, onSelect }: StatusPickerProps)
 					<EmptyState title="No statuses available for this team." density="compact" />
 				</div>
 			) : (
-				<>
-					<PopBody ariaLabel="Status">
-						{states.map((state) => (
-							<Popline
-								key={state.id}
-								selected={state.id === currentId}
-								onClick={() => onSelect(state)}
-							>
-								<StatusIcon
-									kind={statusIconKindFor({
-										state_type: state.state_type,
-										name: state.name
-									})}
-									size={13}
-									color={state.color}
-								/>
-								<span>{state.name}</span>
-							</Popline>
-						))}
-					</PopBody>
-					<PopFooter>Hold ⌥ to exclude</PopFooter>
-				</>
+				<PopBody ariaLabel="Status">
+					{states.map((state) => (
+						<Popline
+							key={state.id}
+							selected={state.id === currentId}
+							onClick={() => onSelect(state)}
+						>
+							<StatusIcon
+								kind={statusIconKindFor({
+									state_type: state.state_type,
+									name: state.name
+								})}
+								size={13}
+								color={state.color}
+							/>
+							<span>{state.name}</span>
+						</Popline>
+					))}
+				</PopBody>
 			)}
 		</PopoverPopup>
 	)

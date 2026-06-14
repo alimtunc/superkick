@@ -18,7 +18,7 @@ export function RunStatusBanner({ run, pr, isTerminal, needsHuman }: RunStatusBa
 		)
 	}
 
-	if (isTerminal && run.state !== 'cancelled') {
+	if (isTerminal) {
 		return (
 			<div className="px-6 pt-5">
 				<CompletedBanner run={run} pr={pr} />

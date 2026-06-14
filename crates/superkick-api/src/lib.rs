@@ -20,13 +20,13 @@ use superkick_runtime::{
 };
 use superkick_storage::{
     SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo,
-    SqliteDiffReviewRepo, SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssuePullRequestRepo,
-    SqliteIssueWorkspaceContextRepo, SqliteLaunchProfileRepo, SqliteLaunchTaskInterventionRepo,
-    SqliteLaunchTaskRepo, SqliteMemoryEntryRepo, SqliteOrchestratorSessionRepo,
-    SqliteProviderSettingsRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo,
-    SqliteRunContextSnapshotRepo, SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
-    SqliteRuntimeRepo, SqliteSessionOwnershipRepo, SqliteSkillDefinitionRepo, SqliteTranscriptRepo,
-    SqliteTurnEventRepo, SqliteTurnRepo,
+    SqliteDiffReviewRepo, SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssueCleanRepo,
+    SqliteIssuePullRequestRepo, SqliteIssueWorkspaceContextRepo, SqliteLaunchProfileRepo,
+    SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo, SqliteMemoryEntryRepo,
+    SqliteOrchestratorSessionRepo, SqliteProviderSettingsRepo, SqlitePullRequestRepo,
+    SqliteRecoveryEventRepo, SqliteRunContextSnapshotRepo, SqliteRunEventRepo, SqliteRunRepo,
+    SqliteRunStepRepo, SqliteRuntimeRepo, SqliteSessionOwnershipRepo, SqliteSkillDefinitionRepo,
+    SqliteTranscriptRepo, SqliteTurnEventRepo, SqliteTurnRepo,
 };
 
 mod error;
@@ -40,10 +40,10 @@ mod ui_assets;
 
 #[cfg(feature = "test-support")]
 pub use test_routers::{
-    agents_test_router, issue_context_test_router, launch_task_test_router,
-    linear_writes_test_router, orchestrator_session_test_router, run_context_snapshot_test_router,
-    run_diff_test_router, run_review_test_router, runner_config_test_router, test_handlers,
-    tests_only,
+    agents_test_router, issue_context_test_router, launch_profile_config_test_router,
+    launch_task_test_router, linear_writes_test_router, orchestrator_session_test_router,
+    reusable_worktree_test_router, run_context_snapshot_test_router, run_diff_test_router,
+    run_review_test_router, runner_config_test_router, test_handlers, tests_only,
 };
 
 // ── App state ──────────────────────────────────────────────────────────
@@ -113,6 +113,8 @@ pub(crate) struct AppState {
     /// create from the API today; the execution loop in SUP-118 will mutate
     /// step state through this same repo.
     pub launch_task_repo: Arc<SqliteLaunchTaskRepo>,
+    /// Stats-safe archive + destructive purge of an issue's runs/launch tasks.
+    pub issue_clean_repo: Arc<SqliteIssueCleanRepo>,
     /// App-managed runtime config: provider settings, editable
     /// skills, and launch profiles. Seeded with builtins at boot; the handlers
     /// read/write them directly, the composer resolves launches via the service.
@@ -293,6 +295,7 @@ async fn build_app_state(
     let recovery_event_repo = Arc::new(SqliteRecoveryEventRepo::new(pool.clone()));
     let orchestrator_session_repo = Arc::new(SqliteOrchestratorSessionRepo::new(pool.clone()));
     let launch_task_repo = Arc::new(SqliteLaunchTaskRepo::new(pool.clone()));
+    let issue_clean_repo = Arc::new(SqliteIssueCleanRepo::new(pool.clone()));
     let provider_settings_repo = Arc::new(SqliteProviderSettingsRepo::new(pool.clone()));
     let skill_repo = Arc::new(SqliteSkillDefinitionRepo::new(pool.clone()));
     let launch_profile_repo = Arc::new(SqliteLaunchProfileRepo::new(pool.clone()));
@@ -520,6 +523,7 @@ async fn build_app_state(
         issue_blocker_repo,
         orchestrator_session_repo,
         launch_task_repo,
+        issue_clean_repo,
         provider_settings_repo,
         skill_repo,
         launch_profile_repo,
@@ -571,6 +575,10 @@ fn api_router(state: AppState) -> Router {
             "/config/runner",
             get(handlers::config::get_runner_config).put(handlers::config::put_runner_config),
         )
+        .route(
+            "/config/launch-profile",
+            patch(handlers::config::patch_launch_profile),
+        )
         .route("/dashboard/queue", get(handlers::dashboard::get_queue))
         .route("/launch-queue", get(handlers::launch_queue::get_queue))
         .route(
@@ -594,6 +602,11 @@ fn api_router(state: AppState) -> Router {
         .route(
             "/issues/{id}/comments",
             post(handlers::issues::create_comment),
+        )
+        .route("/issues/{id}/clean", post(handlers::issues::clean_issue))
+        .route(
+            "/issues/{id}/reusable-worktree",
+            get(handlers::issues::get_reusable_worktree),
         )
         .route(
             "/linear/options",

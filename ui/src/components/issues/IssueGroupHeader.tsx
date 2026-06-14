@@ -49,10 +49,6 @@ export function IssueGroupHeader({
 			)}
 			<span className="group-head__name">{label}</span>
 			<span className="group-head__count">{count}</span>
-			<span className="group-head__spacer" />
-			<span aria-hidden="true" className="iconbtn" style={{ width: 22, height: 22 }}>
-				<Icon name="plus" size={14} className="ic" />
-			</span>
 		</button>
 	)
 }

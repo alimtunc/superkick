@@ -1,3 +1,7 @@
+import { MENU_ITEM_CLASS, MenuPopup } from '@/components/ui/menu-shell'
+import { Icon } from '@/ui/Icon'
+import { Menu } from '@base-ui/react/menu'
+
 interface ConfigSelectProps<T extends string> {
 	value: T
 	options: readonly T[]
@@ -16,18 +20,25 @@ export function ConfigSelect<T extends string>({
 	disabled
 }: ConfigSelectProps<T>) {
 	return (
-		<select
-			aria-label={ariaLabel}
-			disabled={disabled}
-			className="rounded-[6px] border border-border bg-raised px-2 py-1 text-[13px] text-fg disabled:opacity-50"
-			value={value}
-			onChange={(e) => onChange(e.target.value as T)}
-		>
-			{options.map((option) => (
-				<option key={option} value={option}>
-					{labels[option]}
-				</option>
-			))}
-		</select>
+		<Menu.Root>
+			<Menu.Trigger aria-label={ariaLabel} disabled={disabled} className="select">
+				<span className="font-medium text-fg">{labels[value]}</span>
+				<span className="chev">
+					<Icon name="chevDown" size={14} className="ic" />
+				</span>
+			</Menu.Trigger>
+			<MenuPopup align="start">
+				<Menu.RadioGroup value={value} onValueChange={(next) => onChange(next as T)}>
+					{options.map((option) => (
+						<Menu.RadioItem key={option} value={option} className={MENU_ITEM_CLASS}>
+							<span className="flex-1">{labels[option]}</span>
+							<Menu.RadioItemIndicator className="text-fg">
+								<Icon name="check" size={13} />
+							</Menu.RadioItemIndicator>
+						</Menu.RadioItem>
+					))}
+				</Menu.RadioGroup>
+			</MenuPopup>
+		</Menu.Root>
 	)
 }

@@ -29,9 +29,9 @@ use superkick_core::{
     EventLevel, FailureClassification, FailureDisposition, LaunchReason, LaunchStepKind,
     LaunchTask, LaunchTaskId, LaunchTaskIntervention, LaunchTaskStep, LaunchTaskStepId,
     LinearContextMode, MemoryEntryId, ResolvedAgent, ResolvedMcpPolicy, ResolvedToolPolicy,
-    ResumeKey, RoleRouter, Run, RunId, RunPolicy, RunState, RunStep, RunnerMode, SkillArtifact,
-    SkillDefinition, SkillKind, SkillSource, StepExecutor, StepId, StepKey, StepResult, StepStatus,
-    TriggerSource,
+    ResumeKey, ReuseWorktree, RoleRouter, Run, RunId, RunPolicy, RunState, RunStep, RunnerMode,
+    SkillArtifact, SkillDefinition, SkillKind, SkillSource, StepExecutor, StepId, StepKey,
+    StepResult, StepStatus, TriggerSource,
 };
 use superkick_storage::repo::{
     AgentSessionRepo, IssueWorkspaceContextRepoDyn, LaunchTaskInterventionRepo, LaunchTaskRepo,
@@ -238,6 +238,13 @@ fn skill_artifact_path(work_path: &std::path::Path, skill: &SkillDefinition) -> 
             .join(format!("{}.md", skill.id)),
     };
     Some(path)
+}
+
+/// Keep a worktree-reuse request only when its directory still exists on disk.
+/// `None` (no reuse requested, or the directory vanished) means the caller mints
+/// a fresh worktree instead.
+fn surviving_reuse_worktree(reuse: Option<&ReuseWorktree>) -> Option<&ReuseWorktree> {
+    reuse.filter(|reuse| std::fs::metadata(&reuse.path).is_ok())
 }
 
 /// Write `body` to `path`, creating parent dirs, only when the target does not
@@ -464,7 +471,27 @@ where
         run.transition_to(RunState::Preparing)
             .context("Queued → Preparing on shadow run must be valid")?;
 
-        let work_path = if use_worktree {
+        // A git worktree cannot be added twice for an already-checked-out
+        // branch, so reuse runs against the surviving directory and skips
+        // `WorktreeManager::create`. If the directory vanished between detect
+        // and run, fall back to minting a fresh worktree rather than failing.
+        let reuse_worktree = surviving_reuse_worktree(task.reuse_worktree.as_ref());
+        if reuse_worktree.is_none() && task.reuse_worktree.is_some() {
+            warn!(
+                launch_task_id = %task.id,
+                "reusable worktree vanished before launch; creating a fresh one",
+            );
+        }
+
+        let work_path = if let Some(reuse) = reuse_worktree {
+            let path = PathBuf::from(&reuse.path);
+            run.worktree_path = Some(reuse.path.clone());
+            run.branch_name = Some(reuse.branch.clone());
+            self.run_repo.insert(&run).await.with_context(|| {
+                format!("failed to insert shadow run for launch task {}", task.id)
+            })?;
+            path
+        } else if use_worktree {
             let wt_root = default_worktree_root(&repo_root);
             let wt_mgr = WorktreeManager::new(
                 bare_path,
@@ -1370,6 +1397,7 @@ where
                         let adapter = ClaudeProtocolAdapter::with_options(ClaudeAdapterOptions {
                             claude_executable: Some(PathBuf::from(resolved.program.clone())),
                             model: resolved.model.clone(),
+                            reasoning_effort: step_reasoning,
                             ..ClaudeAdapterOptions::default()
                         });
                         self.supervisor
@@ -1514,6 +1542,30 @@ mod tests {
 
     use chrono::Utc;
     use superkick_core::{LaunchRecipe, LaunchTaskStatus, LaunchTaskStepStatus};
+
+    #[test]
+    fn surviving_reuse_worktree_keeps_existing_dir() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let reuse = ReuseWorktree {
+            path: dir.path().to_string_lossy().into_owned(),
+            branch: "alimtunc/sup-1".into(),
+        };
+        assert_eq!(surviving_reuse_worktree(Some(&reuse)), Some(&reuse));
+    }
+
+    #[test]
+    fn surviving_reuse_worktree_drops_missing_dir() {
+        let reuse = ReuseWorktree {
+            path: "/definitely/not/a/real/worktree".into(),
+            branch: "alimtunc/sup-1".into(),
+        };
+        assert_eq!(surviving_reuse_worktree(Some(&reuse)), None);
+    }
+
+    #[test]
+    fn surviving_reuse_worktree_passes_through_none() {
+        assert_eq!(surviving_reuse_worktree(None), None);
+    }
 
     /// SUP-201: the structured-routing matrix. The two structured executors run
     /// on the `ProtocolAdapter` path; subscription Claude (`InteractivePty`) and
@@ -1725,6 +1777,7 @@ mod tests {
             use_worktree: None,
             profile_id: None,
             profile_snapshot: None,
+            reuse_worktree: None,
             created_at: now,
             updated_at: now,
         }

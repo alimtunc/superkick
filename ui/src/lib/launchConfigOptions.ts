@@ -15,12 +15,25 @@ import type {
 
 export const LAUNCH_PROVIDER_OPTIONS: AgentProvider[] = ['codex', 'claude']
 
-export const EXECUTOR_OPTIONS: StepExecutor[] = [
-	'codex_structured',
-	'claude_workflow',
-	'claude_background',
-	'interactive_pty'
-]
+// Executors are provider-specific (except interactive_pty, which both support).
+// Showing a Claude executor under the Codex provider produces an invalid step.
+const EXECUTOR_OPTIONS_BY_PROVIDER: Record<AgentProvider, StepExecutor[]> = {
+	codex: ['codex_structured', 'interactive_pty'],
+	claude: ['claude_workflow', 'claude_background', 'interactive_pty']
+}
+
+const DEFAULT_EXECUTOR_BY_PROVIDER: Record<AgentProvider, StepExecutor> = {
+	codex: 'codex_structured',
+	claude: 'claude_workflow'
+}
+
+export function executorOptionsFor(provider: AgentProvider): StepExecutor[] {
+	return EXECUTOR_OPTIONS_BY_PROVIDER[provider]
+}
+
+export function clampExecutorForProvider(executor: StepExecutor, provider: AgentProvider): StepExecutor {
+	return executorOptionsFor(provider).includes(executor) ? executor : DEFAULT_EXECUTOR_BY_PROVIDER[provider]
+}
 export const SESSION_POLICY_OPTIONS: SessionPolicy[] = [
 	'fresh',
 	'resume',

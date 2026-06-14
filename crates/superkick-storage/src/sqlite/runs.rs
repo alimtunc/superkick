@@ -103,8 +103,10 @@ impl RunRepo for SqliteRunRepo {
     }
 
     async fn list_by_issue_identifier(&self, issue_identifier: &str) -> Result<Vec<Run>> {
+        // Archived runs are stats-only — excluded from the issue feed.
         let rows = sqlx::query_as::<_, RunRow>(
-            "SELECT * FROM runs WHERE issue_identifier = ?1 ORDER BY started_at DESC",
+            "SELECT * FROM runs WHERE issue_identifier = ?1 AND archived_at IS NULL \
+             ORDER BY started_at DESC",
         )
         .bind(issue_identifier)
         .fetch_all(&self.pool)

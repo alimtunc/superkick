@@ -8,8 +8,7 @@ const ICON_FOR_KIND: Record<SearchActionKind, SKIconName> = {
 	'open-inbox': 'inbox',
 	'jump-to-issues': 'issue',
 	'jump-to-tasks': 'task',
-	'jump-to-runs': 'loop',
-	'jump-to-agents': 'agent'
+	'jump-to-runs': 'loop'
 }
 
 export function iconForActionKind(kind: SearchActionKind): SKIconName {

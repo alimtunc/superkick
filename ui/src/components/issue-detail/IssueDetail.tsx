@@ -52,8 +52,6 @@ interface IssueDetailLoadedProps {
 }
 
 function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
-	const projectName = issue.project?.name ?? 'No project'
-
 	const sub = useMemo(
 		() => (
 			<span className="group inline-flex items-center gap-1.5">
@@ -76,13 +74,13 @@ function IssueDetailLoaded({ issue, onRefresh }: IssueDetailLoadedProps) {
 
 	const isDone = issue.status.state_type === 'completed'
 	const right = useMemo(
-		() => <IssueDetailTopbarRight identifier={issue.identifier} isDone={isDone} onRefresh={onRefresh} />,
-		[issue.identifier, isDone, onRefresh]
+		() => <IssueDetailTopbarRight issue={issue} isDone={isDone} onRefresh={onRefresh} />,
+		[issue, isDone, onRefresh]
 	)
 
 	usePageActions({
 		title: issue.title,
-		crumbs: ['Issues', projectName, issue.status.name],
+		crumbs: ['Issues', ...(issue.project ? [issue.project.name] : [])],
 		sub,
 		right,
 		back: <TopbarBackButton />

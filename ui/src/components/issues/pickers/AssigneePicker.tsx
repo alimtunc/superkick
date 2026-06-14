@@ -18,7 +18,7 @@ export function AssigneePicker({ users, currentId, onSelect }: AssigneePickerPro
 	const filtered = filterByName(users, query)
 
 	return (
-		<PopoverPopup popupClassName="w-72 max-h-80 overflow-hidden flex flex-col p-0">
+		<PopoverPopup popupClassName="w-64 max-h-80 overflow-hidden flex flex-col p-0">
 			<PopHeader
 				value={query}
 				onChange={setQuery}

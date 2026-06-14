@@ -389,6 +389,16 @@ impl LaunchTaskStep {
     }
 }
 
+/// An issue's surviving finished worktree, reused by a fresh launch task
+/// instead of minting a new one. A git worktree cannot be added twice for a
+/// branch that is already checked out, so the runtime runs against the
+/// existing directory rather than calling `WorktreeManager::create`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReuseWorktree {
+    pub path: String,
+    pub branch: String,
+}
+
 /// The launch-task aggregate. Persisted alongside its ordered steps (see
 /// `SqliteLaunchTaskRepo::insert_with_steps`). `current_step_id` is a
 /// denormalised pointer maintained by the execution loop — without a SQL FK,
@@ -418,6 +428,10 @@ pub struct LaunchTask {
     /// legacy / v1-recipe tasks.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profile_snapshot: Option<ProfileSnapshot>,
+    /// Reuse an issue's surviving finished worktree instead of creating a fresh
+    /// one. `None` keeps the default per-run worktree behaviour.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reuse_worktree: Option<ReuseWorktree>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -429,6 +443,8 @@ pub struct LaunchTaskOverrides {
     pub base_branch: Option<String>,
     #[serde(default)]
     pub use_worktree: Option<bool>,
+    #[serde(default)]
+    pub reuse_worktree: Option<ReuseWorktree>,
 }
 
 impl LaunchTask {
@@ -487,6 +503,7 @@ impl LaunchTask {
             use_worktree: None,
             profile_id: None,
             profile_snapshot: None,
+            reuse_worktree: None,
             created_at: now,
             updated_at: now,
         };
@@ -555,6 +572,7 @@ impl LaunchTask {
             use_worktree: None,
             profile_id: Some(snapshot.profile_id.clone()),
             profile_snapshot: Some(snapshot),
+            reuse_worktree: None,
             created_at: now,
             updated_at: now,
         };
@@ -575,6 +593,9 @@ impl LaunchTask {
         }
         if let Some(u) = overrides.use_worktree {
             self.use_worktree = Some(u);
+        }
+        if let Some(reuse) = overrides.reuse_worktree {
+            self.reuse_worktree = Some(reuse);
         }
         Ok(())
     }

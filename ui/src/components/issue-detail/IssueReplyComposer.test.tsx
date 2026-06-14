@@ -46,7 +46,7 @@ afterEach(() => {
 })
 
 describe('IssueReplyComposer', () => {
-	it('renders the disabled toolbar placeholders and an enabled textarea', () => {
+	it('renders an enabled textarea with the Comment button disabled until text is entered', () => {
 		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 		render(<IssueReplyComposer issueId="issue-1" />, { wrapper: wrapper(client) })
 
@@ -55,8 +55,8 @@ describe('IssueReplyComposer', () => {
 		expect(textarea).toHaveAttribute('placeholder', 'Leave a comment…')
 
 		expect(screen.getByRole('button', { name: 'Comment' })).toBeDisabled()
-		expect(screen.queryByRole('button', { name: 'Attach file' })).toBeInTheDocument()
-		expect(screen.queryByRole('button', { name: 'Attach link' })).toBeInTheDocument()
+		expect(screen.queryByRole('button', { name: 'Attach file' })).not.toBeInTheDocument()
+		expect(screen.queryByRole('button', { name: 'Attach link' })).not.toBeInTheDocument()
 	})
 
 	it('renders the viewer initials when a viewer is loaded', () => {

@@ -162,6 +162,9 @@ pub fn launch_task_test_router(
         // Tests assert against synchronous create-time state; the executor
         // itself is covered at the runtime layer.
         auto_trigger_executor: false,
+        // No Linear integration in the test router; auto-transition is a no-op.
+        linear_client: None,
+        auto_transition_in_progress: false,
     };
     Router::new()
         .route(
@@ -208,6 +211,32 @@ pub fn runner_config_test_router(config_path: PathBuf, boot_runner: RunnerConfig
         .route(
             "/config/runner",
             get(handlers::config::get_runner_config).put(handlers::config::put_runner_config),
+        )
+        .with_state(state)
+}
+
+pub fn reusable_worktree_test_router(run_repo: Arc<SqliteRunRepo>) -> Router {
+    let state = handlers::issues::ReusableWorktreeState { run_repo };
+    Router::new()
+        .route(
+            "/issues/{id}/reusable-worktree",
+            get(handlers::issues::get_reusable_worktree),
+        )
+        .with_state(state)
+}
+
+pub fn launch_profile_config_test_router(
+    config_path: PathBuf,
+    boot_runner: RunnerConfig,
+) -> Router {
+    let state = handlers::config::RunnerConfigState {
+        config_path,
+        boot_runner,
+    };
+    Router::new()
+        .route(
+            "/config/launch-profile",
+            axum::routing::patch(handlers::config::patch_launch_profile),
         )
         .with_state(state)
 }

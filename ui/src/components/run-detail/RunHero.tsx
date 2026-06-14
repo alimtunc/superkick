@@ -50,7 +50,8 @@ export function RunHero({ run, pr, sessions, attentionRequests, interrupts, refT
 	const narrative = runNarrative(run.state)
 	const role = activeRole(run, sessions)
 	const attention = summarizeAttention(attentionRequests, interrupts)
-	const elapsed = fmtElapsed(run.started_at, refTime)
+	const endTime = run.finished_at ? Date.parse(run.finished_at) : refTime
+	const elapsed = fmtElapsed(run.started_at, endTime)
 
 	const tone = attention.total > 0 ? 'attention' : narrative.tone
 	const headline = attention.total > 0 ? 'Needs your decision' : narrative.headline
@@ -68,7 +69,9 @@ export function RunHero({ run, pr, sessions, attentionRequests, interrupts, refT
 							{narrative.phase}
 						</span>
 						{run.execution_mode ? <ExecutionModeBadge mode={run.execution_mode} /> : null}
-						<span className="font-data text-[10px] text-fg-dim">· running for {elapsed}</span>
+						<span className="font-data text-[10px] text-fg-dim">
+							· {run.finished_at ? 'ran for' : 'running for'} {elapsed}
+						</span>
 					</div>
 
 					<h1 className="text-[18px] leading-snug font-semibold text-fg">{headline}</h1>

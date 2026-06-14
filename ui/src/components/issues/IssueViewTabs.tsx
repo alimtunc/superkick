@@ -1,6 +1,5 @@
 import { cn } from '@/lib/utils'
 import type { IssueTabCounts, IssueViewTab } from '@/types'
-import { Icon } from '@/ui'
 
 interface IssueViewTabsProps {
 	tab: IssueViewTab
@@ -34,15 +33,6 @@ export function IssueViewTabs({ tab, counts, onChange }: IssueViewTabsProps) {
 					</button>
 				)
 			})}
-			<button
-				type="button"
-				disabled
-				title="Saved views — coming soon"
-				className="view-tab cursor-default text-fg-dim"
-			>
-				<Icon name="plus" size={12} className="ic" />
-				<span>New view</span>
-			</button>
 		</div>
 	)
 }

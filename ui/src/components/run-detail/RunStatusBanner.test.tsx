@@ -59,3 +59,33 @@ describe('RunStatusBanner — NeedsHumanBanner', () => {
 		expect(screen.queryByRole('button', { name: /reject/i })).not.toBeInTheDocument()
 	})
 })
+
+describe('RunStatusBanner — terminal banner', () => {
+	it('renders a banner for a cancelled run', () => {
+		render(
+			<RunStatusBanner
+				run={buildRun({ state: 'cancelled', finished_at: '2026-05-25T10:05:00.000Z' })}
+				pr={null}
+				isTerminal={true}
+				needsHuman={false}
+			/>
+		)
+
+		const banner = screen.getByRole('status')
+		expect(banner).toHaveAttribute('data-banner-state', 'cancelled')
+		expect(screen.getByText('Run was cancelled.')).toBeInTheDocument()
+	})
+
+	it('renders a banner for a completed run', () => {
+		render(
+			<RunStatusBanner
+				run={buildRun({ state: 'completed', finished_at: '2026-05-25T10:05:00.000Z' })}
+				pr={null}
+				isTerminal={true}
+				needsHuman={false}
+			/>
+		)
+
+		expect(screen.getByRole('status')).toHaveAttribute('data-banner-state', 'completed')
+	})
+})

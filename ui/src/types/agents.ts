@@ -1,5 +1,3 @@
-import type { SKTone } from './icons'
-
 export type AgentProvider = 'claude' | 'codex'
 
 export type AgentStatus = 'starting' | 'running' | 'completed' | 'failed' | 'cancelled'
@@ -45,21 +43,6 @@ export interface Agent {
 	runner_mode: RunnerMode
 	billing_profile: BillingProfile
 	origin: AgentOrigin
-}
-
-export interface AgentSummary {
-	id: string
-	name: string
-	role: string
-	model: string
-	runs: number
-	success: number
-	sparkline: number[]
-	tags: string[]
-	tone: SKTone
-	status: 'active' | 'paused'
-	runner_mode: RunnerMode
-	billing_profile: BillingProfile
 }
 
 export interface AttachPayload {

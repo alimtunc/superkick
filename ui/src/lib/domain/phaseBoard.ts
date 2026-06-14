@@ -23,33 +23,6 @@ const PHASE_LABEL: Record<BoardPhase, string> = {
 	done: 'Done'
 }
 
-export const PHASE_DESCRIPTION: Record<BoardPhase, string> = {
-	queued: 'Launched, not started yet.',
-	planning: 'Agent is planning.',
-	coding: 'Implementation in progress.',
-	review: 'Review swarm running.',
-	pr: 'PR open — review or merge.',
-	done: 'Recently completed.'
-}
-
-export const PHASE_TEXT_CLASS: Record<BoardPhase, string> = {
-	queued: 'text-fg-dim',
-	planning: 'text-info',
-	coding: 'text-success',
-	review: 'text-accent',
-	pr: 'text-warn',
-	done: 'text-fg-muted'
-}
-
-export const PHASE_BORDER_CLASS: Record<BoardPhase, string> = {
-	queued: '',
-	planning: 'border-t-info',
-	coding: 'border-t-success',
-	review: 'border-t-accent',
-	pr: 'border-t-warn',
-	done: ''
-}
-
 export function boardNeedsYou(run: QueueRunSummary): boolean {
 	return (
 		run.queue === 'needs-human' ||

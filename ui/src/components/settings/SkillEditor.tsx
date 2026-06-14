@@ -8,7 +8,6 @@ import { Pill } from '@/components/ui/pill'
 import { providerLabel } from '@/lib/domain'
 import {
 	EXECUTOR_LABEL,
-	EXECUTOR_OPTIONS,
 	LAUNCH_PROVIDER_OPTIONS,
 	OUTPUT_EXPECTATION_LABEL,
 	OUTPUT_EXPECTATION_OPTIONS,
@@ -17,7 +16,9 @@ import {
 	SESSION_POLICY_OPTIONS,
 	SKILL_KIND_LABEL,
 	SKILL_KIND_OPTIONS,
+	clampExecutorForProvider,
 	clampReasoningForProvider,
+	executorOptionsFor,
 	reasoningOptionsFor
 } from '@/lib/launchConfigOptions'
 import {
@@ -69,7 +70,8 @@ export function SkillEditor({ open, seed, mode, busy, onOpenChange, onSubmit }: 
 		setDraft((prev) => ({
 			...prev,
 			default_provider: provider,
-			default_reasoning: clampReasoningForProvider(prev.default_reasoning, provider)
+			default_reasoning: clampReasoningForProvider(prev.default_reasoning, provider),
+			default_executor: clampExecutorForProvider(prev.default_executor, provider)
 		}))
 	}
 
@@ -215,7 +217,7 @@ export function SkillEditor({ open, seed, mode, busy, onOpenChange, onSubmit }: 
 							<ConfigSelect
 								ariaLabel="Default executor"
 								value={draft.default_executor}
-								options={EXECUTOR_OPTIONS}
+								options={executorOptionsFor(draft.default_provider)}
 								labels={EXECUTOR_LABEL}
 								onChange={(value) => update({ default_executor: value })}
 							/>

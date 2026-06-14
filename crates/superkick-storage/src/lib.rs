@@ -10,12 +10,12 @@ pub use seed::seed_defaults;
 pub use sqlite::{
     ProviderUpsert, RecoveryEventKind, RecoveryEventRow, SqliteAgentSessionRepo,
     SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo, SqliteDiffReviewRepo,
-    SqliteHandoffRepo, SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssuePullRequestRepo,
-    SqliteIssueWorkspaceContextRepo, SqliteLaunchProfileRepo, SqliteLaunchTaskInterventionRepo,
-    SqliteLaunchTaskRepo, SqliteMemoryEntryRepo, SqliteOrchestratorSessionRepo,
-    SqliteProviderSettingsRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo,
-    SqliteRunContextSnapshotRepo, SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
-    SqliteRuntimeRepo, SqliteSessionLifecycleRepo, SqliteSessionOwnershipRepo,
+    SqliteHandoffRepo, SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssueCleanRepo,
+    SqliteIssuePullRequestRepo, SqliteIssueWorkspaceContextRepo, SqliteLaunchProfileRepo,
+    SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo, SqliteMemoryEntryRepo,
+    SqliteOrchestratorSessionRepo, SqliteProviderSettingsRepo, SqlitePullRequestRepo,
+    SqliteRecoveryEventRepo, SqliteRunContextSnapshotRepo, SqliteRunEventRepo, SqliteRunRepo,
+    SqliteRunStepRepo, SqliteRuntimeRepo, SqliteSessionLifecycleRepo, SqliteSessionOwnershipRepo,
     SqliteSkillDefinitionRepo, SqliteTranscriptRepo, SqliteTurnEventRepo, SqliteTurnRepo,
 };
 

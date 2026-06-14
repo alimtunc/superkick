@@ -1,5 +1,5 @@
 export { DuplicateRunError, TurnAlreadyStreamingError } from './_shared'
-export { fetchConfig } from './config'
+export { fetchConfig, updateLaunchProfileSettings } from './config'
 export {
 	cancelRun,
 	createRun,
@@ -17,11 +17,13 @@ export {
 	shipRun
 } from './runs'
 export {
+	cleanIssue,
 	createIssue,
 	createIssueComment,
 	fetchIssueDetail,
 	fetchIssuePullRequestDiff,
 	fetchIssues,
+	fetchReusableWorktree,
 	patchIssue,
 	patchIssueState
 } from './issues'

@@ -1471,6 +1471,7 @@ mod tests {
             use_worktree: None,
             profile_id: None,
             profile_snapshot: None,
+            reuse_worktree: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };

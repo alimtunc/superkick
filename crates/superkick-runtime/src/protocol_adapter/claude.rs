@@ -26,7 +26,9 @@ use tokio::time::{Instant, timeout};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
-use superkick_core::{Failure, ProtocolEvent, ResumeKey, TurnOutcome, TurnRequest};
+use superkick_core::{
+    Failure, ProtocolEvent, ReasoningEffort, ResumeKey, TurnOutcome, TurnRequest,
+};
 
 use super::claude_stream::{ParserState, parse_line};
 use super::process::{Termination, append_stderr_tail, emit_terminal, kill_with_grace, send_event};
@@ -73,6 +75,10 @@ pub struct ClaudeAdapterOptions {
     /// Optional model alias forwarded as `--model <value>`. Falls back to the
     /// CLI's own default when `None`.
     pub model: Option<String>,
+    /// Per-step reasoning effort forwarded as `--effort <value>`. `None` lets
+    /// the CLI pick its own default (which is why an unset value ran at the
+    /// CLI's `xhigh` default instead of the operator's choice).
+    pub reasoning_effort: Option<ReasoningEffort>,
     /// Optional system prompt forwarded as `--system-prompt`.
     pub system_prompt: Option<String>,
     /// Permission posture. Defaults to `bypassPermissions` for parity with
@@ -91,6 +97,7 @@ impl Default for ClaudeAdapterOptions {
             claude_executable: None,
             mcp_config: None,
             model: None,
+            reasoning_effort: None,
             system_prompt: None,
             permission_mode: ClaudePermissionMode::default(),
             stderr_tail_lines: 64,
@@ -231,6 +238,11 @@ pub(crate) fn build_argv(
     if let Some(model) = &options.model {
         argv.push("--model".to_string());
         argv.push(model.clone());
+    }
+
+    if let Some(effort) = options.reasoning_effort {
+        argv.push("--effort".to_string());
+        argv.push(effort.claude_effort_value().to_string());
     }
 
     if let Some(prompt) = &options.system_prompt {
@@ -597,6 +609,26 @@ mod tests {
             .position(|a| a == "--system-prompt")
             .expect("system-prompt");
         assert_eq!(argv[pos + 1], "be terse");
+    }
+
+    #[test]
+    fn build_argv_emits_effort_for_reasoning() {
+        let opts = ClaudeAdapterOptions {
+            reasoning_effort: Some(ReasoningEffort::High),
+            ..ClaudeAdapterOptions::default()
+        };
+        let argv = build_argv(&opts, None);
+        let pos = argv
+            .iter()
+            .position(|a| a == "--effort")
+            .expect("effort flag");
+        assert_eq!(argv[pos + 1], "high");
+    }
+
+    #[test]
+    fn build_argv_omits_effort_without_reasoning() {
+        let argv = build_argv(&ClaudeAdapterOptions::default(), None);
+        assert!(!argv.iter().any(|a| a == "--effort"));
     }
 
     #[test]

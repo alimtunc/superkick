@@ -243,6 +243,14 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "046_drop_active_run_dedup",
             include_str!("../migrations/046_drop_active_run_dedup.sql"),
         ),
+        (
+            "047_issue_clean_archive",
+            include_str!("../migrations/047_issue_clean_archive.sql"),
+        ),
+        (
+            "048_launch_tasks_reuse_worktree",
+            include_str!("../migrations/048_launch_tasks_reuse_worktree.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

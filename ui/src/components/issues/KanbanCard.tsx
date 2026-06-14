@@ -11,6 +11,7 @@ interface KanbanCardProps {
 	dispatchPending: boolean
 	unblockedAt: string | undefined
 	dispatchPosition: number | undefined
+	forceRunCards?: boolean
 }
 
 export function KanbanCard({
@@ -20,7 +21,8 @@ export function KanbanCard({
 	onDispatch,
 	dispatchPending,
 	unblockedAt,
-	dispatchPosition
+	dispatchPosition,
+	forceRunCards
 }: KanbanCardProps) {
 	if (item.kind === 'issue') {
 		return (
@@ -35,6 +37,6 @@ export function KanbanCard({
 			/>
 		)
 	}
-	if (!FEATURES.kanbanRunCards) return null
+	if (!forceRunCards && !FEATURES.kanbanRunCards) return null
 	return <KanbanRunCard item={item} refTime={refTime} />
 }

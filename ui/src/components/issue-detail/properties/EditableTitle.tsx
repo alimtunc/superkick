@@ -55,8 +55,7 @@ export function EditableTitle({ issue }: EditableTitleProps) {
 				onChange={(event) => setDraft(event.target.value)}
 				onKeyDown={onKeyDown}
 				onBlur={commit}
-				className="issue-title input"
-				style={{ width: '100%' }}
+				className="issue-title issue-title--field"
 				aria-label="Issue title"
 			/>
 		)
@@ -65,20 +64,9 @@ export function EditableTitle({ issue }: EditableTitleProps) {
 	return (
 		<button
 			type="button"
-			className="issue-title"
+			className="issue-title issue-title--field issue-title--button"
 			onClick={() => setEditing(true)}
 			aria-label="Edit title"
-			style={{
-				appearance: 'none',
-				background: 'none',
-				border: 'none',
-				padding: 0,
-				margin: 0,
-				width: '100%',
-				textAlign: 'left',
-				fontFamily: 'inherit',
-				cursor: 'text'
-			}}
 		>
 			{issue.title}
 		</button>

@@ -15,4 +15,4 @@ export function PropertyRow({ label, children }: PropertyRowProps) {
 }
 
 export const PROPERTY_ROW_TRIGGER =
-	'inline-flex min-w-0 items-center gap-[var(--space-3)] text-left focus-visible:outline-none'
+	'-mx-1.5 inline-flex min-w-0 items-center gap-[var(--space-3)] rounded-md px-1.5 py-0.5 text-left transition-colors duration-100 ease-out outline-none hover:bg-(--bg-active) focus-visible:bg-(--bg-active)'
