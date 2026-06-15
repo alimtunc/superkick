@@ -1,5 +1,7 @@
 //! Runtime services — worktree lifecycle, agent supervision, subprocess control.
 
+pub mod agent_catalog_provider;
+pub mod agent_service;
 pub mod agent_spawn;
 pub mod agent_supervisor;
 pub mod attention_service;
@@ -49,6 +51,8 @@ pub mod turn_event_bus;
 pub mod workspace_bus;
 pub mod worktree;
 
+pub use agent_catalog_provider::AgentCatalogProvider;
+pub use agent_service::{AgentService, AgentServiceError};
 pub use agent_supervisor::{
     AgentHandle, AgentLaunchConfig, AgentResult, AgentSupervisor, SessionLaunchInfo,
 };

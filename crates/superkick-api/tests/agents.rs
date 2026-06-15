@@ -8,7 +8,6 @@
 //!     deterministic regardless of HashMap iteration.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 mod common;
 use common::read_json;
@@ -53,6 +52,11 @@ fn agent_with_origin(
         backend: None,
         runner_mode: None,
         billing_profile: None,
+        default_reasoning: Default::default(),
+        enabled: true,
+        skills: Vec::new(),
+        avatar: None,
+        description: None,
     }
 }
 
@@ -80,7 +84,7 @@ fn catalog() -> AgentCatalog {
 
 #[tokio::test]
 async fn list_returns_catalog_projection_sorted_by_name() {
-    let app = agents_test_router(Arc::new(catalog()));
+    let app = agents_test_router(catalog());
     let response = app
         .oneshot(
             Request::builder()
@@ -119,7 +123,7 @@ async fn list_returns_catalog_projection_sorted_by_name() {
 
 #[tokio::test]
 async fn list_returns_empty_array_when_catalog_is_empty() {
-    let app = agents_test_router(Arc::new(AgentCatalog::default()));
+    let app = agents_test_router(AgentCatalog::default());
     let response = app
         .oneshot(
             Request::builder()
@@ -159,7 +163,7 @@ async fn list_exposes_origin_so_picker_can_distinguish_builtin_from_custom() {
             AgentOrigin::Custom,
         ),
     );
-    let app = agents_test_router(Arc::new(AgentCatalog::new(roles)));
+    let app = agents_test_router(AgentCatalog::new(roles));
     let response = app
         .oneshot(
             Request::builder()

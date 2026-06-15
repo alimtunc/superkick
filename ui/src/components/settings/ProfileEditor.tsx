@@ -1,15 +1,17 @@
 import { StepListEditor } from '@/components/launch/StepListEditor'
 import { ConfigSelect } from '@/components/settings/ConfigSelect'
+import { useAgents } from '@/hooks/useAgents'
 import { PROFILE_KIND_LABEL, PROFILE_KIND_OPTIONS } from '@/lib/launchConfigOptions'
 import {
 	addStep as addStepTo,
 	applySkillToStep as applySkillToStepIn,
 	moveStep as moveStepIn,
 	removeStep as removeStepIn,
+	setStepAgent as setStepAgentIn,
 	setStepProvider as setStepProviderIn,
 	updateStep as updateStepIn
 } from '@/lib/stepReducer'
-import type { AgentProvider, LaunchProfile, ProfileKind, ProfileStep, SkillDefinition } from '@/types'
+import type { Agent, AgentProvider, LaunchProfile, ProfileKind, ProfileStep, SkillDefinition } from '@/types'
 import { Toggle } from '@/ui/Toggle'
 
 interface ProfileEditorProps {
@@ -21,6 +23,7 @@ interface ProfileEditorProps {
 
 export function ProfileEditor({ draft, skills, skillsLoading = false, onChange }: ProfileEditorProps) {
 	const setSteps = (steps: ProfileStep[]) => onChange({ ...draft, steps })
+	const agents = useAgents().data ?? []
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -57,6 +60,7 @@ export function ProfileEditor({ draft, skills, skillsLoading = false, onChange }
 				<StepListEditor
 					steps={draft.steps}
 					skills={skills}
+					agents={agents}
 					skillsLoading={skillsLoading}
 					onUpdateStep={(ordering, patch) => setSteps(updateStepIn(draft.steps, ordering, patch))}
 					onMoveStep={(ordering, direction) =>
@@ -69,6 +73,9 @@ export function ProfileEditor({ draft, skills, skillsLoading = false, onChange }
 					}
 					onSetProvider={(ordering, provider: AgentProvider) =>
 						setSteps(setStepProviderIn(draft.steps, ordering, provider))
+					}
+					onSetStepAgent={(ordering, agent: Agent | null) =>
+						setSteps(setStepAgentIn(draft.steps, ordering, agent))
 					}
 				/>
 			</div>

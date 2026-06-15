@@ -1,115 +1,19 @@
 //! Superkick-shipped agent defaults — the "Codex-first" catalog.
 //!
-//! Every project gets these roles for free so a fresh install can launch
-//! plan / implement / review without hand-authoring `agents:` in
-//! `superkick.yaml`. A custom entry in YAML with the same name overrides the
-//! built-in (see [`crate::SuperkickConfig::agent_catalog`]).
-//!
-//! Codex is the primary path for V1; Claude variants exist as a secondary
-//! option. Naming is `<provider>-<role>` so the picker can group cleanly.
-//!
-//! Built-ins intentionally leave `system_prompt` and `model` unset so the
-//! provider CLI's default model is used and the orchestrator's step prompt
-//! is the single source of role behaviour. Tool / Linear policies mirror
-//! the example YAML so the operator experience is identical.
+//! The canonical definitions now live in `superkick-core`
+//! ([`CoreAgentDefinition::builtins`]); this module re-exports the stable
+//! names and a thin `Vec`-returning wrapper so the config crate (and its
+//! `agent_catalog`/`validate` callers) keep their existing surface. A custom
+//! entry in `superkick.yaml` with the same name overrides the built-in (see
+//! [`crate::SuperkickConfig::agent_catalog`]).
 
-use superkick_core::{
-    AgentOrigin, AgentProvider, CoreAgentDefinition as CoreAgent, LinearContextMode, McpMode,
-    ResolvedMcpPolicy, ResolvedToolPolicy,
-};
-
-use crate::model::LINEAR_MCP_SERVER_NAME;
-
-/// Stable agent names for the V1 Codex/Claude catalog. Kept as `pub const`
-/// so the validator and tests can reference them without re-spelling literals.
-pub const CODEX_PLAN: &str = "codex-plan";
-pub const CODEX_IMPLEMENT: &str = "codex-implement";
-pub const CODEX_REVIEW: &str = "codex-review";
-pub const CLAUDE_PLAN: &str = "claude-plan";
-pub const CLAUDE_IMPLEMENT: &str = "claude-implement";
-pub const CLAUDE_REVIEW: &str = "claude-review";
-
-const ROLE_PLANNER: &str = "planner";
-const ROLE_CODER: &str = "coder";
-const ROLE_REVIEWER: &str = "reviewer";
+use superkick_core::CoreAgentDefinition as CoreAgent;
 
 /// Every built-in role, in stable picker order (Codex first, then Claude;
 /// plan → implement → review within each provider).
 #[must_use]
 pub fn builtin_definitions() -> Vec<CoreAgent> {
-    vec![
-        planner(CODEX_PLAN, AgentProvider::Codex),
-        coder(CODEX_IMPLEMENT, AgentProvider::Codex),
-        reviewer(CODEX_REVIEW, AgentProvider::Codex),
-        planner(CLAUDE_PLAN, AgentProvider::Claude),
-        coder(CLAUDE_IMPLEMENT, AgentProvider::Claude),
-        reviewer(CLAUDE_REVIEW, AgentProvider::Claude),
-    ]
-}
-
-fn planner(name: &str, provider: AgentProvider) -> CoreAgent {
-    CoreAgent {
-        name: name.into(),
-        provider,
-        role: Some(ROLE_PLANNER.into()),
-        model: None,
-        system_prompt: None,
-        timeout_secs: None,
-        max_turns: None,
-        origin: AgentOrigin::Builtin,
-        linear_context: LinearContextMode::SnapshotPlusMcp,
-        mcp_policy: ResolvedMcpPolicy {
-            mode: McpMode::Servers,
-            servers: vec![LINEAR_MCP_SERVER_NAME.into()],
-        },
-        tool_policy: ResolvedToolPolicy::default(),
-        backend: None,
-        runner_mode: None,
-        billing_profile: None,
-    }
-}
-
-fn coder(name: &str, provider: AgentProvider) -> CoreAgent {
-    CoreAgent {
-        name: name.into(),
-        provider,
-        role: Some(ROLE_CODER.into()),
-        model: None,
-        system_prompt: None,
-        timeout_secs: None,
-        max_turns: None,
-        origin: AgentOrigin::Builtin,
-        linear_context: LinearContextMode::Snapshot,
-        mcp_policy: ResolvedMcpPolicy::default(),
-        tool_policy: ResolvedToolPolicy::default(),
-        backend: None,
-        runner_mode: None,
-        billing_profile: None,
-    }
-}
-
-fn reviewer(name: &str, provider: AgentProvider) -> CoreAgent {
-    CoreAgent {
-        name: name.into(),
-        provider,
-        role: Some(ROLE_REVIEWER.into()),
-        model: None,
-        system_prompt: None,
-        timeout_secs: None,
-        max_turns: None,
-        origin: AgentOrigin::Builtin,
-        linear_context: LinearContextMode::None,
-        mcp_policy: ResolvedMcpPolicy::default(),
-        tool_policy: ResolvedToolPolicy {
-            allow: None,
-            deny: Some(vec!["bash".into(), "write".into()]),
-            require_approval: false,
-            persist_results: true,
-        },
-        backend: None,
-        runner_mode: None,
-        billing_profile: None,
-    }
+    CoreAgent::builtins()
 }
 
 /// Stable name set for validator / tests, derived from
@@ -122,6 +26,10 @@ pub fn builtin_names() -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::LINEAR_MCP_SERVER_NAME;
+    use superkick_core::{
+        AgentOrigin, AgentProvider, CLAUDE_PLAN, CODEX_PLAN, CODEX_REVIEW, McpMode,
+    };
 
     #[test]
     fn six_builtins_codex_first_then_claude() {
@@ -141,8 +49,8 @@ mod tests {
             .iter()
             .find(|d| d.name == CODEX_PLAN)
             .expect("codex planner present");
-        assert_eq!(planner.linear_context, LinearContextMode::SnapshotPlusMcp);
         assert_eq!(planner.mcp_policy.mode, McpMode::Servers);
+        // Guards the config-side registry key against the core builtin drifting.
         assert!(
             planner
                 .mcp_policy
@@ -151,6 +59,27 @@ mod tests {
                 .any(|s| s == LINEAR_MCP_SERVER_NAME),
             "linear server allowlisted on the planner"
         );
+    }
+
+    #[test]
+    fn builtins_attach_their_skill_and_an_avatar() {
+        for def in builtin_definitions() {
+            assert!(
+                !def.skills.is_empty(),
+                "builtin `{}` attaches at least one skill",
+                def.name
+            );
+            assert!(
+                def.avatar.is_some(),
+                "builtin `{}` ships a default avatar",
+                def.name
+            );
+        }
+        let planner = builtin_definitions()
+            .into_iter()
+            .find(|d| d.name == CODEX_PLAN)
+            .expect("codex planner present");
+        assert_eq!(planner.skills, vec!["plan".to_string()]);
     }
 
     #[test]

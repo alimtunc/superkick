@@ -38,6 +38,11 @@ pub fn agent(name: &str, provider: AgentProvider, model: Option<&str>) -> CoreAg
         backend: None,
         runner_mode: None,
         billing_profile: None,
+        default_reasoning: Default::default(),
+        enabled: true,
+        skills: Vec::new(),
+        avatar: None,
+        description: None,
     }
 }
 

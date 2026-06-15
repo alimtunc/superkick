@@ -33,6 +33,12 @@ const PRE_043_SCHEMA: &[&str] = &[
 
 const MIGRATION_043: &str = include_str!("../migrations/043_reasoning_per_provider.sql");
 const MIGRATION_044: &str = include_str!("../migrations/044_skill_body_artifact.sql");
+// 050 adds `launch_profile_steps.agent_ref`, which the current repo reads via
+// `SELECT *`; this pre-043 fixture must reach that schema before loading rows.
+const MIGRATION_050: &str = include_str!("../migrations/050_profile_step_agent_ref.sql");
+// 052 adds `launch_task_steps.agent_ref` — same `SELECT *` reason, needed before
+// the launch-task repo loads steps.
+const MIGRATION_052: &str = include_str!("../migrations/052_launch_task_step_agent_ref.sql");
 
 const TS: &str = "2026-01-01T00:00:00Z";
 const TASK_ID: &str = "00000000-0000-0000-0000-00000000a001";
@@ -145,6 +151,8 @@ async fn migration_043_remaps_ultra_code_by_provider_and_rows_load() -> Result<(
     let pool = pre_043_pool_with_ultra_code_rows().await?;
     apply(&pool, MIGRATION_043).await?;
     apply(&pool, MIGRATION_044).await?;
+    apply(&pool, MIGRATION_050).await?;
+    apply(&pool, MIGRATION_052).await?;
 
     let providers = SqliteProviderSettingsRepo::new(pool.clone());
     let settings = providers.list().await?;
@@ -204,6 +212,8 @@ async fn migration_043_rebuild_keeps_step_cascade_on_profile_delete() -> Result<
     let pool = pre_043_pool_with_ultra_code_rows().await?;
     apply(&pool, MIGRATION_043).await?;
     apply(&pool, MIGRATION_044).await?;
+    apply(&pool, MIGRATION_050).await?;
+    apply(&pool, MIGRATION_052).await?;
 
     apply(&pool, "DELETE FROM launch_profiles WHERE id = 'legacy'").await?;
 

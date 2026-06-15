@@ -8,15 +8,16 @@ pub mod sqlite;
 pub use db::{connect, connect_with_capacity};
 pub use seed::seed_defaults;
 pub use sqlite::{
-    ProviderUpsert, RecoveryEventKind, RecoveryEventRow, SqliteAgentSessionRepo,
-    SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo, SqliteDiffReviewRepo,
-    SqliteHandoffRepo, SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssueCleanRepo,
-    SqliteIssuePullRequestRepo, SqliteIssueWorkspaceContextRepo, SqliteLaunchProfileRepo,
-    SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo, SqliteMemoryEntryRepo,
-    SqliteOrchestratorSessionRepo, SqliteProviderSettingsRepo, SqlitePullRequestRepo,
-    SqliteRecoveryEventRepo, SqliteRunContextSnapshotRepo, SqliteRunEventRepo, SqliteRunRepo,
-    SqliteRunStepRepo, SqliteRuntimeRepo, SqliteSessionLifecycleRepo, SqliteSessionOwnershipRepo,
-    SqliteSkillDefinitionRepo, SqliteTranscriptRepo, SqliteTurnEventRepo, SqliteTurnRepo,
+    ProviderUpsert, RecoveryEventKind, RecoveryEventRow, SqliteAgentDefinitionRepo,
+    SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo,
+    SqliteDiffReviewRepo, SqliteHandoffRepo, SqliteInterruptRepo, SqliteIssueBlockerRepo,
+    SqliteIssueCleanRepo, SqliteIssuePullRequestRepo, SqliteIssueWorkspaceContextRepo,
+    SqliteLaunchProfileRepo, SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo,
+    SqliteMemoryEntryRepo, SqliteOrchestratorSessionRepo, SqliteProviderSettingsRepo,
+    SqlitePullRequestRepo, SqliteRecoveryEventRepo, SqliteRunContextSnapshotRepo,
+    SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo, SqliteRuntimeRepo,
+    SqliteSessionLifecycleRepo, SqliteSessionOwnershipRepo, SqliteSkillDefinitionRepo,
+    SqliteTranscriptRepo, SqliteTurnEventRepo, SqliteTurnRepo,
 };
 
 /// Check if an anyhow error chain contains a SQLite unique constraint violation.

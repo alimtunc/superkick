@@ -115,11 +115,12 @@ pub(crate) async fn spawn_run_from_request(
 
     // Validate each per-step agent override against the project catalog and
     // collect the trimmed, non-empty names. An unknown agent → 400.
+    let catalog = state.agent_catalog.snapshot();
     let validate_agent = |raw: Option<String>, label: &str| -> Result<Option<String>, AppError> {
         let Some(name) = raw.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()) else {
             return Ok(None);
         };
-        if state.agent_catalog.get(&name).is_none() {
+        if catalog.get(&name).is_none() {
             return Err(AppError::BadRequest(format!(
                 "{label} agent '{name}' is not defined in the project catalog"
             )));

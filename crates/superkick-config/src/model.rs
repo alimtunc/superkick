@@ -3,18 +3,17 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 use superkick_core::{
-    AgentBackend, AgentCatalog, AgentOrigin, AgentProvider, BillingProfile,
-    CoreAgentDefinition as CoreAgent, LinearContextMode, McpMode, RecoveryConfig,
+    AgentAvatar, AgentBackend, AgentCatalog, AgentOrigin, AgentProvider, BillingProfile,
+    CoreAgentDefinition as CoreAgent, LinearContextMode, McpMode, ReasoningEffort, RecoveryConfig,
     ResolvedMcpPolicy, ResolvedToolPolicy, RunBudget, RunPolicy, RunState, RunnerMode, StepKey,
 };
 
 use crate::builtin_agents::builtin_definitions;
 
 /// Canonical name used by the legacy `linear_context: snapshot_plus_mcp`
-/// sugar when desugaring into the MCP registry. Public so the runtime can
-/// match it against the auto-injected registry entry without re-hardcoding
-/// the literal in two places.
-pub const LINEAR_MCP_SERVER_NAME: &str = "linear";
+/// sugar when desugaring into the MCP registry. Re-exported from core so the
+/// builtin planner agents and this registry key share one source of truth.
+pub use superkick_core::LINEAR_MCP_SERVER_NAME;
 
 /// URL of the hosted Linear MCP server. Auto-injected into the registry
 /// when any agent uses the legacy `snapshot_plus_mcp` sugar without an
@@ -87,13 +86,13 @@ impl SuperkickConfig {
             workflow: WorkflowConfig {
                 steps: vec![
                     WorkflowStep::Plan {
-                        agent: crate::builtin_agents::CODEX_PLAN.into(),
+                        agent: superkick_core::CODEX_PLAN.into(),
                     },
                     WorkflowStep::Code {
-                        agent: crate::builtin_agents::CODEX_IMPLEMENT.into(),
+                        agent: superkick_core::CODEX_IMPLEMENT.into(),
                     },
                     WorkflowStep::ReviewSwarm {
-                        agents: vec![crate::builtin_agents::CODEX_REVIEW.into()],
+                        agents: vec![superkick_core::CODEX_REVIEW.into()],
                         findings_threshold: default_findings_threshold(),
                     },
                     WorkflowStep::Pr {
@@ -251,6 +250,25 @@ pub struct AgentDefinition {
     /// override here.
     #[serde(default)]
     pub billing_profile: Option<BillingProfile>,
+    /// Reasoning effort this agent seeds onto a composer step. Defaults to the
+    /// provider-neutral default; the router itself never consumes it.
+    #[serde(default)]
+    pub default_reasoning: ReasoningEffort,
+    /// Whether this agent is offered in new compositions. Disabled agents stay
+    /// in the catalog (a live launch referencing one still resolves) but the UI
+    /// hides them from the roster/picker. Defaults to enabled.
+    #[serde(default = "bool_true")]
+    pub enabled: bool,
+    /// Skill ids attached to this agent. When a step selects the agent these
+    /// materialise at launch in place of the step's `skill_ref`.
+    #[serde(default)]
+    pub skills: Vec<String>,
+    /// Identity badge (emoji or SK icon name + accent color).
+    #[serde(default)]
+    pub avatar: Option<AgentAvatar>,
+    /// Operator-facing one-line description.
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 // ── MCP policy ──────────────────────────────────────────────────────
@@ -381,6 +399,11 @@ impl SuperkickConfig {
                     backend: def.backend.clone(),
                     runner_mode: def.runner_mode,
                     billing_profile: def.billing_profile,
+                    default_reasoning: def.default_reasoning,
+                    enabled: def.enabled,
+                    skills: def.skills.clone(),
+                    avatar: def.avatar.clone(),
+                    description: def.description.clone(),
                 },
             );
         }

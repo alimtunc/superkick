@@ -121,9 +121,9 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
                      label, skill_source_kind, skill_source_value, skill_kind, \
                      reasoning_effort, executor, \
                      session_policy, output_expectation, enabled, \
-                     created_at, updated_at\
+                     created_at, updated_at, agent_ref\
                  ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, \
-                     ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28)",
+                     ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29)",
             )
             .bind(step.id.0.to_string())
             .bind(step.launch_task_id.0.to_string())
@@ -156,6 +156,7 @@ impl LaunchTaskRepo for SqliteLaunchTaskRepo {
             .bind(i64::from(step.enabled))
             .bind(step.created_at.to_rfc3339())
             .bind(step.updated_at.to_rfc3339())
+            .bind(step.agent_ref.clone())
             .execute(&mut *tx)
             .await
             .with_context(|| format!("insert launch_task_step {}", step.id.0))?;
@@ -655,6 +656,7 @@ struct LaunchTaskStepRow {
     sequence: i64,
     step_kind: String,
     agent_name: String,
+    agent_ref: Option<String>,
     provider: Option<String>,
     model: Option<String>,
     mode: Option<String>,
@@ -742,6 +744,7 @@ impl LaunchTaskStepRow {
             })?,
             step_kind: deserialize_enum::<LaunchStepKind>(&self.step_kind)?,
             agent_name: self.agent_name,
+            agent_ref: self.agent_ref,
             provider: self.provider,
             model: self.model,
             mode: self.mode,

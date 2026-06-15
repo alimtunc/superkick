@@ -43,7 +43,8 @@ export {
 	takeoverWsUrl
 } from './terminalTakeover'
 export { fetchRuntimes, prepareSessionAttach, refreshRuntimes } from './runtimes'
-export { listAgents } from './agents'
+export { createAgent, deleteAgent, getAgent, listAgents, restoreAgent, updateAgent } from './agents'
+export { getProviderModels } from './models'
 export { fetchProviderSettings, patchProviderSettings } from './providerSettings'
 export {
 	createSkill,

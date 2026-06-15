@@ -2,7 +2,7 @@
 // settings ProfileEditor's local state, so both apply identical clamp /
 // reconcile-model semantics (see superkick-core `ReasoningEffort::clamp_for`).
 import { clampExecutorForProvider, clampReasoningForProvider } from '@/lib/launchConfigOptions'
-import type { AgentProvider, ProfileStep, SkillDefinition } from '@/types'
+import type { Agent, AgentProvider, ProfileStep, SkillDefinition } from '@/types'
 
 export function renumberSteps(steps: ProfileStep[]): ProfileStep[] {
 	return steps.map((step, index) => ({ ...step, ordering: index + 1 }))
@@ -22,6 +22,19 @@ export function seedStepFromSkill(step: ProfileStep, skill: SkillDefinition): Pr
 	}
 }
 
+// Attach an agent as the step's primary unit: record `agent_ref` and seed the
+// displayed fields from it (the agent's policy deep-carries at launch).
+export function seedStepFromAgent(step: ProfileStep, agent: Agent): ProfileStep {
+	return {
+		...step,
+		agent_ref: agent.name,
+		provider: agent.provider,
+		model: agent.model ?? (agent.provider === step.provider ? step.model : null),
+		reasoning: clampReasoningForProvider(agent.default_reasoning, agent.provider),
+		executor: clampExecutorForProvider(agent.executor, agent.provider)
+	}
+}
+
 export function reconcileStepProvider(step: ProfileStep, provider: AgentProvider): ProfileStep {
 	return {
 		...step,
@@ -37,6 +50,7 @@ export function defaultStep(ordering: number): ProfileStep {
 		ordering,
 		label: 'New step',
 		skill_ref: 'implement',
+		agent_ref: null,
 		provider: 'codex',
 		model: null,
 		reasoning: 'medium',
@@ -88,4 +102,14 @@ export function setStepProvider(
 	provider: AgentProvider
 ): ProfileStep[] {
 	return steps.map((step) => (step.ordering === ordering ? reconcileStepProvider(step, provider) : step))
+}
+
+// Attach (`agent` set) or clear (`null`) the per-step agent. Clearing reverts
+// the step to the skill-first path by dropping `agent_ref`; the other fields are
+// left as the operator last saw them.
+export function setStepAgent(steps: ProfileStep[], ordering: number, agent: Agent | null): ProfileStep[] {
+	return steps.map((step) => {
+		if (step.ordering !== ordering) return step
+		return agent ? seedStepFromAgent(step, agent) : { ...step, agent_ref: null }
+	})
 }

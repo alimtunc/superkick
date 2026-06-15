@@ -1,5 +1,5 @@
 import { useLaunchComposerState } from '@/stores/launchComposerState'
-import type { LaunchProfile, ProfileStep, SkillDefinition } from '@/types'
+import type { Agent, LaunchProfile, ProfileStep, SkillDefinition } from '@/types'
 import { afterEach, describe, expect, it } from 'vitest'
 
 function step(overrides: Partial<ProfileStep> = {}): ProfileStep {
@@ -44,6 +44,24 @@ function skill(overrides: Partial<SkillDefinition> = {}): SkillDefinition {
 		enabled: true,
 		origin: 'builtin',
 		artifact_kind: 'skill',
+		...overrides
+	}
+}
+
+function agent(overrides: Partial<Agent> = {}): Agent {
+	return {
+		name: 'team-coder',
+		provider: 'claude',
+		role: 'coder',
+		model: 'claude-opus-4-8',
+		runner_mode: 'interactive_pty',
+		executor: 'interactive_pty',
+		default_reasoning: 'high',
+		billing_profile: 'subscription',
+		origin: 'custom',
+		enabled: true,
+		avatar: null,
+		description: null,
 		...overrides
 	}
 }
@@ -170,5 +188,33 @@ describe('setStepProvider', () => {
 		useLaunchComposerState.getState().setStepProvider(1, 'codex')
 
 		expect(currentStep(1).model).toBe('gpt-5-codex')
+	})
+})
+
+describe('setStepAgent', () => {
+	it('attaches the agent and seeds the step fields', () => {
+		useLaunchComposerState
+			.getState()
+			.selectProfile(profile([step({ provider: 'codex', model: 'gpt-5-codex' })]))
+
+		useLaunchComposerState.getState().setStepAgent(1, agent())
+
+		expect(currentStep(1)).toMatchObject({
+			agent_ref: 'team-coder',
+			provider: 'claude',
+			model: 'claude-opus-4-8',
+			reasoning: 'high',
+			executor: 'interactive_pty'
+		})
+	})
+
+	it('clears the agent and reverts to the skill-first path', () => {
+		useLaunchComposerState.getState().selectProfile(profile([step()]))
+
+		useLaunchComposerState.getState().setStepAgent(1, agent())
+		useLaunchComposerState.getState().setStepAgent(1, null)
+
+		expect(currentStep(1).agent_ref).toBeNull()
+		expect(currentStep(1).skill_ref).toBe('implement')
 	})
 })

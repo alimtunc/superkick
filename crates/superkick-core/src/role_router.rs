@@ -23,8 +23,10 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::agent::AgentProvider;
+use crate::error::CoreError;
 use crate::linear_context::LinearContextMode;
-use crate::mcp_policy::{ResolvedMcpPolicy, ResolvedToolPolicy};
+use crate::mcp_policy::{McpMode, ResolvedMcpPolicy, ResolvedToolPolicy};
+use crate::reasoning::ReasoningEffort;
 use crate::runner_mode::{BillingProfile, RunnerMode, RunnerModeError};
 
 /// Optional execution backend layered on top of the resolved provider command.
@@ -75,6 +77,15 @@ pub enum AgentOrigin {
     Custom,
 }
 
+/// Agent identity badge — local-first, no file upload. `icon` is either a
+/// single emoji or a key from the frontend SK icon set; `color` is a CSS color
+/// string (hex). Stored as JSON on the agent row (`avatar_json`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentAvatar {
+    pub icon: String,
+    pub color: String,
+}
+
 /// One project-level agent role as consumed by the router.
 ///
 /// This is a projection of `superkick_config::AgentDefinition` that the core
@@ -121,11 +132,210 @@ pub struct AgentDefinition {
     /// `runner_mode: print_stream_json`).
     #[serde(default)]
     pub billing_profile: Option<BillingProfile>,
+    /// Reasoning effort the agent seeds onto a composer step. Mirrors
+    /// [`crate::SkillDefinition::default_reasoning`]; the router itself never
+    /// consumes it (reasoning rides on the step, not the spawn recipe).
+    #[serde(default)]
+    pub default_reasoning: ReasoningEffort,
+    /// Whether this agent is offered in the roster/picker. Disabled agents
+    /// stay in the catalog (so a live launch referencing one still resolves)
+    /// but are hidden from new compositions by the UI.
+    #[serde(default = "crate::serde_util::default_true")]
+    pub enabled: bool,
+    /// Skill ids attached to this agent. When a composer step selects this
+    /// agent as its primary unit, these skills materialise at launch and the
+    /// step's `skill_ref` is ignored. Stored as a JSON array (`skills_json`).
+    #[serde(default)]
+    pub skills: Vec<String>,
+    /// Identity badge shown in the roster, cockpit, and picker. `None` falls
+    /// back to a derived initial in the UI. Stored as JSON (`avatar_json`).
+    #[serde(default)]
+    pub avatar: Option<AgentAvatar>,
+    /// Operator-facing one-line description. Stored as `description TEXT`.
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 impl AgentDefinition {
     pub fn display_role(&self) -> &str {
         self.role.as_deref().unwrap_or(&self.name)
+    }
+
+    /// Validate an agent before it is persisted. Builtins are constructed
+    /// internally and always pass; this guards operator-authored input.
+    /// `name` is the catalog key and DB primary key, so it must be a safe
+    /// slug — the same constraint [`crate::SkillDefinition`] places on `id`.
+    pub fn validate(&self) -> Result<(), CoreError> {
+        if self.name.trim().is_empty() {
+            return Err(CoreError::InvalidInput(
+                "agent name must not be empty".into(),
+            ));
+        }
+        if !crate::slug::is_safe_slug(&self.name) {
+            return Err(CoreError::InvalidInput(format!(
+                "agent name `{}` is not a safe slug (expected ^[a-z0-9]([a-z0-9_-]*[a-z0-9])?$)",
+                self.name
+            )));
+        }
+        self.runner_mode
+            .unwrap_or_else(|| RunnerMode::default_for(self.provider))
+            .validate_with(self.provider)
+            .map_err(|RunnerModeError::Incompatible { mode, provider }| {
+                CoreError::InvalidInput(format!(
+                    "agent `{}` has an incompatible (provider, runner_mode) pair: {mode} on {provider}",
+                    self.name
+                ))
+            })?;
+        // Skills are soft-checked: a non-existent skill id is tolerated (it may
+        // be authored later) but a malformed id is a clear authoring error.
+        for skill in &self.skills {
+            if !crate::slug::is_safe_slug(skill) {
+                return Err(CoreError::InvalidInput(format!(
+                    "agent `{}` references skill id `{skill}` which is not a safe slug",
+                    self.name
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    /// Builtin agents are re-seeded on factory reset and cannot be deleted
+    /// (disable them instead); operator-authored custom agents can.
+    pub const fn is_deletable(&self) -> bool {
+        matches!(self.origin, AgentOrigin::Custom)
+    }
+
+    /// The six canonical builtin agents — Codex first, then Claude; planner →
+    /// coder → reviewer within each provider. `seed_defaults` writes editable
+    /// DB copies; these constants remain the source of truth for a factory
+    /// reset and for a fresh install with no `superkick.yaml`.
+    pub fn builtins() -> Vec<AgentDefinition> {
+        vec![
+            builtin_planner(CODEX_PLAN, AgentProvider::Codex),
+            builtin_coder(CODEX_IMPLEMENT, AgentProvider::Codex),
+            builtin_reviewer(CODEX_REVIEW, AgentProvider::Codex),
+            builtin_planner(CLAUDE_PLAN, AgentProvider::Claude),
+            builtin_coder(CLAUDE_IMPLEMENT, AgentProvider::Claude),
+            builtin_reviewer(CLAUDE_REVIEW, AgentProvider::Claude),
+        ]
+    }
+}
+
+/// Registry name of the hosted Linear MCP server. The single source of truth
+/// for the string both the builtin planner agents and the config-side server
+/// registry key off, so the two cannot drift.
+pub const LINEAR_MCP_SERVER_NAME: &str = "linear";
+
+/// Stable builtin agent names. `<provider>-<role>` so the picker groups
+/// cleanly; referenced by the Standard launch profile and seeding.
+pub const CODEX_PLAN: &str = "codex-plan";
+pub const CODEX_IMPLEMENT: &str = "codex-implement";
+pub const CODEX_REVIEW: &str = "codex-review";
+pub const CLAUDE_PLAN: &str = "claude-plan";
+pub const CLAUDE_IMPLEMENT: &str = "claude-implement";
+pub const CLAUDE_REVIEW: &str = "claude-review";
+
+const ROLE_PLANNER: &str = "planner";
+const ROLE_CODER: &str = "coder";
+const ROLE_REVIEWER: &str = "reviewer";
+
+/// Builtin skill ids each builtin agent attaches as its primary behaviour
+/// source. These match the seeded skill_definitions ids and the Standard
+/// profile's step `skill_ref`s.
+const SKILL_PLAN: &str = "plan";
+const SKILL_IMPLEMENT: &str = "implement";
+const SKILL_REVIEW: &str = "review";
+
+/// Builtins intentionally leave `system_prompt`/`model` unset so the provider
+/// CLI default model is used and the step prompt is the single source of role
+/// behaviour. The planner wires the Linear MCP so a fresh install can query
+/// issues without hand-authored config.
+fn builtin_planner(name: &str, provider: AgentProvider) -> AgentDefinition {
+    AgentDefinition {
+        name: name.into(),
+        provider,
+        role: Some(ROLE_PLANNER.into()),
+        model: None,
+        system_prompt: None,
+        timeout_secs: None,
+        max_turns: None,
+        origin: AgentOrigin::Builtin,
+        linear_context: LinearContextMode::SnapshotPlusMcp,
+        mcp_policy: ResolvedMcpPolicy {
+            mode: McpMode::Servers,
+            servers: vec![LINEAR_MCP_SERVER_NAME.into()],
+        },
+        tool_policy: ResolvedToolPolicy::default(),
+        backend: None,
+        runner_mode: None,
+        billing_profile: None,
+        default_reasoning: ReasoningEffort::Medium,
+        enabled: true,
+        skills: vec![SKILL_PLAN.into()],
+        avatar: Some(AgentAvatar {
+            icon: "doc".into(),
+            color: "#6366f1".into(),
+        }),
+        description: Some("Breaks the issue into a plan; reads Linear context over MCP.".into()),
+    }
+}
+
+fn builtin_coder(name: &str, provider: AgentProvider) -> AgentDefinition {
+    AgentDefinition {
+        name: name.into(),
+        provider,
+        role: Some(ROLE_CODER.into()),
+        model: None,
+        system_prompt: None,
+        timeout_secs: None,
+        max_turns: None,
+        origin: AgentOrigin::Builtin,
+        linear_context: LinearContextMode::Snapshot,
+        mcp_policy: ResolvedMcpPolicy::default(),
+        tool_policy: ResolvedToolPolicy::default(),
+        backend: None,
+        runner_mode: None,
+        billing_profile: None,
+        default_reasoning: ReasoningEffort::Medium,
+        enabled: true,
+        skills: vec![SKILL_IMPLEMENT.into()],
+        avatar: Some(AgentAvatar {
+            icon: "terminal".into(),
+            color: "#10b981".into(),
+        }),
+        description: Some("Implements the approved plan in the worktree.".into()),
+    }
+}
+
+fn builtin_reviewer(name: &str, provider: AgentProvider) -> AgentDefinition {
+    AgentDefinition {
+        name: name.into(),
+        provider,
+        role: Some(ROLE_REVIEWER.into()),
+        model: None,
+        system_prompt: None,
+        timeout_secs: None,
+        max_turns: None,
+        origin: AgentOrigin::Builtin,
+        linear_context: LinearContextMode::None,
+        mcp_policy: ResolvedMcpPolicy::default(),
+        tool_policy: ResolvedToolPolicy {
+            allow: None,
+            deny: Some(vec!["bash".into(), "write".into()]),
+            require_approval: false,
+            persist_results: true,
+        },
+        backend: None,
+        runner_mode: None,
+        billing_profile: None,
+        default_reasoning: ReasoningEffort::Medium,
+        enabled: true,
+        skills: vec![SKILL_REVIEW.into()],
+        avatar: Some(AgentAvatar {
+            icon: "search".into(),
+            color: "#f59e0b".into(),
+        }),
+        description: Some("Reviews the diff read-only — bash and write denied.".into()),
     }
 }
 
@@ -255,6 +465,27 @@ pub struct ResolvedAgent {
     pub billing_profile: BillingProfile,
 }
 
+impl ResolvedAgent {
+    /// Re-point this recipe at a different runner mode — a shared agent run on
+    /// a per-profile runner. Re-derives `billing_profile` through the one
+    /// [`BillingProfile::resolve`] so the
+    /// `claude + print_stream_json → agent_sdk_credits` invariant is enforced
+    /// at this seam too, not just in [`RoleRouter::resolve`]. `billing_override`
+    /// is the agent definition's explicit `billing_profile` (`None` defers to
+    /// the default/invariant).
+    pub fn with_runner_mode(
+        mut self,
+        runner_mode: RunnerMode,
+        billing_override: Option<BillingProfile>,
+    ) -> Result<Self, RunnerModeError> {
+        runner_mode.validate_with(self.provider)?;
+        self.billing_profile =
+            BillingProfile::resolve(&self.name, self.provider, runner_mode, billing_override);
+        self.runner_mode = runner_mode;
+        Ok(self)
+    }
+}
+
 /// Errors the router can emit when a role cannot be launched.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum RouterError {
@@ -373,6 +604,11 @@ mod tests {
             backend: None,
             runner_mode: None,
             billing_profile: None,
+            default_reasoning: ReasoningEffort::default(),
+            enabled: true,
+            skills: Vec::new(),
+            avatar: None,
+            description: None,
         }
     }
 
@@ -553,6 +789,40 @@ mod tests {
     }
 
     #[test]
+    fn with_runner_mode_reapplies_agent_sdk_credits_invariant() {
+        let cat = AgentCatalog::from_definitions([def("planner", AgentProvider::Claude)]);
+        let policy = RunPolicy::allow_all();
+        // Subscription Claude resolves to interactive_pty + subscription.
+        let resolved = RoleRouter::new(&cat, &policy).resolve("planner").unwrap();
+        assert_eq!(resolved.runner_mode, RunnerMode::InteractivePty);
+        // Re-pointing it at print_stream_json forces agent_sdk_credits even when
+        // the agent's explicit billing tries to stay on subscription.
+        let repointed = resolved
+            .with_runner_mode(
+                RunnerMode::PrintStreamJson,
+                Some(BillingProfile::Subscription),
+            )
+            .unwrap();
+        assert_eq!(repointed.runner_mode, RunnerMode::PrintStreamJson);
+        assert_eq!(repointed.billing_profile, BillingProfile::AgentSdkCredits);
+    }
+
+    #[test]
+    fn with_runner_mode_rejects_incompatible_pair() {
+        let cat = AgentCatalog::from_definitions([def("planner", AgentProvider::Claude)]);
+        let policy = RunPolicy::allow_all();
+        let resolved = RoleRouter::new(&cat, &policy).resolve("planner").unwrap();
+        // exec_json is a Codex-only mode — incompatible with a Claude recipe.
+        assert!(matches!(
+            resolved.with_runner_mode(RunnerMode::ExecJson, None),
+            Err(RunnerModeError::Incompatible {
+                provider: AgentProvider::Claude,
+                mode: RunnerMode::ExecJson,
+            })
+        ));
+    }
+
+    #[test]
     fn resolve_defaults_billing_for_codex_interactive_is_subscription() {
         let mut d = def("c", AgentProvider::Codex);
         d.runner_mode = Some(RunnerMode::InteractivePty);
@@ -560,6 +830,62 @@ mod tests {
         let policy = RunPolicy::allow_all();
         let r = RoleRouter::new(&cat, &policy).resolve("c").unwrap();
         assert_eq!(r.billing_profile, BillingProfile::Subscription);
+    }
+
+    #[test]
+    fn builtins_are_six_codex_first_then_claude_and_validate() {
+        let builtins = AgentDefinition::builtins();
+        let names: Vec<_> = builtins.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                CODEX_PLAN,
+                CODEX_IMPLEMENT,
+                CODEX_REVIEW,
+                CLAUDE_PLAN,
+                CLAUDE_IMPLEMENT,
+                CLAUDE_REVIEW
+            ]
+        );
+        assert!(builtins.iter().all(|a| a.origin == AgentOrigin::Builtin));
+        assert!(builtins.iter().all(|a| a.validate().is_ok()));
+        assert!(builtins.iter().all(|a| !a.is_deletable()));
+    }
+
+    #[test]
+    fn planner_builtin_wires_linear_mcp() {
+        let planner = AgentDefinition::builtins()
+            .into_iter()
+            .find(|a| a.name == CODEX_PLAN)
+            .expect("codex planner present");
+        assert_eq!(planner.mcp_policy.mode, McpMode::Servers);
+        assert!(
+            planner
+                .mcp_policy
+                .servers
+                .iter()
+                .any(|s| s == LINEAR_MCP_SERVER_NAME)
+        );
+    }
+
+    #[test]
+    fn validate_rejects_unsafe_agent_names_and_custom_is_deletable() {
+        let mut a = builtin_coder("ok-name", AgentProvider::Codex);
+        a.origin = AgentOrigin::Custom;
+        assert!(a.validate().is_ok());
+        assert!(a.is_deletable());
+        for bad in ["Bad", "a/b", "..", "-x", "x-", " sp ace"] {
+            a.name = bad.into();
+            assert!(a.validate().is_err(), "expected `{bad}` rejected");
+        }
+    }
+
+    #[test]
+    fn validate_rejects_incompatible_runner_mode() {
+        let mut a = builtin_coder("ghost", AgentProvider::Claude);
+        a.origin = AgentOrigin::Custom;
+        a.runner_mode = Some(RunnerMode::ExecJson);
+        assert!(a.validate().is_err());
     }
 
     #[test]

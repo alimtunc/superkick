@@ -7,7 +7,7 @@ import { SettingsPaneProfiles } from '@/components/settings/SettingsPaneProfiles
 import { SettingsPaneProviders } from '@/components/settings/SettingsPaneProviders'
 import { SettingsPaneRunner } from '@/components/settings/SettingsPaneRunner'
 import { SettingsPaneRuntimes } from '@/components/settings/SettingsPaneRuntimes'
-import { SettingsPaneSkills } from '@/components/settings/SettingsPaneSkills'
+import { SettingsPaneSkillsLink } from '@/components/settings/SettingsPaneSkillsLink'
 import type { SettingsPaneId } from '@/types'
 import { createRoute, type SearchSchemaInput } from '@tanstack/react-router'
 
@@ -37,7 +37,7 @@ function renderPane(id: SettingsPaneId, label: string) {
 	if (id === 'general') return <SettingsPaneGeneral />
 	if (id === 'integrations') return <SettingsPaneIntegrations />
 	if (id === 'providers') return <SettingsPaneProviders />
-	if (id === 'skills') return <SettingsPaneSkills />
+	if (id === 'skills') return <SettingsPaneSkillsLink />
 	if (id === 'profiles') return <SettingsPaneProfiles />
 	if (id === 'runtimes') return <SettingsPaneRuntimes />
 	if (id === 'runner') return <SettingsPaneRunner />

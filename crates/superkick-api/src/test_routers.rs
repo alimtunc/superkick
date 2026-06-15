@@ -113,11 +113,21 @@ pub fn orchestrator_session_test_router(repo: Arc<SqliteOrchestratorSessionRepo>
 }
 
 /// `GET /agents` against an `AgentsState` built from the supplied catalog.
-pub fn agents_test_router(catalog: Arc<AgentCatalog>) -> Router {
-    let state = handlers::agents::AgentsState { catalog };
+pub fn agents_test_router(catalog: AgentCatalog) -> Router {
+    let state = handlers::agents::AgentsState {
+        catalog: superkick_runtime::AgentCatalogProvider::new(catalog),
+    };
     Router::new()
         .route("/agents", get(handlers::agents::list_agents))
         .with_state(state)
+}
+
+/// Stateless per-provider model catalog route.
+pub fn model_catalog_test_router() -> Router {
+    Router::new().route(
+        "/providers/{provider}/models",
+        get(handlers::model_catalog::list_provider_models),
+    )
 }
 
 /// Launch-task read/create/cancel/SSE routes against a fresh in-memory

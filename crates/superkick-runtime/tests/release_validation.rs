@@ -136,6 +136,7 @@ impl Harness {
             session_bus: None,
             launch_task_bus: Arc::clone(&launch_task_bus),
             repo_cache,
+            agent_catalog: superkick_runtime::AgentCatalogProvider::new(config.agent_catalog()),
             config,
             linear_client: None,
             repo_slug: repo_slug.to_string(),

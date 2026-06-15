@@ -1,8 +1,10 @@
+import { AgentPicker } from '@/components/launch/AgentPicker'
 import { LaunchStepSkillPicker } from '@/components/launch/LaunchStepSkillPicker'
 import { ConfigSelect } from '@/components/settings/ConfigSelect'
 import { Button } from '@/components/ui/button'
 import { Pill } from '@/components/ui/pill'
 import { providerLabel } from '@/lib/domain'
+import { stepKindFromSkillRef } from '@/lib/launch/stepKind'
 import {
 	EXECUTOR_LABEL,
 	LAUNCH_PROVIDER_OPTIONS,
@@ -11,13 +13,14 @@ import {
 	isPaidExecutor,
 	reasoningOptionsFor
 } from '@/lib/launchConfigOptions'
-import type { AgentProvider, ProfileStep, SkillDefinition } from '@/types'
+import type { Agent, AgentProvider, ProfileStep, SkillDefinition } from '@/types'
 import { Icon } from '@/ui/Icon'
 import { Toggle } from '@/ui/Toggle'
 
 interface StepListEditorProps {
 	steps: ProfileStep[]
 	skills: SkillDefinition[]
+	agents: Agent[]
 	skillsLoading?: boolean
 	onUpdateStep: (ordering: number, patch: Partial<ProfileStep>) => void
 	onMoveStep: (ordering: number, direction: 'up' | 'down') => void
@@ -25,20 +28,24 @@ interface StepListEditorProps {
 	onAddStep: () => void
 	onApplySkill: (ordering: number, skill: SkillDefinition) => void
 	onSetProvider: (ordering: number, provider: AgentProvider) => void
+	onSetStepAgent: (ordering: number, agent: Agent | null) => void
 }
 
 export function StepListEditor({
 	steps,
 	skills,
+	agents,
 	skillsLoading = false,
 	onUpdateStep,
 	onMoveStep,
 	onRemoveStep,
 	onAddStep,
 	onApplySkill,
-	onSetProvider
+	onSetProvider,
+	onSetStepAgent
 }: StepListEditorProps) {
 	const sorted = steps.toSorted((a, b) => a.ordering - b.ordering)
+	const findAgent = (name: string): Agent | null => agents.find((a) => a.name === name) ?? null
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -77,6 +84,24 @@ export function StepListEditor({
 						disabled={skillsLoading}
 						onSelect={(skill) => onApplySkill(step.ordering, skill)}
 					/>
+					<AgentPicker
+						value={step.agent_ref ?? null}
+						agents={agents}
+						recommendedFor={stepKindFromSkillRef(step.skill_ref)}
+						icon="agent"
+						label="Agent"
+						onChange={(name) => onSetStepAgent(step.ordering, findAgent(name))}
+					/>
+					{step.agent_ref ? (
+						<button
+							type="button"
+							aria-label={`Clear ${step.label} agent`}
+							className="text-fg-dim hover:text-fg"
+							onClick={() => onSetStepAgent(step.ordering, null)}
+						>
+							<Icon name="x" size={13} className="ic" />
+						</button>
+					) : null}
 					<ConfigSelect
 						ariaLabel={`${step.label} provider`}
 						value={step.provider}

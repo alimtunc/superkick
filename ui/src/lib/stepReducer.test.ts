@@ -3,10 +3,11 @@ import {
 	applySkillToStep,
 	moveStep,
 	removeStep,
+	setStepAgent,
 	setStepProvider,
 	updateStep
 } from '@/lib/stepReducer'
-import type { ProfileStep, SkillDefinition } from '@/types'
+import type { Agent, ProfileStep, SkillDefinition } from '@/types'
 import { describe, expect, it } from 'vitest'
 
 function step(overrides: Partial<ProfileStep> = {}): ProfileStep {
@@ -14,6 +15,7 @@ function step(overrides: Partial<ProfileStep> = {}): ProfileStep {
 		ordering: 1,
 		label: 'Implement',
 		skill_ref: 'implement',
+		agent_ref: null,
 		provider: 'codex',
 		model: null,
 		reasoning: 'medium',
@@ -40,6 +42,24 @@ function skill(overrides: Partial<SkillDefinition> = {}): SkillDefinition {
 		enabled: true,
 		origin: 'builtin',
 		artifact_kind: 'skill',
+		...overrides
+	}
+}
+
+function agent(overrides: Partial<Agent> = {}): Agent {
+	return {
+		name: 'claude-implement',
+		provider: 'claude',
+		role: 'coder',
+		model: null,
+		runner_mode: 'interactive_pty',
+		executor: 'interactive_pty',
+		default_reasoning: 'high',
+		billing_profile: 'subscription',
+		origin: 'builtin',
+		enabled: true,
+		avatar: null,
+		description: null,
 		...overrides
 	}
 }
@@ -123,6 +143,58 @@ describe('setStepProvider', () => {
 	it('keeps the model when re-selecting the same provider', () => {
 		const next = setStepProvider([step({ provider: 'codex', model: 'gpt-5-codex' })], 1, 'codex')
 		expect(find(next, 1).model).toBe('gpt-5-codex')
+	})
+})
+
+describe('setStepAgent', () => {
+	it('sets agent_ref and seeds provider/model/reasoning/executor from the agent', () => {
+		const next = setStepAgent(
+			[step({ provider: 'codex', model: 'gpt-5-codex' })],
+			1,
+			agent({
+				name: 'team-coder',
+				provider: 'claude',
+				model: 'claude-opus-4-8',
+				default_reasoning: 'high'
+			})
+		)
+		expect(find(next, 1)).toMatchObject({
+			agent_ref: 'team-coder',
+			provider: 'claude',
+			model: 'claude-opus-4-8',
+			reasoning: 'high',
+			executor: 'interactive_pty'
+		})
+	})
+
+	it('clears agent_ref and reverts to skill-first when the agent is null', () => {
+		const next = setStepAgent([step({ agent_ref: 'team-coder' })], 1, null)
+		expect(find(next, 1).agent_ref).toBeNull()
+		expect(find(next, 1).skill_ref).toBe('implement')
+	})
+
+	it('clamps the agent default reasoning to the agent provider', () => {
+		const next = setStepAgent([step()], 1, agent({ provider: 'codex', default_reasoning: 'max' }))
+		expect(find(next, 1).reasoning).toBe('xhigh')
+	})
+
+	it('clears the model when the agent flips provider without its own model', () => {
+		const next = setStepAgent(
+			[step({ provider: 'codex', model: 'gpt-5-codex' })],
+			1,
+			agent({ provider: 'claude', model: null })
+		)
+		expect(find(next, 1).model).toBeNull()
+	})
+
+	it('does not touch other steps', () => {
+		const next = setStepAgent(
+			[step(), step({ ordering: 2, label: 'Review', skill_ref: 'review' })],
+			1,
+			agent()
+		)
+		expect(find(next, 2).agent_ref).toBeNull()
+		expect(find(next, 2).skill_ref).toBe('review')
 	})
 })
 

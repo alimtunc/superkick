@@ -9,11 +9,14 @@
 
 use anyhow::{Context, Result};
 use sqlx::SqlitePool;
-use superkick_core::{LaunchProfile, ProviderSettings, SkillDefinition};
+use superkick_core::{CoreAgentDefinition, LaunchProfile, ProviderSettings, SkillDefinition};
 
-use crate::repo::{LaunchProfileRepo, ProviderSettingsRepo, SkillDefinitionRepo};
+use crate::repo::{
+    AgentDefinitionRepo, LaunchProfileRepo, ProviderSettingsRepo, SkillDefinitionRepo,
+};
 use crate::sqlite::{
-    SqliteLaunchProfileRepo, SqliteProviderSettingsRepo, SqliteSkillDefinitionRepo,
+    SqliteAgentDefinitionRepo, SqliteLaunchProfileRepo, SqliteProviderSettingsRepo,
+    SqliteSkillDefinitionRepo,
 };
 
 pub async fn seed_defaults(pool: &SqlitePool) -> Result<()> {
@@ -37,6 +40,14 @@ pub async fn seed_defaults(pool: &SqlitePool) -> Result<()> {
             .backfill_builtin_body(&skill)
             .await
             .with_context(|| format!("backfill skill_definition {}", skill.id))?;
+    }
+
+    let agents = SqliteAgentDefinitionRepo::new(pool.clone());
+    for agent in CoreAgentDefinition::builtins() {
+        agents
+            .insert_if_absent(&agent)
+            .await
+            .with_context(|| format!("seed agent_definition {}", agent.name))?;
     }
 
     let profiles = SqliteLaunchProfileRepo::new(pool.clone());

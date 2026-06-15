@@ -73,14 +73,15 @@ async fn insert_step(
 ) -> Result<()> {
     sqlx::query(
         "INSERT INTO launch_profile_steps (\
-             profile_id, ordering, label, skill_ref, provider, model, reasoning, \
+             profile_id, ordering, label, skill_ref, agent_ref, provider, model, reasoning, \
              executor, session_policy, output_expectation, enabled\
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
     )
     .bind(profile_id)
     .bind(i64::from(step.ordering))
     .bind(&step.label)
     .bind(&step.skill_ref)
+    .bind(step.agent_ref.clone())
     .bind(serialize_enum(&step.provider)?)
     .bind(step.model.clone())
     .bind(serialize_enum(&step.reasoning)?)
@@ -203,6 +204,7 @@ struct ProfileStepRow {
     ordering: i64,
     label: String,
     skill_ref: String,
+    agent_ref: Option<String>,
     provider: String,
     model: Option<String>,
     reasoning: String,
@@ -219,6 +221,7 @@ impl ProfileStepRow {
                 .with_context(|| format!("profile step ordering overflow: {}", self.ordering))?,
             label: self.label,
             skill_ref: self.skill_ref,
+            agent_ref: self.agent_ref,
             provider: deserialize_enum::<AgentProvider>(&self.provider)?,
             model: self.model,
             reasoning: deserialize_enum::<ReasoningEffort>(&self.reasoning)?,

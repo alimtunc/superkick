@@ -6,10 +6,11 @@ import {
 	moveStep as moveStepIn,
 	removeStep as removeStepIn,
 	renumberSteps,
+	setStepAgent as setStepAgentIn,
 	setStepProvider as setStepProviderIn,
 	updateStep as updateStepIn
 } from '@/lib/stepReducer'
-import type { AgentProvider, LaunchProfile, ProfileStep, SkillDefinition } from '@/types'
+import type { Agent, AgentProvider, LaunchProfile, ProfileStep, SkillDefinition } from '@/types'
 import { create } from 'zustand'
 
 interface LaunchComposerState {
@@ -20,6 +21,7 @@ interface LaunchComposerState {
 	removeStep: (ordering: number) => void
 	updateStep: (ordering: number, patch: Partial<ProfileStep>) => void
 	setStepProvider: (ordering: number, provider: AgentProvider) => void
+	setStepAgent: (ordering: number, agent: Agent | null) => void
 	applySkillToStep: (ordering: number, skill: SkillDefinition) => void
 	addStep: () => void
 	reset: () => void
@@ -31,7 +33,11 @@ export const useLaunchComposerState = create<LaunchComposerState>((set) => ({
 	selectProfile: (profile) =>
 		set({
 			profileId: profile?.id ?? null,
-			steps: profile ? renumberSteps(profile.steps.map((step) => ({ ...step }))) : []
+			// Normalise the wire's absent `agent_ref` (server omits `None`) to `null`
+			// so the working copy never carries `undefined` on the skill-first path.
+			steps: profile
+				? renumberSteps(profile.steps.map((step) => ({ ...step, agent_ref: step.agent_ref ?? null })))
+				: []
 		}),
 	moveStep: (ordering, direction) =>
 		set((state) => ({ steps: moveStepIn(state.steps, ordering, direction) })),
@@ -39,6 +45,8 @@ export const useLaunchComposerState = create<LaunchComposerState>((set) => ({
 	updateStep: (ordering, patch) => set((state) => ({ steps: updateStepIn(state.steps, ordering, patch) })),
 	setStepProvider: (ordering, provider) =>
 		set((state) => ({ steps: setStepProviderIn(state.steps, ordering, provider) })),
+	setStepAgent: (ordering, agent) =>
+		set((state) => ({ steps: setStepAgentIn(state.steps, ordering, agent) })),
 	applySkillToStep: (ordering, skill) =>
 		set((state) => ({ steps: applySkillToStepIn(state.steps, ordering, skill) })),
 	addStep: () => set((state) => ({ steps: addStepTo(state.steps) })),

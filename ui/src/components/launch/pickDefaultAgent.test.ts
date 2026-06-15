@@ -6,8 +6,13 @@ function agent(overrides: Partial<Agent> & Pick<Agent, 'name' | 'provider' | 'ro
 	return {
 		model: null,
 		runner_mode: 'exec_json',
+		executor: 'codex_structured',
+		default_reasoning: 'medium',
 		billing_profile: 'subscription',
 		origin: 'builtin',
+		enabled: true,
+		avatar: null,
+		description: null,
 		...overrides
 	}
 }

@@ -144,11 +144,6 @@ export const PROFILE_KIND_OPTIONS: ProfileKind[] = [
 	'custom'
 ]
 
-export const CURATED_MODELS: Record<string, string[]> = {
-	codex: ['gpt-5-codex', 'gpt-5', 'o4-mini'],
-	claude: ['claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5']
-}
-
 /** Whether selecting this executor consumes paid Agent SDK credits. */
 export function isPaidExecutor(executor: StepExecutor): boolean {
 	return executor === 'claude_workflow'

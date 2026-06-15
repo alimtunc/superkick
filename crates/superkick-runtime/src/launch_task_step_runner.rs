@@ -28,16 +28,17 @@ use superkick_core::{
     AgentBackend, AgentCatalog, AgentOrigin, AgentProvider, CoreAgentDefinition, EventKind,
     EventLevel, FailureClassification, FailureDisposition, LaunchReason, LaunchStepKind,
     LaunchTask, LaunchTaskId, LaunchTaskIntervention, LaunchTaskStep, LaunchTaskStepId,
-    LinearContextMode, MemoryEntryId, ResolvedAgent, ResolvedMcpPolicy, ResolvedToolPolicy,
-    ResumeKey, ReuseWorktree, RoleRouter, Run, RunId, RunPolicy, RunState, RunStep, RunnerMode,
-    SkillArtifact, SkillDefinition, SkillKind, SkillSource, StepExecutor, StepId, StepKey,
-    StepResult, StepStatus, TriggerSource,
+    LinearContextMode, MemoryEntryId, ReasoningEffort, ResolvedAgent, ResolvedMcpPolicy,
+    ResolvedToolPolicy, ResumeKey, ReuseWorktree, RoleRouter, Run, RunId, RunPolicy, RunState,
+    RunStep, RunnerMode, RunnerModeError, SkillArtifact, SkillDefinition, SkillKind, SkillSource,
+    StepExecutor, StepId, StepKey, StepResult, StepStatus, TriggerSource,
 };
 use superkick_storage::repo::{
     AgentSessionRepo, IssueWorkspaceContextRepoDyn, LaunchTaskInterventionRepo, LaunchTaskRepo,
     MemoryEntryRepoDyn, RunEventRepo, RunRepo, RunStepRepo, SkillDefinitionRepo, TranscriptRepo,
 };
 
+use crate::agent_catalog_provider::AgentCatalogProvider;
 use crate::agent_spawn::{
     BACKEND_DIRECTIVE_MARKER, LaunchConfigInputs, build_launch_config, resolve_spawn_plan,
 };
@@ -72,22 +73,58 @@ use crate::step_engine::DEFAULT_AGENT_TIMEOUT;
 /// the agent session anyway.
 const SUMMARY_MAX_CHARS: usize = 512;
 
-/// Resolve a step's agent recipe. Dynamic steps carry their own
-/// provider/model/executor snapshot and resolve through a transient single-entry
-/// catalog so the existing router still applies runner-mode validation and the
-/// the paid-SDK billing invariant. Legacy v1-recipe steps (`executor == None`) resolve by
-/// `agent_name` against the project catalog.
+/// Resolve a step's agent recipe. Resolution order:
+///
+/// 1. **Agent-primary (`agent_ref` set, SUP-206 V2):** the named agent is the
+///    single behaviour source — its provider/model/system_prompt/mcp_policy/
+///    tool_policy/backend deep-carry from the project catalog. The step's
+///    executor still selects the runner mode (and so the billing path) so a
+///    profile authored for the structured/paid or background runner keeps it.
+/// 2. **Dynamic (`executor == Some`, skill-first):** the step carries its own
+///    provider/model/executor snapshot and resolves through a transient
+///    single-entry catalog so the router still applies runner-mode validation
+///    and the paid-SDK billing invariant.
+/// 3. **Legacy v1-recipe (`executor == None`):** resolve by `agent_name`
+///    against the project catalog.
 fn resolve_step_agent(
     step: &LaunchTaskStep,
     catalog: &AgentCatalog,
     policy: &RunPolicy,
 ) -> Result<ResolvedAgent, String> {
+    if let Some(agent_ref) = step.agent_ref.as_deref() {
+        return resolve_catalog_agent(agent_ref, step, catalog, policy);
+    }
     match step.executor {
         Some(executor) => resolve_dynamic_agent(step, executor),
         None => RoleRouter::new(catalog, policy)
             .resolve(&step.agent_name)
             .map_err(|e| format!("agent role '{}' resolution failed: {e}", step.agent_name)),
     }
+}
+
+/// Agent-primary resolution (branch 1 above). Deep-carries the catalog agent's
+/// recipe, then lets the step's executor override the runner mode — one builtin
+/// agent is shared by profiles that run it on different runners (e.g. the Claude
+/// planner under both the paid structured and the subscription background
+/// profiles), so the runner mode cannot live on the agent.
+fn resolve_catalog_agent(
+    agent_ref: &str,
+    step: &LaunchTaskStep,
+    catalog: &AgentCatalog,
+    policy: &RunPolicy,
+) -> Result<ResolvedAgent, String> {
+    let resolved = RoleRouter::new(catalog, policy)
+        .resolve(agent_ref)
+        .map_err(|e| format!("step agent '{agent_ref}' resolution failed: {e}"))?;
+    let Some(runner_mode) = step.executor.and_then(StepExecutor::runner_mode) else {
+        return Ok(resolved);
+    };
+    let billing_override = catalog.get(agent_ref).and_then(|d| d.billing_profile);
+    resolved.with_runner_mode(runner_mode, billing_override).map_err(
+        |RunnerModeError::Incompatible { mode, provider }| {
+            format!("step agent '{agent_ref}' runner mode {mode} is incompatible with provider {provider}")
+        },
+    )
 }
 
 /// Whether a resolved `(provider, mode)` pair runs on the structured
@@ -169,6 +206,13 @@ fn resolve_dynamic_agent(
         // `None` lets `RoleRouter::resolve` apply the forced
         // claude+print_stream_json → agent_sdk_credits invariant.
         billing_profile: None,
+        default_reasoning: ReasoningEffort::default(),
+        enabled: true,
+        // Dynamic steps drive behaviour from the step's skill_ref, not an
+        // attached agent, so the transient agent carries no authoring metadata.
+        skills: Vec::new(),
+        avatar: None,
+        description: None,
     };
     let catalog = AgentCatalog::from_definitions([def]);
     let policy = RunPolicy::allow_all();
@@ -319,6 +363,9 @@ where
     pub launch_task_bus: Arc<LaunchTaskEventBus>,
     pub repo_cache: RepoCache,
     pub config: SuperkickConfig,
+    /// DB-backed agent catalog, shared with the write API so a custom-agent
+    /// edit is visible to the next launch without a restart.
+    pub agent_catalog: AgentCatalogProvider,
     pub linear_client: OptionalLinearClient,
     pub repo_slug: String,
     pub base_branch: String,
@@ -351,7 +398,7 @@ where
     launch_task_bus: Arc<LaunchTaskEventBus>,
     supervisor: AgentSupervisor<A, E, T>,
     repo_cache: RepoCache,
-    catalog: AgentCatalog,
+    agent_catalog: AgentCatalogProvider,
     policy: RunPolicy,
     mcp_registry: HashMap<String, superkick_config::McpServerSpec>,
     linear_client: OptionalLinearClient,
@@ -386,7 +433,6 @@ where
         if let Some(bus) = deps.session_bus {
             supervisor = supervisor.with_lifecycle_bus(bus);
         }
-        let catalog = deps.config.agent_catalog();
         let policy = deps.config.base_run_policy();
         let mcp_registry = deps.config.effective_mcp_servers();
         Self {
@@ -402,7 +448,7 @@ where
             launch_task_bus: deps.launch_task_bus,
             supervisor,
             repo_cache: deps.repo_cache,
-            catalog,
+            agent_catalog: deps.agent_catalog,
             policy,
             mcp_registry,
             linear_client: deps.linear_client,
@@ -593,11 +639,22 @@ where
                 return materialized;
             }
         };
-        let mut wanted: Vec<&str> = steps
-            .iter()
-            .filter(|s| s.enabled)
-            .filter_map(step_skill_id)
-            .collect();
+        // Agent-primary steps (`agent_ref` set) materialise the agent's attached
+        // skills — the agent is the single behaviour source, so the step's own
+        // `skill_ref` is ignored. Skill-first steps keep materialising their
+        // referenced skill exactly as before.
+        let agent_catalog = self.agent_catalog.snapshot();
+        let mut wanted: Vec<String> = Vec::new();
+        for step in steps.iter().filter(|s| s.enabled) {
+            match step
+                .agent_ref
+                .as_deref()
+                .and_then(|name| agent_catalog.get(name))
+            {
+                Some(def) => wanted.extend(def.skills.iter().cloned()),
+                None => wanted.extend(step_skill_id(step).map(str::to_string)),
+            }
+        }
         wanted.sort_unstable();
         wanted.dedup();
         if wanted.is_empty() {
@@ -615,9 +672,11 @@ where
                 return materialized;
             }
         };
+        // `wanted` is sorted + deduped above, so a binary search beats the
+        // linear scan and reads clearer than the nested `any`.
         for skill in definitions
             .iter()
-            .filter(|d| wanted.contains(&d.id.as_str()))
+            .filter(|d| wanted.binary_search(&d.id).is_ok())
         {
             // Whitespace-only bodies count as bodyless everywhere (the lean and
             // structured prompt paths both gate on `!trim().is_empty()`), so a
@@ -1188,7 +1247,8 @@ where
             }
         };
 
-        let resolved = match resolve_step_agent(step, &self.catalog, &self.policy) {
+        let catalog = self.agent_catalog.snapshot();
+        let resolved = match resolve_step_agent(step, &catalog, &self.policy) {
             Ok(r) => r,
             Err(detail) => {
                 return Ok(StepOutcome::Failed {
@@ -1605,6 +1665,7 @@ mod tests {
             sequence: 1,
             step_kind: LaunchStepKind::Implement,
             agent_name: "implement".into(),
+            agent_ref: None,
             provider: Some(provider.into()),
             model: None,
             mode: None,
@@ -1628,6 +1689,62 @@ mod tests {
             created_at: now,
             updated_at: now,
         }
+    }
+
+    fn agent_primary_step(agent_ref: &str, executor: StepExecutor) -> LaunchTaskStep {
+        LaunchTaskStep {
+            agent_ref: Some(agent_ref.into()),
+            ..dynamic_step("codex", executor, None, None)
+        }
+    }
+
+    #[test]
+    fn agent_ref_deep_carries_planner_linear_mcp() {
+        use superkick_core::{CODEX_PLAN, LINEAR_MCP_SERVER_NAME, McpMode};
+        let catalog = AgentCatalog::from_definitions(CoreAgentDefinition::builtins());
+        let policy = RunPolicy::allow_all();
+        let step = agent_primary_step(CODEX_PLAN, StepExecutor::CodexStructured);
+        let resolved = resolve_step_agent(&step, &catalog, &policy).expect("resolves");
+        assert_eq!(resolved.mcp_policy.mode, McpMode::Servers);
+        assert!(
+            resolved
+                .mcp_policy
+                .servers
+                .iter()
+                .any(|s| s == LINEAR_MCP_SERVER_NAME),
+            "planner deep-carries the Linear MCP under agent-primary launch"
+        );
+        assert_eq!(resolved.runner_mode, RunnerMode::ExecJson);
+    }
+
+    #[test]
+    fn agent_ref_deep_carries_reviewer_tool_deny() {
+        use superkick_core::CODEX_REVIEW;
+        let catalog = AgentCatalog::from_definitions(CoreAgentDefinition::builtins());
+        let policy = RunPolicy::allow_all();
+        let step = agent_primary_step(CODEX_REVIEW, StepExecutor::CodexStructured);
+        let resolved = resolve_step_agent(&step, &catalog, &policy).expect("resolves");
+        let deny = resolved.tool_policy.deny.expect("reviewer denies tools");
+        assert!(deny.iter().any(|t| t == "bash"));
+        assert!(deny.iter().any(|t| t == "write"));
+    }
+
+    #[test]
+    fn agent_ref_executor_selects_the_runner_mode_and_billing() {
+        use superkick_core::{BillingProfile, CLAUDE_PLAN};
+        let catalog = AgentCatalog::from_definitions(CoreAgentDefinition::builtins());
+        let policy = RunPolicy::allow_all();
+        // The one Claude planner agent runs on the paid structured runner here…
+        let paid = agent_primary_step(CLAUDE_PLAN, StepExecutor::ClaudeWorkflow);
+        let resolved = resolve_step_agent(&paid, &catalog, &policy).expect("resolves");
+        assert_eq!(resolved.runner_mode, RunnerMode::PrintStreamJson);
+        assert_eq!(resolved.billing_profile, BillingProfile::AgentSdkCredits);
+        // …and on the subscription background runner there — the runner mode
+        // rides on the step's executor, not the (shared) agent.
+        let bg = agent_primary_step(CLAUDE_PLAN, StepExecutor::ClaudeBackground);
+        let resolved_bg = resolve_step_agent(&bg, &catalog, &policy).expect("resolves");
+        assert_eq!(resolved_bg.runner_mode, RunnerMode::BackgroundSession);
+        assert_eq!(resolved_bg.billing_profile, BillingProfile::Subscription);
     }
 
     #[test]

@@ -20,6 +20,7 @@ import {
 	fetchRuntimes,
 	fetchSearch,
 	fetchSkills,
+	getAgent,
 	listAgents,
 	listImportableSkills,
 	listLaunchTaskInterventions
@@ -148,6 +149,13 @@ export const agentsQuery = () =>
 		queryFn: listAgents,
 		// Catalog rarely changes mid-session — refetch on focus/mount only.
 		staleTime: 5 * 60_000
+	})
+
+export const managedAgentQuery = (name: string | null) =>
+	queryOptions({
+		queryKey: name ? queryKeys.agents.detail(name) : ['agents', 'detail', 'pending'],
+		queryFn: name ? () => getAgent(name) : skipToken,
+		staleTime: 30_000
 	})
 
 export const launchTaskStepsQuery = (taskId: string | null) =>

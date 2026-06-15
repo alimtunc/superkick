@@ -259,6 +259,13 @@ pub struct LaunchTaskStep {
     pub sequence: u32,
     pub step_kind: LaunchStepKind,
     pub agent_name: String,
+    /// SUP-206 V2 — the app-managed agent this step runs as its primary unit
+    /// (frozen from [`crate::launch_profile::StepSnapshot::agent_ref`]). When
+    /// set, launch resolution deep-carries the agent's policy from the catalog
+    /// and materialises the agent's attached skills; the step's `skill_source`
+    /// is legacy. `None` keeps the skill-first path unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_ref: Option<String>,
     pub provider: Option<String>,
     pub model: Option<String>,
     pub mode: Option<String>,
@@ -331,6 +338,7 @@ impl LaunchTaskStep {
             sequence,
             step_kind,
             agent_name,
+            agent_ref: None,
             provider: None,
             model: None,
             mode: None,
@@ -540,6 +548,7 @@ impl LaunchTask {
         let steps = sorted
             .iter()
             .map(|s| LaunchTaskStep {
+                agent_ref: s.agent_ref.clone(),
                 provider: Some(s.provider.to_string()),
                 model: s.model.clone(),
                 mode: s.executor.runner_mode().map(|m| m.audit_tag().to_string()),

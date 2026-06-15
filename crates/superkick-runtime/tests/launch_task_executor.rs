@@ -55,6 +55,7 @@ fn dyn_step(
         ordering,
         label: kind.to_string(),
         skill_ref: kind.to_string(),
+        agent_ref: None,
         skill_source: SkillSource::Installed(kind.to_string()),
         skill_kind: None,
         step_kind: kind,

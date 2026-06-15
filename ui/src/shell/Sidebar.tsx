@@ -44,6 +44,11 @@ const PRIMARY: PrimaryNavItem[] = [
 	{ id: 'issues', to: '/issues', icon: 'issue', label: 'Issues' }
 ]
 
+const WORKSPACE: PrimaryNavItem[] = [
+	{ id: 'agents', to: '/agents', icon: 'agent', label: 'Agents' },
+	{ id: 'skills', to: '/skills', icon: 'spark', label: 'Skills' }
+]
+
 interface SavedView {
 	to: string
 	search?: IssuesSearch
@@ -156,6 +161,23 @@ export function Sidebar({ active, counts }: SidebarProps) {
 									label={item.label}
 									active={active === item.id}
 									count={counts?.[item.id]}
+								/>
+							))}
+						</SidebarMenu>
+					</SidebarGroupContent>
+				</SidebarGroup>
+
+				<SidebarGroup>
+					<SidebarGroupLabel>Workspace</SidebarGroupLabel>
+					<SidebarGroupContent>
+						<SidebarMenu>
+							{WORKSPACE.map((item) => (
+								<NavRow
+									key={item.id}
+									to={item.to}
+									icon={item.icon}
+									label={item.label}
+									active={active === item.id}
 								/>
 							))}
 						</SidebarMenu>

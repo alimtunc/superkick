@@ -37,7 +37,8 @@ export const queryKeys = {
 		active: (runId: string) => ['terminal-takeover', 'active', runId] as const
 	},
 	agents: {
-		all: ['agents'] as const
+		all: ['agents'] as const,
+		detail: (name: string) => ['agents', 'detail', name] as const
 	},
 	launchTasks: {
 		all: ['launch-tasks'] as const,
@@ -62,6 +63,9 @@ export const queryKeys = {
 	},
 	providerSettings: {
 		all: ['provider-settings'] as const
+	},
+	providerModels: {
+		forProvider: (provider: string) => ['provider-models', provider] as const
 	},
 	skills: {
 		all: ['skills'] as const,

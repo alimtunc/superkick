@@ -28,11 +28,14 @@ export function AgentPicker({
 	label,
 	disabled
 }: AgentPickerProps) {
-	const current = agents.find((a) => a.name === value) ?? null
-	const empty = agents.length === 0
+	// Disabled agents are hidden from new compositions but the currently-selected
+	// one stays visible so an already-attached (since-disabled) agent still shows.
+	const selectable = agents.filter((a) => a.enabled || a.name === value)
+	const current = selectable.find((a) => a.name === value) ?? null
+	const empty = selectable.length === 0
 	const valueText = current?.name ?? (empty ? 'no agents' : 'choose…')
 	const dim = current === null
-	const groups = groupAgents(agents)
+	const groups = groupAgents(selectable)
 
 	return (
 		<Menu.Root>
