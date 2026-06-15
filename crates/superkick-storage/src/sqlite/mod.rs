@@ -5,6 +5,7 @@ use std::fmt;
 use anyhow::{Result, anyhow};
 use sqlx::sqlite::SqliteQueryResult;
 
+mod agent_definitions;
 mod agent_sessions;
 mod artifacts;
 mod attention_requests;
@@ -35,6 +36,7 @@ mod skill_definitions;
 mod steps;
 mod transcripts;
 
+pub use agent_definitions::SqliteAgentDefinitionRepo;
 pub use agent_sessions::SqliteAgentSessionRepo;
 pub use artifacts::SqliteArtifactRepo;
 pub use attention_requests::SqliteAttentionRequestRepo;

@@ -37,6 +37,11 @@ fn agent(name: &str) -> CoreAgentDefinition {
         backend: None,
         runner_mode: None,
         billing_profile: None,
+        default_reasoning: Default::default(),
+        enabled: true,
+        skills: Vec::new(),
+        avatar: None,
+        description: None,
     }
 }
 

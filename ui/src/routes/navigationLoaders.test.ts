@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import { Route as agentsRoute } from './_shell/agents'
+import { Route as agentDetailRoute } from './_shell/agents.$agentId'
 import { Route as boardRoute } from './_shell/board'
 import { Route as inboxRoute } from './_shell/index'
 import { Route as issuesRoute } from './_shell/issues'
@@ -7,6 +9,7 @@ import { Route as issueDetailRoute } from './_shell/issues.$issueId'
 import { Route as queueRoute } from './_shell/queue'
 import { Route as runsRoute } from './_shell/runs'
 import { Route as runDetailRoute } from './_shell/runs.$runId'
+import { Route as skillsRoute } from './_shell/skills'
 import { Route as taskDetailRoute } from './_shell/tasks.$taskId'
 
 interface LoaderQueryClient {
@@ -33,6 +36,14 @@ describe('route loaders', () => {
 		{ label: 'board', route: boardRoute, ctx: {}, prefetches: 1 },
 		{ label: 'issues', route: issuesRoute, ctx: {}, prefetches: 2 },
 		{ label: 'runs', route: runsRoute, ctx: {}, prefetches: 1 },
+		{ label: 'agents', route: agentsRoute, ctx: {}, prefetches: 1 },
+		{ label: 'skills', route: skillsRoute, ctx: {}, prefetches: 1 },
+		{
+			label: 'agent detail',
+			route: agentDetailRoute,
+			ctx: { params: { agentId: 'codex-plan' } },
+			prefetches: 1
+		},
 		{ label: 'queue', route: queueRoute, ctx: {}, prefetches: 1 },
 		{
 			label: 'issue detail',

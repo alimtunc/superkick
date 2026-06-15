@@ -105,6 +105,7 @@ where
                 ordering: step.ordering,
                 label: step.label.clone(),
                 skill_ref: step.skill_ref.clone(),
+                agent_ref: step.agent_ref.clone(),
                 skill_source,
                 skill_kind,
                 step_kind: LaunchStepKind::for_output(step.output_expectation),

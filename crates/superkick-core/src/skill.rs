@@ -171,7 +171,7 @@ impl SkillDefinition {
         }
         // `id` is interpolated into a worktree path at materialise time, so it
         // must be a safe slug — no `/`, `.`, `..`, whitespace, or uppercase.
-        if !is_safe_skill_id(&self.id) {
+        if !crate::slug::is_safe_slug(&self.id) {
             return Err(CoreError::InvalidInput(format!(
                 "skill id `{}` is not a safe slug (expected ^[a-z0-9]([a-z0-9_-]*[a-z0-9])?$)",
                 self.id
@@ -242,24 +242,6 @@ impl SkillDefinition {
             ticket_builtin(),
         ]
     }
-}
-
-/// A skill `id` becomes a path segment (`.claude/skills/<id>/SKILL.md`) at
-/// materialise time, so it must match `^[a-z0-9]([a-z0-9_-]*[a-z0-9])?$`:
-/// lowercase alphanumerics with interior hyphens/underscores only (the
-/// builtin `pre_pr_review` uses underscores). This rejects `/`, `.`, `..`,
-/// whitespace, and uppercase before any value reaches the filesystem.
-fn is_safe_skill_id(id: &str) -> bool {
-    let edges_alnum = |b: u8| b.is_ascii_lowercase() || b.is_ascii_digit();
-    let Some(first) = id.bytes().next() else {
-        return false;
-    };
-    let Some(last) = id.bytes().last() else {
-        return false;
-    };
-    edges_alnum(first)
-        && edges_alnum(last)
-        && id.bytes().all(|b| edges_alnum(b) || b == b'-' || b == b'_')
 }
 
 fn builtin(

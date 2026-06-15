@@ -311,8 +311,8 @@ fn empty_agents_block_is_valid_thanks_to_builtin_defaults() {
     "};
     let config = load_str(yaml).expect("empty agents map is valid");
     let catalog = config.agent_catalog();
-    assert!(catalog.get(crate::builtin_agents::CODEX_PLAN).is_some());
-    assert!(catalog.get(crate::builtin_agents::CLAUDE_REVIEW).is_some());
+    assert!(catalog.get(superkick_core::CODEX_PLAN).is_some());
+    assert!(catalog.get(superkick_core::CLAUDE_REVIEW).is_some());
 }
 
 #[test]
@@ -481,8 +481,8 @@ fn agent_catalog_exposes_all_roles_including_builtin_defaults() {
     assert_eq!(catalog.len(), 8);
     assert!(catalog.get("implementation").is_some());
     assert!(catalog.get("review").is_some());
-    assert!(catalog.get(crate::builtin_agents::CODEX_PLAN).is_some());
-    assert!(catalog.get(crate::builtin_agents::CLAUDE_PLAN).is_some());
+    assert!(catalog.get(superkick_core::CODEX_PLAN).is_some());
+    assert!(catalog.get(superkick_core::CLAUDE_PLAN).is_some());
 }
 
 #[test]
@@ -507,7 +507,7 @@ fn custom_agent_overrides_builtin_with_same_name() {
     let config = load_str(yaml).unwrap();
     let catalog = config.agent_catalog();
     let overridden = catalog
-        .get(crate::builtin_agents::CODEX_IMPLEMENT)
+        .get(superkick_core::CODEX_IMPLEMENT)
         .expect("custom override present");
     assert_eq!(overridden.provider, AgentProvider::Claude);
     assert_eq!(overridden.model.as_deref(), Some("my-custom-model"));
@@ -527,7 +527,7 @@ fn builtin_defaults_are_tagged_as_builtin_origin() {
     let config = load_str(yaml).unwrap();
     let catalog = config.agent_catalog();
     let codex_plan = catalog
-        .get(crate::builtin_agents::CODEX_PLAN)
+        .get(superkick_core::CODEX_PLAN)
         .expect("builtin present");
     assert_eq!(codex_plan.origin, superkick_core::AgentOrigin::Builtin);
     assert_eq!(codex_plan.provider, AgentProvider::Codex);

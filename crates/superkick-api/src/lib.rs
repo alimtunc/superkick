@@ -11,22 +11,24 @@ use superkick_core::AgentCatalog;
 use superkick_integrations::linear::LinearClient;
 use superkick_runtime::launch_task::{RealStepRunner, RealStepRunnerDeps};
 use superkick_runtime::{
-    AttentionService, ConversationAdapters, ConversationRunner, InterruptService,
-    IssuePullRequestService, LaunchProfileService, LaunchTaskCanceller, LaunchTaskEventBus,
-    LaunchTaskExecutor, LaunchTaskRegistry, OwnershipService, PtySessionRegistry,
-    PublishingRunEventRepo, PullRequestService, QueueTriageService, RepoCache, RunService,
-    RuntimeDetector, SessionBus, StepEngine, StepEngineDeps, TerminalTakeoverService, TurnEventBus,
-    WorkspaceEventBus, boot_refresh as runtime_boot_refresh, spawn_heartbeat_listener,
+    AgentCatalogProvider, AgentService, AttentionService, ConversationAdapters, ConversationRunner,
+    InterruptService, IssuePullRequestService, LaunchProfileService, LaunchTaskCanceller,
+    LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry, OwnershipService,
+    PtySessionRegistry, PublishingRunEventRepo, PullRequestService, QueueTriageService, RepoCache,
+    RunService, RuntimeDetector, SessionBus, StepEngine, StepEngineDeps, TerminalTakeoverService,
+    TurnEventBus, WorkspaceEventBus, boot_refresh as runtime_boot_refresh,
+    spawn_heartbeat_listener,
 };
 use superkick_storage::{
-    SqliteAgentSessionRepo, SqliteArtifactRepo, SqliteAttentionRequestRepo, SqliteConversationRepo,
-    SqliteDiffReviewRepo, SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssueCleanRepo,
-    SqliteIssuePullRequestRepo, SqliteIssueWorkspaceContextRepo, SqliteLaunchProfileRepo,
-    SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo, SqliteMemoryEntryRepo,
-    SqliteOrchestratorSessionRepo, SqliteProviderSettingsRepo, SqlitePullRequestRepo,
-    SqliteRecoveryEventRepo, SqliteRunContextSnapshotRepo, SqliteRunEventRepo, SqliteRunRepo,
-    SqliteRunStepRepo, SqliteRuntimeRepo, SqliteSessionOwnershipRepo, SqliteSkillDefinitionRepo,
-    SqliteTranscriptRepo, SqliteTurnEventRepo, SqliteTurnRepo,
+    SqliteAgentDefinitionRepo, SqliteAgentSessionRepo, SqliteArtifactRepo,
+    SqliteAttentionRequestRepo, SqliteConversationRepo, SqliteDiffReviewRepo, SqliteInterruptRepo,
+    SqliteIssueBlockerRepo, SqliteIssueCleanRepo, SqliteIssuePullRequestRepo,
+    SqliteIssueWorkspaceContextRepo, SqliteLaunchProfileRepo, SqliteLaunchTaskInterventionRepo,
+    SqliteLaunchTaskRepo, SqliteMemoryEntryRepo, SqliteOrchestratorSessionRepo,
+    SqliteProviderSettingsRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo,
+    SqliteRunContextSnapshotRepo, SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
+    SqliteRuntimeRepo, SqliteSessionOwnershipRepo, SqliteSkillDefinitionRepo, SqliteTranscriptRepo,
+    SqliteTurnEventRepo, SqliteTurnRepo,
 };
 
 mod error;
@@ -41,9 +43,10 @@ mod ui_assets;
 #[cfg(feature = "test-support")]
 pub use test_routers::{
     agents_test_router, issue_context_test_router, launch_profile_config_test_router,
-    launch_task_test_router, linear_writes_test_router, orchestrator_session_test_router,
-    reusable_worktree_test_router, run_context_snapshot_test_router, run_diff_test_router,
-    run_review_test_router, runner_config_test_router, test_handlers, tests_only,
+    launch_task_test_router, linear_writes_test_router, model_catalog_test_router,
+    orchestrator_session_test_router, reusable_worktree_test_router,
+    run_context_snapshot_test_router, run_diff_test_router, run_review_test_router,
+    runner_config_test_router, test_handlers, tests_only,
 };
 
 // ── App state ──────────────────────────────────────────────────────────
@@ -120,6 +123,9 @@ pub(crate) struct AppState {
     /// read/write them directly, the composer resolves launches via the service.
     pub provider_settings_repo: Arc<SqliteProviderSettingsRepo>,
     pub skill_repo: Arc<SqliteSkillDefinitionRepo>,
+    /// App-managed agent CRUD. A successful write rebuilds `agent_catalog` so
+    /// launches see the edit; read and write handlers both route through it.
+    pub agent_service: Arc<AgentService<SqliteAgentDefinitionRepo>>,
     pub launch_profile_repo: Arc<SqliteLaunchProfileRepo>,
     pub launch_profile_service: Arc<ProdLaunchProfileService>,
     /// SUP-148 — append-only ledger entries scoped to an
@@ -144,10 +150,11 @@ pub(crate) struct AppState {
     /// SUP-118 — production launch-task executor (V1 stub step runner).
     /// Owns the in-flight cancellation registry internally.
     pub launch_task_executor: Arc<handlers::launch_tasks::ProdLaunchTaskExecutor>,
-    /// Project agent catalog used at create time to validate `agent_name`
-    /// references. Built once from `SuperkickConfig` at boot — mutating the
-    /// catalog mid-flight is out of scope for SUP-116.
-    pub agent_catalog: Arc<AgentCatalog>,
+    /// DB-backed, rebuildable agent catalog. Seeded from
+    /// `AgentDefinition::builtins()` + merged `superkick.yaml` agents at boot,
+    /// then rebuilt from `agent_repo` after each agent write so the read API,
+    /// the composer, and the step runners share one live source of truth.
+    pub agent_catalog: AgentCatalogProvider,
     pub runtime_detector: Arc<RuntimeDetector>,
     /// Serialises `reconcile_blockers` so two concurrent `GET /launch-queue`
     /// calls cannot both publish the same `DependencyResolved` transition
@@ -298,6 +305,7 @@ async fn build_app_state(
     let issue_clean_repo = Arc::new(SqliteIssueCleanRepo::new(pool.clone()));
     let provider_settings_repo = Arc::new(SqliteProviderSettingsRepo::new(pool.clone()));
     let skill_repo = Arc::new(SqliteSkillDefinitionRepo::new(pool.clone()));
+    let agent_repo = Arc::new(SqliteAgentDefinitionRepo::new(pool.clone()));
     let launch_profile_repo = Arc::new(SqliteLaunchProfileRepo::new(pool.clone()));
     let launch_profile_service = Arc::new(LaunchProfileService::new(
         SqliteLaunchProfileRepo::new(pool.clone()),
@@ -310,7 +318,24 @@ async fn build_app_state(
         Arc::new(SqliteLaunchTaskInterventionRepo::new(pool.clone()));
     let run_context_snapshot_repo = Arc::new(SqliteRunContextSnapshotRepo::new(pool.clone()));
     let launch_task_event_bus = LaunchTaskEventBus::new();
-    let agent_catalog = Arc::new(config.agent_catalog());
+    // Builtins are seeded by `seed_defaults`; merge any `superkick.yaml`
+    // `agents:` entries (resolved by `config.agent_catalog()`) into the DB as
+    // Custom rows so a YAML-configured catalog still boots, then build the
+    // live, rebuildable catalog from the DB store.
+    {
+        use superkick_storage::repo::AgentDefinitionRepo as _;
+        for def in config.agent_catalog().definitions() {
+            agent_repo.insert_if_absent(def).await?;
+        }
+    }
+    let agent_catalog = {
+        use superkick_storage::repo::AgentDefinitionRepo as _;
+        AgentCatalogProvider::new(AgentCatalog::from_definitions(agent_repo.list().await?))
+    };
+    let agent_service = Arc::new(AgentService::new(
+        Arc::clone(&agent_repo),
+        agent_catalog.clone(),
+    ));
     let runtime_repo = Arc::new(SqliteRuntimeRepo::new(pool.clone()));
     let runtime_detector = Arc::new(RuntimeDetector::new(Arc::clone(&runtime_repo)));
 
@@ -362,6 +387,7 @@ async fn build_app_state(
         launch_task_bus: Arc::clone(&launch_task_event_bus),
         repo_cache: repo_cache.clone(),
         config: config.clone(),
+        agent_catalog: agent_catalog.clone(),
         linear_client: linear_client.clone(),
         repo_slug: repo_slug.clone(),
         base_branch: base_branch.clone(),
@@ -386,6 +412,7 @@ async fn build_app_state(
         registry: Arc::clone(&pty_registry),
         repo_cache,
         config,
+        agent_catalog: agent_catalog.clone(),
         linear_client: linear_client.clone(),
         session_bus: Some(Arc::clone(&session_bus)),
     }));
@@ -526,6 +553,7 @@ async fn build_app_state(
         issue_clean_repo,
         provider_settings_repo,
         skill_repo,
+        agent_service,
         launch_profile_repo,
         launch_profile_service,
         memory_repo,
@@ -732,7 +760,24 @@ fn api_router(state: AppState) -> Router {
             "/runs/{run_id}/sessions/{session_id}/ownership/release",
             post(handlers::ownership::release),
         )
-        .route("/agents", get(handlers::agents::list_agents))
+        .route(
+            "/agents",
+            get(handlers::agents::list_agents).post(handlers::agents::create_agent),
+        )
+        .route(
+            "/agents/{name}",
+            get(handlers::agents::get_agent)
+                .patch(handlers::agents::patch_agent)
+                .delete(handlers::agents::delete_agent),
+        )
+        .route(
+            "/agents/{name}/restore",
+            post(handlers::agents::restore_agent),
+        )
+        .route(
+            "/providers/{provider}/models",
+            get(handlers::model_catalog::list_provider_models),
+        )
         .route("/runtimes", get(handlers::runtimes::list_runtimes))
         .route(
             "/runtimes/refresh",

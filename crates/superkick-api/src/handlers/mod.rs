@@ -25,6 +25,7 @@ pub mod launch_queue;
 pub mod launch_tasks;
 pub mod linear_options;
 pub mod me;
+pub mod model_catalog;
 pub mod orchestrator_sessions;
 pub mod ownership;
 pub mod provider_settings;

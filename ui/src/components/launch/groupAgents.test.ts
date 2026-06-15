@@ -7,7 +7,12 @@ function agent(overrides: Partial<Agent> & Pick<Agent, 'name' | 'provider' | 'or
 		role: 'coder',
 		model: null,
 		runner_mode: 'exec_json',
+		executor: 'codex_structured',
+		default_reasoning: 'medium',
 		billing_profile: 'subscription',
+		enabled: true,
+		avatar: null,
+		description: null,
 		...overrides
 	}
 }

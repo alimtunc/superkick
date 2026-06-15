@@ -11,8 +11,13 @@ const AGENTS: Agent[] = [
 		role: 'coder',
 		model: null,
 		runner_mode: 'exec_json',
+		executor: 'codex_structured',
+		default_reasoning: 'medium',
+		enabled: true,
 		billing_profile: 'subscription',
-		origin: 'builtin'
+		origin: 'builtin',
+		avatar: null,
+		description: null
 	},
 	{
 		name: 'claude-implement',
@@ -20,8 +25,13 @@ const AGENTS: Agent[] = [
 		role: 'coder',
 		model: null,
 		runner_mode: 'interactive_pty',
+		executor: 'interactive_pty',
+		default_reasoning: 'medium',
+		enabled: true,
 		billing_profile: 'subscription',
-		origin: 'builtin'
+		origin: 'builtin',
+		avatar: null,
+		description: null
 	},
 	{
 		name: 'team-coder',
@@ -29,8 +39,13 @@ const AGENTS: Agent[] = [
 		role: 'coder',
 		model: 'sonnet-4.6',
 		runner_mode: 'interactive_pty',
+		executor: 'interactive_pty',
+		default_reasoning: 'medium',
+		enabled: true,
 		billing_profile: 'subscription',
-		origin: 'custom'
+		origin: 'custom',
+		avatar: null,
+		description: null
 	}
 ]
 
@@ -107,5 +122,39 @@ describe('AgentPicker', () => {
 		await user.click(await screen.findByText('team-coder'))
 
 		expect(onChange).toHaveBeenCalledWith('team-coder')
+	})
+
+	it('hides disabled agents from new compositions', async () => {
+		const user = userEvent.setup()
+		render(
+			<AgentPicker
+				value={null}
+				agents={[...AGENTS, { ...AGENTS[2], name: 'retired-coder', enabled: false }]}
+				onChange={vi.fn()}
+				recommendedFor="implement"
+				icon="bot"
+				label="implement"
+			/>
+		)
+
+		await user.click(screen.getByRole('button', { name: 'Pick implement agent' }))
+
+		expect(await screen.findByText('team-coder')).toBeInTheDocument()
+		expect(screen.queryByText('retired-coder')).not.toBeInTheDocument()
+	})
+
+	it('still shows a selected agent that has since been disabled', () => {
+		render(
+			<AgentPicker
+				value="retired-coder"
+				agents={[{ ...AGENTS[2], name: 'retired-coder', enabled: false }]}
+				onChange={vi.fn()}
+				recommendedFor="implement"
+				icon="bot"
+				label="implement"
+			/>
+		)
+
+		expect(screen.getByRole('button', { name: 'implement: retired-coder' })).toBeInTheDocument()
 	})
 })

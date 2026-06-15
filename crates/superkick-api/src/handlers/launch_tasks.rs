@@ -150,7 +150,7 @@ impl FromRef<AppState> for LaunchTaskState<ProdRealStepRunner> {
             event_repo: Arc::clone(&state.event_repo),
             issue_workspace_context_repo: Arc::clone(&state.issue_workspace_context_repo),
             snapshot_repo: Arc::clone(&state.run_context_snapshot_repo),
-            catalog: Arc::clone(&state.agent_catalog),
+            catalog: state.agent_catalog.snapshot(),
             bus: Arc::clone(&state.launch_task_event_bus),
             executor: Arc::clone(&state.launch_task_executor),
             launch_profile_service: Some(Arc::clone(&state.launch_profile_service)),

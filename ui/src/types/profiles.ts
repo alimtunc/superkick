@@ -24,6 +24,9 @@ export interface ProfileStep {
 	ordering: number
 	label: string
 	skill_ref: string
+	/** App-managed agent (by name) that seeds this step's execution fields.
+	 *  `null` on the skill-first path; absent on the wire (server omits `None`). */
+	agent_ref?: string | null
 	provider: AgentProvider
 	model?: string | null
 	reasoning: ReasoningEffort
@@ -48,6 +51,8 @@ export interface StepSnapshot {
 	ordering: number
 	label: string
 	skill_ref: string
+	/** Frozen copy of `ProfileStep.agent_ref`. */
+	agent_ref?: string | null
 	skill_source: SkillSource
 	step_kind: LaunchStepKind
 	provider: AgentProvider

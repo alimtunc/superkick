@@ -1,3 +1,5 @@
+import type { ReasoningEffort, StepExecutor } from './launch'
+
 export type AgentProvider = 'claude' | 'codex'
 
 export type AgentStatus = 'starting' | 'running' | 'completed' | 'failed' | 'cancelled'
@@ -9,6 +11,12 @@ export type RunnerMode = 'interactive_pty' | 'print_stream_json' | 'exec_json' |
 export type BillingProfile = 'subscription' | 'agent_sdk_credits' | 'api_credits' | 'unknown'
 
 export type AgentOrigin = 'builtin' | 'custom'
+
+/** Agent identity badge: an emoji or SK icon name + accent color (hex). */
+export interface AgentAvatar {
+	icon: string
+	color: string
+}
 
 export interface AgentSession {
 	id: string
@@ -41,8 +49,16 @@ export interface Agent {
 	role: string | null
 	model: string | null
 	runner_mode: RunnerMode
+	/** Product-label derivation of `runner_mode`. */
+	executor: StepExecutor
+	default_reasoning: ReasoningEffort
 	billing_profile: BillingProfile
 	origin: AgentOrigin
+	enabled: boolean
+	/** Identity badge for the roster; `null` falls back to an initial. */
+	avatar: AgentAvatar | null
+	/** One-line description shown as the roster hint. */
+	description: string | null
 }
 
 export interface AttachPayload {

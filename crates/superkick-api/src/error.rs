@@ -5,8 +5,8 @@ use superkick_config::RunnerPatchError;
 use superkick_core::{AgentProvider, CoreError};
 use superkick_integrations::linear::LinearError;
 use superkick_runtime::{
-    AttentionServiceError, ConversationRunnerError, IssuePullRequestError, LaunchCompositionError,
-    RetryError, RunServiceError, SnapshotError,
+    AgentServiceError, AttentionServiceError, ConversationRunnerError, IssuePullRequestError,
+    LaunchCompositionError, RetryError, RunServiceError, SnapshotError,
 };
 
 #[derive(Debug)]
@@ -178,6 +178,23 @@ impl From<IssuePullRequestError> for AppError {
                 tracing::warn!(error = %e, "GitHub API unavailable");
                 AppError::ServiceUnavailable("GitHub API unavailable")
             }
+        }
+    }
+}
+
+impl From<AgentServiceError> for AppError {
+    fn from(err: AgentServiceError) -> Self {
+        match err {
+            AgentServiceError::NotFound => AppError::NotFound("agent not found"),
+            AgentServiceError::Conflict(name) => AppError::Conflict {
+                message: format!("agent '{name}' already exists"),
+                run: None,
+            },
+            AgentServiceError::BuiltinUndeletable => AppError::BadRequest(
+                "builtin agents cannot be deleted — disable them instead".into(),
+            ),
+            AgentServiceError::Invalid(e) => AppError::from(e),
+            AgentServiceError::Db(e) => AppError::Internal(e),
         }
     }
 }

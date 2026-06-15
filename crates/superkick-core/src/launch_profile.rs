@@ -21,6 +21,9 @@ use crate::error::CoreError;
 use crate::launch_task::LaunchStepKind;
 use crate::output_expectation::OutputExpectation;
 use crate::reasoning::ReasoningEffort;
+use crate::role_router::{
+    CLAUDE_IMPLEMENT, CLAUDE_PLAN, CLAUDE_REVIEW, CODEX_IMPLEMENT, CODEX_PLAN, CODEX_REVIEW,
+};
 use crate::serde_util::default_true;
 use crate::session_policy::SessionPolicy;
 use crate::skill::{SkillKind, SkillSource};
@@ -74,6 +77,13 @@ pub struct ProfileStep {
     pub label: String,
     /// References a [`crate::skill::SkillDefinition::id`].
     pub skill_ref: String,
+    /// SUP-206 — the app-managed agent (a [`crate::CoreAgentDefinition`] name)
+    /// this step's primary execution unit. When the composer attaches an agent
+    /// it seeds the provider/model/reasoning/executor fields below from it; the
+    /// ref is recorded for lineage and roster grouping. `None` for the
+    /// skill-first path, which is unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_ref: Option<String>,
     pub provider: AgentProvider,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -214,6 +224,11 @@ pub struct StepSnapshot {
     pub ordering: u32,
     pub label: String,
     pub skill_ref: String,
+    /// SUP-206 — frozen copy of [`ProfileStep::agent_ref`]. Records the agent
+    /// that seeded this step; `None` on the skill-first path and on snapshots
+    /// persisted before this field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_ref: Option<String>,
     pub skill_source: SkillSource,
     /// Resolved [`SkillKind`] of the referenced skill; `None` when the ref
     /// degraded (unknown skill) or on snapshots persisted before this field.
@@ -267,6 +282,7 @@ fn codex_step(
         ordering,
         label: label.to_string(),
         skill_ref: skill_ref.to_string(),
+        agent_ref: None,
         provider: AgentProvider::Codex,
         model: None,
         reasoning: ReasoningEffort::Medium,
@@ -290,23 +306,47 @@ fn claude_step(
     }
 }
 
+fn with_agent(agent: &str, step: ProfileStep) -> ProfileStep {
+    ProfileStep {
+        agent_ref: Some(agent.to_string()),
+        ..step
+    }
+}
 fn codex_plan(ordering: u32) -> ProfileStep {
-    codex_step(ordering, "plan", "Plan", OutputExpectation::Plan)
+    with_agent(
+        CODEX_PLAN,
+        codex_step(ordering, "plan", "Plan", OutputExpectation::Plan),
+    )
 }
 fn codex_implement(ordering: u32) -> ProfileStep {
-    codex_step(ordering, "implement", "Implement", OutputExpectation::Patch)
+    with_agent(
+        CODEX_IMPLEMENT,
+        codex_step(ordering, "implement", "Implement", OutputExpectation::Patch),
+    )
 }
 fn codex_review(ordering: u32) -> ProfileStep {
-    codex_step(ordering, "review", "Review", OutputExpectation::Review)
+    with_agent(
+        CODEX_REVIEW,
+        codex_step(ordering, "review", "Review", OutputExpectation::Review),
+    )
 }
 fn claude_plan(ordering: u32) -> ProfileStep {
-    claude_step(ordering, "plan", "Plan", OutputExpectation::Plan)
+    with_agent(
+        CLAUDE_PLAN,
+        claude_step(ordering, "plan", "Plan", OutputExpectation::Plan),
+    )
 }
 fn claude_implement(ordering: u32) -> ProfileStep {
-    claude_step(ordering, "implement", "Implement", OutputExpectation::Patch)
+    with_agent(
+        CLAUDE_IMPLEMENT,
+        claude_step(ordering, "implement", "Implement", OutputExpectation::Patch),
+    )
 }
 fn claude_review(ordering: u32) -> ProfileStep {
-    claude_step(ordering, "review", "Review", OutputExpectation::Review)
+    with_agent(
+        CLAUDE_REVIEW,
+        claude_step(ordering, "review", "Review", OutputExpectation::Review),
+    )
 }
 fn claude_background_step(
     ordering: u32,
@@ -320,13 +360,22 @@ fn claude_background_step(
     }
 }
 fn claude_background_plan(ordering: u32) -> ProfileStep {
-    claude_background_step(ordering, "plan", "Plan", OutputExpectation::Plan)
+    with_agent(
+        CLAUDE_PLAN,
+        claude_background_step(ordering, "plan", "Plan", OutputExpectation::Plan),
+    )
 }
 fn claude_background_implement(ordering: u32) -> ProfileStep {
-    claude_background_step(ordering, "implement", "Implement", OutputExpectation::Patch)
+    with_agent(
+        CLAUDE_IMPLEMENT,
+        claude_background_step(ordering, "implement", "Implement", OutputExpectation::Patch),
+    )
 }
 fn claude_background_review(ordering: u32) -> ProfileStep {
-    claude_background_step(ordering, "review", "Review", OutputExpectation::Review)
+    with_agent(
+        CLAUDE_REVIEW,
+        claude_background_step(ordering, "review", "Review", OutputExpectation::Review),
+    )
 }
 fn full_session_ticket(ordering: u32) -> ProfileStep {
     ProfileStep {
@@ -404,7 +453,7 @@ mod tests {
     }
 
     #[test]
-    fn standard_is_the_only_default_and_reproduces_the_legacy_recipe() {
+    fn standard_is_the_only_default_and_each_step_is_agent_primary() {
         let builtins = LaunchProfile::builtins();
         let defaults: Vec<_> = builtins.iter().filter(|p| p.is_default).collect();
         assert_eq!(defaults.len(), 1);
@@ -421,6 +470,29 @@ mod tests {
                 .steps
                 .iter()
                 .all(|s| s.executor == StepExecutor::CodexStructured)
+        );
+        // SUP-206 V2 — Standard's steps are agent-primary: each names a built-in
+        // codex agent. The step's provider/executor/reasoning are unchanged, but
+        // launch is NO LONGER byte-for-byte the legacy skill-first recipe — at
+        // resolution the agent deep-carries its policy (the planner's Linear MCP,
+        // the reviewer's bash/write deny) and the agent's attached skills are
+        // what materialise. This is the intended convergence under
+        // "agent = primary unit"; the runner mode still rides on the executor.
+        let agent_refs: Vec<_> = standard
+            .steps
+            .iter()
+            .map(|s| s.agent_ref.as_deref())
+            .collect();
+        assert_eq!(
+            agent_refs,
+            [Some(CODEX_PLAN), Some(CODEX_IMPLEMENT), Some(CODEX_REVIEW)]
+        );
+        assert!(
+            standard
+                .steps
+                .iter()
+                .all(|s| s.provider == AgentProvider::Codex
+                    && s.reasoning == ReasoningEffort::Medium)
         );
     }
 

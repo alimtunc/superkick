@@ -36,6 +36,7 @@ use superkick_storage::repo::{
     RunEventRepo, RunRepo, RunStepRepo, TranscriptRepo,
 };
 
+use crate::agent_catalog_provider::AgentCatalogProvider;
 use crate::agent_supervisor::AgentSupervisor;
 use crate::interrupt_service::InterruptService;
 use crate::pty_session::PtySessionRegistry;
@@ -66,7 +67,7 @@ pub struct StepEngine<R, ST, E, A, AR, I, AT, T = ()> {
     interrupt_service: InterruptService<R, E, I>,
     repo_cache: RepoCache,
     config: SuperkickConfig,
-    catalog: AgentCatalog,
+    catalog: Arc<AgentCatalog>,
     policy: RunPolicy,
     linear_client: OptionalLinearClient,
     /// Pre-computed at construction time. The desugaring of
@@ -87,6 +88,15 @@ pub struct StepEngineDeps<R, ST, E, A, AR, I, AT, T = ()> {
     pub registry: Arc<PtySessionRegistry>,
     pub repo_cache: RepoCache,
     pub config: SuperkickConfig,
+    /// DB-backed agent catalog. The engine is a startup singleton, so it
+    /// snapshots this provider once in `new()`: the legacy playbook run path
+    /// resolves against that boot snapshot and only observes agent edits after
+    /// the next server start. The live launch-task path (`RealStepRunner`)
+    /// re-reads the *same* provider per resolution, so editor changes reach
+    /// launch tasks immediately. The boot freeze on the legacy path is an
+    /// accepted, intentional limitation — not a regression — kept because that
+    /// path is superseded by launch tasks.
+    pub agent_catalog: AgentCatalogProvider,
     /// Shared Linear client, when `LINEAR_API_KEY` is configured. Used to
     /// build per-run `IssueContext` snapshots for child agent roles (SUP-86).
     /// `None` disables snapshot + MCP delivery — roles configured for it
@@ -126,7 +136,7 @@ where
             Arc::clone(&deps.event_repo),
             Arc::clone(&deps.interrupt_repo),
         );
-        let catalog = deps.config.agent_catalog();
+        let catalog = deps.agent_catalog.snapshot();
         let policy = deps.config.base_run_policy();
         let mcp_registry = deps.config.effective_mcp_servers();
         Self {
@@ -156,7 +166,7 @@ where
     /// Construct a run-scoped router. Every agent spawn must flow through
     /// this — the router enforces the project catalog + run policy.
     pub(crate) fn router(&self) -> RoleRouter<'_> {
-        RoleRouter::new(&self.catalog, &self.policy)
+        RoleRouter::new(self.catalog.as_ref(), &self.policy)
     }
 
     /// Execute the full run lifecycle: Queued → steps → Completed/Failed.
@@ -1414,6 +1424,7 @@ mod gate_tests {
             transcript_repo,
             registry,
             repo_cache,
+            agent_catalog: crate::AgentCatalogProvider::new(config.agent_catalog()),
             config,
             linear_client: None,
             session_bus: None,

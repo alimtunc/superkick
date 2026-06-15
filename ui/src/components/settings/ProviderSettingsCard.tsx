@@ -5,10 +5,10 @@ import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSection } from '@/components/settings/SettingsSection'
 import { Button } from '@/components/ui/button'
 import { Pill } from '@/components/ui/pill'
+import { useProviderModels } from '@/hooks/useProviderModels'
 import {
 	BILLING_LABEL,
 	BILLING_OPTIONS,
-	CURATED_MODELS,
 	EXECUTOR_LABEL,
 	PERMISSION_LABEL,
 	PERMISSION_OPTIONS,
@@ -34,7 +34,7 @@ export function ProviderSettingsCard({ settings, onSave, isSaving }: ProviderSet
 		setSynced(settings)
 		setDraft(settings)
 	}
-	const models = CURATED_MODELS[draft.provider] ?? []
+	const { models } = useProviderModels(draft.provider)
 	const dirty = JSON.stringify(draft) !== JSON.stringify(settings)
 	const title = draft.provider === 'codex' ? 'Codex' : 'Claude'
 
@@ -55,8 +55,8 @@ export function ProviderSettingsCard({ settings, onSave, isSaving }: ProviderSet
 				/>
 				<datalist id={`models-${draft.provider}`}>
 					{models.map((model) => (
-						<option key={model} value={model}>
-							{model}
+						<option key={model.id} value={model.id}>
+							{model.label}
 						</option>
 					))}
 				</datalist>

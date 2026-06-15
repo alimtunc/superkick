@@ -1481,6 +1481,7 @@ mod tests {
             sequence: 1,
             step_kind: LaunchStepKind::Plan,
             agent_name: "planner".into(),
+            agent_ref: None,
             provider: None,
             model: None,
             mode: None,

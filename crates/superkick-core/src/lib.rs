@@ -25,6 +25,7 @@ pub mod orchestrator_session;
 pub mod output_expectation;
 pub mod ownership;
 pub mod protocol;
+pub mod provider_models;
 pub mod provider_settings;
 pub mod pull_request;
 pub mod queue;
@@ -43,6 +44,7 @@ mod serde_util;
 pub mod session_lifecycle;
 pub mod session_policy;
 pub mod skill;
+pub mod slug;
 pub mod step;
 pub mod step_executor;
 pub mod step_result;
@@ -116,6 +118,7 @@ pub use protocol::{
     ResumeKey, SessionMeta, TextBlock, TextDelta, Thinking, ToolCallResult, ToolCallStart,
     TurnOptions, TurnOutcome, TurnRequest, UsageSnapshot,
 };
+pub use provider_models::{ModelInfo, provider_models};
 pub use provider_settings::{
     AuthState, InstallState, PermissionPolicy, ProviderAvailability, ProviderSettings,
     SandboxPolicy,
@@ -135,8 +138,9 @@ pub use recovery::{
 };
 pub use review::{ReviewFinding, ReviewSwarmResult};
 pub use role_router::{
-    AgentBackend, AgentCatalog, AgentDefinition as CoreAgentDefinition, AgentOrigin, ResolvedAgent,
-    RoleRouter, RouterError, RunPolicy,
+    AgentAvatar, AgentBackend, AgentCatalog, AgentDefinition as CoreAgentDefinition, AgentOrigin,
+    CLAUDE_IMPLEMENT, CLAUDE_PLAN, CLAUDE_REVIEW, CODEX_IMPLEMENT, CODEX_PLAN, CODEX_REVIEW,
+    LINEAR_MCP_SERVER_NAME, ResolvedAgent, RoleRouter, RouterError, RunPolicy,
 };
 pub use run::{
     ExecutionMode, LinkedRunSummary, PauseKind, Run, RunAgentOverrides, RunBudget, RunBudgetGrant,

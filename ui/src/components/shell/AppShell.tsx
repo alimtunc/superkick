@@ -19,7 +19,9 @@ import { RunDock } from './RunDock'
 const SECTION_ICON: Record<Exclude<ShellNavId, null>, SKIconName> = {
 	inbox: 'inbox',
 	board: 'layers',
-	issues: 'issue'
+	issues: 'issue',
+	agents: 'agent',
+	skills: 'spark'
 }
 
 export function AppShell() {

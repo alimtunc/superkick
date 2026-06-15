@@ -1,4 +1,5 @@
 import { StepListEditor } from '@/components/launch/StepListEditor'
+import { useAgents } from '@/hooks/useAgents'
 import { useLaunchComposerState } from '@/stores/launchComposerState'
 import type { SkillDefinition } from '@/types'
 
@@ -13,13 +14,16 @@ export function LaunchStepListEditor({ skills, skillsLoading = false }: LaunchSt
 	const removeStep = useLaunchComposerState((state) => state.removeStep)
 	const updateStep = useLaunchComposerState((state) => state.updateStep)
 	const setStepProvider = useLaunchComposerState((state) => state.setStepProvider)
+	const setStepAgent = useLaunchComposerState((state) => state.setStepAgent)
 	const applySkillToStep = useLaunchComposerState((state) => state.applySkillToStep)
 	const addStep = useLaunchComposerState((state) => state.addStep)
+	const agents = useAgents().data ?? []
 
 	return (
 		<StepListEditor
 			steps={steps}
 			skills={skills}
+			agents={agents}
 			skillsLoading={skillsLoading}
 			onUpdateStep={updateStep}
 			onMoveStep={moveStep}
@@ -27,6 +31,7 @@ export function LaunchStepListEditor({ skills, skillsLoading = false }: LaunchSt
 			onAddStep={addStep}
 			onApplySkill={applySkillToStep}
 			onSetProvider={setStepProvider}
+			onSetStepAgent={setStepAgent}
 		/>
 	)
 }

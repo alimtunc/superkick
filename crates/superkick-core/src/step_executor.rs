@@ -59,6 +59,18 @@ impl StepExecutor {
         }
     }
 
+    /// The product-label executor for a concrete `RunnerMode` — the inverse of
+    /// [`Self::runner_mode`]. Used by surfaces that store only `runner_mode`
+    /// (agents) but present an executor select.
+    pub const fn from_runner_mode(mode: RunnerMode) -> Self {
+        match mode {
+            RunnerMode::ExecJson => Self::CodexStructured,
+            RunnerMode::PrintStreamJson => Self::ClaudeWorkflow,
+            RunnerMode::BackgroundSession => Self::ClaudeBackground,
+            RunnerMode::InteractivePty => Self::InteractivePty,
+        }
+    }
+
     /// Default executor for a freshly-configured provider. Mirrors
     /// [`RunnerMode::default_for`] but at the product-label layer: Codex →
     /// structured (subscription default), Claude → interactive PTY (so the

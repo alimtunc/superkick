@@ -5,7 +5,9 @@ use std::pin::Pin;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use superkick_core::{AgentProvider, LaunchProfile, ProviderSettings, SkillDefinition};
+use superkick_core::{
+    AgentProvider, CoreAgentDefinition, LaunchProfile, ProviderSettings, SkillDefinition,
+};
 use superkick_core::{
     AgentSession, AgentSessionId, Artifact, ArtifactId, AttentionRequest, AttentionRequestId,
     Conversation, ConversationId, ConversationStatus, ConversationSubject, DiffReviewComment,
@@ -1011,6 +1013,23 @@ pub trait SkillDefinitionRepo: Send + Sync {
         skill: &SkillDefinition,
     ) -> impl Future<Output = Result<()>> + Send;
     fn delete(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// App-managed, editable agent definitions. Keyed by `name` (a slug), mirroring
+/// [`SkillDefinitionRepo`]. Builtins are seeded as editable rows but blocked
+/// from deletion at the handler layer (`AgentDefinition::is_deletable`).
+pub trait AgentDefinitionRepo: Send + Sync {
+    fn list(&self) -> impl Future<Output = Result<Vec<CoreAgentDefinition>>> + Send;
+    fn get(&self, name: &str) -> impl Future<Output = Result<Option<CoreAgentDefinition>>> + Send;
+    /// Full upsert — used by the create/patch endpoints.
+    fn upsert(&self, agent: &CoreAgentDefinition) -> impl Future<Output = Result<()>> + Send;
+    /// Insert only if the agent name is absent. Used by `seed_defaults` (builtins
+    /// + YAML merge) so a reboot never clobbers operator edits.
+    fn insert_if_absent(
+        &self,
+        agent: &CoreAgentDefinition,
+    ) -> impl Future<Output = Result<()>> + Send;
+    fn delete(&self, name: &str) -> impl Future<Output = Result<()>> + Send;
 }
 
 /// Editable launch profiles plus their ordered steps. `upsert`/`get`/

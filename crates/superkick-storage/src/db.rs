@@ -251,6 +251,22 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "048_launch_tasks_reuse_worktree",
             include_str!("../migrations/048_launch_tasks_reuse_worktree.sql"),
         ),
+        (
+            "049_agent_definitions",
+            include_str!("../migrations/049_agent_definitions.sql"),
+        ),
+        (
+            "050_profile_step_agent_ref",
+            include_str!("../migrations/050_profile_step_agent_ref.sql"),
+        ),
+        (
+            "051_agent_authoring",
+            include_str!("../migrations/051_agent_authoring.sql"),
+        ),
+        (
+            "052_launch_task_step_agent_ref",
+            include_str!("../migrations/052_launch_task_step_agent_ref.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

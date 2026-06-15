@@ -76,8 +76,13 @@ const AGENTS: Agent[] = [
 		role: 'planner',
 		model: 'sonnet-4.6',
 		runner_mode: 'interactive_pty',
+		executor: 'interactive_pty',
+		default_reasoning: 'medium',
+		enabled: true,
 		billing_profile: 'subscription',
-		origin: 'custom'
+		origin: 'custom',
+		avatar: null,
+		description: null
 	},
 	{
 		name: 'code-bot',
@@ -85,8 +90,13 @@ const AGENTS: Agent[] = [
 		role: 'coder',
 		model: 'sonnet-4.6',
 		runner_mode: 'interactive_pty',
+		executor: 'interactive_pty',
+		default_reasoning: 'medium',
+		enabled: true,
 		billing_profile: 'subscription',
-		origin: 'custom'
+		origin: 'custom',
+		avatar: null,
+		description: null
 	},
 	{
 		name: 'review-bot',
@@ -94,8 +104,13 @@ const AGENTS: Agent[] = [
 		role: 'reviewer',
 		model: null,
 		runner_mode: 'exec_json',
+		executor: 'codex_structured',
+		default_reasoning: 'medium',
+		enabled: true,
 		billing_profile: 'api_credits',
-		origin: 'custom'
+		origin: 'custom',
+		avatar: null,
+		description: null
 	}
 ]
 
