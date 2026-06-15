@@ -1,4 +1,4 @@
-import { CapabilityBadge } from '@/components/CapabilityBadge'
+import { CapabilityBadge } from '@/components/badges'
 import type { RuntimeCapabilities } from '@/types'
 
 interface CapabilityListProps {

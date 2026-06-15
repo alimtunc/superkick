@@ -2181,11 +2181,6 @@
 	border-bottom-color: var(--accent);
 	font-weight: var(--fw-medium);
 }
-.dtab__count {
-	font-size: var(--text-11);
-	color: var(--fg-dim);
-	font-variant-numeric: tabular-nums;
-}
 .drawer__body {
 	flex: 1;
 	overflow-y: auto;

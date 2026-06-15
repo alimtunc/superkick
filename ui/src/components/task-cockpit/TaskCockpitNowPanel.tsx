@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
+import { PrStateBadge } from '@/components/badges'
 import { LaunchTaskCancelButton } from '@/components/issue-detail/launch-task-feed/LaunchTaskCancelButton'
-import { PrStateBadge } from '@/components/PrStateBadge'
 import { LAUNCH_STEP_KIND_LABEL } from '@/lib/domain'
 import { WORKTREE_PATH_MAX } from '@/lib/launch/display'
 import { middleTruncate } from '@/lib/path'

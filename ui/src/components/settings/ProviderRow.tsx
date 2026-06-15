@@ -1,4 +1,4 @@
-import { ProviderStatusBadge } from '@/components/ProviderStatusBadge'
+import { ProviderStatusBadge } from '@/components/badges'
 import { CapabilityList } from '@/components/settings/CapabilityList'
 import type { RuntimeProvider } from '@/types'
 

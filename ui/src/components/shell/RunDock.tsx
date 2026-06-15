@@ -1,4 +1,4 @@
-import { RunStateBadge } from '@/components/RunStateBadge'
+import { RunStateBadge } from '@/components/badges'
 import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/useNow'
 import { fmtElapsed, stepLabel } from '@/lib/domain'

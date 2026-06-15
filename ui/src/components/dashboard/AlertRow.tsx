@@ -1,4 +1,4 @@
-import { RunStateBadge } from '@/components/RunStateBadge'
+import { RunStateBadge } from '@/components/badges'
 import { Button } from '@/components/ui/button'
 import { fmtElapsed, watchButtonClass } from '@/lib/domain'
 import { useWatchedSessionsStore, selectMaxReached } from '@/stores/watchedSessions'

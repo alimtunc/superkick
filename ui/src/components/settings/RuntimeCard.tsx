@@ -1,4 +1,4 @@
-import { RuntimeStatusBadge } from '@/components/RuntimeStatusBadge'
+import { RuntimeStatusBadge } from '@/components/badges'
 import { NoProvidersDetected } from '@/components/settings/NoProvidersDetected'
 import { ProviderRow } from '@/components/settings/ProviderRow'
 import { fmtRelativeTime } from '@/lib/domain'

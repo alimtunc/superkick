@@ -1,4 +1,4 @@
-import { PrStateBadge } from '@/components/PrStateBadge'
+import { PrStateBadge } from '@/components/badges'
 import { Chip, chipBase } from '@/components/run-detail/Chip'
 import { fmtRelativeTime } from '@/lib/domain'
 import type { PullRequest, Run } from '@/types'
