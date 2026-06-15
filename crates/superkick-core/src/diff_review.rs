@@ -13,6 +13,108 @@ use crate::id::{DiffReviewCommentId, DiffReviewThreadId, RunId};
 
 pub const DEFAULT_REVIEW_AUTHOR: &str = "operator";
 
+/// What a local diff review is anchored to.
+///
+/// Local review threads, comments, and file-reviewed marks are subject-agnostic
+/// storage; the subject identifies whose diff they belong to. `Run` is the
+/// original run-review case (SUP-199); `PullRequest` (SUP-205) lets the same
+/// review workspace serve a GitHub PR without a Superkick run.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum DiffReviewSubject {
+    Run {
+        #[serde(rename = "runId")]
+        run_id: RunId,
+    },
+    PullRequest {
+        #[serde(rename = "repoSlug")]
+        repo_slug: String,
+        number: u32,
+        #[serde(rename = "headSha")]
+        head_sha: String,
+    },
+}
+
+impl DiffReviewSubject {
+    pub fn run(run_id: RunId) -> Self {
+        Self::Run { run_id }
+    }
+
+    pub fn pull_request(
+        repo_slug: impl Into<String>,
+        number: u32,
+        head_sha: impl Into<String>,
+    ) -> Self {
+        Self::PullRequest {
+            repo_slug: repo_slug.into(),
+            number,
+            head_sha: head_sha.into(),
+        }
+    }
+
+    pub fn subject_type(&self) -> &'static str {
+        match self {
+            Self::Run { .. } => "run",
+            Self::PullRequest { .. } => "pull_request",
+        }
+    }
+
+    /// Canonical NOT-NULL storage key. For runs this is the run UUID (so the
+    /// pre-SUP-205 rows backfill 1:1); for PRs it is `pr:{repo_slug}#{number}`,
+    /// deliberately head-independent so staged comments survive head updates.
+    pub fn storage_key(&self) -> String {
+        match self {
+            Self::Run { run_id } => run_id.0.to_string(),
+            Self::PullRequest {
+                repo_slug, number, ..
+            } => format!("pr:{repo_slug}#{number}"),
+        }
+    }
+
+    pub fn run_id(&self) -> Option<RunId> {
+        match self {
+            Self::Run { run_id } => Some(*run_id),
+            Self::PullRequest { .. } => None,
+        }
+    }
+
+    pub fn repo_slug(&self) -> Option<&str> {
+        match self {
+            Self::PullRequest { repo_slug, .. } => Some(repo_slug.as_str()),
+            Self::Run { .. } => None,
+        }
+    }
+
+    pub fn pr_number(&self) -> Option<u32> {
+        match self {
+            Self::PullRequest { number, .. } => Some(*number),
+            Self::Run { .. } => None,
+        }
+    }
+
+    pub fn head_sha(&self) -> Option<&str> {
+        match self {
+            Self::PullRequest { head_sha, .. } => Some(head_sha.as_str()),
+            Self::Run { .. } => None,
+        }
+    }
+
+    fn normalized(self) -> Self {
+        match self {
+            Self::PullRequest {
+                repo_slug,
+                number,
+                head_sha,
+            } => Self::PullRequest {
+                repo_slug: repo_slug.trim().to_string(),
+                number,
+                head_sha: head_sha.trim().to_string(),
+            },
+            run => run,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DiffReviewLineSide {
@@ -52,7 +154,7 @@ impl std::fmt::Display for DiffReviewThreadState {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiffReviewAnchor {
-    pub run_id: RunId,
+    pub subject: DiffReviewSubject,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub issue_id: Option<String>,
     pub file_path: String,
@@ -118,6 +220,7 @@ impl DiffReviewAnchor {
 
     fn into_normalized(mut self) -> Result<Self, CoreError> {
         self.validate()?;
+        self.subject = self.subject.normalized();
         self.issue_id = normalize_optional_string(self.issue_id);
         self.file_path = self.file_path.trim().to_string();
         self.old_path = normalize_optional_string(self.old_path);
@@ -197,7 +300,7 @@ impl DiffReviewThread {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiffReviewFileState {
-    pub run_id: RunId,
+    pub subject: DiffReviewSubject,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub issue_id: Option<String>,
     pub file_path: String,
@@ -217,7 +320,7 @@ impl DiffReviewFileState {
             ));
         }
         Ok(Self {
-            run_id: change.run_id,
+            subject: change.subject.normalized(),
             issue_id: normalize_optional_string(change.issue_id),
             file_path: change.file_path.trim().to_string(),
             old_path: normalize_optional_string(change.old_path),
@@ -234,7 +337,7 @@ impl DiffReviewFileState {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiffReviewState {
-    pub run_id: RunId,
+    pub subject: DiffReviewSubject,
     pub threads: Vec<DiffReviewThread>,
     pub reviewed_files: Vec<DiffReviewFileState>,
     pub unresolved_thread_count: u32,
@@ -243,7 +346,7 @@ pub struct DiffReviewState {
 
 impl DiffReviewState {
     pub fn new(
-        run_id: RunId,
+        subject: DiffReviewSubject,
         threads: Vec<DiffReviewThread>,
         reviewed_files: Vec<DiffReviewFileState>,
     ) -> Self {
@@ -257,7 +360,7 @@ impl DiffReviewState {
             .map(|thread| thread.comments.len() as u32)
             .sum();
         Self {
-            run_id,
+            subject,
             threads,
             reviewed_files,
             unresolved_thread_count,
@@ -281,7 +384,7 @@ pub struct NewDiffReviewComment {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DiffReviewFileReviewedChange {
-    pub run_id: RunId,
+    pub subject: DiffReviewSubject,
     pub issue_id: Option<String>,
     pub file_path: String,
     pub old_path: Option<String>,
@@ -326,7 +429,7 @@ pub fn unresolved_diff_review_fix_prompt_comments(
 
 pub fn render_diff_review_fix_prompt(
     issue_identifier: &str,
-    source_run_id: RunId,
+    source_ref: &str,
     source_branch: Option<&str>,
     base_ref: &str,
     head_ref: &str,
@@ -340,7 +443,7 @@ pub fn render_diff_review_fix_prompt(
     )
     .expect("write prompt");
     writeln!(prompt).expect("write prompt");
-    writeln!(prompt, "Source run: {source_run_id}").expect("write prompt");
+    writeln!(prompt, "Source: {source_ref}").expect("write prompt");
     if let Some(branch) = source_branch {
         writeln!(prompt, "Reviewed branch: {branch}").expect("write prompt");
     }
@@ -479,7 +582,7 @@ mod tests {
 
     fn anchor(side: DiffReviewLineSide) -> DiffReviewAnchor {
         DiffReviewAnchor {
-            run_id: RunId::new(),
+            subject: DiffReviewSubject::run(RunId::new()),
             issue_id: Some("issue-1".into()),
             file_path: "src/lib.rs".into(),
             old_path: None,
@@ -610,7 +713,7 @@ mod tests {
     #[test]
     fn reviewed_file_state_normalizes_paths() {
         let state = DiffReviewFileState::from_change(DiffReviewFileReviewedChange {
-            run_id: RunId::new(),
+            subject: DiffReviewSubject::run(RunId::new()),
             issue_id: Some(" issue-1 ".into()),
             file_path: " src/lib.rs ".into(),
             old_path: Some(" src/old_lib.rs ".into()),
@@ -629,11 +732,11 @@ mod tests {
     fn fix_prompt_projects_open_thread_comments_only() {
         let run_id = RunId::new();
         let mut open_anchor = anchor(DiffReviewLineSide::New);
-        open_anchor.run_id = run_id;
+        open_anchor.subject = DiffReviewSubject::run(run_id);
         open_anchor.new_line = Some(12);
         open_anchor.new_line_end = Some(15);
         let mut resolved_anchor = anchor(DiffReviewLineSide::Old);
-        resolved_anchor.run_id = run_id;
+        resolved_anchor.subject = DiffReviewSubject::run(run_id);
         resolved_anchor.file_path = "src/other.rs".into();
         resolved_anchor.old_line = Some(6);
         let open = DiffReviewThread::new(NewDiffReviewThread {
@@ -650,14 +753,18 @@ mod tests {
         .expect("resolved thread");
         resolved.state = DiffReviewThreadState::Resolved;
 
-        let state = DiffReviewState::new(run_id, vec![open, resolved], Vec::new());
+        let state = DiffReviewState::new(
+            DiffReviewSubject::run(run_id),
+            vec![open, resolved],
+            Vec::new(),
+        );
         let comments = unresolved_diff_review_fix_prompt_comments(&state);
         assert_eq!(comments.len(), 1);
         assert_eq!(comments[0].body, "Fix this branch.");
 
         let prompt = render_diff_review_fix_prompt(
             "SUP-199",
-            run_id,
+            &format!("run {run_id}"),
             Some("superkick/sup-199-run"),
             "abc1234",
             "def5678",
@@ -668,5 +775,30 @@ mod tests {
         assert!(prompt.contains("new lines 12-15"));
         assert!(prompt.contains("Fix this branch."));
         assert!(!prompt.contains("Already handled."));
+    }
+
+    #[test]
+    fn subject_serializes_tagged() {
+        let run_id = RunId::new();
+        let run = DiffReviewSubject::run(run_id);
+        let json = serde_json::to_string(&run).expect("serialize run subject");
+        assert!(json.contains("\"type\":\"run\""));
+        assert!(json.contains(&format!("\"runId\":\"{run_id}\"")));
+        let round: DiffReviewSubject = serde_json::from_str(&json).expect("round-trip run subject");
+        assert_eq!(round, run);
+
+        let pr = DiffReviewSubject::pull_request("acme/superkick", 42, "abc123");
+        let json = serde_json::to_string(&pr).expect("serialize pr subject");
+        assert_eq!(
+            json,
+            "{\"type\":\"pull_request\",\"repoSlug\":\"acme/superkick\",\"number\":42,\"headSha\":\"abc123\"}"
+        );
+        assert_eq!(pr.storage_key(), "pr:acme/superkick#42");
+        assert_eq!(pr.repo_slug(), Some("acme/superkick"));
+        assert_eq!(pr.pr_number(), Some(42));
+        assert_eq!(pr.head_sha(), Some("abc123"));
+        assert_eq!(pr.run_id(), None);
+        assert_eq!(run.storage_key(), run_id.0.to_string());
+        assert_eq!(run.run_id(), Some(run_id));
     }
 }

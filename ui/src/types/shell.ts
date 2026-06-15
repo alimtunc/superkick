@@ -1,4 +1,4 @@
-export type ShellNavId = 'inbox' | 'board' | 'issues' | 'agents' | 'skills' | null
+export type ShellNavId = 'inbox' | 'board' | 'issues' | 'reviews' | 'agents' | 'skills' | null
 
 export interface ShellTitle {
 	active: ShellNavId

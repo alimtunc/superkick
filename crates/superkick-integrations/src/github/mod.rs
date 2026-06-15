@@ -6,11 +6,18 @@
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
-use serde::Deserialize;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 use tracing::{debug, info};
 
-use superkick_core::{GitHubPullRequestRef, PrDiffFile, PrDiffFileStatus, PrState};
+use superkick_core::{
+    GitHubPullRequestRef, GithubReviewDecision, PrDiffFile, PrDiffFileStatus, PrState,
+};
+
+/// JSON fields requested from `gh pr list` / `gh pr view` for the review inbox.
+const PR_SUMMARY_JSON_FIELDS: &str = "number,title,url,state,isDraft,author,headRefName,baseRefName,headRefOid,reviewDecision,reviewRequests,latestReviews,createdAt,updatedAt";
 
 /// Raw response from `gh api repos/{owner}/{repo}/pulls/{number}`.
 #[derive(Debug, Deserialize)]
@@ -310,9 +317,455 @@ pub async fn create_pr(
     Ok(url)
 }
 
+// --- SUP-205: PR review inbox, activity, and review submission ---------------
+
+/// A PR summary for the `/reviews` inbox/detail. Thin: the runtime owns bucket
+/// classification and viewer identity, this layer just surfaces GitHub fields.
+#[derive(Debug, Clone)]
+pub struct GitHubPrSummary {
+    pub number: u32,
+    pub title: String,
+    pub url: String,
+    pub state: PrState,
+    pub is_draft: bool,
+    pub author: String,
+    pub head_branch: String,
+    pub base_branch: String,
+    pub head_sha: String,
+    pub review_decision: Option<GithubReviewDecision>,
+    pub requested_reviewers: Vec<String>,
+    pub latest_reviews: Vec<(String, GithubReviewDecision)>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// A submitted GitHub review (the Activity tab's review entries).
+#[derive(Debug, Clone)]
+pub struct GitHubPrReview {
+    pub author: String,
+    pub state: Option<GithubReviewDecision>,
+    pub body: String,
+    pub submitted_at: Option<DateTime<Utc>>,
+}
+
+/// A line-anchored review comment (Activity tab).
+#[derive(Debug, Clone)]
+pub struct GitHubReviewComment {
+    pub author: String,
+    pub body: String,
+    pub path: Option<String>,
+    pub line: Option<u32>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// A general PR conversation comment (Activity tab).
+#[derive(Debug, Clone)]
+pub struct GitHubIssueComment {
+    pub author: String,
+    pub body: String,
+    pub created_at: DateTime<Utc>,
+}
+
+/// A line comment to attach to a submitted review.
+#[derive(Debug, Clone, Serialize)]
+pub struct SubmitReviewComment {
+    pub path: String,
+    pub line: u32,
+    pub side: String,
+    pub body: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhAuthor {
+    #[serde(default)]
+    login: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhReviewRequest {
+    #[serde(default)]
+    login: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhLatestReview {
+    #[serde(default)]
+    author: Option<GhAuthor>,
+    #[serde(default)]
+    state: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhPrSummaryResponse {
+    number: u32,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    url: String,
+    #[serde(default)]
+    state: String,
+    #[serde(rename = "isDraft", default)]
+    is_draft: bool,
+    #[serde(default)]
+    author: Option<GhAuthor>,
+    #[serde(rename = "headRefName", default)]
+    head_ref_name: String,
+    #[serde(rename = "baseRefName", default)]
+    base_ref_name: String,
+    #[serde(rename = "headRefOid", default)]
+    head_ref_oid: String,
+    #[serde(rename = "reviewDecision", default)]
+    review_decision: Option<String>,
+    #[serde(rename = "reviewRequests", default)]
+    review_requests: Vec<GhReviewRequest>,
+    #[serde(rename = "latestReviews", default)]
+    latest_reviews: Vec<GhLatestReview>,
+    #[serde(rename = "createdAt", default)]
+    created_at: String,
+    #[serde(rename = "updatedAt", default)]
+    updated_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhUserResponse {
+    #[serde(default)]
+    login: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhReviewResponse {
+    user: Option<GhUserResponse>,
+    body: Option<String>,
+    state: Option<String>,
+    submitted_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhReviewCommentResponse {
+    user: Option<GhUserResponse>,
+    body: Option<String>,
+    path: Option<String>,
+    line: Option<u32>,
+    created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhIssueCommentResponse {
+    user: Option<GhUserResponse>,
+    body: Option<String>,
+    created_at: String,
+}
+
+fn pr_state_from_list(state: &str, is_draft: bool) -> PrState {
+    match state.trim().to_ascii_uppercase().as_str() {
+        "MERGED" => PrState::Merged,
+        "CLOSED" => PrState::Closed,
+        "OPEN" if is_draft => PrState::Draft,
+        _ => PrState::Open,
+    }
+}
+
+fn summary_from_response(item: GhPrSummaryResponse) -> Result<GitHubPrSummary> {
+    let updated_at = if item.updated_at.trim().is_empty() {
+        Utc::now()
+    } else {
+        parse_github_timestamp(&item.updated_at).context("failed to parse PR updatedAt")?
+    };
+    let created_at = if item.created_at.trim().is_empty() {
+        updated_at
+    } else {
+        parse_github_timestamp(&item.created_at).context("failed to parse PR createdAt")?
+    };
+    let latest_reviews = item
+        .latest_reviews
+        .into_iter()
+        .filter_map(|review| {
+            let login = review.author?.login;
+            let state = review
+                .state
+                .as_deref()
+                .and_then(GithubReviewDecision::from_github)?;
+            if login.is_empty() {
+                None
+            } else {
+                Some((login, state))
+            }
+        })
+        .collect();
+    Ok(GitHubPrSummary {
+        number: item.number,
+        title: item.title,
+        url: item.url,
+        state: pr_state_from_list(&item.state, item.is_draft),
+        is_draft: item.is_draft,
+        author: item.author.map(|author| author.login).unwrap_or_default(),
+        head_branch: item.head_ref_name,
+        base_branch: item.base_ref_name,
+        head_sha: item.head_ref_oid,
+        review_decision: item
+            .review_decision
+            .as_deref()
+            .and_then(GithubReviewDecision::from_github),
+        requested_reviewers: item
+            .review_requests
+            .into_iter()
+            .filter_map(|request| request.login)
+            .collect(),
+        latest_reviews,
+        created_at,
+        updated_at,
+    })
+}
+
+/// List the PRs of a repository for the review inbox. `state` is one of
+/// `open` / `closed` / `merged` / `all`. One `gh pr list` call carries the
+/// review decision and requested reviewers, avoiding a per-PR fan-out.
+pub async fn fetch_pr_list(
+    repo_slug: &str,
+    state: &str,
+    limit: u32,
+) -> Result<Vec<GitHubPrSummary>> {
+    let limit = limit.clamp(1, 100).to_string();
+    debug!(%repo_slug, %state, "listing PRs for review inbox");
+    let output = run_gh(
+        &[
+            "pr",
+            "list",
+            "--repo",
+            repo_slug,
+            "--state",
+            state,
+            "--limit",
+            &limit,
+            "--json",
+            PR_SUMMARY_JSON_FIELDS,
+        ],
+        None,
+    )
+    .await?;
+    let items: Vec<GhPrSummaryResponse> =
+        serde_json::from_slice(&output.stdout).context("failed to parse `gh pr list` response")?;
+    items.into_iter().map(summary_from_response).collect()
+}
+
+/// Fetch a single PR's summary (detail header).
+pub async fn fetch_pr_summary(repo_slug: &str, pr_number: u32) -> Result<GitHubPrSummary> {
+    let number = pr_number.to_string();
+    let output = run_gh(
+        &[
+            "pr",
+            "view",
+            &number,
+            "--repo",
+            repo_slug,
+            "--json",
+            PR_SUMMARY_JSON_FIELDS,
+        ],
+        None,
+    )
+    .await?;
+    let item: GhPrSummaryResponse =
+        serde_json::from_slice(&output.stdout).context("failed to parse `gh pr view` response")?;
+    summary_from_response(item)
+}
+
+/// Fetch submitted reviews on a PR (Activity tab).
+pub async fn fetch_pr_reviews(repo_slug: &str, pr_number: u32) -> Result<Vec<GitHubPrReview>> {
+    let endpoint = format!("repos/{repo_slug}/pulls/{pr_number}/reviews?per_page=100");
+    let output = run_gh(&["api", &endpoint, "--paginate", "--slurp"], None).await?;
+    let pages: Vec<Vec<GhReviewResponse>> =
+        serde_json::from_slice(&output.stdout).context("failed to parse PR reviews response")?;
+    pages
+        .into_iter()
+        .flatten()
+        .map(|review| {
+            Ok(GitHubPrReview {
+                author: review.user.map(|user| user.login).unwrap_or_default(),
+                state: review
+                    .state
+                    .as_deref()
+                    .and_then(GithubReviewDecision::from_github),
+                body: review.body.unwrap_or_default(),
+                submitted_at: review
+                    .submitted_at
+                    .as_deref()
+                    .map(parse_github_timestamp)
+                    .transpose()?,
+            })
+        })
+        .collect()
+}
+
+/// Fetch line-anchored review comments on a PR (Activity tab).
+pub async fn fetch_pr_review_comments(
+    repo_slug: &str,
+    pr_number: u32,
+) -> Result<Vec<GitHubReviewComment>> {
+    let endpoint = format!("repos/{repo_slug}/pulls/{pr_number}/comments?per_page=100");
+    let output = run_gh(&["api", &endpoint, "--paginate", "--slurp"], None).await?;
+    let pages: Vec<Vec<GhReviewCommentResponse>> = serde_json::from_slice(&output.stdout)
+        .context("failed to parse PR review comments response")?;
+    pages
+        .into_iter()
+        .flatten()
+        .map(|comment| {
+            Ok(GitHubReviewComment {
+                author: comment.user.map(|user| user.login).unwrap_or_default(),
+                body: comment.body.unwrap_or_default(),
+                path: comment.path,
+                line: comment.line,
+                created_at: parse_github_timestamp(&comment.created_at)?,
+            })
+        })
+        .collect()
+}
+
+/// Fetch general PR conversation comments (Activity tab).
+pub async fn fetch_pr_issue_comments(
+    repo_slug: &str,
+    pr_number: u32,
+) -> Result<Vec<GitHubIssueComment>> {
+    let endpoint = format!("repos/{repo_slug}/issues/{pr_number}/comments?per_page=100");
+    let output = run_gh(&["api", &endpoint, "--paginate", "--slurp"], None).await?;
+    let pages: Vec<Vec<GhIssueCommentResponse>> = serde_json::from_slice(&output.stdout)
+        .context("failed to parse PR issue comments response")?;
+    pages
+        .into_iter()
+        .flatten()
+        .map(|comment| {
+            Ok(GitHubIssueComment {
+                author: comment.user.map(|user| user.login).unwrap_or_default(),
+                body: comment.body.unwrap_or_default(),
+                created_at: parse_github_timestamp(&comment.created_at)?,
+            })
+        })
+        .collect()
+}
+
+/// Submit a GitHub review (comment / approve / request-changes) with optional
+/// line comments. `event` is the GitHub Reviews API value.
+pub async fn submit_pr_review(
+    repo_slug: &str,
+    pr_number: u32,
+    event: &str,
+    body: &str,
+    comments: &[SubmitReviewComment],
+) -> Result<()> {
+    let endpoint = format!("repos/{repo_slug}/pulls/{pr_number}/reviews");
+    let payload = serde_json::json!({
+        "event": event,
+        "body": body,
+        "comments": comments,
+    });
+    let payload = serde_json::to_vec(&payload).context("serialize review payload")?;
+    debug!(%repo_slug, pr_number, %event, comments = comments.len(), "submitting GitHub review");
+    run_gh_with_stdin(
+        &["api", &endpoint, "--method", "POST", "--input", "-"],
+        &payload,
+        None,
+    )
+    .await?;
+    info!(%repo_slug, pr_number, %event, "GitHub review submitted");
+    Ok(())
+}
+
+/// The authenticated GitHub login, for "Created by you" / "Needs your review".
+pub async fn fetch_viewer_login() -> Result<String> {
+    let output = run_gh(&["api", "user", "--jq", ".login"], None).await?;
+    let login = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if login.is_empty() {
+        bail!("`gh api user` returned no login");
+    }
+    Ok(login)
+}
+
+async fn run_gh_with_stdin(
+    args: &[&str],
+    stdin_bytes: &[u8],
+    cwd: Option<&Path>,
+) -> Result<std::process::Output> {
+    let mut cmd = Command::new("gh");
+    cmd.args(args)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+    let mut child = cmd
+        .spawn()
+        .with_context(|| format!("failed to run `gh {}`", args.first().unwrap_or(&"")))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(stdin_bytes)
+            .await
+            .context("failed to write `gh` stdin")?;
+        stdin.shutdown().await.ok();
+    }
+    let output = child
+        .wait_with_output()
+        .await
+        .context("failed to wait for `gh`")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("`gh {}` failed: {}", args.join(" "), stderr.trim());
+    }
+    Ok(output)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_gh_pr_list_summary() {
+        let json = r#"[
+            {
+                "number": 7,
+                "title": "Fix the thing",
+                "url": "https://github.com/acme/repo/pull/7",
+                "state": "OPEN",
+                "isDraft": false,
+                "author": {"login": "alice"},
+                "headRefName": "feature",
+                "baseRefName": "main",
+                "headRefOid": "deadbeef",
+                "reviewDecision": "CHANGES_REQUESTED",
+                "reviewRequests": [{"login": "bob"}, {"name": "platform-team"}],
+                "latestReviews": [{"author": {"login": "carol"}, "state": "APPROVED"}],
+                "createdAt": "2026-06-13T09:00:00Z",
+                "updatedAt": "2026-06-14T10:00:00Z"
+            }
+        ]"#;
+        let items: Vec<GhPrSummaryResponse> = serde_json::from_str(json).unwrap();
+        let summaries: Vec<GitHubPrSummary> = items
+            .into_iter()
+            .map(summary_from_response)
+            .collect::<Result<_>>()
+            .unwrap();
+        let pr = &summaries[0];
+        assert_eq!(pr.number, 7);
+        assert_eq!(pr.state, PrState::Open);
+        assert_eq!(pr.author, "alice");
+        assert_eq!(pr.head_sha, "deadbeef");
+        assert_eq!(
+            pr.review_decision,
+            Some(GithubReviewDecision::ChangesRequested)
+        );
+        assert_eq!(pr.requested_reviewers, vec!["bob".to_string()]);
+        assert_eq!(
+            pr.latest_reviews,
+            vec![("carol".to_string(), GithubReviewDecision::Approved)]
+        );
+    }
+
+    #[test]
+    fn draft_open_pr_maps_to_draft_state() {
+        assert_eq!(pr_state_from_list("OPEN", true), PrState::Draft);
+        assert_eq!(pr_state_from_list("OPEN", false), PrState::Open);
+        assert_eq!(pr_state_from_list("MERGED", false), PrState::Merged);
+        assert_eq!(pr_state_from_list("CLOSED", false), PrState::Closed);
+    }
 
     #[test]
     fn maps_unknown_github_diff_status_to_changed() {

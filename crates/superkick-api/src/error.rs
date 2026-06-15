@@ -6,7 +6,7 @@ use superkick_core::{AgentProvider, CoreError};
 use superkick_integrations::linear::LinearError;
 use superkick_runtime::{
     AgentServiceError, AttentionServiceError, ConversationRunnerError, IssuePullRequestError,
-    LaunchCompositionError, RetryError, RunServiceError, SnapshotError,
+    LaunchCompositionError, PrReviewServiceError, RetryError, RunServiceError, SnapshotError,
 };
 
 #[derive(Debug)]
@@ -195,6 +195,23 @@ impl From<AgentServiceError> for AppError {
             ),
             AgentServiceError::Invalid(e) => AppError::from(e),
             AgentServiceError::Db(e) => AppError::Internal(e),
+        }
+    }
+}
+
+impl From<PrReviewServiceError> for AppError {
+    fn from(err: PrReviewServiceError) -> Self {
+        match err {
+            PrReviewServiceError::GitHubAuth => AppError::ServiceUnavailable(
+                "GitHub CLI is not authenticated — run `gh auth login`",
+            ),
+            PrReviewServiceError::NotFound => AppError::NotFound("pull request not found"),
+            PrReviewServiceError::Invalid(msg) => AppError::BadRequest(msg),
+            PrReviewServiceError::Storage(e) => AppError::Internal(e),
+            PrReviewServiceError::GitHub(e) => {
+                tracing::warn!(error = %e, "GitHub API unavailable");
+                AppError::ServiceUnavailable("GitHub API unavailable")
+            }
         }
     }
 }

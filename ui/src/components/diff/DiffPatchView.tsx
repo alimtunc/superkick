@@ -173,8 +173,11 @@ function ReviewComposer({
 	}
 
 	return (
-		<form onSubmit={onSubmit} className="m-2 rounded-[4px] border border-border bg-canvas p-2 shadow-sm">
-			<label className="block text-[11px] font-medium text-fg-dim" htmlFor="review-comment">
+		<form
+			onSubmit={onSubmit}
+			className="m-2 rounded-md border border-border-strong bg-raised p-3 shadow-md"
+		>
+			<label className="block text-[11px] font-medium text-fg-muted" htmlFor="review-comment">
 				{reviewComposerLabel(fromLineNumber, lineNumber)}
 			</label>
 			<textarea
@@ -183,7 +186,8 @@ function ReviewComposer({
 				value={body}
 				onChange={(event) => setBody(event.target.value)}
 				rows={3}
-				className="mt-1 w-full resize-y rounded-[3px] border border-border bg-surface px-2 py-1 text-[12px] text-fg outline-none focus:border-accent focus-visible:ring-1 focus-visible:ring-accent"
+				placeholder="Leave a review comment..."
+				className="mt-1.5 w-full resize-y rounded-md border border-border-strong bg-canvas px-2 py-1.5 text-[12px] text-fg outline-none placeholder:text-fg-dim focus:border-accent focus-visible:ring-1 focus-visible:ring-accent"
 			/>
 			{error ? <p className="mt-1 text-[11px] text-danger">{error}</p> : null}
 			<div className="mt-2 flex justify-end gap-2">
@@ -418,7 +422,7 @@ function anchorForWidget(
 	const endLines = lineNumbersForWidget(diffFile, side, endLineNumber)
 	const reviewSide = reviewSideForLines(side, lines.oldLine, lines.newLine)
 	return {
-		runId: review.runId,
+		subject: review.subject,
 		filePath: review.filePath,
 		oldPath: review.oldPath ?? null,
 		side: reviewSide,

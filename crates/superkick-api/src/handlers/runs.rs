@@ -67,6 +67,35 @@ pub async fn create_run(
     Ok((StatusCode::CREATED, Json(run)))
 }
 
+/// Spawn the FullAuto, worktree-isolated run that applies a diff review's
+/// unresolved comments. Shared by the run- and PR-review `fix_with_ai` handlers
+/// so the run shape (instructions-only, no agent overrides) lives in one place.
+pub(crate) async fn spawn_diff_review_fix_run(
+    state: &AppState,
+    repo_slug: String,
+    issue_id: String,
+    issue_identifier: String,
+    source_branch: String,
+    prompt: String,
+) -> Result<Run, AppError> {
+    spawn_run_from_request(
+        state,
+        CreateRunRequest {
+            repo_slug,
+            issue_id,
+            issue_identifier,
+            base_branch: Some(source_branch),
+            use_worktree: Some(true),
+            execution_mode: ExecutionMode::FullAuto,
+            operator_instructions: Some(prompt),
+            planner_agent: None,
+            coder_agent: None,
+            reviewer_agent: None,
+        },
+    )
+    .await
+}
+
 /// Shared spawn path used by `create_run` (raw API) and SUP-80's
 /// `dispatch_from_queue`. Validates, guards against duplicates, inserts the
 /// run, then kicks off execution. Extracted so the launch-queue dispatch

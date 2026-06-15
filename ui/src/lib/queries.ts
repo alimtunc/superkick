@@ -14,7 +14,6 @@ import {
 	fetchRun,
 	fetchRunDiff,
 	fetchRunEvents,
-	fetchRunReview,
 	fetchRuns,
 	fetchRunToolCalls,
 	fetchRuntimes,
@@ -106,13 +105,6 @@ export const runDiffQuery = (id: string | null, enabled: boolean) =>
 		queryKey: id ? queryKeys.runs.diff(id) : ['runs', 'pending', 'diff'],
 		queryFn: id && enabled ? () => fetchRunDiff(id) : skipToken,
 		staleTime: 10_000
-	})
-
-export const runReviewQuery = (id: string | null, enabled: boolean) =>
-	queryOptions({
-		queryKey: id ? queryKeys.runs.review(id) : ['runs', 'pending', 'review'],
-		queryFn: id && enabled ? () => fetchRunReview(id) : skipToken,
-		staleTime: 5_000
 	})
 
 export const conversationDetailQuery = (id: string | null) =>

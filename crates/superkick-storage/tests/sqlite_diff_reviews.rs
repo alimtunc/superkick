@@ -8,8 +8,8 @@
 use anyhow::Result;
 use superkick_core::{
     CoreError, DiffReviewAnchor, DiffReviewFileReviewedChange, DiffReviewLineSide,
-    DiffReviewThreadState, ExecutionMode, NewDiffReviewComment, NewDiffReviewThread, Run, RunId,
-    TriggerSource,
+    DiffReviewSubject, DiffReviewThreadState, ExecutionMode, NewDiffReviewComment,
+    NewDiffReviewThread, Run, RunId, TriggerSource,
 };
 use superkick_storage::repo::{DiffReviewRepo, RunRepo};
 use superkick_storage::{SqliteDiffReviewRepo, SqliteRunRepo, connect_with_capacity};
@@ -102,8 +102,12 @@ async fn insert_run(repo: &SqliteRunRepo) -> Result<RunId> {
 }
 
 fn anchor(run_id: RunId, file_path: &str, new_line: u32) -> DiffReviewAnchor {
+    subject_anchor(DiffReviewSubject::run(run_id), file_path, new_line)
+}
+
+fn subject_anchor(subject: DiffReviewSubject, file_path: &str, new_line: u32) -> DiffReviewAnchor {
     DiffReviewAnchor {
-        run_id,
+        subject,
         issue_id: Some("issue-1".into()),
         file_path: file_path.into(),
         old_path: None,
@@ -133,7 +137,7 @@ async fn create_thread_persists_anchor_and_scopes_by_run() -> Result<()> {
         })
         .await?;
 
-    assert_eq!(thread.anchor.run_id, run_id);
+    assert_eq!(thread.anchor.subject.run_id(), Some(run_id));
     assert_eq!(thread.anchor.file_path, "src/lib.rs");
     assert_eq!(thread.anchor.side, DiffReviewLineSide::New);
     assert_eq!(thread.anchor.new_line, Some(42));
@@ -191,9 +195,12 @@ async fn existing_diff_review_schema_migrates_line_range_columns() -> Result<()>
         ))
         .execute(&pool)
         .await?;
-        sqlx::query("DELETE FROM _migrations WHERE name = '041_diff_review_line_ranges'")
-            .execute(&pool)
-            .await?;
+        sqlx::query(
+            "DELETE FROM _migrations WHERE name IN \
+             ('041_diff_review_line_ranges', '053_diff_review_subjects')",
+        )
+        .execute(&pool)
+        .await?;
         pool.close().await;
     }
 
@@ -322,7 +329,7 @@ async fn reviewed_file_state_upserts_per_run_and_file() -> Result<()> {
 
     let reviewed = repo
         .set_file_reviewed(DiffReviewFileReviewedChange {
-            run_id,
+            subject: DiffReviewSubject::run(run_id),
             issue_id: Some("issue-1".into()),
             file_path: "crates/superkick-core/src/lib.rs".into(),
             old_path: None,
@@ -342,7 +349,7 @@ async fn reviewed_file_state_upserts_per_run_and_file() -> Result<()> {
 
     let unreviewed = repo
         .set_file_reviewed(DiffReviewFileReviewedChange {
-            run_id,
+            subject: DiffReviewSubject::run(run_id),
             issue_id: Some("issue-1".into()),
             file_path: "crates/superkick-core/src/lib.rs".into(),
             old_path: None,
@@ -355,6 +362,46 @@ async fn reviewed_file_state_upserts_per_run_and_file() -> Result<()> {
     let state = repo.list_by_run(run_id).await?;
     assert_eq!(state.reviewed_files.len(), 1);
     assert!(!state.reviewed_files[0].reviewed);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn pull_request_subject_round_trips_without_a_run() -> Result<()> {
+    let (repo, _run_repo) = setup().await?;
+    let pr = DiffReviewSubject::pull_request("owner/repo", 7, "deadbeef");
+
+    let thread = repo
+        .create_thread(NewDiffReviewThread {
+            anchor: subject_anchor(pr.clone(), "src/main.rs", 12),
+            author: Some("operator".into()),
+            body: "Guard this unwrap before submitting the review.".into(),
+        })
+        .await?;
+    assert_eq!(thread.anchor.subject, pr);
+    assert_eq!(thread.anchor.subject.repo_slug(), Some("owner/repo"));
+    assert_eq!(thread.anchor.subject.pr_number(), Some(7));
+
+    repo.set_file_reviewed(DiffReviewFileReviewedChange {
+        subject: pr.clone(),
+        issue_id: None,
+        file_path: "src/main.rs".into(),
+        old_path: None,
+        reviewed: true,
+        reviewer: Some("operator".into()),
+    })
+    .await?;
+
+    let state = repo.list_by_subject(pr).await?;
+    assert_eq!(state.threads.len(), 1);
+    assert_eq!(state.unresolved_comment_count, 1);
+    assert_eq!(state.reviewed_files.len(), 1);
+    assert!(state.reviewed_files[0].reviewed);
+
+    // A run subject must not see the PR's threads.
+    let run_state = repo.list_by_run(RunId::new()).await?;
+    assert!(run_state.threads.is_empty());
+    assert!(run_state.reviewed_files.is_empty());
 
     Ok(())
 }

@@ -8,17 +8,10 @@ import { SideDrawer } from '@/components/ui/side-drawer'
 import { EmptyState } from '@/components/ui/state-empty'
 import { useRunDiffReview } from '@/hooks/useRunDiffReview'
 import { fileSectionId } from '@/lib/diff/fileSections'
-import { withGitDiffHeader } from '@/lib/diff/githubPatch'
+import { combinePatches, toFileDiff } from '@/lib/diff/prDiffFile'
 import { errorMessageOr } from '@/lib/errors'
 import { issuePullRequestDiffQuery } from '@/lib/queries'
-import type {
-	DiffViewMode,
-	FileDiff,
-	FileDiffStatus,
-	IssueDetailResponse,
-	IssuePrDiffFileStatus,
-	IssuePullRequest
-} from '@/types'
+import type { DiffViewMode, IssueDetailResponse, IssuePullRequest } from '@/types'
 import { Toggle } from '@base-ui/react/toggle'
 import { ToggleGroup } from '@base-ui/react/toggle-group'
 import { useQuery } from '@tanstack/react-query'
@@ -239,50 +232,7 @@ function EmptyDiffState({ title }: { title: string }) {
 	)
 }
 
-function combinePatches(files: FileDiff[]): string {
-	return files
-		.map((file) => file.patch)
-		.filter((patch): patch is string => typeof patch === 'string')
-		.join('\n')
-}
-
 function resolveLinkedRunId(issue: IssueDetailResponse, pr: IssuePullRequest | null): string | null {
 	if (!pr) return null
 	return issue.linked_runs.find((run) => run.pr?.number === pr.number)?.id ?? null
-}
-
-function toFileDiff(file: {
-	path: string
-	old_path?: string | null
-	status: IssuePrDiffFileStatus
-	additions: number
-	deletions: number
-	patch?: string | null
-}): FileDiff {
-	const status = toFileDiffStatus(file.status)
-	return {
-		path: file.path,
-		status,
-		oldPath: file.old_path,
-		additions: file.additions,
-		deletions: file.deletions,
-		binary: false,
-		truncated: false,
-		patch: file.patch ? withGitDiffHeader(file.patch, file.path, file.old_path, status) : file.patch
-	}
-}
-
-function toFileDiffStatus(status: IssuePrDiffFileStatus): FileDiffStatus {
-	switch (status) {
-		case 'added':
-			return 'added'
-		case 'removed':
-			return 'deleted'
-		case 'renamed':
-			return 'renamed'
-		case 'modified':
-		case 'changed':
-		case 'unchanged':
-			return 'modified'
-	}
 }

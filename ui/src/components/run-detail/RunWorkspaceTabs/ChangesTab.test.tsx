@@ -89,7 +89,7 @@ function buildResponse(files: FileDiff[]): RunDiffResponse {
 
 function buildReviewState(overrides: Partial<DiffReviewState> = {}): DiffReviewState {
 	return {
-		runId: 'run-1',
+		subject: { type: 'run', runId: 'run-1' },
 		threads: [],
 		reviewedFiles: [],
 		unresolvedThreadCount: 0,
@@ -116,7 +116,7 @@ beforeEach(() => {
 	mocks.fetchRunDiff.mockReset()
 	mocks.fetchRunReview.mockReset().mockResolvedValue(buildReviewState())
 	mocks.setRunReviewFileReviewed.mockReset().mockResolvedValue({
-		runId: 'run-1',
+		subject: { type: 'run', runId: 'run-1' },
 		filePath: 'src/foo.ts',
 		oldPath: null,
 		reviewed: true,
@@ -316,7 +316,7 @@ describe('ChangesTab', () => {
 					{
 						id: 'thread-1',
 						anchor: {
-							runId: 'run-1',
+							subject: { type: 'run', runId: 'run-1' },
 							issueId: 'issue-1',
 							filePath: 'src/foo.ts',
 							oldPath: null,
@@ -346,7 +346,7 @@ describe('ChangesTab', () => {
 				],
 				reviewedFiles: [
 					{
-						runId: 'run-1',
+						subject: { type: 'run', runId: 'run-1' },
 						filePath: 'src/bar.ts',
 						oldPath: null,
 						reviewed: true,

@@ -93,3 +93,49 @@ export function parseMarkdownBlocks(source: string): MarkdownBlock[] {
 
 	return blocks
 }
+
+const HTML_NOISE_TAGS =
+	/<\/?(?:details|div|span|img|picture|source|table|thead|tbody|tfoot|colgroup|col|tr|td|th|p|hr|a|b|i|em|strong|sub|sup|kbd|samp|var|mark|blockquote|pre|code|h[1-6]|ul|ol|li|dl|dt|dd|font|center|small|figure|figcaption|article|section|header|footer|nav|aside|main)\b[^>]*>/gi
+
+// Fenced (```…```) and inline (`…`) code spans are masked behind a sentinel
+// (no surrounding whitespace) before HTML/whitespace cleanup, so an HTML sample
+// inside a code block is never mistaken for markup and adjacent spaces survive.
+const CODE_SPAN_RE = /(```[\s\S]*?```|`[^`\n]*`)/g
+const CODE_PLACEHOLDER_RE = /@@CODE(\d+)@@/g
+
+function stripHtmlNoise(text: string): string {
+	return text
+		.replace(/<!--[\s\S]*?-->/g, '')
+		.replace(/<summary[\s\S]*?<\/summary>/gi, '')
+		.replace(/<(https?:\/\/[^>\s]+)>/gi, '$1')
+		.replace(/<mailto:([^>\s]+)>/gi, '$1')
+		.replace(/<br\s*\/?>/gi, '\n')
+		.replace(HTML_NOISE_TAGS, ' ')
+		.replace(/&lt;/g, '<')
+		.replace(/&gt;/g, '>')
+		.replace(/&quot;/g, '"')
+		.replace(/&#0?39;/g, "'")
+		.replace(/&nbsp;/g, ' ')
+		.replace(/&amp;/g, '&')
+		.replace(/[ \t]{2,}/g, ' ')
+		.replace(/[ \t]+$/gm, '')
+		.replace(/\n{3,}/g, '\n\n')
+}
+
+/**
+ * Strip the HTML wrappers GitHub/Linear bots emit (Copilot review summaries,
+ * `<details>` foldouts, tracking comments) so the body renders as readable
+ * markdown instead of raw `<!-- … -->` / `<details>` noise. Markdown syntax is
+ * preserved, and code spans pass through untouched so HTML samples a reviewer
+ * actually wrote survive verbatim.
+ */
+export function sanitizeGithubMarkdown(source: string): string {
+	const codeSpans: string[] = []
+	const masked = source.replace(CODE_SPAN_RE, (match) => {
+		codeSpans.push(match)
+		return `@@CODE${codeSpans.length - 1}@@`
+	})
+	return stripHtmlNoise(masked)
+		.trim()
+		.replace(CODE_PLACEHOLDER_RE, (_match, index) => codeSpans[Number(index)] ?? '')
+}

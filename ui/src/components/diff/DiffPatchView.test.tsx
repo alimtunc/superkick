@@ -188,7 +188,7 @@ function thread(overrides: Partial<DiffReviewThread> = {}): DiffReviewThread {
 	return {
 		id: 'thread-1',
 		anchor: {
-			runId: 'run-1',
+			subject: { type: 'run', runId: 'run-1' },
 			issueId: 'issue-1',
 			filePath: 'src/foo.ts',
 			oldPath: null,
@@ -229,7 +229,7 @@ describe('DiffPatchView review hooks', () => {
 				path="src/foo.ts"
 				mode="unified"
 				review={{
-					runId: 'run-1',
+					subject: { type: 'run', runId: 'run-1' },
 					filePath: 'src/foo.ts',
 					oldPath: null,
 					baseRef: 'abc1234',
@@ -270,7 +270,7 @@ describe('DiffPatchView review hooks', () => {
 				path="src/foo.ts"
 				mode="unified"
 				review={{
-					runId: 'run-1',
+					subject: { type: 'run', runId: 'run-1' },
 					filePath: 'src/foo.ts',
 					oldPath: null,
 					baseRef: 'abc1234',
@@ -312,7 +312,7 @@ describe('DiffPatchView review hooks', () => {
 				path="src/foo.ts"
 				mode="unified"
 				review={{
-					runId: 'run-1',
+					subject: { type: 'run', runId: 'run-1' },
 					filePath: 'src/foo.ts',
 					oldPath: null,
 					baseRef: 'abc1234',
@@ -351,7 +351,7 @@ describe('DiffPatchView review hooks', () => {
 				path="src/foo.ts"
 				mode="unified"
 				review={{
-					runId: 'run-1',
+					subject: { type: 'run', runId: 'run-1' },
 					filePath: 'src/foo.ts',
 					oldPath: null,
 					baseRef: 'abc1234',

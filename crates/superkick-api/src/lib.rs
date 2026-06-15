@@ -13,7 +13,7 @@ use superkick_runtime::launch_task::{RealStepRunner, RealStepRunnerDeps};
 use superkick_runtime::{
     AgentCatalogProvider, AgentService, AttentionService, ConversationAdapters, ConversationRunner,
     InterruptService, IssuePullRequestService, LaunchProfileService, LaunchTaskCanceller,
-    LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry, OwnershipService,
+    LaunchTaskEventBus, LaunchTaskExecutor, LaunchTaskRegistry, OwnershipService, PrReviewService,
     PtySessionRegistry, PublishingRunEventRepo, PullRequestService, QueueTriageService, RepoCache,
     RunService, RuntimeDetector, SessionBus, StepEngine, StepEngineDeps, TerminalTakeoverService,
     TurnEventBus, WorkspaceEventBus, boot_refresh as runtime_boot_refresh,
@@ -81,6 +81,8 @@ type TakeoverService = TerminalTakeoverService<EventRepo>;
 type PrService = PullRequestService<SqlitePullRequestRepo, SqliteArtifactRepo, SqliteRunRepo>;
 
 type IssuePrService = IssuePullRequestService<SqliteIssuePullRequestRepo>;
+
+type PrReviewSvc = PrReviewService<SqliteDiffReviewRepo>;
 
 type TriageService = QueueTriageService<
     SqliteRunRepo,
@@ -165,6 +167,7 @@ pub(crate) struct AppState {
     pub ownership_service: Arc<OwnService>,
     pub pr_service: Arc<PrService>,
     pub issue_pr_service: Arc<IssuePrService>,
+    pub pr_review_service: Arc<PrReviewSvc>,
     pub queue_triage_service: Arc<TriageService>,
     pub run_service: Arc<ProdRunService>,
     pub pty_registry: Arc<PtySessionRegistry>,
@@ -442,6 +445,7 @@ async fn build_app_state(
     );
     let issue_pr_service =
         IssuePullRequestService::new(Arc::clone(&issue_pr_repo), repo_slug.clone());
+    let pr_review_service = PrReviewService::new(Arc::clone(&review_repo), repo_slug.clone());
 
     let queue_triage_service = QueueTriageService::new(
         Arc::clone(&run_repo),
@@ -570,6 +574,7 @@ async fn build_app_state(
         ownership_service,
         pr_service,
         issue_pr_service,
+        pr_review_service,
         queue_triage_service,
         run_service,
         pty_registry,
@@ -687,6 +692,56 @@ fn api_router(state: AppState) -> Router {
         .route(
             "/runs/{id}/review/fix-with-ai",
             post(handlers::run_reviews::fix_with_ai),
+        )
+        .route(
+            "/pull-requests",
+            get(handlers::pull_request_reviews::list_inbox),
+        )
+        .route(
+            "/pull-requests/{number}",
+            get(handlers::pull_request_reviews::get_detail),
+        )
+        .route(
+            "/pull-requests/{number}/diff",
+            get(handlers::pull_request_reviews::get_diff),
+        )
+        .route(
+            "/pull-requests/{number}/activity",
+            get(handlers::pull_request_reviews::get_activity),
+        )
+        .route(
+            "/pull-requests/{number}/review",
+            get(handlers::pull_request_reviews::get_review),
+        )
+        .route(
+            "/pull-requests/{number}/review/threads",
+            post(handlers::pull_request_reviews::create_thread),
+        )
+        .route(
+            "/pull-requests/{number}/review/threads/{thread_id}",
+            patch(handlers::pull_request_reviews::patch_thread)
+                .delete(handlers::pull_request_reviews::delete_thread),
+        )
+        .route(
+            "/pull-requests/{number}/review/threads/{thread_id}/comments",
+            post(handlers::pull_request_reviews::add_comment),
+        )
+        .route(
+            "/pull-requests/{number}/review/threads/{thread_id}/comments/{comment_id}",
+            patch(handlers::pull_request_reviews::patch_comment)
+                .delete(handlers::pull_request_reviews::delete_comment),
+        )
+        .route(
+            "/pull-requests/{number}/review/files/reviewed",
+            post(handlers::pull_request_reviews::set_file_reviewed),
+        )
+        .route(
+            "/pull-requests/{number}/review/submit",
+            post(handlers::pull_request_reviews::submit_review),
+        )
+        .route(
+            "/pull-requests/{number}/review/fix-with-ai",
+            post(handlers::pull_request_reviews::fix_with_ai),
         )
         .route("/runs/{id}/ship", post(handlers::runs::ship_run))
         .route("/runs/{id}/events", get(handlers::runs::get_run_events))

@@ -72,13 +72,16 @@ export function DiffFileNavigator({
 							) : null}
 							<span className="flex min-w-0 flex-1 items-baseline gap-1.5 overflow-hidden">
 								<span
-									className="min-w-0 truncate font-mono text-[12px] text-fg"
+									className="max-w-[70%] shrink-0 truncate font-mono text-[12px] text-fg"
 									title={file.path}
 								>
 									{name}
 								</span>
 								{dir ? (
-									<span className="hidden min-w-0 shrink truncate font-mono text-[10.5px] text-fg-muted sm:inline">
+									<span
+										className="min-w-0 flex-1 truncate font-mono text-[10.5px] text-fg-muted"
+										title={file.path}
+									>
 										{trimTrailingSlash(dir)}
 									</span>
 								) : null}

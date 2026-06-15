@@ -84,3 +84,17 @@ export {
 } from './conversations'
 export { subscribeToLaunchTaskEvents, subscribeToWorkspaceEvents } from './events'
 export { fetchSearch, refreshSearchFiles } from './search'
+export {
+	createPrReviewComment,
+	createPrReviewThread,
+	deletePrReviewThread,
+	fetchPrActivity,
+	fetchPrDetail,
+	fetchPrDiff,
+	fetchPrReview,
+	fetchReviewInbox,
+	fixPrReviewWithAi,
+	patchPrReviewThread,
+	setPrReviewFileReviewed,
+	submitPrReview
+} from './reviews'
