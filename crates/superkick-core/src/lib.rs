@@ -63,8 +63,8 @@ pub use conversation::{
 pub use diff_review::{
     DEFAULT_REVIEW_AUTHOR, DiffReviewAnchor, DiffReviewComment, DiffReviewFileReviewedChange,
     DiffReviewFileState, DiffReviewFixPromptComment, DiffReviewLineSide, DiffReviewState,
-    DiffReviewThread, DiffReviewThreadState, NewDiffReviewComment, NewDiffReviewThread,
-    normalize_diff_review_comment_body, render_diff_review_fix_prompt,
+    DiffReviewSubject, DiffReviewThread, DiffReviewThreadState, NewDiffReviewComment,
+    NewDiffReviewThread, normalize_diff_review_comment_body, render_diff_review_fix_prompt,
     unresolved_diff_review_fix_prompt_comments,
 };
 pub use error::CoreError;
@@ -124,8 +124,10 @@ pub use provider_settings::{
     SandboxPolicy,
 };
 pub use pull_request::{
-    GitHubPullRequestRef, IssuePullRequest, IssuePullRequestSource, LinkedPrSummary, PrDiffFile,
-    PrDiffFileStatus, PrState, PullRequest, ShipMode, parse_github_pr_url, parse_pr_number,
+    GitHubPullRequestRef, GithubReviewDecision, IssuePullRequest, IssuePullRequestSource,
+    LinkedPrSummary, PrActivityEvent, PrActivityKind, PrDiffFile, PrDiffFileStatus, PrInboxItem,
+    PrReviewDetail, PrReviewEvent, PrReviewer, PrState, PullRequest, ReviewBucket, ShipMode,
+    classify_review_bucket, parse_github_pr_url, parse_pr_number,
 };
 pub use queue::{
     DONE_COLUMN_LIMIT, OperatorQueue, QueueInputs, classify as classify_queue, queue_card_reason,

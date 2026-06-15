@@ -1,12 +1,12 @@
 //! SUP-199 — SQLite-backed local diff review repository.
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use chrono::Utc;
 use sqlx::SqlitePool;
 use superkick_core::{
     DiffReviewAnchor, DiffReviewComment, DiffReviewCommentId, DiffReviewFileReviewedChange,
-    DiffReviewFileState, DiffReviewLineSide, DiffReviewState, DiffReviewThread, DiffReviewThreadId,
-    DiffReviewThreadState, NewDiffReviewComment, NewDiffReviewThread, RunId,
+    DiffReviewFileState, DiffReviewLineSide, DiffReviewState, DiffReviewSubject, DiffReviewThread,
+    DiffReviewThreadId, DiffReviewThreadState, NewDiffReviewComment, NewDiffReviewThread, RunId,
     normalize_diff_review_comment_body,
 };
 
@@ -24,15 +24,19 @@ impl SqliteDiffReviewRepo {
 }
 
 impl DiffReviewRepo for SqliteDiffReviewRepo {
-    async fn list_by_run(&self, run_id: RunId) -> Result<DiffReviewState> {
+    async fn list_by_subject(&self, subject: DiffReviewSubject) -> Result<DiffReviewState> {
+        let subject_type = subject.subject_type();
+        let subject_id = subject.storage_key();
+
         let thread_rows = sqlx::query_as::<_, ThreadRow>(
-            "SELECT * FROM diff_review_threads WHERE run_id = ?1 \
+            "SELECT * FROM diff_review_threads WHERE subject_type = ?1 AND subject_id = ?2 \
              ORDER BY file_path ASC, created_at ASC, id ASC",
         )
-        .bind(run_id.0.to_string())
+        .bind(subject_type)
+        .bind(&subject_id)
         .fetch_all(&self.pool)
         .await
-        .with_context(|| format!("list diff_review_threads for run {}", run_id.0))?;
+        .with_context(|| format!("list diff_review_threads for subject {subject_id}"))?;
 
         let mut threads = Vec::with_capacity(thread_rows.len());
         for row in thread_rows {
@@ -40,18 +44,20 @@ impl DiffReviewRepo for SqliteDiffReviewRepo {
         }
 
         let reviewed_rows = sqlx::query_as::<_, FileStateRow>(
-            "SELECT * FROM diff_review_file_states WHERE run_id = ?1 ORDER BY file_path ASC",
+            "SELECT * FROM diff_review_file_states WHERE subject_type = ?1 AND subject_id = ?2 \
+             ORDER BY file_path ASC",
         )
-        .bind(run_id.0.to_string())
+        .bind(subject_type)
+        .bind(&subject_id)
         .fetch_all(&self.pool)
         .await
-        .with_context(|| format!("list diff_review_file_states for run {}", run_id.0))?;
+        .with_context(|| format!("list diff_review_file_states for subject {subject_id}"))?;
         let reviewed_files = reviewed_rows
             .into_iter()
             .map(FileStateRow::into_domain)
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(DiffReviewState::new(run_id, threads, reviewed_files))
+        Ok(DiffReviewState::new(subject, threads, reviewed_files))
     }
 
     async fn get_thread(&self, thread_id: DiffReviewThreadId) -> Result<Option<DiffReviewThread>> {
@@ -80,15 +86,23 @@ impl DiffReviewRepo for SqliteDiffReviewRepo {
             .begin()
             .await
             .context("begin create diff_review_thread tx")?;
+        let subject = SubjectColumns::from(&thread.anchor.subject);
         sqlx::query(
             "INSERT INTO diff_review_threads (\
-                 id, run_id, issue_id, file_path, old_path, side, old_line, old_line_end, \
+                 id, subject_type, subject_id, run_id, subject_repo_slug, subject_pr_number, \
+                 subject_head_sha, issue_id, file_path, old_path, side, old_line, old_line_end, \
                  new_line, new_line_end, hunk_header, hunk_index, base_ref, head_ref, state, \
                  author, created_at, updated_at\
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, \
+                 ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
         )
         .bind(thread.id.0.to_string())
-        .bind(thread.anchor.run_id.0.to_string())
+        .bind(subject.subject_type)
+        .bind(&subject.subject_id)
+        .bind(subject.run_id.clone())
+        .bind(subject.repo_slug.clone())
+        .bind(subject.pr_number)
+        .bind(subject.head_sha.clone())
         .bind(thread.anchor.issue_id.clone())
         .bind(&thread.anchor.file_path)
         .bind(thread.anchor.old_path.clone())
@@ -275,18 +289,30 @@ impl DiffReviewRepo for SqliteDiffReviewRepo {
         change: DiffReviewFileReviewedChange,
     ) -> Result<DiffReviewFileState> {
         let state = DiffReviewFileState::from_change(change)?;
+        let subject = SubjectColumns::from(&state.subject);
         sqlx::query(
             "INSERT INTO diff_review_file_states (\
-                 run_id, issue_id, file_path, old_path, reviewed, reviewer, updated_at\
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)\
-             ON CONFLICT(run_id, file_path) DO UPDATE SET \
+                 subject_type, subject_id, run_id, subject_repo_slug, subject_pr_number, \
+                 subject_head_sha, issue_id, file_path, old_path, reviewed, reviewer, updated_at\
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)\
+             ON CONFLICT(subject_id, file_path) DO UPDATE SET \
+                 subject_type = excluded.subject_type, \
+                 run_id = excluded.run_id, \
+                 subject_repo_slug = excluded.subject_repo_slug, \
+                 subject_pr_number = excluded.subject_pr_number, \
+                 subject_head_sha = excluded.subject_head_sha, \
                  issue_id = excluded.issue_id, \
                  old_path = excluded.old_path, \
                  reviewed = excluded.reviewed, \
                  reviewer = excluded.reviewer, \
                  updated_at = excluded.updated_at",
         )
-        .bind(state.run_id.0.to_string())
+        .bind(subject.subject_type)
+        .bind(&subject.subject_id)
+        .bind(subject.run_id.clone())
+        .bind(subject.repo_slug.clone())
+        .bind(subject.pr_number)
+        .bind(subject.head_sha.clone())
         .bind(state.issue_id.clone())
         .bind(&state.file_path)
         .bind(state.old_path.clone())
@@ -298,7 +324,7 @@ impl DiffReviewRepo for SqliteDiffReviewRepo {
         .with_context(|| {
             format!(
                 "upsert diff_review_file_state {} {}",
-                state.run_id.0, state.file_path
+                subject.subject_id, state.file_path
             )
         })?;
         Ok(state)
@@ -359,10 +385,63 @@ async fn insert_comment(
     Ok(())
 }
 
+struct SubjectColumns {
+    subject_type: &'static str,
+    subject_id: String,
+    run_id: Option<String>,
+    repo_slug: Option<String>,
+    pr_number: Option<i64>,
+    head_sha: Option<String>,
+}
+
+impl From<&DiffReviewSubject> for SubjectColumns {
+    fn from(subject: &DiffReviewSubject) -> Self {
+        Self {
+            subject_type: subject.subject_type(),
+            subject_id: subject.storage_key(),
+            run_id: subject.run_id().map(|run_id| run_id.0.to_string()),
+            repo_slug: subject.repo_slug().map(str::to_string),
+            pr_number: subject.pr_number().map(i64::from),
+            head_sha: subject.head_sha().map(str::to_string),
+        }
+    }
+}
+
+fn subject_from_parts(
+    subject_type: &str,
+    run_id: Option<String>,
+    repo_slug: Option<String>,
+    pr_number: Option<i64>,
+    head_sha: Option<String>,
+) -> Result<DiffReviewSubject> {
+    match subject_type {
+        "run" => {
+            let run_id = run_id.context("run diff review row missing run_id")?;
+            Ok(DiffReviewSubject::run(RunId(uuid::Uuid::parse_str(
+                &run_id,
+            )?)))
+        }
+        "pull_request" => {
+            let repo_slug = repo_slug.context("pr diff review row missing repo_slug")?;
+            let number = pr_number.context("pr diff review row missing pr_number")?;
+            Ok(DiffReviewSubject::pull_request(
+                repo_slug,
+                u32::try_from(number)?,
+                head_sha.unwrap_or_default(),
+            ))
+        }
+        other => bail!("unknown diff review subject_type {other}"),
+    }
+}
+
 #[derive(sqlx::FromRow)]
 struct ThreadRow {
     id: String,
-    run_id: String,
+    subject_type: String,
+    run_id: Option<String>,
+    subject_repo_slug: Option<String>,
+    subject_pr_number: Option<i64>,
+    subject_head_sha: Option<String>,
     issue_id: Option<String>,
     file_path: String,
     old_path: Option<String>,
@@ -383,10 +462,17 @@ struct ThreadRow {
 
 impl ThreadRow {
     fn into_domain(self, comments: Vec<DiffReviewComment>) -> Result<DiffReviewThread> {
+        let subject = subject_from_parts(
+            &self.subject_type,
+            self.run_id,
+            self.subject_repo_slug,
+            self.subject_pr_number,
+            self.subject_head_sha,
+        )?;
         Ok(DiffReviewThread {
             id: DiffReviewThreadId(uuid::Uuid::parse_str(&self.id)?),
             anchor: DiffReviewAnchor {
-                run_id: RunId(uuid::Uuid::parse_str(&self.run_id)?),
+                subject,
                 issue_id: self.issue_id,
                 file_path: self.file_path,
                 old_path: self.old_path,
@@ -440,7 +526,11 @@ struct CommentThreadRow {
 
 #[derive(sqlx::FromRow)]
 struct FileStateRow {
-    run_id: String,
+    subject_type: String,
+    run_id: Option<String>,
+    subject_repo_slug: Option<String>,
+    subject_pr_number: Option<i64>,
+    subject_head_sha: Option<String>,
     issue_id: Option<String>,
     file_path: String,
     old_path: Option<String>,
@@ -451,8 +541,15 @@ struct FileStateRow {
 
 impl FileStateRow {
     fn into_domain(self) -> Result<DiffReviewFileState> {
+        let subject = subject_from_parts(
+            &self.subject_type,
+            self.run_id,
+            self.subject_repo_slug,
+            self.subject_pr_number,
+            self.subject_head_sha,
+        )?;
         Ok(DiffReviewFileState {
-            run_id: RunId(uuid::Uuid::parse_str(&self.run_id)?),
+            subject,
             issue_id: self.issue_id,
             file_path: self.file_path,
             old_path: self.old_path,

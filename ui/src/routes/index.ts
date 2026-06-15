@@ -9,6 +9,8 @@ import { Route as indexRoute } from './_shell/index'
 import { Route as issuesRoute } from './_shell/issues'
 import { Route as issueDetailRoute } from './_shell/issues.$issueId'
 import { Route as queueRoute } from './_shell/queue'
+import { Route as reviewsRoute } from './_shell/reviews'
+import { Route as reviewDetailRoute } from './_shell/reviews.$number'
 import { Route as shellRoute } from './_shell/route'
 import { Route as runsRoute } from './_shell/runs'
 import { Route as runDetailRoute } from './_shell/runs.$runId'
@@ -21,6 +23,8 @@ const routeTree = rootRoute.addChildren([
 	shellRoute.addChildren([
 		indexRoute,
 		boardRoute,
+		reviewsRoute,
+		reviewDetailRoute,
 		issuesRoute,
 		issueDetailRoute,
 		queueRoute,

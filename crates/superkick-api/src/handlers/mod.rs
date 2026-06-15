@@ -29,6 +29,7 @@ pub mod model_catalog;
 pub mod orchestrator_sessions;
 pub mod ownership;
 pub mod provider_settings;
+pub mod pull_request_reviews;
 pub mod run_reviews;
 pub mod runs;
 pub mod runtimes;

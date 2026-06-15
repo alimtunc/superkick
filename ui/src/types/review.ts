@@ -19,8 +19,13 @@ export type DiffReviewLineSide = 'old' | 'new' | 'context'
 
 export type DiffReviewThreadState = 'open' | 'resolved'
 
+// What a local diff review is anchored to: a run or a GitHub PR.
+export type DiffReviewSubject =
+	| { type: 'run'; runId: string }
+	| { type: 'pull_request'; repoSlug: string; number: number; headSha: string }
+
 export interface DiffReviewAnchor {
-	runId: string
+	subject: DiffReviewSubject
 	issueId?: string | null
 	filePath: string
 	oldPath?: string | null
@@ -36,7 +41,7 @@ export interface DiffReviewAnchor {
 }
 
 export interface DiffPatchReview {
-	runId: string
+	subject: DiffReviewSubject
 	filePath: string
 	oldPath?: string | null
 	baseRef: string
@@ -68,7 +73,7 @@ export interface DiffReviewThread {
 }
 
 export interface DiffReviewFileState {
-	runId: string
+	subject: DiffReviewSubject
 	issueId?: string | null
 	filePath: string
 	oldPath?: string | null
@@ -78,7 +83,7 @@ export interface DiffReviewFileState {
 }
 
 export interface DiffReviewState {
-	runId: string
+	subject: DiffReviewSubject
 	threads: DiffReviewThread[]
 	reviewedFiles: DiffReviewFileState[]
 	unresolvedThreadCount: number

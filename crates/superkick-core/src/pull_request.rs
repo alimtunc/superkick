@@ -211,6 +211,171 @@ pub struct PrDiffFile {
     pub position: u32,
 }
 
+/// Operator-submitted GitHub review action (SUP-205).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrReviewEvent {
+    Comment,
+    Approve,
+    RequestChanges,
+}
+
+impl PrReviewEvent {
+    /// GitHub Reviews API `event` value.
+    pub fn as_github_event(self) -> &'static str {
+        match self {
+            Self::Comment => "COMMENT",
+            Self::Approve => "APPROVE",
+            Self::RequestChanges => "REQUEST_CHANGES",
+        }
+    }
+}
+
+/// A GitHub review's state, or a PR's aggregate `reviewDecision`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GithubReviewDecision {
+    Approved,
+    ChangesRequested,
+    Commented,
+    Pending,
+    Dismissed,
+    ReviewRequired,
+}
+
+impl GithubReviewDecision {
+    pub fn from_github(raw: &str) -> Option<Self> {
+        match raw.trim().to_ascii_uppercase().as_str() {
+            "APPROVED" => Some(Self::Approved),
+            "CHANGES_REQUESTED" => Some(Self::ChangesRequested),
+            "COMMENTED" => Some(Self::Commented),
+            "PENDING" => Some(Self::Pending),
+            "DISMISSED" => Some(Self::Dismissed),
+            "REVIEW_REQUIRED" => Some(Self::ReviewRequired),
+            _ => None,
+        }
+    }
+}
+
+/// Linear-like grouping for the `/reviews` inbox.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewBucket {
+    NeedsYourReview,
+    ChangesRequested,
+    ReadyToMerge,
+    CreatedByYou,
+    WaitingForReview,
+    Drafts,
+    Completed,
+}
+
+/// Classify a PR into its inbox bucket. Pure: takes everything it needs as
+/// arguments so the grouping logic is unit-testable without GitHub access.
+pub fn classify_review_bucket(
+    state: PrState,
+    is_draft: bool,
+    decision: Option<GithubReviewDecision>,
+    author_login: &str,
+    requested_reviewers: &[String],
+    viewer_login: Option<&str>,
+) -> ReviewBucket {
+    if state.is_terminal() {
+        return ReviewBucket::Completed;
+    }
+    if is_draft {
+        return ReviewBucket::Drafts;
+    }
+    let viewer = viewer_login.map(|login| login.trim().to_ascii_lowercase());
+    let is_author = viewer
+        .as_deref()
+        .is_some_and(|viewer| viewer == author_login.trim().to_ascii_lowercase());
+    let is_requested_reviewer = viewer.as_deref().is_some_and(|viewer| {
+        requested_reviewers
+            .iter()
+            .any(|reviewer| reviewer.trim().to_ascii_lowercase() == viewer)
+    });
+    if is_requested_reviewer && !is_author {
+        return ReviewBucket::NeedsYourReview;
+    }
+    match decision {
+        Some(GithubReviewDecision::ChangesRequested) => return ReviewBucket::ChangesRequested,
+        Some(GithubReviewDecision::Approved) => return ReviewBucket::ReadyToMerge,
+        _ => {}
+    }
+    if is_author {
+        return ReviewBucket::CreatedByYou;
+    }
+    ReviewBucket::WaitingForReview
+}
+
+/// A reviewer on a PR and, when known, the state of their latest review.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrReviewer {
+    pub login: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state: Option<GithubReviewDecision>,
+}
+
+/// A PR row in the `/reviews` inbox, with everything the grouped list needs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrInboxItem {
+    pub repo_slug: String,
+    pub number: u32,
+    pub title: String,
+    pub url: String,
+    pub state: PrState,
+    pub is_draft: bool,
+    pub author: String,
+    pub head_branch: String,
+    pub base_branch: String,
+    pub head_sha: String,
+    pub reviewers: Vec<PrReviewer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub review_decision: Option<GithubReviewDecision>,
+    pub review_comment_count: u32,
+    pub bucket: ReviewBucket,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linked_issue_identifier: Option<String>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// PR detail header for the review workspace.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrReviewDetail {
+    pub pull_request: PrInboxItem,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linked_issue_id: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// A single GitHub activity entry rendered in the PR Activity tab.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrActivityKind {
+    Opened,
+    ReviewRequested,
+    Commented,
+    ReviewSubmitted,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrActivityEvent {
+    pub kind: PrActivityKind,
+    pub actor: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision: Option<GithubReviewDecision>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_path: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
 /// Normalized reference parsed from a GitHub PR URL.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct GitHubPullRequestRef {
@@ -320,6 +485,76 @@ mod tests {
         assert!(ShipMode::Draft.is_draft());
         assert!(!ShipMode::Ready.is_draft());
         assert!(!ShipMode::PushOnly.is_draft());
+    }
+
+    #[test]
+    fn pr_review_event_maps_to_github() {
+        assert_eq!(PrReviewEvent::Comment.as_github_event(), "COMMENT");
+        assert_eq!(PrReviewEvent::Approve.as_github_event(), "APPROVE");
+        assert_eq!(
+            PrReviewEvent::RequestChanges.as_github_event(),
+            "REQUEST_CHANGES"
+        );
+    }
+
+    #[test]
+    fn classify_review_bucket_precedence() {
+        // terminal wins over everything.
+        assert_eq!(
+            classify_review_bucket(PrState::Merged, false, None, "alice", &[], Some("bob")),
+            ReviewBucket::Completed
+        );
+        // draft before reviewer/author checks.
+        assert_eq!(
+            classify_review_bucket(PrState::Draft, true, None, "bob", &[], Some("bob")),
+            ReviewBucket::Drafts
+        );
+        // viewer is a requested reviewer (and not author).
+        assert_eq!(
+            classify_review_bucket(
+                PrState::Open,
+                false,
+                None,
+                "alice",
+                &["bob".into()],
+                Some("BOB")
+            ),
+            ReviewBucket::NeedsYourReview
+        );
+        // changes requested outranks authorship.
+        assert_eq!(
+            classify_review_bucket(
+                PrState::Open,
+                false,
+                Some(GithubReviewDecision::ChangesRequested),
+                "bob",
+                &[],
+                Some("bob")
+            ),
+            ReviewBucket::ChangesRequested
+        );
+        // approved -> ready to merge.
+        assert_eq!(
+            classify_review_bucket(
+                PrState::Open,
+                false,
+                Some(GithubReviewDecision::Approved),
+                "alice",
+                &[],
+                Some("bob")
+            ),
+            ReviewBucket::ReadyToMerge
+        );
+        // author with no decision.
+        assert_eq!(
+            classify_review_bucket(PrState::Open, false, None, "bob", &[], Some("bob")),
+            ReviewBucket::CreatedByYou
+        );
+        // nothing else applies.
+        assert_eq!(
+            classify_review_bucket(PrState::Open, false, None, "alice", &[], Some("bob")),
+            ReviewBucket::WaitingForReview
+        );
     }
 
     #[test]

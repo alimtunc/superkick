@@ -73,7 +73,7 @@ pub mod tests_only {
             .collect::<Vec<_>>();
         render_diff_review_fix_prompt(
             issue_identifier,
-            source_run_id,
+            &format!("run {source_run_id}"),
             source_branch,
             base_ref,
             head_ref,

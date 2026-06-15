@@ -267,6 +267,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "052_launch_task_step_agent_ref",
             include_str!("../migrations/052_launch_task_step_agent_ref.sql"),
         ),
+        (
+            "053_diff_review_subjects",
+            include_str!("../migrations/053_diff_review_subjects.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

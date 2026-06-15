@@ -26,6 +26,7 @@ pub mod launch_task_step_runner;
 pub mod linear_context;
 pub mod mcp_policy;
 pub mod ownership_service;
+pub mod pr_review_service;
 pub mod protocol_adapter;
 pub mod pty_io;
 pub mod pty_session;
@@ -76,6 +77,7 @@ pub use launch_task_liveness::{
     spawn_launch_task_liveness_sweep,
 };
 pub use launch_task_registry::{CancelDecision, LaunchTaskRegistry, ReservedSlot};
+pub use pr_review_service::{PrReviewService, PrReviewServiceError, PrReviewSubmitOutcome};
 
 /// Namespace for the SUP-124 production `StepRunner` and its construction
 /// deps. Grouped under their own path so the flat crate prelude doesn't grow

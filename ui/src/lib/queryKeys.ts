@@ -16,6 +16,14 @@ export const queryKeys = {
 		diff: (id: string) => ['runs', id, 'diff'] as const,
 		review: (id: string) => ['runs', id, 'review'] as const
 	},
+	reviews: {
+		all: ['reviews'] as const,
+		inbox: ['reviews', 'inbox'] as const,
+		detail: (number: number) => ['reviews', number, 'detail'] as const,
+		diff: (number: number) => ['reviews', number, 'diff'] as const,
+		activity: (number: number) => ['reviews', number, 'activity'] as const,
+		localReview: (number: number, headSha: string) => ['reviews', number, 'review', headSha] as const
+	},
 	dashboard: {
 		all: ['dashboard'] as const,
 		queue: ['dashboard', 'queue'] as const

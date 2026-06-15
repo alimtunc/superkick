@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 
 use superkick_core::{
     DiffReviewAnchor, DiffReviewComment, DiffReviewCommentId, DiffReviewFileReviewedChange,
-    DiffReviewFileState, DiffReviewLineSide, DiffReviewState, DiffReviewThread, DiffReviewThreadId,
-    ExecutionMode, NewDiffReviewComment, NewDiffReviewThread, Run, RunContextSnapshot, RunId,
+    DiffReviewFileState, DiffReviewLineSide, DiffReviewState, DiffReviewSubject, DiffReviewThread,
+    DiffReviewThreadId, NewDiffReviewComment, NewDiffReviewThread, Run, RunContextSnapshot, RunId,
     render_diff_review_fix_prompt, unresolved_diff_review_fix_prompt_comments,
 };
 use superkick_runtime::refresh_run_context_snapshot;
@@ -22,7 +22,7 @@ use superkick_storage::{SqliteDiffReviewRepo, SqliteRunRepo};
 
 use crate::AppState;
 use crate::error::AppError;
-use crate::handlers::runs::{CreateRunRequest, spawn_run_from_request};
+use crate::handlers::runs::spawn_diff_review_fix_run;
 
 #[derive(Clone)]
 pub struct RunReviewState {
@@ -112,7 +112,7 @@ pub async fn create_thread(
         .review_repo
         .create_thread(NewDiffReviewThread {
             anchor: DiffReviewAnchor {
-                run_id,
+                subject: DiffReviewSubject::run(run_id),
                 issue_id: Some(run.issue_id),
                 file_path: body.file_path,
                 old_path: normalize_optional(body.old_path),
@@ -246,7 +246,7 @@ pub async fn set_file_reviewed(
     let reviewed = state
         .review_repo
         .set_file_reviewed(DiffReviewFileReviewedChange {
-            run_id,
+            subject: DiffReviewSubject::run(run_id),
             issue_id: Some(run.issue_id),
             file_path: body.file_path,
             old_path: normalize_optional(body.old_path),
@@ -293,27 +293,20 @@ pub async fn fix_with_ai(
     let snapshot_json = snapshot.as_deref();
     let prompt = render_diff_review_fix_prompt(
         &run.issue_identifier,
-        run_id,
+        &format!("run {run_id}"),
         Some(source_branch.as_str()),
         base_ref,
         head_ref,
         &comments,
         snapshot_json,
     );
-    let new_run = spawn_run_from_request(
+    let new_run = spawn_diff_review_fix_run(
         &state,
-        CreateRunRequest {
-            repo_slug: run.repo_slug,
-            issue_id: run.issue_id,
-            issue_identifier: run.issue_identifier,
-            base_branch: Some(source_branch),
-            use_worktree: Some(true),
-            execution_mode: ExecutionMode::FullAuto,
-            operator_instructions: Some(prompt),
-            planner_agent: None,
-            coder_agent: None,
-            reviewer_agent: None,
-        },
+        run.repo_slug,
+        run.issue_id,
+        run.issue_identifier,
+        source_branch,
+        prompt,
     )
     .await?;
 
@@ -341,7 +334,7 @@ async fn require_thread_for_run(
         .get_thread(thread_id)
         .await?
         .ok_or(AppError::NotFound("review thread not found"))?;
-    if thread.anchor.run_id != run_id {
+    if thread.anchor.subject.run_id() != Some(run_id) {
         return Err(AppError::NotFound("review thread not found"));
     }
     Ok(thread)

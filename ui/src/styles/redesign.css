@@ -1894,6 +1894,39 @@
 .comment-card__body p:last-child {
 	margin: 0;
 }
+.comment-card__body ul,
+.comment-card__body ol {
+	margin: 0 0 var(--space-3);
+	padding-left: var(--space-6);
+}
+.comment-card__body ul {
+	list-style: disc;
+}
+.comment-card__body ol {
+	list-style: decimal;
+}
+.comment-card__body li {
+	margin-bottom: var(--space-1);
+}
+.comment-card__body h2,
+.comment-card__body h3 {
+	margin: var(--space-4) 0 var(--space-2);
+	font-size: var(--text-13);
+	font-weight: var(--fw-semibold);
+	color: var(--fg);
+}
+.comment-card__body pre {
+	margin: 0 0 var(--space-3);
+	padding: var(--space-3) var(--space-4);
+	overflow-x: auto;
+	background: var(--bg-app);
+	border: 1px solid var(--border-faint);
+	border-radius: var(--radius-md);
+	font-size: var(--text-12);
+}
+.comment-card__body :last-child {
+	margin-bottom: 0;
+}
 
 /* threaded replies (IssueComment.parent_id / CommentNode.children) */
 .comment-replies {
