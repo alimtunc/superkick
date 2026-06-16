@@ -1,7 +1,7 @@
 # Compile check (fast: no lint, no fmt)
 check:
     cargo check --workspace
-    cd ui && pnpm exec tsc -b
+    cd apps/web && pnpm exec tsc -b
 
 # Run API + dashboard in parallel.
 # API writes .superkick-port on bind; dashboard reads it for proxy target.
@@ -12,7 +12,7 @@ dev-api:
     cargo run -p superkick-api
 
 dashboard:
-    cd ui && pnpm dev
+    cd apps/web && pnpm dev
 
 # Wait until the API has written its port file (max 10s).
 _wait-for-api:
@@ -21,11 +21,11 @@ _wait-for-api:
 # Build everything
 build:
     cargo build
-    cd ui && pnpm build
+    cd apps/web && pnpm build
 
 # Build UI + an embedded-ui server, then run the Tauri desktop shell. Leaves `dev` untouched. macOS: needs Xcode CLT.
 tauri-dev:
-    cd ui && pnpm build
+    cd apps/web && pnpm build
     cargo build -p superkick-api --features embedded-ui
     cargo run -p superkick-desktop
 
@@ -35,11 +35,11 @@ tauri-build:
 
 # Bundle the desktop app (API as embedded-ui sidecar) and install it into /Applications. macOS only.
 tauri-install:
-    cd ui && pnpm build
+    cd apps/web && pnpm build
     cargo build -p superkick-api --release --features embedded-ui
-    mkdir -p src-tauri/binaries
-    cp target/release/superkick-api src-tauri/binaries/superkick-api-$(rustc --print host-tuple)
-    cargo tauri build --bundles app --config src-tauri/tauri.bundle.conf.json
+    mkdir -p apps/desktop/binaries
+    cp target/release/superkick-api apps/desktop/binaries/superkick-api-$(rustc --print host-tuple)
+    cargo tauri build --bundles app --config apps/desktop/tauri.bundle.conf.json
     rm -rf /Applications/Superkick.app
     cp -R target/release/bundle/macos/Superkick.app /Applications/
     @echo "Installed /Applications/Superkick.app"
@@ -47,18 +47,18 @@ tauri-install:
 # Format everything
 fmt:
     cargo fmt
-    cd ui && pnpm fmt
+    cd apps/web && pnpm fmt
 
 # Lint everything (same as lefthook pre-commit)
 lint:
     cargo fmt -- --check
     cargo clippy --workspace --all-targets --all-features -- -D warnings
-    cd ui && pnpm lint
-    cd ui && pnpm fmt:check
+    cd apps/web && pnpm lint
+    cd apps/web && pnpm fmt:check
 
 # Capture Issue-centered V1 mockup/app/diff screenshots.
 visual-parity *args:
-    cd ui && pnpm visual:parity -- {{args}}
+    cd apps/web && pnpm visual:parity -- {{args}}
 
 # Run local superkick CLI (pass args: just superkick watch ...)
 superkick *args:
@@ -66,17 +66,17 @@ superkick *args:
 
 # Install local build as global binary, bundling the dashboard
 install:
-    cd ui && pnpm install --frozen-lockfile && pnpm build
+    pnpm install --frozen-lockfile && pnpm -C apps/web build
     cargo install --path crates/superkick-cli --features embedded-ui --force
 
 # Fetch all dependencies (Rust + JS) in parallel
 deps:
-    cargo fetch & (cd ui && pnpm install) & wait
+    cargo fetch & (cd apps/web && pnpm install) & wait
 
 # Clean build artifacts
 clean:
     cargo clean
-    rm -rf ui/dist ui/node_modules/.vite
+    rm -rf apps/web/dist apps/web/node_modules/.vite
 
 # SUP-137 — V1 release-validation harness.
 # Spawns real provider CLIs against the canonical V1 issue. Opt-in: the

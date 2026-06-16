@@ -1,0 +1,7 @@
+packages:
+  - apps/web
+
+# Build approval (pnpm). Kept at the workspace root so every app inherits it.
+allowBuilds:
+  lefthook: true
+  msw: false

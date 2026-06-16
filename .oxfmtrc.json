@@ -1,5 +1,5 @@
 {
-	"$schema": "./ui/node_modules/oxfmt/configuration_schema.json",
+	"$schema": "./apps/web/node_modules/oxfmt/configuration_schema.json",
 	"singleQuote": true,
 	"semi": false,
 	"trailingComma": "none",
@@ -26,7 +26,7 @@
 		"internalPattern": ["@superkick/", "~/"]
 	},
 	"sortTailwindcss": {
-		"stylesheet": "./ui/src/index.css",
+		"stylesheet": "./apps/web/src/index.css",
 		"functions": ["cn", "cva"]
 	}
 }

@@ -115,7 +115,7 @@ superkick status        # server health + active runs
 **Dashboard:**
 
 ```bash
-cd ui && pnpm dev       # starts on http://localhost:5173
+cd apps/web && pnpm dev       # starts on http://localhost:5173
 ```
 
 The dashboard shows KPIs, active runs, and an attention zone for blocked work.

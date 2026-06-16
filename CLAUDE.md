@@ -7,8 +7,22 @@ Rust workspace backend + React 19 dashboard UI.
 
 - **Backend**: Rust workspace (edition 2024, MSRV 1.85) — axum, tokio, sqlx/sqlite, serde, thiserror, anyhow.
   Crates: `superkick-api`, `superkick-core`, `superkick-config`, `superkick-runtime`, `superkick-storage`, `superkick-integrations`.
-- **Frontend**: React 19 in `ui/` — Vite, Tailwind v4, TanStack (Router, Query, Form), zustand, shadcn / base-ui.
+- **Frontend**: React 19 in `apps/web/` — Vite, Tailwind v4, TanStack (Router, Query, Form), zustand, shadcn / base-ui.
 - **No** Next.js, no server components, no react-router-dom.
+
+## Monorepo layout
+
+```txt
+apps/web/      # React/Vite dashboard (pnpm workspace package)
+apps/desktop/  # Tauri shell (superkick-desktop crate)
+crates/        # Rust backend crates (kept here — the idiomatic Rust workspace boundary)
+packages/      # future shared TS only, when a second consumer is real (do not pre-create)
+```
+
+The pnpm workspace root is the repo root (`pnpm-workspace.yaml` lists `apps/web`); run `pnpm` from
+root or `pnpm -C apps/web …`. Inside `apps/web/src`, shared UI is layered
+`components/{primitives,composites,app}` with feature UI in `domains/*` — see
+`docs/conventions/frontend.md`. There is no `src/ui` folder.
 
 ## Conventions (read these before editing)
 
@@ -29,7 +43,7 @@ The highest-leverage rules — violate these and the cost to rattrape is real. F
 4. **React 19 bans: `forwardRef`, `React.FC`, `JSX.Element`, `defaultProps`.** Ref is a standard prop; use typed functions and `ReactNode`.
 5. **Conditional rendering:** `cond ? <X /> : null`. Never `cond && <X />` (falsy values render as `0` / `""`).
 6. **Named exports only.** No `export default`. One component per file.
-7. **Shared types in `ui/src/types/**`** via barrel import. Colocate only `*Props` and hook return types.
+7. **Shared types in `apps/web/src/types/**`** via barrel import. Colocate only `*Props` and hook return types.
 8. **No `any`.** Use `unknown` and narrow at boundaries.
 9. **Integration tests hit a real SQLite.** Never mock the storage layer — mocked migrations have lied to us before.
 10. **Never commit unless asked. Never on `main`. Never with `Co-Authored-By` or `--no-verify`.**

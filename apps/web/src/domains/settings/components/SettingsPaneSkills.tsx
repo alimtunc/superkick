@@ -1,0 +1,161 @@
+import { useState } from 'react'
+
+import { ConfirmDialog } from '@/components/composites/confirm-dialog'
+import { Button, Pill, AsyncSection, Toggle } from '@/components/primitives'
+import { SettingsPaneHeader } from '@/domains/settings/components/SettingsPaneHeader'
+import { SettingsRow } from '@/domains/settings/components/SettingsRow'
+import { SettingsSection } from '@/domains/settings/components/SettingsSection'
+import { SkillEditor } from '@/domains/settings/components/SkillEditor'
+import { SkillImportDialog } from '@/domains/settings/components/SkillImportDialog'
+import { useSkills } from '@/hooks/useSkills'
+import { SKILL_KIND_LABEL } from '@/lib/launchConfigOptions'
+import { appendUsageWarning } from '@/lib/profiles'
+import { skillUsagesQuery } from '@/lib/queries'
+import { blankSkill, skillDeleteDescription, skillSourceLabel } from '@/lib/skills'
+import type { SkillDefinition } from '@/types'
+import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
+
+type EditorState = { open: false } | { open: true; mode: 'create' | 'edit'; seed: SkillDefinition }
+
+export function SettingsPaneSkills() {
+	const { skills, isLoading, error, createSkill, updateSkill, deleteSkill, isMutating } = useSkills()
+	const [editor, setEditor] = useState<EditorState>({ open: false })
+	const [importOpen, setImportOpen] = useState(false)
+	const [pendingDelete, setPendingDelete] = useState<SkillDefinition | null>(null)
+	const usages = useQuery(skillUsagesQuery(pendingDelete?.id ?? null, pendingDelete !== null)).data ?? []
+	const deleteDescription = pendingDelete
+		? appendUsageWarning(
+				skillDeleteDescription(pendingDelete.label, pendingDelete.origin === 'builtin'),
+				usages
+			)
+		: undefined
+
+	function openCreate(sourceKind: 'prompt' | 'installed') {
+		setEditor({ open: true, mode: 'create', seed: blankSkill(sourceKind) })
+	}
+
+	function openEdit(skill: SkillDefinition) {
+		setEditor({ open: true, mode: 'edit', seed: skill })
+	}
+
+	async function handleSubmit(skill: SkillDefinition) {
+		try {
+			if (editor.open && editor.mode === 'edit') {
+				await updateSkill({ id: skill.id, skill })
+			} else {
+				await createSkill(skill)
+			}
+			setEditor({ open: false })
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : 'Failed to save skill')
+		}
+	}
+
+	async function handleDelete(id: string) {
+		try {
+			await deleteSkill(id)
+			setPendingDelete(null)
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : 'Failed to delete skill')
+		}
+	}
+
+	return (
+		<section>
+			<SettingsPaneHeader
+				title="Skills"
+				description="The default skills (Plan, Implement, Review, Pre-PR review) plus your own custom and imported skills. Any skill can be edited, disabled, or deleted — deleting a built-in keeps it gone across restarts."
+			/>
+			<AsyncSection
+				isLoading={isLoading}
+				error={error}
+				isEmpty={skills.length === 0}
+				emptyTitle="No skills yet"
+			>
+				<SettingsSection title="Skills">
+					{skills.map((skill, index) => (
+						<SettingsRow
+							key={skill.id}
+							label={skill.label}
+							hint={`${SKILL_KIND_LABEL[skill.kind]} · ${skillSourceLabel(skill)}`}
+							last={index === skills.length - 1}
+						>
+							<div className="flex items-center gap-2">
+								<Pill tone={skill.origin === 'custom' ? 'accent' : 'neutral'}>
+									{skill.origin}
+								</Pill>
+								<Toggle
+									checked={skill.enabled}
+									ariaLabel={`${skill.label} enabled`}
+									disabled={isMutating}
+									onChange={(next) =>
+										updateSkill({ id: skill.id, skill: { ...skill, enabled: next } })
+									}
+								/>
+								<Button
+									variant="ghost"
+									size="sm"
+									disabled={isMutating}
+									onClick={() => openEdit(skill)}
+								>
+									Edit
+								</Button>
+								<Button
+									variant="ghost"
+									size="sm"
+									disabled={isMutating}
+									onClick={() => setPendingDelete(skill)}
+								>
+									Delete
+								</Button>
+							</div>
+						</SettingsRow>
+					))}
+				</SettingsSection>
+			</AsyncSection>
+
+			<div className="flex flex-wrap gap-2">
+				<Button size="sm" onClick={() => openCreate('prompt')}>
+					New prompt skill
+				</Button>
+				<Button variant="outline" size="sm" onClick={() => openCreate('installed')}>
+					New installed skill
+				</Button>
+				<Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+					Import from repo
+				</Button>
+			</div>
+
+			{editor.open ? (
+				<SkillEditor
+					open={editor.open}
+					seed={editor.seed}
+					mode={editor.mode}
+					busy={isMutating}
+					onOpenChange={(open) => {
+						if (!open) setEditor({ open: false })
+					}}
+					onSubmit={handleSubmit}
+				/>
+			) : null}
+
+			<SkillImportDialog open={importOpen} onOpenChange={setImportOpen} />
+
+			<ConfirmDialog
+				open={pendingDelete !== null}
+				onOpenChange={(open) => {
+					if (!open) setPendingDelete(null)
+				}}
+				title="Delete skill?"
+				description={deleteDescription}
+				confirmLabel="Delete"
+				destructive
+				busy={isMutating}
+				onConfirm={() => {
+					if (pendingDelete) handleDelete(pendingDelete.id)
+				}}
+			/>
+		</section>
+	)
+}

@@ -26,7 +26,11 @@ See `CLAUDE.md § Write-time defaults` — the ten highest-leverage rules.
 ## Stack
 
 - **Backend**: Rust workspace (edition 2024, MSRV 1.85) — axum, tokio, sqlx/sqlite, thiserror, anyhow. Crates: `superkick-api`, `superkick-core`, `superkick-config`, `superkick-runtime`, `superkick-storage`, `superkick-integrations`.
-- **Frontend**: React 19 in `ui/` — Vite, Tailwind v4, TanStack, zustand, shadcn / base-ui.
+- **Frontend**: React 19 in `apps/web/` — Vite, Tailwind v4, TanStack, zustand, shadcn / base-ui.
+
+## Monorepo layout
+
+`apps/web/` (React dashboard) · `apps/desktop/` (Tauri shell) · `crates/` (Rust backend) · `packages/` (future shared TS only). pnpm workspace root is the repo root. Inside `apps/web/src`, shared UI is layered `components/{primitives,composites,app}` with feature UI in `domains/*`; there is no `src/ui` folder. See `docs/conventions/frontend.md`.
 
 ## Commands
 

@@ -28,7 +28,7 @@ Applies during implementation and review.
 
 ## Frontend
 
-- Component tests go in `ui/src/**/*.test.tsx` next to the component.
+- Component tests go in `apps/web/src/**/*.test.tsx` next to the component.
 - Prefer behavior-level assertions (`getByRole`, `findByText`) over structure (`container.querySelector`).
   - **Why:** structural assertions break on any layout refactor; role-based ones survive.
 - No snapshot tests for interactive components — they rot fast and rubber-stamp regressions.
