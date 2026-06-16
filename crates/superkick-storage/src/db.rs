@@ -271,6 +271,14 @@ async fn run_migrations(pool: &SqlitePool) -> Result<()> {
             "053_diff_review_subjects",
             include_str!("../migrations/053_diff_review_subjects.sql"),
         ),
+        (
+            "054_builtin_deletions",
+            include_str!("../migrations/054_builtin_deletions.sql"),
+        ),
+        (
+            "055_drop_opinionated_launch_profiles",
+            include_str!("../migrations/055_drop_opinionated_launch_profiles.sql"),
+        ),
     ];
 
     for (name, sql) in migrations {

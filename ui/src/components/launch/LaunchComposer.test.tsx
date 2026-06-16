@@ -1,48 +1,20 @@
 import type { ReactNode } from 'react'
 
 import { LaunchComposer } from '@/components/launch/LaunchComposer'
-import { agentsQuery, issuesQuery, launchQueueQuery, skillsQuery } from '@/lib/queries'
+import { agentsQuery, issuesQuery, launchProfilesQuery } from '@/lib/queries'
+import { useLaunchComposerState } from '@/stores/launchComposerState'
 import type {
 	Agent,
 	CreateLaunchTaskRequest,
-	LaunchQueueResponse,
+	LaunchProfile,
 	LinearIssueListItem,
+	ProfileStep,
 	ServerConfigResponse
 } from '@/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-// SuggestedStarts subscribes to the workspace SSE feed on mount; jsdom has no
-// EventSource. Stub the global with a no-op so the composer renders cleanly.
-class FakeEventSource {
-	readyState = 0
-	url: string
-	constructor(url: string) {
-		this.url = url
-	}
-	addEventListener() {}
-	removeEventListener() {}
-	close() {}
-	onopen = null
-	onmessage = null
-	onerror = null
-}
-
-const originalEventSource = (globalThis as { EventSource?: unknown }).EventSource
-
-beforeAll(() => {
-	;(globalThis as { EventSource?: unknown }).EventSource = FakeEventSource
-})
-
-afterAll(() => {
-	if (originalEventSource === undefined) {
-		delete (globalThis as { EventSource?: unknown }).EventSource
-	} else {
-		;(globalThis as { EventSource?: unknown }).EventSource = originalEventSource
-	}
-})
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
 	createLaunchTask: vi.fn(),
@@ -83,36 +55,17 @@ const AGENTS: Agent[] = [
 		origin: 'custom',
 		avatar: null,
 		description: null
-	},
-	{
-		name: 'code-bot',
-		provider: 'claude',
-		role: 'coder',
-		model: 'sonnet-4.6',
-		runner_mode: 'interactive_pty',
-		executor: 'interactive_pty',
-		default_reasoning: 'medium',
-		enabled: true,
-		billing_profile: 'subscription',
-		origin: 'custom',
-		avatar: null,
-		description: null
-	},
-	{
-		name: 'review-bot',
-		provider: 'codex',
-		role: 'reviewer',
-		model: null,
-		runner_mode: 'exec_json',
-		executor: 'codex_structured',
-		default_reasoning: 'medium',
-		enabled: true,
-		billing_profile: 'api_credits',
-		origin: 'custom',
-		avatar: null,
-		description: null
 	}
 ]
+
+const CUSTOM_PROFILE: LaunchProfile = {
+	id: 'custom',
+	name: 'Custom',
+	kind: 'custom',
+	is_default: true,
+	is_readonly: true,
+	steps: []
+}
 
 const ISSUE: LinearIssueListItem = {
 	id: 'issue-uuid-1',
@@ -133,19 +86,19 @@ const ISSUE: LinearIssueListItem = {
 	completed_at: null
 }
 
-const EMPTY_LAUNCH_QUEUE: LaunchQueueResponse = {
-	generated_at: '2026-05-21T00:00:00Z',
-	active_capacity: { current: 0, max: 4 },
-	groups: {
-		backlog: [],
-		todo: [],
-		launchable: [],
-		waiting: [],
-		blocked: [],
-		active: [],
-		'needs-human': [],
-		'in-pr': [],
-		done: []
+function agentStep(): ProfileStep {
+	return {
+		ordering: 1,
+		label: 'plan-bot',
+		skill_ref: 'implement',
+		agent_ref: 'plan-bot',
+		provider: 'claude',
+		model: 'sonnet-4.6',
+		reasoning: 'medium',
+		executor: 'interactive_pty',
+		session_policy: 'fresh',
+		output_expectation: 'patch',
+		enabled: true
 	}
 }
 
@@ -155,17 +108,22 @@ function buildClient(overrides: { config?: ServerConfigResponse; issues?: Linear
 	})
 	client.setQueryData(['config'], overrides.config ?? CONFIG)
 	client.setQueryData(agentsQuery().queryKey, AGENTS)
+	client.setQueryData(launchProfilesQuery().queryKey, [CUSTOM_PROFILE])
 	client.setQueryData(issuesQuery().queryKey, {
 		issues: overrides.issues ?? [ISSUE],
 		total_count: (overrides.issues ?? [ISSUE]).length
 	})
-	client.setQueryData(launchQueueQuery().queryKey, EMPTY_LAUNCH_QUEUE)
-	client.setQueryData(skillsQuery().queryKey, [])
 	return client
 }
 
 function wrap(node: ReactNode, client = buildClient()) {
 	return <QueryClientProvider client={client}>{node}</QueryClientProvider>
+}
+
+/** Seed the composer store with one enabled agent step so Launch is enabled —
+ *  the composer's mount effect skips re-selecting once `profileId` is set. */
+function seedAgentStep() {
+	useLaunchComposerState.setState({ profileId: 'custom', steps: [agentStep()] })
 }
 
 async function pickIssue(user: ReturnType<typeof userEvent.setup>) {
@@ -175,12 +133,13 @@ async function pickIssue(user: ReturnType<typeof userEvent.setup>) {
 
 describe('LaunchComposer', () => {
 	beforeEach(() => {
+		useLaunchComposerState.getState().reset()
 		mocks.createLaunchTask.mockReset()
 		mocks.createLaunchTask.mockResolvedValue({
 			task: {
 				id: 'task-uuid-1',
 				linear_issue_id: 'SUP-159',
-				recipe_kind: 'plan_implement_review',
+				recipe_kind: 'dynamic',
 				status: 'pending',
 				current_step_id: null,
 				summary: null,
@@ -189,6 +148,10 @@ describe('LaunchComposer', () => {
 			},
 			steps: []
 		})
+	})
+
+	afterEach(() => {
+		useLaunchComposerState.getState().reset()
 	})
 
 	it('renders execution-target controls seeded from server config', () => {
@@ -203,8 +166,21 @@ describe('LaunchComposer', () => {
 		expect(destination).toHaveTextContent('main')
 	})
 
-	it('submits the default payload — worktree + configured base branch', async () => {
+	it('offers an Add agent step control', () => {
+		render(wrap(<LaunchComposer issue={null} prefill="ship the composer" />))
+		expect(screen.getByRole('button', { name: 'Add agent step' })).toBeInTheDocument()
+	})
+
+	it('keeps Launch disabled until an enabled step has an agent', async () => {
+		render(wrap(<LaunchComposer issue={null} prefill="ship the composer" />))
+		await pickIssue(userEvent.setup())
+		// No agent steps yet → launch is blocked.
+		expect(screen.getByRole('button', { name: 'Launch task' })).toBeDisabled()
+	})
+
+	it('submits a dynamic payload with the custom profile + agent step overrides', async () => {
 		const user = userEvent.setup()
+		seedAgentStep()
 		render(wrap(<LaunchComposer issue={null} prefill="ship the composer" />))
 
 		await pickIssue(user)
@@ -212,18 +188,16 @@ describe('LaunchComposer', () => {
 
 		await waitFor(() => expect(mocks.createLaunchTask).toHaveBeenCalledTimes(1))
 		const payload = mocks.createLaunchTask.mock.calls[0][0] as CreateLaunchTaskRequest
-		expect(payload).toEqual({
-			linear_issue_id: 'SUP-159',
-			planner_agent: 'plan-bot',
-			coder_agent: 'code-bot',
-			reviewer_agent: 'review-bot',
-			base_branch: 'main',
-			use_worktree: true
-		})
+		expect(payload.linear_issue_id).toBe('SUP-159')
+		expect(payload.profile_id).toBe('custom')
+		expect(payload.base_branch).toBe('main')
+		expect(payload.use_worktree).toBe(true)
+		expect(payload.step_overrides?.[0]?.agent_ref).toBe('plan-bot')
 	})
 
 	it('persists operator overrides into the submit payload', async () => {
 		const user = userEvent.setup()
+		seedAgentStep()
 		render(wrap(<LaunchComposer issue={null} prefill="ship the composer" />))
 
 		await pickIssue(user)

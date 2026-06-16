@@ -21,14 +21,14 @@ use superkick_runtime::{
 };
 use superkick_storage::{
     SqliteAgentDefinitionRepo, SqliteAgentSessionRepo, SqliteArtifactRepo,
-    SqliteAttentionRequestRepo, SqliteConversationRepo, SqliteDiffReviewRepo, SqliteInterruptRepo,
-    SqliteIssueBlockerRepo, SqliteIssueCleanRepo, SqliteIssuePullRequestRepo,
-    SqliteIssueWorkspaceContextRepo, SqliteLaunchProfileRepo, SqliteLaunchTaskInterventionRepo,
-    SqliteLaunchTaskRepo, SqliteMemoryEntryRepo, SqliteOrchestratorSessionRepo,
-    SqliteProviderSettingsRepo, SqlitePullRequestRepo, SqliteRecoveryEventRepo,
-    SqliteRunContextSnapshotRepo, SqliteRunEventRepo, SqliteRunRepo, SqliteRunStepRepo,
-    SqliteRuntimeRepo, SqliteSessionOwnershipRepo, SqliteSkillDefinitionRepo, SqliteTranscriptRepo,
-    SqliteTurnEventRepo, SqliteTurnRepo,
+    SqliteAttentionRequestRepo, SqliteBuiltinDeletionRepo, SqliteConversationRepo,
+    SqliteDiffReviewRepo, SqliteInterruptRepo, SqliteIssueBlockerRepo, SqliteIssueCleanRepo,
+    SqliteIssuePullRequestRepo, SqliteIssueWorkspaceContextRepo, SqliteLaunchProfileRepo,
+    SqliteLaunchTaskInterventionRepo, SqliteLaunchTaskRepo, SqliteMemoryEntryRepo,
+    SqliteOrchestratorSessionRepo, SqliteProviderSettingsRepo, SqlitePullRequestRepo,
+    SqliteRecoveryEventRepo, SqliteRunContextSnapshotRepo, SqliteRunEventRepo, SqliteRunRepo,
+    SqliteRunStepRepo, SqliteRuntimeRepo, SqliteSessionOwnershipRepo, SqliteSkillDefinitionRepo,
+    SqliteTranscriptRepo, SqliteTurnEventRepo, SqliteTurnRepo,
 };
 
 mod error;
@@ -125,9 +125,13 @@ pub(crate) struct AppState {
     /// read/write them directly, the composer resolves launches via the service.
     pub provider_settings_repo: Arc<SqliteProviderSettingsRepo>,
     pub skill_repo: Arc<SqliteSkillDefinitionRepo>,
+    /// Tombstones for hard-deleted builtin agents/skills so the boot seeder
+    /// never resurrects them. Shared by the agent service and the skill
+    /// delete handler.
+    pub builtin_deletion_repo: Arc<SqliteBuiltinDeletionRepo>,
     /// App-managed agent CRUD. A successful write rebuilds `agent_catalog` so
     /// launches see the edit; read and write handlers both route through it.
-    pub agent_service: Arc<AgentService<SqliteAgentDefinitionRepo>>,
+    pub agent_service: Arc<AgentService<SqliteAgentDefinitionRepo, SqliteBuiltinDeletionRepo>>,
     pub launch_profile_repo: Arc<SqliteLaunchProfileRepo>,
     pub launch_profile_service: Arc<ProdLaunchProfileService>,
     /// SUP-148 — append-only ledger entries scoped to an
@@ -308,6 +312,7 @@ async fn build_app_state(
     let issue_clean_repo = Arc::new(SqliteIssueCleanRepo::new(pool.clone()));
     let provider_settings_repo = Arc::new(SqliteProviderSettingsRepo::new(pool.clone()));
     let skill_repo = Arc::new(SqliteSkillDefinitionRepo::new(pool.clone()));
+    let builtin_deletion_repo = Arc::new(SqliteBuiltinDeletionRepo::new(pool.clone()));
     let agent_repo = Arc::new(SqliteAgentDefinitionRepo::new(pool.clone()));
     let launch_profile_repo = Arc::new(SqliteLaunchProfileRepo::new(pool.clone()));
     let launch_profile_service = Arc::new(LaunchProfileService::new(
@@ -337,6 +342,7 @@ async fn build_app_state(
     };
     let agent_service = Arc::new(AgentService::new(
         Arc::clone(&agent_repo),
+        Arc::clone(&builtin_deletion_repo),
         agent_catalog.clone(),
     ));
     let runtime_repo = Arc::new(SqliteRuntimeRepo::new(pool.clone()));
@@ -557,6 +563,7 @@ async fn build_app_state(
         issue_clean_repo,
         provider_settings_repo,
         skill_repo,
+        builtin_deletion_repo,
         agent_service,
         launch_profile_repo,
         launch_profile_service,
@@ -744,6 +751,10 @@ fn api_router(state: AppState) -> Router {
             post(handlers::pull_request_reviews::fix_with_ai),
         )
         .route("/runs/{id}/ship", post(handlers::runs::ship_run))
+        .route(
+            "/runs/{id}/ship/propose",
+            post(handlers::runs::propose_ship),
+        )
         .route("/runs/{id}/events", get(handlers::runs::get_run_events))
         .route(
             "/runs/{id}/events/log",

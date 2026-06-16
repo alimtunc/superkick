@@ -12,14 +12,19 @@ use sqlx::SqlitePool;
 use superkick_core::{CoreAgentDefinition, LaunchProfile, ProviderSettings, SkillDefinition};
 
 use crate::repo::{
-    AgentDefinitionRepo, LaunchProfileRepo, ProviderSettingsRepo, SkillDefinitionRepo,
+    AgentDefinitionRepo, BuiltinDeletionRepo, BuiltinKind, LaunchProfileRepo, ProviderSettingsRepo,
+    SkillDefinitionRepo,
 };
 use crate::sqlite::{
-    SqliteAgentDefinitionRepo, SqliteLaunchProfileRepo, SqliteProviderSettingsRepo,
-    SqliteSkillDefinitionRepo,
+    SqliteAgentDefinitionRepo, SqliteBuiltinDeletionRepo, SqliteLaunchProfileRepo,
+    SqliteProviderSettingsRepo, SqliteSkillDefinitionRepo,
 };
 
 pub async fn seed_defaults(pool: &SqlitePool) -> Result<()> {
+    let deletions = SqliteBuiltinDeletionRepo::new(pool.clone());
+    let deleted_skills = deletions.deleted_keys(BuiltinKind::Skill).await?;
+    let deleted_agents = deletions.deleted_keys(BuiltinKind::Agent).await?;
+
     let providers = SqliteProviderSettingsRepo::new(pool.clone());
     for settings in ProviderSettings::builtins() {
         providers
@@ -30,6 +35,10 @@ pub async fn seed_defaults(pool: &SqlitePool) -> Result<()> {
 
     let skills = SqliteSkillDefinitionRepo::new(pool.clone());
     for skill in SkillDefinition::builtins() {
+        // A hard-deleted builtin stays gone across reboots.
+        if deleted_skills.contains(&skill.id) {
+            continue;
+        }
         skills
             .insert_if_absent(&skill)
             .await
@@ -44,6 +53,9 @@ pub async fn seed_defaults(pool: &SqlitePool) -> Result<()> {
 
     let agents = SqliteAgentDefinitionRepo::new(pool.clone());
     for agent in CoreAgentDefinition::builtins() {
+        if deleted_agents.contains(&agent.name) {
+            continue;
+        }
         agents
             .insert_if_absent(&agent)
             .await

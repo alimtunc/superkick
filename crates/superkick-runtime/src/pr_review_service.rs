@@ -86,8 +86,8 @@ where
             .map_err(|_| PrReviewServiceError::GitHubAuth)
     }
 
-    /// PRs of the current project grouped Linear-like. Opens dominate; a bounded
-    /// window of merged/closed feeds the Completed bucket.
+    /// PRs of the current project, grouped Linear-like. Opens dominate; a bounded
+    /// window of merged/closed feeds the Completed bucket (collapsed in the UI).
     pub async fn inbox(&self) -> Result<Vec<PrInboxItem>, PrReviewServiceError> {
         if self.default_repo_slug.trim().is_empty() {
             return Err(PrReviewServiceError::Invalid(
@@ -134,9 +134,11 @@ where
             .await
             .map_err(PrReviewServiceError::GitHub)?;
         let created_at = summary.created_at;
+        let body = summary.body.clone();
         let pull_request = self.inbox_item(summary, viewer.as_deref(), linked_issue_identifier);
         Ok(PrReviewDetail {
             pull_request,
+            body,
             linked_issue_id,
             created_at,
         })
@@ -297,6 +299,7 @@ where
             review_comment_count: 0,
             bucket,
             linked_issue_identifier,
+            checks: summary.checks,
             updated_at: summary.updated_at,
         }
     }

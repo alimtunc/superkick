@@ -99,6 +99,7 @@ where
         title: &str,
         body: &str,
         head_branch: Option<&str>,
+        commit_message: Option<&str>,
     ) -> Result<ShipOutcome, ShipError> {
         // Server-authoritative gate: the UI only offers Ship on a succeeded launch
         // task, but the run-scoped endpoint is directly reachable, so refuse to
@@ -148,7 +149,13 @@ where
             .await
             .map_err(ShipError::Git)?;
 
-        let commit_msg = crate::git_ship::default_commit_message(&run.issue_identifier);
+        // Operator-edited (often AI-proposed) commit message wins; fall back to
+        // the conventional default when blank/omitted.
+        let commit_msg = commit_message
+            .map(str::trim)
+            .filter(|m| !m.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| crate::git_ship::default_commit_message(&run.issue_identifier));
         crate::git_ship::commit_all_if_dirty(worktree, &commit_msg)
             .await
             .map_err(ShipError::Git)?;

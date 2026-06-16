@@ -15,7 +15,8 @@ interface SkillPickerProps {
  *  catalog and renders attached skills as removable chips. */
 export function SkillPicker({ value, onChange }: SkillPickerProps) {
 	const { skills } = useSkills()
-	const available = skills.filter((skill) => !value.includes(skill.id))
+	// Disabled skills are not offered for attachment (mirrors the launch picker).
+	const available = skills.filter((skill) => !value.includes(skill.id) && skill.enabled)
 
 	function add(id: string) {
 		onChange([...value, id])

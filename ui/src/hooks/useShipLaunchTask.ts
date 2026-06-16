@@ -15,6 +15,8 @@ interface ShipSubmit {
 	mode: ShipMode
 	title: string
 	body: string
+	/** Commit message for the publish commit, or null for the server default. */
+	commitMessage: string | null
 	/** Head-branch rename to request, or null to keep the run branch. */
 	headBranch: string | null
 	/** Linear comment to post, or null to skip. */
@@ -35,8 +37,9 @@ export function useShipLaunchTask(params: UseShipLaunchTaskParams) {
 	const queryClient = useQueryClient()
 
 	return useMutation<ShipRunResponse, Error, ShipSubmit>({
-		mutationFn: async ({ mode, title, body, headBranch, comment, statusStateId }) => {
+		mutationFn: async ({ mode, title, body, commitMessage, headBranch, comment, statusStateId }) => {
 			const request: ShipRunRequest = { mode, title, body }
+			if (commitMessage !== null) request.commitMessage = commitMessage
 			if (headBranch !== null) request.headBranch = headBranch
 			const result = await shipRun(params.runId, request)
 			const linearWarnings: string[] = []

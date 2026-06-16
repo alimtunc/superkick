@@ -1,4 +1,5 @@
 import { ExecutionModeBadge, PrStateBadge } from '@/components/badges'
+import { ExternalLink } from '@/components/ui/external-link'
 import { fmtElapsed, fmtRelativeTime, providerLabel, stepLabel } from '@/lib/domain'
 import {
 	attentionHint,
@@ -111,14 +112,9 @@ export function RunHero({ run, pr, sessions, attentionRequests, interrupts, refT
 								Pull request
 							</dt>
 							<dd className="font-data mt-0.5 flex items-center gap-1.5 text-[12px]">
-								<a
-									href={pr.url}
-									target="_blank"
-									rel="noopener noreferrer"
-									className="text-success hover:text-success/80"
-								>
+								<ExternalLink href={pr.url} className="text-success hover:text-success/80">
 									#{pr.number}
-								</a>
+								</ExternalLink>
 								<PrStateBadge state={pr.state} />
 							</dd>
 						</div>

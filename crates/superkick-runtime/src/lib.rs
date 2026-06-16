@@ -41,6 +41,7 @@ mod run_events;
 pub mod run_service;
 pub mod runner_mode;
 pub mod session_bus;
+pub mod ship_proposal;
 pub mod skill_import;
 pub mod step_engine;
 pub mod step_failure_classifier;

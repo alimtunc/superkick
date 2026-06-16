@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { fetchTerminalHistory, terminalWsUrl } from '@/api'
+import { openExternal } from '@/lib/openExternal'
 import type { TerminalCapabilities, TerminalStatus } from '@/types'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -84,7 +85,12 @@ export function PtyTerminal({ runId, isTerminal, wsUrl, loadHistoryOnTerminal = 
 
 		const fitAddon = new FitAddon()
 		terminal.loadAddon(fitAddon)
-		terminal.loadAddon(new WebLinksAddon())
+		terminal.loadAddon(
+			new WebLinksAddon((event, uri) => {
+				event.preventDefault()
+				void openExternal(uri)
+			})
+		)
 
 		terminal.open(containerRef.current)
 		fitAddon.fit()

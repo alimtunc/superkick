@@ -318,6 +318,52 @@ pub struct PrReviewer {
     pub state: Option<GithubReviewDecision>,
 }
 
+/// Aggregate state of a PR's CI status-check rollup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrChecksState {
+    Pending,
+    Passing,
+    Failing,
+}
+
+/// Aggregated GitHub status-check rollup for a PR. Absent (`None`) means GitHub
+/// reported no checks at all, which the UI renders differently from "all passed".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrChecksSummary {
+    pub state: PrChecksState,
+    pub total: u32,
+    pub passing: u32,
+    pub failing: u32,
+    pub pending: u32,
+}
+
+impl PrChecksSummary {
+    /// Roll per-check counts into a summary. A failing check dominates a pending
+    /// one, which dominates passing. Returns `None` when there are no checks.
+    pub fn from_counts(passing: u32, failing: u32, pending: u32) -> Option<Self> {
+        let total = passing.saturating_add(failing).saturating_add(pending);
+        if total == 0 {
+            return None;
+        }
+        let state = if failing > 0 {
+            PrChecksState::Failing
+        } else if pending > 0 {
+            PrChecksState::Pending
+        } else {
+            PrChecksState::Passing
+        };
+        Some(Self {
+            state,
+            total,
+            passing,
+            failing,
+            pending,
+        })
+    }
+}
+
 /// A PR row in the `/reviews` inbox, with everything the grouped list needs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -339,6 +385,8 @@ pub struct PrInboxItem {
     pub bucket: ReviewBucket,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linked_issue_identifier: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub checks: Option<PrChecksSummary>,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -347,6 +395,8 @@ pub struct PrInboxItem {
 #[serde(rename_all = "camelCase")]
 pub struct PrReviewDetail {
     pub pull_request: PrInboxItem,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linked_issue_id: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -427,6 +477,25 @@ pub fn parse_pr_number(url: &str) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn checks_summary_rolls_up_by_severity() {
+        assert_eq!(PrChecksSummary::from_counts(0, 0, 0), None);
+        assert_eq!(
+            PrChecksSummary::from_counts(3, 0, 0).map(|s| s.state),
+            Some(PrChecksState::Passing)
+        );
+        assert_eq!(
+            PrChecksSummary::from_counts(2, 0, 1).map(|s| s.state),
+            Some(PrChecksState::Pending)
+        );
+        assert_eq!(
+            PrChecksSummary::from_counts(2, 1, 1).map(|s| s.state),
+            Some(PrChecksState::Failing)
+        );
+        let summary = PrChecksSummary::from_counts(2, 1, 1).expect("non-empty");
+        assert_eq!(summary.total, 4);
+    }
 
     #[test]
     fn parse_pr_number_works() {

@@ -1,8 +1,9 @@
 import { PrStateBadge } from '@/components/badges'
 import { Chip, chipBase } from '@/components/run-detail/Chip'
+import { ExternalLink } from '@/components/ui/external-link'
 import { fmtRelativeTime } from '@/lib/domain'
 import type { PullRequest, Run } from '@/types'
-import { GitBranch, FolderGit2, BookMarked, Zap, Clock, ExternalLink } from 'lucide-react'
+import { GitBranch, FolderGit2, BookMarked, Zap, Clock, ExternalLink as ExternalLinkIcon } from 'lucide-react'
 
 interface RunDetailsGridProps {
 	run: Run
@@ -34,16 +35,14 @@ export function RunDetailsGrid({ run, pr }: RunDetailsGridProps) {
 				) : null}
 
 				{pr ? (
-					<a
+					<ExternalLink
 						href={pr.url}
-						target="_blank"
-						rel="noopener noreferrer"
 						className={`${chipBase} gap-2 text-success transition-colors hover:bg-success/10`}
 					>
-						<ExternalLink size={14} />
+						<ExternalLinkIcon size={14} />
 						<span>#{pr.number}</span>
 						<PrStateBadge state={pr.state} />
-					</a>
+					</ExternalLink>
 				) : null}
 			</div>
 		</div>

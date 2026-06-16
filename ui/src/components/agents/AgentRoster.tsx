@@ -5,9 +5,10 @@ import { AgentRow } from '@/components/agents/AgentRow'
 import { SettingsPaneHeader } from '@/components/settings/SettingsPaneHeader'
 import { SettingsSection } from '@/components/settings/SettingsSection'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { AsyncSection } from '@/components/ui/state-async'
 import { useAgentMutations, useAgents } from '@/hooks/useAgents'
-import { blankAgent } from '@/lib/agents'
+import { agentDeleteDescription, blankAgent } from '@/lib/agents'
 import { providerLabel } from '@/lib/domain'
 import type { Agent, AgentProvider, ManagedAgent } from '@/types'
 import { toast } from 'sonner'
@@ -18,6 +19,7 @@ export function AgentRoster() {
 	const { data: agents = [], isLoading, error } = useAgents()
 	const { createAgent, deleteAgent, isMutating } = useAgentMutations()
 	const [createOpen, setCreateOpen] = useState(false)
+	const [pendingDelete, setPendingDelete] = useState<Agent | null>(null)
 
 	const errorMessage = error ? error.message : null
 
@@ -29,6 +31,7 @@ export function AgentRoster() {
 	async function handleDelete(name: string) {
 		try {
 			await deleteAgent(name)
+			setPendingDelete(null)
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : 'Failed to delete agent')
 		}
@@ -47,7 +50,7 @@ export function AgentRoster() {
 		<section>
 			<SettingsPaneHeader
 				title="Agents"
-				description="App-managed agents — reusable execution units (provider, model, reasoning, instructions, MCP/tool policy). Built-ins can be edited and disabled but not deleted; create your own custom agents."
+				description="App-managed agents — reusable execution units (provider, model, reasoning, instructions, MCP/tool policy). Built-ins can be edited, disabled, or deleted — deleting one keeps it gone across restarts, and Restore default brings it back. Create your own custom agents."
 			/>
 			<AsyncSection
 				isLoading={isLoading}
@@ -62,7 +65,7 @@ export function AgentRoster() {
 								key={agent.name}
 								agent={agent}
 								busy={isMutating}
-								onDelete={() => handleDelete(agent.name)}
+								onDelete={() => setPendingDelete(agent)}
 								last={index === group.agents.length - 1}
 							/>
 						))}
@@ -86,6 +89,25 @@ export function AgentRoster() {
 					onSubmit={handleCreate}
 				/>
 			) : null}
+
+			<ConfirmDialog
+				open={pendingDelete !== null}
+				onOpenChange={(open) => {
+					if (!open) setPendingDelete(null)
+				}}
+				title="Delete agent?"
+				description={
+					pendingDelete
+						? agentDeleteDescription(pendingDelete.name, pendingDelete.origin === 'builtin')
+						: undefined
+				}
+				confirmLabel="Delete"
+				destructive
+				busy={isMutating}
+				onConfirm={() => {
+					if (pendingDelete) handleDelete(pendingDelete.name)
+				}}
+			/>
 		</section>
 	)
 }

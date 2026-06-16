@@ -38,9 +38,17 @@ export function runnerModeForExecutor(executor: StepExecutor): RunnerMode | null
 	return RUNNER_MODE_BY_EXECUTOR[executor]
 }
 
-/** Builtins are origin-protected server-side (disable instead); custom agents are deletable. */
-export function isDeletableAgent(agent: { origin: ManagedAgent['origin'] }): boolean {
-	return agent.origin === 'custom'
+/** All agents can be hard-deleted; built-ins are additionally re-seedable via
+ *  "Restore default" (a delete tombstones the built-in so it stays gone). */
+export function isBuiltinAgent(agent: { origin: ManagedAgent['origin'] }): boolean {
+	return agent.origin === 'builtin'
+}
+
+/** Destructive-delete copy for an agent; built-ins note Restore default. */
+export function agentDeleteDescription(name: string, builtin: boolean): string {
+	return builtin
+		? `Delete the built-in agent “${name}”? It will not return on restart — use Restore default to bring it back.`
+		: `Delete the custom agent “${name}”? This cannot be undone.`
 }
 
 /** A blank custom agent seed for the create flow. */

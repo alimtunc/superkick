@@ -10,6 +10,7 @@ import { RunInspectorRail } from '@/components/run-inspector/RunInspectorRail'
 import { RunChip } from '@/components/run-shared/RunChip'
 import { RunStatGrid } from '@/components/run-shared/RunStatGrid'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { ExternalLink } from '@/components/ui/external-link'
 import type { LoadedRunDetail } from '@/hooks/useRunDetail'
 import { fmtElapsed, providerLabel, runNeedsHuman } from '@/lib/domain'
 import { FEATURES } from '@/lib/features'
@@ -96,15 +97,9 @@ export function RunInspector({ detail, refTime }: RunInspectorProps) {
 					<Icon name="loop" size={16} className="ic" />
 				</button>
 				{pr ? (
-					<a
-						href={pr.url}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="btn btn--sm"
-						aria-label={`Open PR #${pr.number}`}
-					>
+					<ExternalLink href={pr.url} className="btn btn--sm" aria-label={`Open PR #${pr.number}`}>
 						<Icon name="external" size={14} className="ic" />#{pr.number}
-					</a>
+					</ExternalLink>
 				) : null}
 				{!isTerminal ? (
 					<Btn

@@ -340,7 +340,7 @@ async fn require_thread_for_run(
     Ok(thread)
 }
 
-async fn render_run_context_snapshot_for_prompt(
+pub(crate) async fn render_run_context_snapshot_for_prompt(
     state: &AppState,
     run_id: RunId,
 ) -> Result<Option<String>, AppError> {

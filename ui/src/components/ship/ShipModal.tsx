@@ -1,10 +1,12 @@
 import { useState } from 'react'
 
+import { proposeShip } from '@/api'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { DialogShell } from '@/components/ui/dialog-shell'
 import { Textarea } from '@/components/ui/textarea'
 import { useLinearOptions } from '@/hooks/useLinearOptions'
 import { useShipLaunchTask } from '@/hooks/useShipLaunchTask'
+import { errorMessageOr } from '@/lib/errors'
 import { resolveLinearStatusStateId } from '@/lib/ship'
 import type { IssueDetailResponse, WorkflowStateOption } from '@/types'
 import { Btn } from '@/ui/Btn'
@@ -60,6 +62,19 @@ export function ShipModal({
 	const { data: options } = useLinearOptions()
 	const mutation = useShipLaunchTask({ issueId: issue.id, taskId, runId, teamId: issue.team_id })
 	const [confirmReady, setConfirmReady] = useState(false)
+	const [proposing, setProposing] = useState(false)
+
+	const propose = async () => {
+		setProposing(true)
+		try {
+			form.applyProposal(await proposeShip(runId))
+			toast.success('Drafted with AI — review and edit before shipping')
+		} catch (err) {
+			toast.error('AI draft failed', { description: errorMessageOr(err) })
+		} finally {
+			setProposing(false)
+		}
+	}
 
 	const states: WorkflowStateOption[] =
 		issue.team_id && options ? (options.workflow_states_by_team[issue.team_id] ?? []) : []
@@ -83,6 +98,7 @@ export function ShipModal({
 				mode: form.mode,
 				title: form.title.trim(),
 				body: isPr ? form.body : '',
+				commitMessage: form.commitMessage.trim() ? form.commitMessage.trim() : null,
 				headBranch: prExists ? null : form.headBranchOverride,
 				comment: form.comment.trim() ? form.comment.trim() : null,
 				statusStateId: resolveLinearStatusStateId(states, form.statusChoice)
@@ -131,6 +147,32 @@ export function ShipModal({
 				}
 			>
 				<div className="dialog__body" style={{ gap: 'var(--space-4)' }}>
+					<div className="flex flex-col gap-1.5">
+						<div className="flex items-center justify-between gap-2">
+							<span className="text-[11px] tracking-wide text-fg-dim uppercase">
+								Commit message
+							</span>
+							<Btn
+								kind="ghost"
+								size="sm"
+								onClick={propose}
+								disabled={busy || proposing}
+								aria-label="Draft commit, PR title, and description with AI"
+							>
+								{proposing ? 'Drafting…' : 'Propose with AI'}
+							</Btn>
+						</div>
+						<input
+							type="text"
+							value={form.commitMessage}
+							onChange={(event) => form.setCommitMessage(event.target.value)}
+							placeholder="Commit message (blank = feat(issue): implement changes)"
+							disabled={busy}
+							aria-label="Commit message"
+							className="input font-mono text-[12px]"
+						/>
+					</div>
+
 					<fieldset className="flex flex-col gap-1.5" disabled={busy}>
 						<legend className="mb-1 text-[11px] tracking-wide text-fg-dim uppercase">
 							Pull request

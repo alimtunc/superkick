@@ -14,6 +14,7 @@ import type {
 	RunDiffResult,
 	RunEvent,
 	SetDiffReviewFileReviewedRequest,
+	ShipProposal,
 	ShipRunRequest,
 	ShipRunResponse
 } from '@/types'
@@ -44,6 +45,13 @@ export async function cancelRun(id: string): Promise<Run> {
  *  Surfaces the backend's 422 message verbatim (gh not authed, nothing to ship…). */
 export async function shipRun(id: string, body: ShipRunRequest): Promise<ShipRunResponse> {
 	return postJson(`/runs/${id}/ship`, 'ship failed', body)
+}
+
+/** AI-draft the commit message + PR title + PR description for review/edit.
+ *  Read-only — never commits or pushes. Surfaces the backend's 422 verbatim
+ *  (e.g. the `ship` skill was removed, or the provider CLI is unavailable). */
+export async function proposeShip(id: string): Promise<ShipProposal> {
+	return postJsonChecked(`/runs/${id}/ship/propose`, 'ship proposal failed')
 }
 
 export async function fetchRunDiff(id: string): Promise<RunDiffResult> {

@@ -1042,6 +1042,39 @@ pub trait AgentDefinitionRepo: Send + Sync {
     fn delete(&self, name: &str) -> impl Future<Output = Result<()>> + Send;
 }
 
+/// Which builtin catalog a tombstone belongs to. The seeder re-inserts any
+/// builtin whose key is absent, so a hard delete records a tombstone here and
+/// the seeder skips it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuiltinKind {
+    Agent,
+    Skill,
+}
+
+impl BuiltinKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Agent => "agent",
+            Self::Skill => "skill",
+        }
+    }
+}
+
+/// Persistent record of builtin agents/skills the operator has permanently
+/// deleted. Consulted by `seed_defaults` so a deleted builtin does not reappear
+/// on the next boot.
+pub trait BuiltinDeletionRepo: Send + Sync {
+    /// Tombstone a builtin so the seeder never re-inserts it.
+    fn record(&self, kind: BuiltinKind, key: &str) -> impl Future<Output = Result<()>> + Send;
+    /// Clear a tombstone (used when a builtin is restored to defaults).
+    fn clear(&self, kind: BuiltinKind, key: &str) -> impl Future<Output = Result<()>> + Send;
+    /// The set of tombstoned keys for one catalog.
+    fn deleted_keys(
+        &self,
+        kind: BuiltinKind,
+    ) -> impl Future<Output = Result<std::collections::HashSet<String>>> + Send;
+}
+
 /// Editable launch profiles plus their ordered steps. `upsert`/`get`/
 /// `list` carry the steps; the repo writes profile + steps atomically.
 pub trait LaunchProfileRepo: Send + Sync {
