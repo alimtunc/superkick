@@ -2,6 +2,7 @@ import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSection } from '@/components/settings/SettingsSection'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { Textarea } from '@/components/ui/textarea'
 import { useRunnerConfigForm } from '@/hooks/useRunnerConfigForm'
 import { restartConfirmDescription } from '@/lib/runnerConfig'
 import type { RunnerConfigResponse } from '@/types'
@@ -55,9 +56,9 @@ export function RunnerConfigForm({ config }: RunnerConfigFormProps) {
 					last
 				>
 					<div className="w-80">
-						<textarea
+						<Textarea
 							rows={4}
-							className="textarea resize-y font-mono text-[12px]"
+							className="resize-y font-mono text-[12px]"
 							value={form.setupCommandsText}
 							aria-label="Setup commands"
 							onChange={(event) => form.setSetupCommandsText(event.target.value)}

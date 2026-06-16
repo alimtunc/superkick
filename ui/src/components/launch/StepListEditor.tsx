@@ -1,7 +1,7 @@
 import { AgentPicker } from '@/components/launch/AgentPicker'
 import { LaunchStepSkillPicker } from '@/components/launch/LaunchStepSkillPicker'
-import { ConfigSelect } from '@/components/settings/ConfigSelect'
 import { Button } from '@/components/ui/button'
+import { MenuSelect } from '@/components/ui/menu-select'
 import { Pill } from '@/components/ui/pill'
 import { providerLabel } from '@/lib/domain'
 import { stepKindFromSkillRef } from '@/lib/launch/stepKind'
@@ -102,21 +102,21 @@ export function StepListEditor({
 							<Icon name="x" size={13} className="ic" />
 						</button>
 					) : null}
-					<ConfigSelect
+					<MenuSelect
 						ariaLabel={`${step.label} provider`}
 						value={step.provider}
 						options={LAUNCH_PROVIDER_OPTIONS}
 						labels={providerLabel}
 						onChange={(value) => onSetProvider(step.ordering, value)}
 					/>
-					<ConfigSelect
+					<MenuSelect
 						ariaLabel={`${step.label} executor`}
 						value={step.executor}
 						options={executorOptionsFor(step.provider)}
 						labels={EXECUTOR_LABEL}
 						onChange={(value) => onUpdateStep(step.ordering, { executor: value })}
 					/>
-					<ConfigSelect
+					<MenuSelect
 						ariaLabel={`${step.label} reasoning`}
 						value={step.reasoning}
 						options={reasoningOptionsFor(step.provider)}

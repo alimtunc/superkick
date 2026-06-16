@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { IssueMarkdown } from '@/components/issue-detail/IssueMarkdown'
+import { Textarea } from '@/components/ui/textarea'
 import { useUpdateIssue } from '@/hooks/useUpdateIssue'
 import type { IssueDetailResponse } from '@/types'
 import { Icon } from '@/ui'
@@ -43,12 +44,12 @@ export function EditableDescription({ issue }: EditableDescriptionProps) {
 	if (editing) {
 		return (
 			<div className="on-raised rounded-md border border-border bg-raised p-3">
-				<textarea
+				<Textarea
 					value={draft}
 					onChange={(event) => setDraft(event.target.value)}
 					rows={10}
 					autoFocus
-					className="textarea resize-y"
+					className="resize-y"
 					aria-label="Description"
 				/>
 				<div className="mt-2 flex items-center justify-end gap-2">

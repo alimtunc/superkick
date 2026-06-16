@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 
-import { ExecutionModeBadge } from '@/components/ExecutionModeBadge'
+import { ExecutionModeBadge } from '@/components/badges'
 import { pinClass, pinTitle } from '@/components/run-detail/pinHelpers'
 import { RunStatusBanner } from '@/components/run-detail/RunStatusBanner'
 import { StepTimeline } from '@/components/run-detail/StepTimeline'

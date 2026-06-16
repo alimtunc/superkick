@@ -1,7 +1,7 @@
 import { fetchRun } from '@/api'
+import { RunStateBadge } from '@/components/badges'
 import { InterruptSummary } from '@/components/dashboard/InterruptSummary'
 import { StepTimeline } from '@/components/run-detail/StepTimeline'
-import { RunStateBadge } from '@/components/RunStateBadge'
 import { Button } from '@/components/ui/button'
 import { ClientDateTime } from '@/components/ui/client-date-time'
 import { TERMINAL_STATES } from '@/lib/constants'

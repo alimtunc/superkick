@@ -1,9 +1,9 @@
 import { useState } from 'react'
 
-import { ConfigSelect } from '@/components/settings/ConfigSelect'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSection } from '@/components/settings/SettingsSection'
 import { Button } from '@/components/ui/button'
+import { MenuSelect } from '@/components/ui/menu-select'
 import { Pill } from '@/components/ui/pill'
 import { useProviderModels } from '@/hooks/useProviderModels'
 import {
@@ -62,7 +62,7 @@ export function ProviderSettingsCard({ settings, onSave, isSaving }: ProviderSet
 				</datalist>
 			</SettingsRow>
 			<SettingsRow label="Reasoning effort" hint="Persisted; CLI wiring is a fast-follow">
-				<ConfigSelect
+				<MenuSelect
 					ariaLabel={`${title} reasoning effort`}
 					value={draft.default_reasoning}
 					options={reasoningOptionsFor(draft.provider)}
@@ -76,7 +76,7 @@ export function ProviderSettingsCard({ settings, onSave, isSaving }: ProviderSet
 			>
 				<div className="flex items-center gap-2">
 					{isPaidExecutor(draft.default_executor) ? <Pill tone="warn">paid</Pill> : null}
-					<ConfigSelect
+					<MenuSelect
 						ariaLabel={`${title} default executor`}
 						value={draft.default_executor}
 						options={executorOptionsFor(draft.provider)}
@@ -86,7 +86,7 @@ export function ProviderSettingsCard({ settings, onSave, isSaving }: ProviderSet
 				</div>
 			</SettingsRow>
 			<SettingsRow label="Billing mode">
-				<ConfigSelect
+				<MenuSelect
 					ariaLabel={`${title} billing mode`}
 					value={draft.billing_mode}
 					options={BILLING_OPTIONS}
@@ -95,7 +95,7 @@ export function ProviderSettingsCard({ settings, onSave, isSaving }: ProviderSet
 				/>
 			</SettingsRow>
 			<SettingsRow label="Sandbox policy">
-				<ConfigSelect
+				<MenuSelect
 					ariaLabel={`${title} sandbox policy`}
 					value={draft.sandbox_policy}
 					options={SANDBOX_OPTIONS}
@@ -104,7 +104,7 @@ export function ProviderSettingsCard({ settings, onSave, isSaving }: ProviderSet
 				/>
 			</SettingsRow>
 			<SettingsRow label="Permission policy">
-				<ConfigSelect
+				<MenuSelect
 					ariaLabel={`${title} permission policy`}
 					value={draft.permission_policy}
 					options={PERMISSION_OPTIONS}

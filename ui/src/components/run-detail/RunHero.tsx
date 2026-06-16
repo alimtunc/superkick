@@ -1,5 +1,4 @@
-import { ExecutionModeBadge } from '@/components/ExecutionModeBadge'
-import { PrStateBadge } from '@/components/PrStateBadge'
+import { ExecutionModeBadge, PrStateBadge } from '@/components/badges'
 import { ExternalLink } from '@/components/ui/external-link'
 import { fmtElapsed, fmtRelativeTime, providerLabel, stepLabel } from '@/lib/domain'
 import {

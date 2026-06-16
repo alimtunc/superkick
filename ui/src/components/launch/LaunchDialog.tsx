@@ -1,12 +1,11 @@
 import { AgentPicker } from '@/components/launch/AgentPicker'
-import { DialogPopup } from '@/components/ui/dialog-shell'
+import { DialogShell } from '@/components/ui/dialog-shell'
 import { LAUNCH_STEP_KIND_LABEL } from '@/lib/domain'
 import type { Agent, LaunchProfileSettings, LaunchStepKind } from '@/types'
 import type { SKIconName } from '@/types/icons'
 import { Btn } from '@/ui/Btn'
 import { Icon } from '@/ui/Icon'
 import { Toggle } from '@/ui/Toggle'
-import { Dialog } from '@base-ui/react/dialog'
 
 type AgentSelection = Record<LaunchStepKind, string | null>
 
@@ -53,69 +52,16 @@ export function LaunchDialog({
 }: LaunchDialogProps) {
 	const worktreeHint = profile.use_worktree ? 'Run in an isolated worktree' : 'Use the current checkout'
 	return (
-		<Dialog.Root
+		<DialogShell
 			open={open}
 			onOpenChange={(nextOpen) => {
 				if (!nextOpen) onClose()
 			}}
-		>
-			<DialogPopup popupClassName="dialog">
-				<div className="dialog__head">
-					<Icon name="zap" size={18} className="ic" />
-					<Dialog.Title className="dialog__title">Launch agent</Dialog.Title>
-					<span className="spacer" />
-					<Dialog.Close className="iconbtn" aria-label="Close">
-						<Icon name="x" size={16} className="ic" />
-					</Dialog.Close>
-				</div>
-
-				<div className="dialog__body">
-					<div className="field">
-						<span className="field__label">Recipe · plan → implement → review</span>
-						<div
-							style={{
-								background: 'var(--bg-app)',
-								border: '1px solid var(--border)',
-								borderRadius: 'var(--radius-md)',
-								padding: '0 var(--space-5)'
-							}}
-						>
-							{RECIPE_STEPS.map((step, index) => (
-								<div key={step.kind} className="step-pick">
-									<span className="step-pick__kind">
-										<span className="n">{index + 1}</span>
-										{LAUNCH_STEP_KIND_LABEL[step.kind]}
-									</span>
-									<AgentPicker
-										value={selection[step.kind]}
-										agents={agents}
-										onChange={(name) => onAgentChange(step.kind, name)}
-										recommendedFor={step.kind}
-										icon={step.icon}
-										label={step.label}
-										disabled={agentsLoading}
-									/>
-								</div>
-							))}
-						</div>
-					</div>
-
-					<div className="field">
-						<Toggle
-							checked={useWorktree}
-							onChange={onUseWorktreeChange}
-							ariaLabel="Use worktree"
-							label={
-								<>
-									{worktreeHint}{' '}
-									<span style={{ color: 'var(--fg-dim)' }}>· ~/.superkick/wt</span>
-								</>
-							}
-						/>
-					</div>
-				</div>
-
-				<div className="dialog__foot">
+			popupClassName="dialog"
+			icon={<Icon name="zap" size={18} className="ic" />}
+			title="Launch agent"
+			footer={
+				<>
 					<span className="hint">⌘↵ to launch</span>
 					<span className="spacer" />
 					<Btn kind="ghost" size="sm" onClick={onClose}>
@@ -130,8 +76,54 @@ export function LaunchDialog({
 					>
 						{isPending ? 'Launching…' : 'Launch'}
 					</Btn>
+				</>
+			}
+		>
+			<div className="dialog__body">
+				<div className="field">
+					<span className="field__label">Recipe · plan → implement → review</span>
+					<div
+						style={{
+							background: 'var(--bg-app)',
+							border: '1px solid var(--border)',
+							borderRadius: 'var(--radius-md)',
+							padding: '0 var(--space-5)'
+						}}
+					>
+						{RECIPE_STEPS.map((step, index) => (
+							<div key={step.kind} className="step-pick">
+								<span className="step-pick__kind">
+									<span className="n">{index + 1}</span>
+									{LAUNCH_STEP_KIND_LABEL[step.kind]}
+								</span>
+								<AgentPicker
+									value={selection[step.kind]}
+									agents={agents}
+									onChange={(name) => onAgentChange(step.kind, name)}
+									recommendedFor={step.kind}
+									icon={step.icon}
+									label={step.label}
+									disabled={agentsLoading}
+								/>
+							</div>
+						))}
+					</div>
 				</div>
-			</DialogPopup>
-		</Dialog.Root>
+
+				<div className="field">
+					<Toggle
+						checked={useWorktree}
+						onChange={onUseWorktreeChange}
+						ariaLabel="Use worktree"
+						label={
+							<>
+								{worktreeHint}{' '}
+								<span style={{ color: 'var(--fg-dim)' }}>· ~/.superkick/wt</span>
+							</>
+						}
+					/>
+				</div>
+			</div>
+		</DialogShell>
 	)
 }
