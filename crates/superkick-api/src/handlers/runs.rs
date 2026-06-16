@@ -10,14 +10,20 @@ use serde::{Deserialize, Serialize};
 use superkick_core::{
     AgentSession, AttentionRequest, ExecutionMode, Interrupt, PullRequest, Run, RunAgentOverrides,
     RunDiff, RunEvent, RunId, RunStep, SessionOwnership, ShipMode, TriggerSource,
+    unresolved_diff_review_fix_prompt_comments,
 };
-use superkick_runtime::{DiffError, ShipError, collect_run_diff};
+use superkick_runtime::ship_proposal::{
+    ClaudePrintGenerator, ShipProposal, ShipProposalInputs, generate_ship_proposal,
+};
+use superkick_runtime::{DiffError, ShipError, collect_run_diff, git_ship};
 use superkick_storage::SqliteRunRepo;
 use superkick_storage::repo::{
-    AgentSessionRepo, AttentionRequestRepo, InterruptRepo, RunEventRepo, RunRepo, RunStepRepo,
+    AgentSessionRepo, AttentionRequestRepo, DiffReviewRepo, InterruptRepo, RunEventRepo, RunRepo,
+    RunStepRepo, SkillDefinitionRepo,
 };
 
 use super::require_run;
+use super::run_reviews::render_run_context_snapshot_for_prompt;
 use crate::AppState;
 use crate::error::AppError;
 
@@ -395,6 +401,11 @@ pub struct ShipRunRequest {
     /// PR body (ignored for `push_only`).
     #[serde(default)]
     pub body: String,
+    /// Commit message for the publish commit. Blank/omitted → the conventional
+    /// `feat(<issue>): implement changes` default. Usually the AI-proposed (and
+    /// operator-edited) message from `POST /runs/{id}/ship/propose`.
+    #[serde(default)]
+    pub commit_message: Option<String>,
     /// Head-branch override: renames the run branch before pushing. Rejected
     /// once a PR exists. Omitted/equal → ship under the current branch name.
     #[serde(default)]
@@ -432,6 +443,7 @@ pub async fn ship_run(
             &req.title,
             &req.body,
             req.head_branch.as_deref(),
+            req.commit_message.as_deref(),
         )
         .await
         .map_err(map_ship_error)?;
@@ -440,6 +452,83 @@ pub async fn ship_run(
         pushed_branch: outcome.pushed_branch,
         pr: outcome.pr,
     }))
+}
+
+/// `POST /runs/{id}/ship/propose` — draft commit message + PR title + PR
+/// description with AI, for the operator to review and edit before shipping.
+/// Reads-only: assembles issue + diff + run summary + unresolved review notes,
+/// runs the builtin `ship` skill through the provider CLI, and returns the
+/// parsed proposal. Never commits or pushes — the operator still confirms via
+/// `POST /runs/{id}/ship`.
+pub async fn propose_ship(
+    Path(id): Path<uuid::Uuid>,
+    State(state): State<AppState>,
+) -> Result<Json<ShipProposal>, AppError> {
+    let run_id = RunId(id);
+    let run = require_run(&state, run_id).await?;
+
+    let branch = run
+        .branch_name
+        .clone()
+        .filter(|b| !b.trim().is_empty())
+        .ok_or_else(|| AppError::Unprocessable("run has no branch to ship".into()))?;
+    let worktree_path = run
+        .worktree_path
+        .clone()
+        .ok_or_else(|| AppError::Unprocessable("run is not worktree-backed".into()))?;
+    let worktree = std::path::PathBuf::from(&worktree_path);
+    if !worktree.exists() {
+        return Err(AppError::Unprocessable("run worktree is missing".into()));
+    }
+
+    let skill = state.skill_repo.get("ship").await?.ok_or_else(|| {
+        AppError::Unprocessable(
+            "the built-in `ship` skill has been removed — restore it to draft ship metadata with AI"
+                .into(),
+        )
+    })?;
+    let body = skill.body.unwrap_or_default();
+    if body.trim().is_empty() {
+        return Err(AppError::Unprocessable(
+            "the `ship` skill has no body".into(),
+        ));
+    }
+
+    let inputs = ship_proposal_inputs(&state, &run, run_id, branch, &worktree).await?;
+
+    let generator = ClaudePrintGenerator::default();
+    let proposal = generate_ship_proposal(&generator, &body, &worktree, &inputs)
+        .await
+        .map_err(|e| AppError::Unprocessable(format!("ship proposal failed: {e}")))?;
+
+    Ok(Json(proposal))
+}
+
+async fn ship_proposal_inputs(
+    state: &AppState,
+    run: &Run,
+    run_id: RunId,
+    branch: String,
+    worktree: &std::path::Path,
+) -> Result<ShipProposalInputs, AppError> {
+    let summary = render_run_context_snapshot_for_prompt(state, run_id).await?;
+    let diff = git_ship::diff_against_base(worktree, &run.base_branch)
+        .await
+        .map_err(AppError::Internal)?;
+    let review = state.review_repo.list_by_run(run_id).await?;
+    let review_notes = unresolved_diff_review_fix_prompt_comments(&review)
+        .into_iter()
+        .map(|c| format!("{}: {}", c.file_path, c.body))
+        .collect();
+
+    Ok(ShipProposalInputs {
+        issue_identifier: run.issue_identifier.clone(),
+        branch,
+        base_branch: run.base_branch.clone(),
+        summary,
+        diff,
+        review_notes,
+    })
 }
 
 fn map_ship_error(err: ShipError) -> AppError {

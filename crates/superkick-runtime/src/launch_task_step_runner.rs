@@ -92,7 +92,11 @@ fn resolve_step_agent(
     policy: &RunPolicy,
 ) -> Result<ResolvedAgent, String> {
     if let Some(agent_ref) = step.agent_ref.as_deref() {
-        return resolve_catalog_agent(agent_ref, step, catalog, policy);
+        // Missing from the catalog = hard-deleted after compose; fall through to
+        // the step's frozen snapshot so an in-flight launch still resolves.
+        if catalog.get(agent_ref).is_some() {
+            return resolve_catalog_agent(agent_ref, step, catalog, policy);
+        }
     }
     match step.executor {
         Some(executor) => resolve_dynamic_agent(step, executor),

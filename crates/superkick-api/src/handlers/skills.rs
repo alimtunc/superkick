@@ -15,7 +15,7 @@ use superkick_core::{
     SkillDefinition, SkillKind, SkillOrigin, SkillSource, StepExecutor,
 };
 use superkick_runtime::skill_import::{SkillImportCandidate, scan_import_dirs};
-use superkick_storage::repo::SkillDefinitionRepo;
+use superkick_storage::repo::{BuiltinDeletionRepo, BuiltinKind, SkillDefinitionRepo};
 
 use crate::AppState;
 use crate::error::AppError;
@@ -74,12 +74,15 @@ pub async fn delete_skill(
         .get(&id)
         .await?
         .ok_or(AppError::NotFound(SKILL_NOT_FOUND))?;
-    if !skill.is_deletable() {
-        return Err(AppError::BadRequest(
-            "builtin skills cannot be deleted — disable them instead".into(),
-        ));
-    }
     state.skill_repo.delete(&id).await?;
+    // Built-ins are re-seeded on boot from code constants, so a plain delete
+    // would reappear; tombstone it so the operator's removal sticks for good.
+    if skill.origin == SkillOrigin::Builtin {
+        state
+            .builtin_deletion_repo
+            .record(BuiltinKind::Skill, &id)
+            .await?;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 

@@ -55,12 +55,6 @@ export function skillSourceLabel(skill: SkillDefinition): string {
 	return skill.source.kind === 'installed' ? `installed · ${skill.source.value}` : 'prompt'
 }
 
-// Builtins are origin-protected server-side (disable them instead); hand-authored
-// custom and imported skills are deletable.
-export function isDeletableSkill(skill: SkillDefinition): boolean {
-	return skill.origin === 'custom' || skill.origin === 'imported'
-}
-
 function newPromptSkill(): SkillDefinition {
 	return {
 		id: '',

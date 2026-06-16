@@ -2,7 +2,6 @@ import { AgentAvatarBadge } from '@/components/agents/AgentAvatarBadge'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { Button } from '@/components/ui/button'
 import { Pill } from '@/components/ui/pill'
-import { isDeletableAgent } from '@/lib/agents'
 import { EXECUTOR_LABEL, REASONING_LABEL } from '@/lib/launchConfigOptions'
 import type { Agent } from '@/types'
 import { Link } from '@tanstack/react-router'
@@ -37,11 +36,9 @@ export function AgentRow({ agent, busy, onDelete, last }: AgentRowProps) {
 				>
 					Open
 				</Button>
-				{isDeletableAgent(agent) ? (
-					<Button variant="ghost" size="sm" disabled={busy} onClick={onDelete}>
-						Delete
-					</Button>
-				) : null}
+				<Button variant="ghost" size="sm" disabled={busy} onClick={onDelete}>
+					Delete
+				</Button>
 			</div>
 		</SettingsRow>
 	)

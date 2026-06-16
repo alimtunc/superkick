@@ -70,6 +70,16 @@ pub async fn has_commits_against_base(worktree: &Path, base_branch: &str) -> Res
     Ok(head_sha.trim() != base_sha.trim())
 }
 
+/// Diff of the worktree's `HEAD` against the base branch (`<base>...HEAD`),
+/// preferring the remote-tracking base. Used to feed the AI ship-proposal the
+/// actual changeset; read-only.
+pub async fn diff_against_base(worktree: &Path, base_branch: &str) -> Result<String> {
+    let base_sha = resolve_base_sha(worktree, base_branch).await?;
+    git(worktree, &["diff", &format!("{}...HEAD", base_sha.trim())])
+        .await
+        .context("failed to diff against base branch")
+}
+
 /// Resolve the base commit, preferring `origin/<base>` and falling back to the
 /// local `<base>` branch. Uses `--verify --quiet` so a missing ref is a skipped
 /// candidate rather than a hard error.

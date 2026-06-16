@@ -9,7 +9,16 @@ export interface ShipRunRequest {
 	mode: ShipMode
 	title?: string
 	body?: string
+	commitMessage?: string
 	headBranch?: string
+}
+
+// Mirrors `superkick_runtime::ship_proposal::ShipProposal` (camelCase serde):
+// the AI-drafted publish metadata returned by `POST /runs/{id}/ship/propose`.
+export interface ShipProposal {
+	commitMessage: string
+	prTitle: string
+	prDescription: string
 }
 
 // Mirrors `superkick-api` `ShipRunResponse` (camelCase serde). `pr` is null for
