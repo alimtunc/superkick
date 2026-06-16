@@ -10,7 +10,7 @@ export function SettingsPaneProviders() {
 		<section>
 			<SettingsPaneHeader
 				title="Providers"
-				description="App-managed defaults for each provider. Codex structured is the subscription-friendly default; the Claude workflow executor is opt-in and consumes paid Agent SDK credits."
+				description="App-managed defaults for each provider. Codex structured and Claude workflow are the subscription-friendly defaults — Claude workflow is subscription-backed for now, subject to Anthropic policy changes. Interactive PTY is the takeover escape hatch."
 			/>
 			<AsyncSection
 				isLoading={isLoading}

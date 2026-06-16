@@ -6,9 +6,9 @@
 //! overlaid live from the runtime detector at read time — they are stored as
 //! `Unknown` defaults, never as a stale boot snapshot.
 //!
-//! Codex ships defaulting to the observable, subscription-billed structured
-//! executor; Claude defaults to the interactive PTY so the paid Agent SDK path
-//! is never selected silently.
+//! Codex defaults to the observable structured executor and Claude to the
+//! structured `--print` workflow — both subscription-friendly. Interactive PTY
+//! is an explicit opt-in (the takeover/escape hatch).
 
 use serde::{Deserialize, Serialize};
 
@@ -99,9 +99,9 @@ pub struct ProviderSettings {
 }
 
 impl ProviderSettings {
-    /// Canonical builtin provider settings. Codex is the subscription-friendly
-    /// default; Claude defaults to interactive PTY so `ClaudeWorkflow`
-    /// (paid Agent SDK) is always an explicit opt-in.
+    /// Canonical builtin provider settings. Both providers default to their
+    /// structured executor (Codex structured / Claude workflow), seeded with a
+    /// `Subscription` billing mode; interactive PTY is an explicit opt-in.
     pub fn builtins() -> Vec<ProviderSettings> {
         vec![
             Self::base(AgentProvider::Codex),
@@ -138,13 +138,13 @@ mod tests {
     }
 
     #[test]
-    fn claude_default_executor_is_not_the_paid_sdk_path() {
+    fn claude_default_executor_is_claude_workflow_on_subscription() {
         let claude = ProviderSettings::builtins()
             .into_iter()
             .find(|p| p.provider == AgentProvider::Claude)
             .unwrap();
-        assert_eq!(claude.default_executor, StepExecutor::InteractivePty);
-        assert!(!claude.default_executor.is_paid_sdk());
+        assert_eq!(claude.default_executor, StepExecutor::ClaudeWorkflow);
+        assert_eq!(claude.billing_mode, BillingProfile::Subscription);
     }
 
     #[test]

@@ -127,9 +127,9 @@ pub struct AgentDefinition {
     #[serde(default)]
     pub runner_mode: Option<RunnerMode>,
     /// Which credit pool the spawn consumes. `None` desugars at resolve-time
-    /// via [`BillingProfile::default_for`] (and is force-overridden to
-    /// `agent_sdk_credits` when `provider: claude` and
-    /// `runner_mode: print_stream_json`).
+    /// via [`BillingProfile::default_for`]; an explicit value is honored. Claude
+    /// `print_stream_json` defaults to subscription-backed for now, subject to
+    /// Anthropic policy changes.
     #[serde(default)]
     pub billing_profile: Option<BillingProfile>,
     /// Reasoning effort the agent seeds onto a composer step. Mirrors
@@ -459,20 +459,18 @@ pub struct ResolvedAgent {
     /// How the provider CLI is spawned. Concrete here — defaults were baked
     /// in by [`RoleRouter::resolve`].
     pub runner_mode: RunnerMode,
-    /// Which credit pool the spawn consumes. Concrete here — defaults +
-    /// the `claude + print_stream_json → agent_sdk_credits` invariant were
-    /// baked in by [`RoleRouter::resolve`].
+    /// Which credit pool the spawn consumes. Concrete here — defaults and any
+    /// explicit override were baked in by [`RoleRouter::resolve`].
     pub billing_profile: BillingProfile,
 }
 
 impl ResolvedAgent {
     /// Re-point this recipe at a different runner mode — a shared agent run on
     /// a per-profile runner. Re-derives `billing_profile` through the one
-    /// [`BillingProfile::resolve`] so the
-    /// `claude + print_stream_json → agent_sdk_credits` invariant is enforced
-    /// at this seam too, not just in [`RoleRouter::resolve`]. `billing_override`
+    /// [`BillingProfile::resolve`] so the default/override rule is applied at
+    /// this seam too, not just in [`RoleRouter::resolve`]. `billing_override`
     /// is the agent definition's explicit `billing_profile` (`None` defers to
-    /// the default/invariant).
+    /// the `(provider, mode)` default).
     pub fn with_runner_mode(
         mut self,
         runner_mode: RunnerMode,
@@ -480,7 +478,7 @@ impl ResolvedAgent {
     ) -> Result<Self, RunnerModeError> {
         runner_mode.validate_with(self.provider)?;
         self.billing_profile =
-            BillingProfile::resolve(&self.name, self.provider, runner_mode, billing_override);
+            BillingProfile::resolve(self.provider, runner_mode, billing_override);
         self.runner_mode = runner_mode;
         Ok(self)
     }
@@ -547,12 +545,8 @@ impl<'a> RoleRouter<'a> {
             },
         )?;
 
-        let billing_profile = BillingProfile::resolve(
-            def.name.as_str(),
-            def.provider,
-            runner_mode,
-            def.billing_profile,
-        );
+        let billing_profile =
+            BillingProfile::resolve(def.provider, runner_mode, def.billing_profile);
 
         let (program, args) = provider_command(def.provider);
         Ok(ResolvedAgent {
@@ -755,16 +749,26 @@ mod tests {
         let r = RoleRouter::new(&cat, &policy);
         assert_eq!(
             r.resolve("a").unwrap().runner_mode,
-            RunnerMode::InteractivePty
+            RunnerMode::PrintStreamJson
         );
         assert_eq!(r.resolve("b").unwrap().runner_mode, RunnerMode::ExecJson);
     }
 
     #[test]
-    fn resolve_forces_agent_sdk_credits_for_claude_print() {
+    fn resolve_claude_print_defaults_to_subscription() {
         let mut d = def("p", AgentProvider::Claude);
         d.runner_mode = Some(RunnerMode::PrintStreamJson);
-        d.billing_profile = Some(BillingProfile::Subscription); // attempted override
+        let cat = AgentCatalog::from_definitions([d]);
+        let policy = RunPolicy::allow_all();
+        let resolved = RoleRouter::new(&cat, &policy).resolve("p").unwrap();
+        assert_eq!(resolved.billing_profile, BillingProfile::Subscription);
+    }
+
+    #[test]
+    fn resolve_honors_explicit_billing_override_on_claude_print() {
+        let mut d = def("p", AgentProvider::Claude);
+        d.runner_mode = Some(RunnerMode::PrintStreamJson);
+        d.billing_profile = Some(BillingProfile::AgentSdkCredits); // explicit override, now honored
         let cat = AgentCatalog::from_definitions([d]);
         let policy = RunPolicy::allow_all();
         let resolved = RoleRouter::new(&cat, &policy).resolve("p").unwrap();
@@ -789,21 +793,22 @@ mod tests {
     }
 
     #[test]
-    fn with_runner_mode_reapplies_agent_sdk_credits_invariant() {
+    fn with_runner_mode_rederives_billing_and_honors_override() {
         let cat = AgentCatalog::from_definitions([def("planner", AgentProvider::Claude)]);
         let policy = RunPolicy::allow_all();
-        // Subscription Claude resolves to interactive_pty + subscription.
+        // Default Claude now resolves to print_stream_json + subscription.
         let resolved = RoleRouter::new(&cat, &policy).resolve("planner").unwrap();
-        assert_eq!(resolved.runner_mode, RunnerMode::InteractivePty);
-        // Re-pointing it at print_stream_json forces agent_sdk_credits even when
-        // the agent's explicit billing tries to stay on subscription.
+        assert_eq!(resolved.runner_mode, RunnerMode::PrintStreamJson);
+        assert_eq!(resolved.billing_profile, BillingProfile::Subscription);
+        // Re-pointing it at interactive_pty re-derives billing; an explicit
+        // override is honored at this seam.
         let repointed = resolved
             .with_runner_mode(
-                RunnerMode::PrintStreamJson,
-                Some(BillingProfile::Subscription),
+                RunnerMode::InteractivePty,
+                Some(BillingProfile::AgentSdkCredits),
             )
             .unwrap();
-        assert_eq!(repointed.runner_mode, RunnerMode::PrintStreamJson);
+        assert_eq!(repointed.runner_mode, RunnerMode::InteractivePty);
         assert_eq!(repointed.billing_profile, BillingProfile::AgentSdkCredits);
     }
 

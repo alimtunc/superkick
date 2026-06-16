@@ -298,8 +298,10 @@ impl ClaudeBackgroundCli for RealClaudeBackgroundCli {
     }
 }
 
-/// Remove the API/billing override env from a launch command.
-fn scrub_billing_env(cmd: &mut Command) {
+/// Remove the API/billing override env from a launch command. Shared by the
+/// background controller and the structured print adapter so the scrub keys
+/// stay single-sourced.
+pub(crate) fn scrub_billing_env(cmd: &mut Command) {
     for key in BILLING_OVERRIDE_ENV {
         cmd.env_remove(key);
     }

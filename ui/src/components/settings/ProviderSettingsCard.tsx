@@ -4,7 +4,6 @@ import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSection } from '@/components/settings/SettingsSection'
 import { Button } from '@/components/ui/button'
 import { MenuSelect } from '@/components/ui/menu-select'
-import { Pill } from '@/components/ui/pill'
 import { useProviderModels } from '@/hooks/useProviderModels'
 import {
 	BILLING_LABEL,
@@ -16,7 +15,6 @@ import {
 	SANDBOX_LABEL,
 	SANDBOX_OPTIONS,
 	executorOptionsFor,
-	isPaidExecutor,
 	reasoningOptionsFor
 } from '@/lib/launchConfigOptions'
 import type { ProviderSettings } from '@/types'
@@ -70,20 +68,14 @@ export function ProviderSettingsCard({ settings, onSave, isSaving }: ProviderSet
 					onChange={(value) => patch('default_reasoning', value)}
 				/>
 			</SettingsRow>
-			<SettingsRow
-				label="Default executor"
-				hint={isPaidExecutor(draft.default_executor) ? 'Consumes paid Agent SDK credits' : undefined}
-			>
-				<div className="flex items-center gap-2">
-					{isPaidExecutor(draft.default_executor) ? <Pill tone="warn">paid</Pill> : null}
-					<MenuSelect
-						ariaLabel={`${title} default executor`}
-						value={draft.default_executor}
-						options={executorOptionsFor(draft.provider)}
-						labels={EXECUTOR_LABEL}
-						onChange={(value) => patch('default_executor', value)}
-					/>
-				</div>
+			<SettingsRow label="Default executor">
+				<MenuSelect
+					ariaLabel={`${title} default executor`}
+					value={draft.default_executor}
+					options={executorOptionsFor(draft.provider)}
+					labels={EXECUTOR_LABEL}
+					onChange={(value) => patch('default_executor', value)}
+				/>
 			</SettingsRow>
 			<SettingsRow label="Billing mode">
 				<MenuSelect

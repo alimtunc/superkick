@@ -240,14 +240,14 @@ pub struct AgentDefinition {
     #[serde(default)]
     pub backend: Option<AgentBackend>,
     /// Optional override for how the provider CLI is spawned. Defaults to
-    /// `interactive_pty` for Claude and `exec_json` for Codex when omitted
+    /// `print_stream_json` for Claude and `exec_json` for Codex when omitted
     /// (see [`superkick_core::RunnerMode::default_for`]).
     #[serde(default)]
     pub runner_mode: Option<RunnerMode>,
     /// Optional override for which credit pool the spawn consumes. Defaults
-    /// from `(provider, runner_mode)`. The Claude + `print_stream_json` pair
-    /// always resolves to `agent_sdk_credits` regardless of any explicit
-    /// override here.
+    /// from `(provider, runner_mode)`; an explicit value here is honored. The
+    /// Claude + `print_stream_json` pair defaults to subscription-backed for
+    /// now, subject to Anthropic policy changes.
     #[serde(default)]
     pub billing_profile: Option<BillingProfile>,
     /// Reasoning effort this agent seeds onto a composer step. Defaults to the

@@ -22,8 +22,8 @@ pub enum RunnerMode {
     #[default]
     InteractivePty,
     /// Claude-only headless path with `--print --output-format stream-json`.
-    /// Consumes Anthropic Agent SDK credits. Process exits when the response
-    /// stream ends.
+    /// Subscription-backed for now, subject to Anthropic policy changes.
+    /// Process exits when the response stream ends.
     PrintStreamJson,
     /// Codex-only headless path via the `exec` subcommand.
     ExecJson,
@@ -75,7 +75,7 @@ impl RunnerMode {
     /// Default mode for a freshly-loaded agent when YAML omits `runner_mode`.
     pub const fn default_for(provider: AgentProvider) -> Self {
         match provider {
-            AgentProvider::Claude => Self::InteractivePty,
+            AgentProvider::Claude => Self::PrintStreamJson,
             AgentProvider::Codex => Self::ExecJson,
         }
     }
@@ -131,7 +131,8 @@ impl BillingProfile {
     /// Default billing profile derived from `(provider, mode)`.
     pub const fn default_for(provider: AgentProvider, mode: RunnerMode) -> Self {
         match (provider, mode) {
-            (AgentProvider::Claude, RunnerMode::PrintStreamJson) => Self::AgentSdkCredits,
+            // Subscription-backed for now, subject to Anthropic policy changes.
+            (AgentProvider::Claude, RunnerMode::PrintStreamJson) => Self::Subscription,
             (AgentProvider::Claude, RunnerMode::InteractivePty) => Self::Subscription,
             // `claude --bg` runs on the local subscription, not Agent SDK credits.
             (AgentProvider::Claude, RunnerMode::BackgroundSession) => Self::Subscription,
@@ -141,32 +142,12 @@ impl BillingProfile {
         }
     }
 
-    /// Apply the `(provider, mode, override)` desugaring rule, including the
-    /// `claude + print_stream_json → agent_sdk_credits` forced invariant. An
-    /// override that disagrees with the forced billing is logged at WARN
-    /// rather than rejected, so older `superkick.yaml` files keep loading.
-    /// `role` is used as a log label only.
-    pub fn resolve(
-        role: &str,
-        provider: AgentProvider,
-        mode: RunnerMode,
-        override_: Option<Self>,
-    ) -> Self {
-        if matches!(
-            (provider, mode),
-            (AgentProvider::Claude, RunnerMode::PrintStreamJson)
-        ) {
-            if let Some(attempted) = override_
-                && attempted != Self::AgentSdkCredits
-            {
-                tracing::warn!(
-                    agent = %role,
-                    attempted = %attempted,
-                    "ignoring billing_profile override on claude+print_stream_json — forced to agent_sdk_credits"
-                );
-            }
-            return Self::AgentSdkCredits;
-        }
+    /// Apply the `(provider, mode, override)` desugaring rule: an explicit
+    /// override wins, otherwise the `(provider, mode)` default applies. Claude
+    /// `print_stream_json` is subscription-backed for now (subject to Anthropic
+    /// policy changes) and no longer force-pinned, so an explicit override is
+    /// honored.
+    pub fn resolve(provider: AgentProvider, mode: RunnerMode, override_: Option<Self>) -> Self {
         override_.unwrap_or_else(|| Self::default_for(provider, mode))
     }
 }
@@ -196,10 +177,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn runner_mode_default_for_claude_is_interactive_pty() {
+    fn runner_mode_default_for_claude_is_print_stream_json() {
         assert_eq!(
             RunnerMode::default_for(AgentProvider::Claude),
-            RunnerMode::InteractivePty
+            RunnerMode::PrintStreamJson
         );
     }
 
@@ -220,10 +201,10 @@ mod tests {
     }
 
     #[test]
-    fn billing_profile_default_claude_print_is_agent_sdk_credits() {
+    fn billing_profile_default_claude_print_is_subscription() {
         assert_eq!(
             BillingProfile::default_for(AgentProvider::Claude, RunnerMode::PrintStreamJson),
-            BillingProfile::AgentSdkCredits
+            BillingProfile::Subscription
         );
     }
 
@@ -280,16 +261,9 @@ mod tests {
     }
 
     #[test]
-    fn billing_profile_resolve_does_not_force_credits_for_background() {
-        // Only `print_stream_json` is force-pinned to Agent SDK credits; the
-        // subscription background path must resolve to Subscription.
+    fn billing_profile_resolve_background_defaults_to_subscription() {
         assert_eq!(
-            BillingProfile::resolve(
-                "r",
-                AgentProvider::Claude,
-                RunnerMode::BackgroundSession,
-                None,
-            ),
+            BillingProfile::resolve(AgentProvider::Claude, RunnerMode::BackgroundSession, None),
             BillingProfile::Subscription
         );
     }
@@ -341,15 +315,24 @@ mod tests {
     }
 
     #[test]
-    fn billing_profile_resolve_forces_agent_sdk_credits_for_claude_print() {
+    fn billing_profile_resolve_honors_override_on_claude_print() {
+        // The old force-pin is gone: an explicit override on
+        // `claude + print_stream_json` is now honored, not overridden.
         assert_eq!(
             BillingProfile::resolve(
-                "r",
                 AgentProvider::Claude,
                 RunnerMode::PrintStreamJson,
-                Some(BillingProfile::Subscription),
+                Some(BillingProfile::AgentSdkCredits),
             ),
             BillingProfile::AgentSdkCredits
+        );
+    }
+
+    #[test]
+    fn billing_profile_resolve_claude_print_defaults_to_subscription() {
+        assert_eq!(
+            BillingProfile::resolve(AgentProvider::Claude, RunnerMode::PrintStreamJson, None),
+            BillingProfile::Subscription
         );
     }
 
@@ -357,7 +340,6 @@ mod tests {
     fn billing_profile_resolve_honors_override_when_not_forced() {
         assert_eq!(
             BillingProfile::resolve(
-                "r",
                 AgentProvider::Codex,
                 RunnerMode::ExecJson,
                 Some(BillingProfile::ApiCredits),
@@ -369,7 +351,7 @@ mod tests {
     #[test]
     fn billing_profile_resolve_falls_back_to_default_for() {
         assert_eq!(
-            BillingProfile::resolve("r", AgentProvider::Claude, RunnerMode::InteractivePty, None),
+            BillingProfile::resolve(AgentProvider::Claude, RunnerMode::InteractivePty, None),
             BillingProfile::Subscription
         );
     }

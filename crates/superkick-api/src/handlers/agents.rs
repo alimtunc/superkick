@@ -64,7 +64,7 @@ impl AgentSummary {
             .runner_mode
             .unwrap_or_else(|| RunnerMode::default_for(def.provider));
         let billing_profile =
-            BillingProfile::resolve(&def.name, def.provider, runner_mode, def.billing_profile);
+            BillingProfile::resolve(def.provider, runner_mode, def.billing_profile);
         Self {
             name: def.name.clone(),
             provider: def.provider,

@@ -315,9 +315,8 @@ mod tests {
     }
 
     #[test]
-    fn recipe_builtins_default_to_codex_structured_never_paid_sdk() {
+    fn recipe_builtins_default_to_codex_structured() {
         for skill in SkillDefinition::builtins() {
-            assert!(!skill.default_executor.is_paid_sdk());
             if skill.id != "ticket" {
                 assert_eq!(skill.default_provider, AgentProvider::Codex);
                 assert_eq!(skill.default_executor, StepExecutor::CodexStructured);

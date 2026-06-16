@@ -113,9 +113,9 @@ async fn list_returns_catalog_projection_sorted_by_name() {
     // both arms of the `AgentProvider` union must round-trip the wire format.
     assert_eq!(agents[2]["provider"], "codex");
 
-    assert_eq!(agents[0]["runner_mode"], "interactive_pty");
+    assert_eq!(agents[0]["runner_mode"], "print_stream_json");
     assert_eq!(agents[0]["billing_profile"], "subscription");
-    assert_eq!(agents[1]["runner_mode"], "interactive_pty");
+    assert_eq!(agents[1]["runner_mode"], "print_stream_json");
     assert_eq!(agents[1]["billing_profile"], "subscription");
     assert_eq!(agents[2]["runner_mode"], "exec_json");
     assert_eq!(agents[2]["billing_profile"], "subscription");

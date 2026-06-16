@@ -2,10 +2,11 @@
 //!
 //! `StepExecutor` is a product-facing label resolved **onto the existing
 //! `(provider, RunnerMode)` axis** — it does not introduce a parallel
-//! execution model. The mapping keeps billing honest: `ClaudeWorkflow` is the only
-//! executor that resolves to `(Claude, PrintStreamJson)`, the single path that
-//! `BillingProfile::resolve` forces to `AgentSdkCredits`. Codex-structured is
-//! the subscription-friendly default; Claude workflow is opt-in.
+//! execution model. `ClaudeWorkflow` resolves to `(Claude, PrintStreamJson)`,
+//! the structured Claude print path — subscription-backed for now, subject to
+//! Anthropic policy changes. Codex structured and Claude workflow are the
+//! subscription-friendly per-provider defaults; interactive PTY is the
+//! takeover/escape hatch.
 
 use serde::{Deserialize, Serialize};
 
@@ -21,8 +22,9 @@ pub enum StepExecutor {
     /// Codex `exec --json`. Observable, subscription-billed. Default.
     #[default]
     CodexStructured,
-    /// Claude `--print --output-format stream-json`. Opt-in; consumes Agent
-    /// SDK credits.
+    /// Claude `--print --output-format stream-json`. The default Claude
+    /// executor; subscription-backed for now, subject to Anthropic policy
+    /// changes.
     ClaudeWorkflow,
     /// Claude `--bg` detached background session: Superkick polls
     /// `claude agents --json` for state and reads `claude logs` for evidence.
@@ -72,20 +74,14 @@ impl StepExecutor {
     }
 
     /// Default executor for a freshly-configured provider. Mirrors
-    /// [`RunnerMode::default_for`] but at the product-label layer: Codex →
-    /// structured (subscription default), Claude → interactive PTY (so the
-    /// paid `ClaudeWorkflow` path is never selected silently).
+    /// [`RunnerMode::default_for`] at the product-label layer: Codex →
+    /// structured, Claude → workflow (`--print` structured) — both
+    /// subscription-friendly. Interactive PTY stays an explicit opt-in.
     pub const fn default_for(provider: AgentProvider) -> Self {
         match provider {
             AgentProvider::Codex => Self::CodexStructured,
-            AgentProvider::Claude => Self::InteractivePty,
+            AgentProvider::Claude => Self::ClaudeWorkflow,
         }
-    }
-
-    /// Whether selecting this executor consumes paid Agent SDK credits. Used
-    /// by the UI/billing-label surface to keep the billing label visible.
-    pub const fn is_paid_sdk(self) -> bool {
-        matches!(self, Self::ClaudeWorkflow)
     }
 }
 
@@ -102,16 +98,6 @@ mod tests {
     #[test]
     fn default_is_codex_structured() {
         assert_eq!(StepExecutor::default(), StepExecutor::CodexStructured);
-    }
-
-    #[test]
-    fn claude_workflow_is_the_only_paid_sdk_path() {
-        assert!(StepExecutor::ClaudeWorkflow.is_paid_sdk());
-        assert!(!StepExecutor::CodexStructured.is_paid_sdk());
-        // The background path is subscription-billed, not Agent SDK credits.
-        assert!(!StepExecutor::ClaudeBackground.is_paid_sdk());
-        assert!(!StepExecutor::InteractivePty.is_paid_sdk());
-        assert!(!StepExecutor::Future.is_paid_sdk());
     }
 
     #[test]
@@ -136,12 +122,11 @@ mod tests {
     }
 
     #[test]
-    fn default_for_keeps_claude_off_the_paid_path() {
+    fn default_for_claude_is_claude_workflow() {
         assert_eq!(
             StepExecutor::default_for(AgentProvider::Claude),
-            StepExecutor::InteractivePty
+            StepExecutor::ClaudeWorkflow
         );
-        assert!(!StepExecutor::default_for(AgentProvider::Claude).is_paid_sdk());
         assert_eq!(
             StepExecutor::default_for(AgentProvider::Codex),
             StepExecutor::CodexStructured
