@@ -189,6 +189,82 @@ fn sample_step(ordering: u32) -> ProfileStep {
     }
 }
 
+fn ref_step(ordering: u32, label: &str, skill_ref: &str, agent_ref: Option<&str>) -> ProfileStep {
+    ProfileStep {
+        label: label.into(),
+        skill_ref: skill_ref.into(),
+        agent_ref: agent_ref.map(Into::into),
+        ..sample_step(ordering)
+    }
+}
+
+fn custom_profile(id: &str, name: &str, steps: Vec<ProfileStep>) -> LaunchProfile {
+    LaunchProfile {
+        id: id.into(),
+        name: name.into(),
+        kind: ProfileKind::Custom,
+        is_default: false,
+        is_readonly: false,
+        steps,
+    }
+}
+
+#[tokio::test]
+async fn profiles_using_skill_and_agent_reverse_lookup() -> Result<()> {
+    let pool = pool().await?;
+    let profiles = SqliteLaunchProfileRepo::new(pool.clone());
+
+    profiles
+        .upsert(&custom_profile(
+            "alpha",
+            "Alpha",
+            vec![
+                ref_step(1, "Plan", "plan", Some("planner")),
+                ref_step(2, "Build", "implement", Some("coder")),
+            ],
+        ))
+        .await?;
+    profiles
+        .upsert(&custom_profile(
+            "beta",
+            "Beta",
+            vec![
+                ref_step(1, "Build", "implement", Some("coder")),
+                ref_step(2, "Build again", "implement", None),
+            ],
+        ))
+        .await?;
+
+    // skill referenced by a single profile, single step.
+    let plan_users = profiles.profiles_using_skill("plan").await?;
+    assert_eq!(plan_users.len(), 1);
+    assert_eq!(plan_users[0].id, "alpha");
+    assert_eq!(plan_users[0].steps, vec!["Plan".to_string()]);
+
+    // skill referenced by both profiles; beta uses it in two steps -> aggregated.
+    let impl_users = profiles.profiles_using_skill("implement").await?;
+    let ids: Vec<_> = impl_users.iter().map(|u| u.id.as_str()).collect();
+    assert_eq!(ids, ["alpha", "beta"]);
+    let beta = impl_users
+        .iter()
+        .find(|u| u.id == "beta")
+        .expect("beta in results");
+    assert_eq!(
+        beta.steps,
+        vec!["Build".to_string(), "Build again".to_string()]
+    );
+
+    // agent referenced across both profiles.
+    let coder_users = profiles.profiles_using_agent("coder").await?;
+    let ids: Vec<_> = coder_users.iter().map(|u| u.id.as_str()).collect();
+    assert_eq!(ids, ["alpha", "beta"]);
+
+    // no match -> empty, never an error.
+    assert!(profiles.profiles_using_skill("ghost").await?.is_empty());
+    assert!(profiles.profiles_using_agent("ghost").await?.is_empty());
+    Ok(())
+}
+
 #[tokio::test]
 async fn seed_includes_ticket_skill() -> Result<()> {
     let pool = pool().await?;

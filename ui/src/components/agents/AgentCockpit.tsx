@@ -21,7 +21,10 @@ import {
 } from '@/lib/agents'
 import { providerLabel } from '@/lib/domain'
 import { EXECUTOR_LABEL, REASONING_LABEL } from '@/lib/launchConfigOptions'
+import { appendUsageWarning } from '@/lib/profiles'
+import { agentUsagesQuery } from '@/lib/queries'
 import { LINEAR_CONTEXT_LABEL, type ManagedAgent } from '@/types'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 
@@ -36,6 +39,7 @@ export function AgentCockpit({ name }: AgentCockpitProps) {
 	const navigate = useNavigate()
 	const [editOpen, setEditOpen] = useState(false)
 	const [confirmDelete, setConfirmDelete] = useState(false)
+	const usages = useQuery(agentUsagesQuery(confirmDelete ? name : null, confirmDelete)).data ?? []
 
 	if (isLoading) return <LoadingState rows={5} />
 	if (error) return <ErrorState message={error} density="compact" />
@@ -69,6 +73,7 @@ export function AgentCockpit({ name }: AgentCockpitProps) {
 	}
 
 	const builtin = isBuiltinAgent(agent)
+	const deleteDescription = appendUsageWarning(agentDeleteDescription(agent.name, builtin), usages)
 
 	return (
 		<>
@@ -172,7 +177,7 @@ export function AgentCockpit({ name }: AgentCockpitProps) {
 				open={confirmDelete}
 				onOpenChange={setConfirmDelete}
 				title="Delete agent?"
-				description={agentDeleteDescription(agent.name, builtin)}
+				description={deleteDescription}
 				confirmLabel="Delete"
 				destructive
 				busy={isMutating}

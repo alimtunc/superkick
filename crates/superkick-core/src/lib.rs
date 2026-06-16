@@ -88,7 +88,9 @@ pub use issue_workspace_context::{
     NewCommentExcerpt as IssueWorkspaceContextNewCommentExcerpt,
     NewLink as IssueWorkspaceContextNewLink,
 };
-pub use launch_profile::{LaunchProfile, ProfileKind, ProfileSnapshot, ProfileStep, StepSnapshot};
+pub use launch_profile::{
+    LaunchProfile, ProfileKind, ProfileSnapshot, ProfileStep, ProfileUsage, StepSnapshot,
+};
 pub use launch_queue::{
     ClassifiedIssue, ClassifiedRun, LaunchQueue, LaunchQueueClassification, OrchestrationInputs,
     QueueIssueBlocker, QueueIssueInput, QueueRunInput, classify_launch_queue,

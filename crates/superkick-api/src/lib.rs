@@ -840,6 +840,7 @@ fn api_router(state: AppState) -> Router {
             "/agents/{name}/restore",
             post(handlers::agents::restore_agent),
         )
+        .route("/agents/{name}/usages", get(handlers::agents::agent_usages))
         .route(
             "/providers/{provider}/models",
             get(handlers::model_catalog::list_provider_models),
@@ -919,6 +920,7 @@ fn api_router(state: AppState) -> Router {
             "/skills/{id}",
             patch(handlers::skills::patch_skill).delete(handlers::skills::delete_skill),
         )
+        .route("/skills/{id}/usages", get(handlers::skills::skill_usages))
         .route(
             "/launch-profiles",
             get(handlers::launch_profiles::list_profiles)

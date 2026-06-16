@@ -10,7 +10,10 @@ import { AsyncSection } from '@/components/ui/state-async'
 import { useAgentMutations, useAgents } from '@/hooks/useAgents'
 import { agentDeleteDescription, blankAgent } from '@/lib/agents'
 import { providerLabel } from '@/lib/domain'
+import { appendUsageWarning } from '@/lib/profiles'
+import { agentUsagesQuery } from '@/lib/queries'
 import type { Agent, AgentProvider, ManagedAgent } from '@/types'
+import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 const PROVIDER_ORDER: AgentProvider[] = ['codex', 'claude']
@@ -20,6 +23,13 @@ export function AgentRoster() {
 	const { createAgent, deleteAgent, isMutating } = useAgentMutations()
 	const [createOpen, setCreateOpen] = useState(false)
 	const [pendingDelete, setPendingDelete] = useState<Agent | null>(null)
+	const usages = useQuery(agentUsagesQuery(pendingDelete?.name ?? null, pendingDelete !== null)).data ?? []
+	const deleteDescription = pendingDelete
+		? appendUsageWarning(
+				agentDeleteDescription(pendingDelete.name, pendingDelete.origin === 'builtin'),
+				usages
+			)
+		: undefined
 
 	const errorMessage = error ? error.message : null
 
@@ -96,11 +106,7 @@ export function AgentRoster() {
 					if (!open) setPendingDelete(null)
 				}}
 				title="Delete agent?"
-				description={
-					pendingDelete
-						? agentDeleteDescription(pendingDelete.name, pendingDelete.origin === 'builtin')
-						: undefined
-				}
+				description={deleteDescription}
 				confirmLabel="Delete"
 				destructive
 				busy={isMutating}

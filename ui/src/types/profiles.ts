@@ -45,6 +45,15 @@ export interface LaunchProfile {
 	steps: ProfileStep[]
 }
 
+// A profile referencing a given skill/agent, with the labels of the matching
+// steps. Returned by the delete-warning reverse-lookup. Mirrors
+// `superkick_core::launch_profile::ProfileUsage`.
+export interface ProfileUsage {
+	id: string
+	name: string
+	steps: string[]
+}
+
 // Frozen step in a `ProfileSnapshot` — carries the resolved skill source and
 // the runtime step kind in addition to the editable `ProfileStep` fields.
 export interface StepSnapshot {

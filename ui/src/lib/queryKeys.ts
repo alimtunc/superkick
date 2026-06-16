@@ -46,7 +46,8 @@ export const queryKeys = {
 	},
 	agents: {
 		all: ['agents'] as const,
-		detail: (name: string) => ['agents', 'detail', name] as const
+		detail: (name: string) => ['agents', 'detail', name] as const,
+		usages: (name: string) => ['agents', 'usages', name] as const
 	},
 	launchTasks: {
 		all: ['launch-tasks'] as const,
@@ -77,7 +78,8 @@ export const queryKeys = {
 	},
 	skills: {
 		all: ['skills'] as const,
-		importable: ['skills', 'importable'] as const
+		importable: ['skills', 'importable'] as const,
+		usages: (id: string) => ['skills', 'usages', id] as const
 	},
 	launchProfiles: {
 		all: ['launch-profiles'] as const,

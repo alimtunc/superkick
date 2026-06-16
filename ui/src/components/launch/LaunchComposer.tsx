@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { BaseBranchChip } from '@/components/launch/BaseBranchChip'
 import { ExecutionDestination } from '@/components/launch/ExecutionDestination'
 import { IssueChipPicker } from '@/components/launch/IssueChipPicker'
+import { LaunchProfileSelector } from '@/components/launch/LaunchProfileSelector'
 import { LaunchStepListEditor } from '@/components/launch/LaunchStepListEditor'
 import { WorktreeStrategyChip } from '@/components/launch/WorktreeStrategyChip'
 import { ErrorState } from '@/components/ui/state-error'
@@ -14,6 +15,8 @@ import { useIssueReusableWorktree } from '@/hooks/useIssueReusableWorktree'
 import { useLaunchProfiles } from '@/hooks/useLaunchProfiles'
 import { errorMessageOr } from '@/lib/errors'
 import { bodyFromIssue, selectionFromDetail, selectionFromListItem } from '@/lib/launch/composerSelection'
+import { visibleLaunchProfiles } from '@/lib/profiles'
+import { useHiddenLaunchProfilesStore } from '@/stores/hiddenLaunchProfiles'
 import { useLaunchComposerState } from '@/stores/launchComposerState'
 import type {
 	IssueChipPickerValue,
@@ -45,6 +48,8 @@ export function LaunchComposer({ issue, prefill = null, onLaunched }: LaunchComp
 	const composerSteps = useLaunchComposerState((state) => state.steps)
 	const selectProfile = useLaunchComposerState((state) => state.selectProfile)
 	const resetComposer = useLaunchComposerState((state) => state.reset)
+	const hiddenProfileIds = useHiddenLaunchProfilesStore((state) => state.ids)
+	const selectableProfiles = visibleLaunchProfiles(profiles, hiddenProfileIds, profileId)
 
 	const enabledSteps = composerSteps.filter((step) => step.enabled)
 	const stepsReady = enabledSteps.length > 0 && enabledSteps.every((step) => Boolean(step.agent_ref))
@@ -79,8 +84,8 @@ export function LaunchComposer({ issue, prefill = null, onLaunched }: LaunchComp
 		setBody(prefill)
 	}, [issue, prefill])
 
-	// Launch always runs the single `custom` container: a blank, ordered list of
-	// agent steps. Select it once it loads (no profile picker — there is one).
+	// Pre-select the default profile once profiles load; the operator can switch
+	// via LaunchProfileSelector, which repopulates the editable step list below.
 	useEffect(() => {
 		if (profileId !== null) return
 		const base = profiles.find((profile) => profile.is_default) ?? profiles[0]
@@ -184,6 +189,24 @@ export function LaunchComposer({ issue, prefill = null, onLaunched }: LaunchComp
 						}}
 					/>
 				</div>
+
+				{selectableProfiles.length > 1 ? (
+					<div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
+						<span className="text-[10.5px] font-semibold tracking-wider text-fg-dim uppercase">
+							Start from
+						</span>
+						<div className="flex flex-wrap items-center gap-2">
+							<LaunchProfileSelector
+								profiles={selectableProfiles}
+								selectedId={profileId}
+								onSelect={selectProfile}
+							/>
+							<span className="text-[11.5px] text-fg-dim">
+								Preloads the steps below — edit freely after.
+							</span>
+						</div>
+					</div>
+				) : null}
 
 				<div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
 					<span className="text-[10.5px] font-semibold tracking-wider text-fg-dim uppercase">

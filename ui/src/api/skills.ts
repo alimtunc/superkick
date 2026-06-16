@@ -1,4 +1,4 @@
-import type { SkillDefinition, SkillImportCandidate } from '@/types'
+import type { ProfileUsage, SkillDefinition, SkillImportCandidate } from '@/types'
 
 import { deleteVoid, getJson, patchJson, postJson } from './_shared'
 
@@ -24,4 +24,8 @@ export async function updateSkill(id: string, skill: SkillDefinition): Promise<S
 
 export async function deleteSkill(id: string): Promise<void> {
 	return deleteVoid(`/skills/${id}`, 'delete skill failed')
+}
+
+export async function fetchSkillUsages(id: string): Promise<ProfileUsage[]> {
+	return getJson(`/skills/${id}/usages`, 'fetch skill usages failed')
 }

@@ -11,11 +11,13 @@ use axum::response::{IntoResponse, Json};
 use serde::{Deserialize, Serialize};
 
 use superkick_core::{
-    AgentProvider, OutputExpectation, ReasoningEffort, SessionPolicy, SkillArtifact,
+    AgentProvider, OutputExpectation, ProfileUsage, ReasoningEffort, SessionPolicy, SkillArtifact,
     SkillDefinition, SkillKind, SkillOrigin, SkillSource, StepExecutor,
 };
 use superkick_runtime::skill_import::{SkillImportCandidate, scan_import_dirs};
-use superkick_storage::repo::{BuiltinDeletionRepo, BuiltinKind, SkillDefinitionRepo};
+use superkick_storage::repo::{
+    BuiltinDeletionRepo, BuiltinKind, LaunchProfileRepo, SkillDefinitionRepo,
+};
 
 use crate::AppState;
 use crate::error::AppError;
@@ -84,6 +86,18 @@ pub async fn delete_skill(
             .await?;
     }
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Launch profiles whose steps reference this skill. The delete confirm dialog
+/// fetches it to warn that removing the skill orphans those steps (refs are
+/// FK-free and degrade at launch — this warns, it does not block).
+pub async fn skill_usages(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<Vec<ProfileUsage>>, AppError> {
+    Ok(Json(
+        state.launch_profile_repo.profiles_using_skill(&id).await?,
+    ))
 }
 
 /// Wire shape for an importable candidate. The runtime's `SkillImportCandidate`

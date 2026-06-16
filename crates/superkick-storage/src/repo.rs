@@ -6,7 +6,8 @@ use std::pin::Pin;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use superkick_core::{
-    AgentProvider, CoreAgentDefinition, LaunchProfile, ProviderSettings, SkillDefinition,
+    AgentProvider, CoreAgentDefinition, LaunchProfile, ProfileUsage, ProviderSettings,
+    SkillDefinition,
 };
 use superkick_core::{
     AgentSession, AgentSessionId, Artifact, ArtifactId, AttentionRequest, AttentionRequestId,
@@ -1085,4 +1086,14 @@ pub trait LaunchProfileRepo: Send + Sync {
     /// Insert profile + steps only if the profile id is absent (seed path).
     fn insert_if_absent(&self, profile: &LaunchProfile) -> impl Future<Output = Result<()>> + Send;
     fn delete(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
+    /// Profiles with a step referencing `skill_ref`, for the delete-warning path.
+    fn profiles_using_skill(
+        &self,
+        skill_ref: &str,
+    ) -> impl Future<Output = Result<Vec<ProfileUsage>>> + Send;
+    /// Profiles with a step referencing `agent_ref`, for the delete-warning path.
+    fn profiles_using_agent(
+        &self,
+        agent_ref: &str,
+    ) -> impl Future<Output = Result<Vec<ProfileUsage>>> + Send;
 }
