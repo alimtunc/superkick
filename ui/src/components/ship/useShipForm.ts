@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { composeShipBody } from '@/lib/ship'
 import { validateHeadBranch } from '@/lib/shipBranch'
-import type { LinearStatusChoice, ShipMode } from '@/types'
+import type { LinearStatusChoice, ShipMode, ShipProposal } from '@/types'
 
 interface UseShipFormInput {
 	open: boolean
@@ -19,6 +19,10 @@ export interface ShipFormState {
 	setTitle: (title: string) => void
 	body: string
 	setBody: (body: string) => void
+	commitMessage: string
+	setCommitMessage: (message: string) => void
+	/** Prefill commit message + PR title + body from an AI proposal (editable after). */
+	applyProposal: (proposal: ShipProposal) => void
 	includeSummary: boolean
 	setIncludeSummary: (on: boolean) => void
 	includeChangedFiles: boolean
@@ -49,6 +53,7 @@ export function useShipForm({
 	const [statusChoice, setStatusChoice] = useState<LinearStatusChoice>('no_change')
 	const [body, setBodyState] = useState('')
 	const [bodyDirty, setBodyDirty] = useState(false)
+	const [commitMessage, setCommitMessage] = useState('')
 	const seededRef = useRef(false)
 
 	// Seed once per open session; clear the seed flag on close. Prop changes while
@@ -67,6 +72,7 @@ export function useShipForm({
 		setIncludeChangedFiles(true)
 		setComment('')
 		setStatusChoice('no_change')
+		setCommitMessage('')
 		setBodyDirty(false)
 		setBodyState(
 			composeShipBody({ includeSummary: true, includeChangedFiles: true, summary, changedFiles })
@@ -84,6 +90,13 @@ export function useShipForm({
 		setBodyState(next)
 	}
 
+	const applyProposal = (proposal: ShipProposal) => {
+		setTitle(proposal.prTitle)
+		setCommitMessage(proposal.commitMessage)
+		setBodyDirty(true)
+		setBodyState(proposal.prDescription)
+	}
+
 	const originalHeadBranch = (headBranch ?? '').trim()
 	const trimmedHeadBranch = headBranchInput.trim()
 	const headBranchEdited = trimmedHeadBranch !== originalHeadBranch
@@ -96,6 +109,9 @@ export function useShipForm({
 		setTitle,
 		body,
 		setBody,
+		commitMessage,
+		setCommitMessage,
+		applyProposal,
 		includeSummary,
 		setIncludeSummary,
 		includeChangedFiles,

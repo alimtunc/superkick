@@ -7,7 +7,7 @@
 use anyhow::Result;
 use superkick_core::{
     AgentProvider, BillingProfile, LaunchProfile, LaunchRecipe, LaunchStepKind, LaunchTask,
-    OutputExpectation, ProfileKind, ProfileSnapshot, ReasoningEffort, SessionPolicy,
+    OutputExpectation, ProfileKind, ProfileSnapshot, ProfileStep, ReasoningEffort, SessionPolicy,
     SkillDefinition, SkillKind, SkillSource, StepExecutor, StepSnapshot,
 };
 use superkick_storage::repo::{
@@ -99,15 +99,10 @@ async fn seed_defaults_writes_builtin_providers_skills_profiles() -> Result<()> 
         LaunchProfile::builtins().len()
     );
 
-    let standard = profiles.get("standard").await?.expect("standard profile");
-    assert!(standard.is_default);
-    assert_eq!(standard.kind, ProfileKind::Standard);
-    let refs: Vec<_> = standard
-        .steps
-        .iter()
-        .map(|s| s.skill_ref.as_str())
-        .collect();
-    assert_eq!(refs, ["plan", "implement", "review"]);
+    let custom = profiles.get("custom").await?.expect("custom profile");
+    assert!(custom.is_default, "Custom is the default (only) profile");
+    assert_eq!(custom.kind, ProfileKind::Custom);
+    assert!(custom.steps.is_empty(), "Custom ships empty");
     Ok(())
 }
 
@@ -130,10 +125,10 @@ async fn seeding_is_idempotent_and_preserves_operator_edits() -> Result<()> {
     let pool = pool().await?;
     let profiles = SqliteLaunchProfileRepo::new(pool.clone());
 
-    let mut standard = profiles.get("standard").await?.expect("standard");
-    standard.name = "My Standard".into();
-    standard.steps.truncate(1);
-    profiles.upsert(&standard).await?;
+    let mut custom = profiles.get("custom").await?.expect("custom");
+    custom.name = "My Workflow".into();
+    custom.steps = vec![sample_step(1)];
+    profiles.upsert(&custom).await?;
 
     // A second boot re-runs seeding; edits must survive and counts stay fixed.
     seed_defaults(&pool).await?;
@@ -142,8 +137,8 @@ async fn seeding_is_idempotent_and_preserves_operator_edits() -> Result<()> {
         profiles.list().await?.len(),
         LaunchProfile::builtins().len()
     );
-    let reloaded = profiles.get("standard").await?.expect("standard");
-    assert_eq!(reloaded.name, "My Standard");
+    let reloaded = profiles.get("custom").await?.expect("custom");
+    assert_eq!(reloaded.name, "My Workflow");
     assert_eq!(reloaded.steps.len(), 1);
     Ok(())
 }
@@ -171,7 +166,7 @@ async fn custom_skill_and_profile_crud() -> Result<()> {
 
     let mut custom = profiles.get("custom").await?.expect("custom profile");
     custom.name = "My Workflow".into();
-    custom.steps = vec![standard_first_step()];
+    custom.steps = vec![sample_step(1)];
     profiles.upsert(&custom).await?;
     let reloaded = profiles.get("custom").await?.expect("custom profile");
     assert_eq!(reloaded.name, "My Workflow");
@@ -179,33 +174,26 @@ async fn custom_skill_and_profile_crud() -> Result<()> {
     Ok(())
 }
 
-fn standard_first_step() -> superkick_core::ProfileStep {
-    LaunchProfile::builtins()
-        .into_iter()
-        .find(|p| p.kind == ProfileKind::Standard)
-        .expect("standard")
-        .steps
-        .remove(0)
+fn sample_step(ordering: u32) -> ProfileStep {
+    ProfileStep {
+        ordering,
+        label: "Plan".into(),
+        skill_ref: "plan".into(),
+        agent_ref: None,
+        provider: AgentProvider::Codex,
+        model: None,
+        reasoning: ReasoningEffort::Medium,
+        executor: StepExecutor::CodexStructured,
+        session_policy: SessionPolicy::Fresh,
+        output_expectation: OutputExpectation::Plan,
+        enabled: true,
+    }
 }
 
 #[tokio::test]
-async fn seed_includes_full_session_profile_and_ticket_skill() -> Result<()> {
+async fn seed_includes_ticket_skill() -> Result<()> {
     let pool = pool().await?;
-    let profiles = SqliteLaunchProfileRepo::new(pool.clone());
     let skills = SqliteSkillDefinitionRepo::new(pool.clone());
-
-    let full_session = profiles
-        .get("full_session")
-        .await?
-        .expect("full_session profile");
-    assert_eq!(full_session.kind, ProfileKind::FullSession);
-    assert!(full_session.is_readonly);
-    assert_eq!(full_session.steps.len(), 1);
-    let step = &full_session.steps[0];
-    assert_eq!(step.skill_ref, "ticket");
-    assert_eq!(step.provider, AgentProvider::Claude);
-    assert_eq!(step.executor, StepExecutor::InteractivePty);
-    assert_eq!(step.reasoning, ReasoningEffort::High);
 
     let ticket = skills.get("ticket").await?.expect("ticket skill");
     assert_eq!(ticket.source, SkillSource::Installed("ticket".into()));
@@ -219,11 +207,9 @@ async fn profile_step_round_trips_minimal_and_max_reasoning() -> Result<()> {
     let pool = pool().await?;
     let profiles = SqliteLaunchProfileRepo::new(pool.clone());
 
-    let mut minimal = standard_first_step();
-    minimal.ordering = 1;
+    let mut minimal = sample_step(1);
     minimal.reasoning = ReasoningEffort::Minimal;
-    let mut max = standard_first_step();
-    max.ordering = 2;
+    let mut max = sample_step(2);
     max.reasoning = ReasoningEffort::Max;
 
     let mut custom = profiles.get("custom").await?.expect("custom profile");

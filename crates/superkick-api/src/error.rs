@@ -190,9 +190,6 @@ impl From<AgentServiceError> for AppError {
                 message: format!("agent '{name}' already exists"),
                 run: None,
             },
-            AgentServiceError::BuiltinUndeletable => AppError::BadRequest(
-                "builtin agents cannot be deleted — disable them instead".into(),
-            ),
             AgentServiceError::Invalid(e) => AppError::from(e),
             AgentServiceError::Db(e) => AppError::Internal(e),
         }

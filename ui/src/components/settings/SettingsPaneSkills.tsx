@@ -6,11 +6,12 @@ import { SettingsSection } from '@/components/settings/SettingsSection'
 import { SkillEditor } from '@/components/settings/SkillEditor'
 import { SkillImportDialog } from '@/components/settings/SkillImportDialog'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Pill } from '@/components/ui/pill'
 import { AsyncSection } from '@/components/ui/state-async'
 import { useSkills } from '@/hooks/useSkills'
 import { SKILL_KIND_LABEL } from '@/lib/launchConfigOptions'
-import { blankSkill, isDeletableSkill, skillSourceLabel } from '@/lib/skills'
+import { blankSkill, skillSourceLabel } from '@/lib/skills'
 import type { SkillDefinition } from '@/types'
 import { Toggle } from '@/ui/Toggle'
 import { toast } from 'sonner'
@@ -21,6 +22,7 @@ export function SettingsPaneSkills() {
 	const { skills, isLoading, error, createSkill, updateSkill, deleteSkill, isMutating } = useSkills()
 	const [editor, setEditor] = useState<EditorState>({ open: false })
 	const [importOpen, setImportOpen] = useState(false)
+	const [pendingDelete, setPendingDelete] = useState<SkillDefinition | null>(null)
 
 	function openCreate(sourceKind: 'prompt' | 'installed') {
 		setEditor({ open: true, mode: 'create', seed: blankSkill(sourceKind) })
@@ -46,6 +48,7 @@ export function SettingsPaneSkills() {
 	async function handleDelete(id: string) {
 		try {
 			await deleteSkill(id)
+			setPendingDelete(null)
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : 'Failed to delete skill')
 		}
@@ -55,7 +58,7 @@ export function SettingsPaneSkills() {
 		<section>
 			<SettingsPaneHeader
 				title="Skills"
-				description="The default skills (Plan, Implement, Review, Pre-PR review) plus your own custom and imported skills. Builtins and imported skills can be edited and disabled but not deleted."
+				description="The default skills (Plan, Implement, Review, Pre-PR review) plus your own custom and imported skills. Any skill can be edited, disabled, or deleted — deleting a built-in keeps it gone across restarts."
 			/>
 			<AsyncSection
 				isLoading={isLoading}
@@ -91,16 +94,14 @@ export function SettingsPaneSkills() {
 								>
 									Edit
 								</Button>
-								{isDeletableSkill(skill) ? (
-									<Button
-										variant="ghost"
-										size="sm"
-										disabled={isMutating}
-										onClick={() => handleDelete(skill.id)}
-									>
-										Delete
-									</Button>
-								) : null}
+								<Button
+									variant="ghost"
+									size="sm"
+									disabled={isMutating}
+									onClick={() => setPendingDelete(skill)}
+								>
+									Delete
+								</Button>
 							</div>
 						</SettingsRow>
 					))}
@@ -133,6 +134,27 @@ export function SettingsPaneSkills() {
 			) : null}
 
 			<SkillImportDialog open={importOpen} onOpenChange={setImportOpen} />
+
+			<ConfirmDialog
+				open={pendingDelete !== null}
+				onOpenChange={(open) => {
+					if (!open) setPendingDelete(null)
+				}}
+				title="Delete skill?"
+				description={
+					pendingDelete
+						? pendingDelete.origin === 'builtin'
+							? `Delete the built-in skill “${pendingDelete.label}”? It will not be re-created on restart. This cannot be undone.`
+							: `Delete the skill “${pendingDelete.label}”? This cannot be undone.`
+						: undefined
+				}
+				confirmLabel="Delete"
+				destructive
+				busy={isMutating}
+				onConfirm={() => {
+					if (pendingDelete) handleDelete(pendingDelete.id)
+				}}
+			/>
 		</section>
 	)
 }

@@ -239,6 +239,13 @@ impl SkillDefinition {
                 OutputExpectation::Review,
                 include_str!("builtin_skills/pre_pr_review.md"),
             ),
+            builtin(
+                "ship",
+                "Ship",
+                SkillKind::Custom,
+                OutputExpectation::Comment,
+                include_str!("builtin_skills/ship.md"),
+            ),
             ticket_builtin(),
         ]
     }
@@ -289,12 +296,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builtins_cover_the_five_default_skills() {
+    fn builtins_cover_the_default_skills() {
         let builtins = SkillDefinition::builtins();
         let ids: Vec<_> = builtins.iter().map(|s| s.id.as_str()).collect();
         assert_eq!(
             ids,
-            ["plan", "implement", "review", "pre_pr_review", "ticket"]
+            [
+                "plan",
+                "implement",
+                "review",
+                "pre_pr_review",
+                "ship",
+                "ticket"
+            ]
         );
         assert!(builtins.iter().all(|s| s.origin == SkillOrigin::Builtin));
         assert!(builtins.iter().all(|s| s.validate().is_ok()));

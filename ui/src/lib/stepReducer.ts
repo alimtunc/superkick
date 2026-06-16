@@ -22,12 +22,14 @@ export function seedStepFromSkill(step: ProfileStep, skill: SkillDefinition): Pr
 	}
 }
 
-// Attach an agent as the step's primary unit: record `agent_ref` and seed the
-// displayed fields from it (the agent's policy deep-carries at launch).
+// Attach an agent as the step's primary unit: record `agent_ref`, label the
+// step with the agent, and seed the (non-overridable) execution fields from it
+// — the agent's persisted policy deep-carries at launch.
 export function seedStepFromAgent(step: ProfileStep, agent: Agent): ProfileStep {
 	return {
 		...step,
 		agent_ref: agent.name,
+		label: agent.name,
 		provider: agent.provider,
 		model: agent.model ?? (agent.provider === step.provider ? step.model : null),
 		reasoning: clampReasoningForProvider(agent.default_reasoning, agent.provider),

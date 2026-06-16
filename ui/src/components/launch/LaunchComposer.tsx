@@ -1,13 +1,9 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 
-import { AgentPicker } from '@/components/launch/AgentPicker'
 import { BaseBranchChip } from '@/components/launch/BaseBranchChip'
 import { ExecutionDestination } from '@/components/launch/ExecutionDestination'
 import { IssueChipPicker } from '@/components/launch/IssueChipPicker'
-import { LaunchProfilePicker } from '@/components/launch/LaunchProfilePicker'
 import { LaunchStepListEditor } from '@/components/launch/LaunchStepListEditor'
-import { pickDefaultAgent } from '@/components/launch/pickDefaultAgent'
-import { SuggestedStarts } from '@/components/launch/SuggestedStarts'
 import { WorktreeStrategyChip } from '@/components/launch/WorktreeStrategyChip'
 import { ErrorState } from '@/components/ui/state-error'
 import { useAgents } from '@/hooks/useAgents'
@@ -15,14 +11,13 @@ import { useConfig } from '@/hooks/useConfig'
 import { useCreateLaunchTask } from '@/hooks/useCreateLaunchTask'
 import { useIssueActiveTask } from '@/hooks/useIssueLaunchTasks'
 import { useIssueReusableWorktree } from '@/hooks/useIssueReusableWorktree'
-import { useSkills } from '@/hooks/useSkills'
+import { useLaunchProfiles } from '@/hooks/useLaunchProfiles'
 import { errorMessageOr } from '@/lib/errors'
 import { bodyFromIssue, selectionFromDetail, selectionFromListItem } from '@/lib/launch/composerSelection'
 import { useLaunchComposerState } from '@/stores/launchComposerState'
 import type {
 	IssueChipPickerValue,
 	IssueDetailResponse,
-	LaunchStepKind,
 	LaunchTaskWithSteps,
 	LaunchWorktreeStrategy
 } from '@/types'
@@ -44,15 +39,15 @@ export function LaunchComposer({ issue, prefill = null, onLaunched }: LaunchComp
 	const navigate = useNavigate()
 	const { config } = useConfig()
 	const agentsQuery = useAgents()
-	const agentsData = agentsQuery.data
-	const agents = agentsData ?? []
-	const { skills, isLoading: skillsLoading, error: skillsError } = useSkills()
+	const { profiles } = useLaunchProfiles()
 
 	const profileId = useLaunchComposerState((state) => state.profileId)
 	const composerSteps = useLaunchComposerState((state) => state.steps)
+	const selectProfile = useLaunchComposerState((state) => state.selectProfile)
 	const resetComposer = useLaunchComposerState((state) => state.reset)
-	const profileMode = profileId !== null
-	const enabledStepCount = composerSteps.filter((step) => step.enabled).length
+
+	const enabledSteps = composerSteps.filter((step) => step.enabled)
+	const stepsReady = enabledSteps.length > 0 && enabledSteps.every((step) => Boolean(step.agent_ref))
 
 	const configBase = config?.base_branch?.trim() || DEFAULT_BASE_BRANCH
 	const configStrategy: LaunchWorktreeStrategy =
@@ -62,11 +57,6 @@ export function LaunchComposer({ issue, prefill = null, onLaunched }: LaunchComp
 		selectionFromDetail(issue)
 	)
 	const [body, setBody] = useState<string>(() => bodyFromIssue(issue) || prefill || '')
-	const [selection, setSelection] = useState<Record<LaunchStepKind, string | null>>({
-		plan: null,
-		implement: null,
-		review: null
-	})
 	const [baseOverride, setBaseOverride] = useState<string | null>(null)
 	const [strategyOverride, setStrategyOverride] = useState<LaunchWorktreeStrategy | null>(null)
 	const baseBranch = baseOverride ?? configBase
@@ -89,23 +79,13 @@ export function LaunchComposer({ issue, prefill = null, onLaunched }: LaunchComp
 		setBody(prefill)
 	}, [issue, prefill])
 
+	// Launch always runs the single `custom` container: a blank, ordered list of
+	// agent steps. Select it once it loads (no profile picker — there is one).
 	useEffect(() => {
-		if (!agentsData || agentsData.length === 0) return
-		setSelection((current) => {
-			const exists = (name: string | null) => name !== null && agentsData.some((a) => a.name === name)
-			return {
-				plan: exists(current.plan)
-					? current.plan
-					: (pickDefaultAgent(agentsData, 'plan')?.name ?? null),
-				implement: exists(current.implement)
-					? current.implement
-					: (pickDefaultAgent(agentsData, 'implement')?.name ?? null),
-				review: exists(current.review)
-					? current.review
-					: (pickDefaultAgent(agentsData, 'review')?.name ?? null)
-			}
-		})
-	}, [agentsData])
+		if (profileId !== null) return
+		const base = profiles.find((profile) => profile.is_default) ?? profiles[0]
+		if (base) selectProfile(base)
+	}, [profiles, profileId, selectProfile])
 
 	useEffect(() => () => resetComposer(), [resetComposer])
 
@@ -127,18 +107,15 @@ export function LaunchComposer({ issue, prefill = null, onLaunched }: LaunchComp
 
 	const reusableWorktree = useIssueReusableWorktree(selectedIssue?.identifier ?? '')
 
-	const planAgent = selection.plan
-	const implementAgent = selection.implement
-	const reviewAgent = selection.review
-	const allAgentsPicked = planAgent !== null && implementAgent !== null && reviewAgent !== null
-	const stepsReady = profileMode ? enabledStepCount > 0 : allAgentsPicked
 	const canSubmit =
 		selectedIssue !== null &&
+		profileId !== null &&
 		stepsReady &&
 		body.trim().length > 0 &&
 		baseBranch.trim().length > 0 &&
 		!createLaunchTask.isPending &&
 		!agentsQuery.isLoading
+
 	const submitError = createLaunchTask.error ? errorMessageOr(createLaunchTask.error) : null
 
 	function worktreeFields() {
@@ -155,25 +132,12 @@ export function LaunchComposer({ issue, prefill = null, onLaunched }: LaunchComp
 	}
 
 	function handleSubmit() {
-		if (!selectedIssue) return
+		if (!selectedIssue || profileId === null || !stepsReady) return
 		const worktree = worktreeFields()
-		if (profileMode && profileId !== null) {
-			if (enabledStepCount === 0) return
-			createLaunchTask.mutate({
-				linear_issue_id: selectedIssue.identifier,
-				profile_id: profileId,
-				step_overrides: composerSteps,
-				base_branch: baseBranch.trim(),
-				...worktree
-			})
-			return
-		}
-		if (planAgent === null || implementAgent === null || reviewAgent === null) return
 		createLaunchTask.mutate({
 			linear_issue_id: selectedIssue.identifier,
-			planner_agent: planAgent,
-			coder_agent: implementAgent,
-			reviewer_agent: reviewAgent,
+			profile_id: profileId,
+			step_overrides: composerSteps,
 			base_branch: baseBranch.trim(),
 			...worktree
 		})
@@ -219,52 +183,14 @@ export function LaunchComposer({ issue, prefill = null, onLaunched }: LaunchComp
 							if (body.trim().length === 0) setBody(item.title)
 						}}
 					/>
-					<LaunchProfilePicker />
-					{profileMode ? null : (
-						<>
-							<AgentPicker
-								value={selection.plan}
-								agents={agents}
-								onChange={(next) => setSelection((s) => ({ ...s, plan: next }))}
-								recommendedFor="plan"
-								icon="doc"
-								label="planner"
-								disabled={agentsQuery.isLoading}
-							/>
-							<AgentPicker
-								value={selection.implement}
-								agents={agents}
-								onChange={(next) => setSelection((s) => ({ ...s, implement: next }))}
-								recommendedFor="implement"
-								icon="bot"
-								label="coder"
-								disabled={agentsQuery.isLoading}
-							/>
-							<AgentPicker
-								value={selection.review}
-								agents={agents}
-								onChange={(next) => setSelection((s) => ({ ...s, review: next }))}
-								recommendedFor="review"
-								icon="check"
-								label="reviewer"
-								disabled={agentsQuery.isLoading}
-							/>
-						</>
-					)}
 				</div>
 
-				{profileMode ? (
-					<div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
-						{skillsError ? (
-							<ErrorState
-								title="Could not load skills"
-								message={skillsError}
-								density="compact"
-							/>
-						) : null}
-						<LaunchStepListEditor skills={skills} skillsLoading={skillsLoading} />
-					</div>
-				) : null}
+				<div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
+					<span className="text-[10.5px] font-semibold tracking-wider text-fg-dim uppercase">
+						Agents to run
+					</span>
+					<LaunchStepListEditor />
+				</div>
 
 				<div className="mt-3 flex flex-col gap-2.5 border-t border-border pt-3">
 					<div className="flex flex-wrap items-center gap-1.5">
@@ -311,7 +237,7 @@ export function LaunchComposer({ issue, prefill = null, onLaunched }: LaunchComp
 					<Kbd>↵</Kbd>
 					<span>launch</span>
 				</span>
-				<span>Pick an issue, then Plan → Implement → Review.</span>
+				<span>Pick an issue, then add the agents to run in order.</span>
 			</div>
 
 			{activeRunTask && !createLaunchTask.isPending ? (
@@ -338,8 +264,6 @@ export function LaunchComposer({ issue, prefill = null, onLaunched }: LaunchComp
 					density="compact"
 				/>
 			) : null}
-
-			<SuggestedStarts />
 		</div>
 	)
 }

@@ -1,10 +1,11 @@
 //! Launch profiles — editable, ordered step lists.
 //!
 //! A `LaunchProfile` is a named, reorderable sequence of [`ProfileStep`]s the
-//! operator picks (and overrides) in the Launch Composer. The eight builtins
-//! ship as canonical code constants ([`LaunchProfile::builtins`]); the runtime
-//! seeds editable DB copies. `Standard` reproduces the legacy
-//! Plan → Implement → Review recipe and is the default.
+//! operator builds in the Launch Composer by picking configured agents in
+//! order. The only builtin is the empty `Custom` container
+//! ([`LaunchProfile::builtins`]); the runtime seeds an editable DB copy. The
+//! product no longer ships opinionated Plan/Implement/Review profiles — the
+//! composer is a blank ordered list of agent steps.
 //!
 //! At launch the chosen profile + overrides are frozen into a
 //! [`ProfileSnapshot`] (a `Vec<StepSnapshot>` with a profile header) and
@@ -21,16 +22,15 @@ use crate::error::CoreError;
 use crate::launch_task::LaunchStepKind;
 use crate::output_expectation::OutputExpectation;
 use crate::reasoning::ReasoningEffort;
-use crate::role_router::{
-    CLAUDE_IMPLEMENT, CLAUDE_PLAN, CLAUDE_REVIEW, CODEX_IMPLEMENT, CODEX_PLAN, CODEX_REVIEW,
-};
 use crate::serde_util::default_true;
 use crate::session_policy::SessionPolicy;
 use crate::skill::{SkillKind, SkillSource};
 use crate::step_executor::StepExecutor;
 
-/// The product-level shape of a profile. Each named kind appears once among the
-/// builtins; `Custom` is the operator-authored bucket.
+/// The product-level shape of a profile. New profiles are always `Custom` (the
+/// only kind `builtins()` ships); the named kinds remain solely to deserialize
+/// frozen `profile_snapshot`s from launch tasks created before the agents-in-order
+/// simplification, so historical runs still replay.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ProfileKind {
@@ -146,72 +146,17 @@ impl LaunchProfile {
         !self.is_readonly
     }
 
-    /// The nine canonical builtin profiles. `seed_defaults` writes editable DB
-    /// copies. `Standard` is the default and reproduces the legacy recipe.
+    /// The single builtin profile: the empty `Custom` container that the
+    /// composer fills by picking configured agents in order. `seed_defaults`
+    /// writes an editable DB copy; it is the default since it is the only one.
     pub fn builtins() -> Vec<LaunchProfile> {
-        vec![
-            profile(
-                "standard",
-                "Standard",
-                ProfileKind::Standard,
-                true,
-                vec![codex_plan(1), codex_implement(2), codex_review(3)],
-            ),
-            profile(
-                "fast_fix",
-                "Fast fix",
-                ProfileKind::FastFix,
-                false,
-                vec![codex_implement(1), codex_review(2)],
-            ),
-            profile(
-                "plan_only",
-                "Plan only",
-                ProfileKind::PlanOnly,
-                false,
-                vec![codex_plan(1)],
-            ),
-            profile(
-                "implement_only",
-                "Implement only",
-                ProfileKind::ImplementOnly,
-                false,
-                vec![codex_implement(1)],
-            ),
-            profile(
-                "review_only",
-                "Review only",
-                ProfileKind::ReviewOnly,
-                false,
-                vec![codex_review(1)],
-            ),
-            profile(
-                "claude_workflow",
-                "Claude workflow",
-                ProfileKind::ClaudeWorkflow,
-                false,
-                vec![claude_plan(1), claude_implement(2), claude_review(3)],
-            ),
-            profile(
-                "claude_background",
-                "Claude background",
-                ProfileKind::ClaudeBackground,
-                false,
-                vec![
-                    claude_background_plan(1),
-                    claude_background_implement(2),
-                    claude_background_review(3),
-                ],
-            ),
-            profile(
-                "full_session",
-                "Full session",
-                ProfileKind::FullSession,
-                false,
-                vec![full_session_ticket(1)],
-            ),
-            profile("custom", "Custom", ProfileKind::Custom, false, Vec::new()),
-        ]
+        vec![profile(
+            "custom",
+            "Custom",
+            ProfileKind::Custom,
+            true,
+            Vec::new(),
+        )]
     }
 }
 
@@ -272,250 +217,57 @@ fn profile(
     }
 }
 
-fn codex_step(
-    ordering: u32,
-    skill_ref: &str,
-    label: &str,
-    output: OutputExpectation,
-) -> ProfileStep {
-    ProfileStep {
-        ordering,
-        label: label.to_string(),
-        skill_ref: skill_ref.to_string(),
-        agent_ref: None,
-        provider: AgentProvider::Codex,
-        model: None,
-        reasoning: ReasoningEffort::Medium,
-        executor: StepExecutor::CodexStructured,
-        session_policy: SessionPolicy::Fresh,
-        output_expectation: output,
-        enabled: true,
-    }
-}
-
-fn claude_step(
-    ordering: u32,
-    skill_ref: &str,
-    label: &str,
-    output: OutputExpectation,
-) -> ProfileStep {
-    ProfileStep {
-        provider: AgentProvider::Claude,
-        executor: StepExecutor::ClaudeWorkflow,
-        ..codex_step(ordering, skill_ref, label, output)
-    }
-}
-
-fn with_agent(agent: &str, step: ProfileStep) -> ProfileStep {
-    ProfileStep {
-        agent_ref: Some(agent.to_string()),
-        ..step
-    }
-}
-fn codex_plan(ordering: u32) -> ProfileStep {
-    with_agent(
-        CODEX_PLAN,
-        codex_step(ordering, "plan", "Plan", OutputExpectation::Plan),
-    )
-}
-fn codex_implement(ordering: u32) -> ProfileStep {
-    with_agent(
-        CODEX_IMPLEMENT,
-        codex_step(ordering, "implement", "Implement", OutputExpectation::Patch),
-    )
-}
-fn codex_review(ordering: u32) -> ProfileStep {
-    with_agent(
-        CODEX_REVIEW,
-        codex_step(ordering, "review", "Review", OutputExpectation::Review),
-    )
-}
-fn claude_plan(ordering: u32) -> ProfileStep {
-    with_agent(
-        CLAUDE_PLAN,
-        claude_step(ordering, "plan", "Plan", OutputExpectation::Plan),
-    )
-}
-fn claude_implement(ordering: u32) -> ProfileStep {
-    with_agent(
-        CLAUDE_IMPLEMENT,
-        claude_step(ordering, "implement", "Implement", OutputExpectation::Patch),
-    )
-}
-fn claude_review(ordering: u32) -> ProfileStep {
-    with_agent(
-        CLAUDE_REVIEW,
-        claude_step(ordering, "review", "Review", OutputExpectation::Review),
-    )
-}
-fn claude_background_step(
-    ordering: u32,
-    skill_ref: &str,
-    label: &str,
-    output: OutputExpectation,
-) -> ProfileStep {
-    ProfileStep {
-        executor: StepExecutor::ClaudeBackground,
-        ..claude_step(ordering, skill_ref, label, output)
-    }
-}
-fn claude_background_plan(ordering: u32) -> ProfileStep {
-    with_agent(
-        CLAUDE_PLAN,
-        claude_background_step(ordering, "plan", "Plan", OutputExpectation::Plan),
-    )
-}
-fn claude_background_implement(ordering: u32) -> ProfileStep {
-    with_agent(
-        CLAUDE_IMPLEMENT,
-        claude_background_step(ordering, "implement", "Implement", OutputExpectation::Patch),
-    )
-}
-fn claude_background_review(ordering: u32) -> ProfileStep {
-    with_agent(
-        CLAUDE_REVIEW,
-        claude_background_step(ordering, "review", "Review", OutputExpectation::Review),
-    )
-}
-fn full_session_ticket(ordering: u32) -> ProfileStep {
-    ProfileStep {
-        executor: StepExecutor::InteractivePty,
-        reasoning: ReasoningEffort::High,
-        ..claude_step(
-            ordering,
-            "ticket",
-            "Ticket (full session)",
-            OutputExpectation::Patch,
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn builtins_cover_the_canonical_profiles() {
-        let kinds: Vec<_> = LaunchProfile::builtins()
-            .into_iter()
-            .map(|p| p.kind)
-            .collect();
-        assert_eq!(
-            kinds,
-            [
-                ProfileKind::Standard,
-                ProfileKind::FastFix,
-                ProfileKind::PlanOnly,
-                ProfileKind::ImplementOnly,
-                ProfileKind::ReviewOnly,
-                ProfileKind::ClaudeWorkflow,
-                ProfileKind::ClaudeBackground,
-                ProfileKind::FullSession,
-                ProfileKind::Custom,
-            ]
-        );
-    }
-
-    #[test]
-    fn claude_background_builtin_uses_subscription_background_executor() {
-        let profile = LaunchProfile::builtins()
-            .into_iter()
-            .find(|p| p.kind == ProfileKind::ClaudeBackground)
-            .expect("claude_background builtin");
-        assert_eq!(profile.steps.len(), 3);
-        assert!(
-            profile
-                .steps
-                .iter()
-                .all(|s| s.provider == AgentProvider::Claude
-                    && s.executor == StepExecutor::ClaudeBackground)
-        );
-        // Subscription path: no builtin step is on the paid SDK path.
-        assert!(!profile.steps.iter().any(|s| s.executor.is_paid_sdk()));
-    }
-
-    #[test]
-    fn full_session_builtin_runs_the_ticket_skill_on_an_interactive_pty() {
-        let full_session = LaunchProfile::builtins()
-            .into_iter()
-            .find(|p| p.kind == ProfileKind::FullSession)
-            .expect("full_session builtin");
-        assert_eq!(full_session.id, "full_session");
-        assert_eq!(full_session.steps.len(), 1);
-        let step = &full_session.steps[0];
-        assert_eq!(step.skill_ref, "ticket");
-        assert_eq!(step.provider, AgentProvider::Claude);
-        assert_eq!(step.executor, StepExecutor::InteractivePty);
-        assert_eq!(step.reasoning, ReasoningEffort::High);
-        assert_eq!(step.session_policy, SessionPolicy::Fresh);
-        assert_eq!(step.output_expectation, OutputExpectation::Patch);
-        assert!(step.enabled);
-    }
-
-    #[test]
-    fn standard_is_the_only_default_and_each_step_is_agent_primary() {
+    fn builtins_is_only_the_empty_custom_default_container() {
         let builtins = LaunchProfile::builtins();
-        let defaults: Vec<_> = builtins.iter().filter(|p| p.is_default).collect();
-        assert_eq!(defaults.len(), 1);
-        let standard = defaults[0];
-        assert_eq!(standard.kind, ProfileKind::Standard);
-        let refs: Vec<_> = standard
-            .steps
-            .iter()
-            .map(|s| s.skill_ref.as_str())
-            .collect();
-        assert_eq!(refs, ["plan", "implement", "review"]);
-        assert!(
-            standard
-                .steps
-                .iter()
-                .all(|s| s.executor == StepExecutor::CodexStructured)
-        );
-        // SUP-206 V2 — Standard's steps are agent-primary: each names a built-in
-        // codex agent. The step's provider/executor/reasoning are unchanged, but
-        // launch is NO LONGER byte-for-byte the legacy skill-first recipe — at
-        // resolution the agent deep-carries its policy (the planner's Linear MCP,
-        // the reviewer's bash/write deny) and the agent's attached skills are
-        // what materialise. This is the intended convergence under
-        // "agent = primary unit"; the runner mode still rides on the executor.
-        let agent_refs: Vec<_> = standard
-            .steps
-            .iter()
-            .map(|s| s.agent_ref.as_deref())
-            .collect();
-        assert_eq!(
-            agent_refs,
-            [Some(CODEX_PLAN), Some(CODEX_IMPLEMENT), Some(CODEX_REVIEW)]
-        );
-        assert!(
-            standard
-                .steps
-                .iter()
-                .all(|s| s.provider == AgentProvider::Codex
-                    && s.reasoning == ReasoningEffort::Medium)
-        );
-    }
-
-    #[test]
-    fn claude_workflow_is_the_only_builtin_on_the_paid_path() {
-        for profile in LaunchProfile::builtins() {
-            let paid = profile.steps.iter().any(|s| s.executor.is_paid_sdk());
-            assert_eq!(paid, profile.kind == ProfileKind::ClaudeWorkflow);
-        }
-    }
-
-    #[test]
-    fn custom_builtin_has_no_steps() {
-        let custom = LaunchProfile::builtins()
-            .into_iter()
-            .find(|p| p.kind == ProfileKind::Custom)
-            .unwrap();
-        assert!(custom.steps.is_empty());
+        assert_eq!(builtins.len(), 1, "only the Custom container ships");
+        let custom = &builtins[0];
+        assert_eq!(custom.kind, ProfileKind::Custom);
+        assert_eq!(custom.id, "custom");
+        assert!(custom.steps.is_empty(), "Custom starts blank");
+        assert!(custom.is_default, "Custom is the default (only) profile");
     }
 
     #[test]
     fn validate_rejects_duplicate_orderings() {
-        let mut profile = LaunchProfile::builtins().remove(0);
+        let mut profile = profile(
+            "tmp",
+            "Tmp",
+            ProfileKind::Custom,
+            false,
+            vec![
+                ProfileStep {
+                    ordering: 1,
+                    label: "a".into(),
+                    skill_ref: "implement".into(),
+                    agent_ref: None,
+                    provider: AgentProvider::Codex,
+                    model: None,
+                    reasoning: ReasoningEffort::Medium,
+                    executor: StepExecutor::CodexStructured,
+                    session_policy: SessionPolicy::Fresh,
+                    output_expectation: OutputExpectation::Patch,
+                    enabled: true,
+                },
+                ProfileStep {
+                    ordering: 2,
+                    label: "b".into(),
+                    skill_ref: "review".into(),
+                    agent_ref: None,
+                    provider: AgentProvider::Codex,
+                    model: None,
+                    reasoning: ReasoningEffort::Medium,
+                    executor: StepExecutor::CodexStructured,
+                    session_policy: SessionPolicy::Fresh,
+                    output_expectation: OutputExpectation::Review,
+                    enabled: true,
+                },
+            ],
+        );
         profile.steps[1].ordering = 1;
         assert!(profile.validate().is_err());
     }

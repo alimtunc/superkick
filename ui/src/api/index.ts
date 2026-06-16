@@ -13,6 +13,7 @@ export {
 	fetchRuns,
 	fixRunReviewWithAi,
 	patchRunReviewThread,
+	proposeShip,
 	setRunReviewFileReviewed,
 	shipRun
 } from './runs'

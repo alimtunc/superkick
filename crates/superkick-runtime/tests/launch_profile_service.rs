@@ -1,27 +1,63 @@
-//! `LaunchProfileService` composition tests. Hits a real in-memory
-//! SQLite (seeded with the builtin profiles/skills) per CLAUDE.md rule 9.
+//! `LaunchProfileService` composition tests. Hits a real in-memory SQLite
+//! (seeded with the builtin `custom` profile + builtin skills) per CLAUDE.md
+//! rule 9. The only seeded profile is the empty `custom` container, so the
+//! composer-driven path is exercised by passing explicit step overrides — which
+//! is exactly how the launch composer now drives a launch (ordered agent steps).
 
 use anyhow::Result;
 use superkick_core::{
-    LaunchRecipe, LaunchTaskOverrides, ProfileKind, SkillKind, SkillSource, StepExecutor,
+    AgentProvider, LaunchRecipe, LaunchTaskOverrides, OutputExpectation, ProfileKind, ProfileStep,
+    ReasoningEffort, SessionPolicy, SkillKind, SkillSource, StepExecutor,
 };
 use superkick_runtime::LaunchProfileService;
 use superkick_runtime::launch_profile_service::LaunchCompositionError;
-use superkick_storage::repo::{LaunchProfileRepo, LaunchTaskRepo};
+use superkick_storage::repo::LaunchTaskRepo;
 use superkick_storage::{
     SqliteLaunchProfileRepo, SqliteLaunchTaskRepo, SqliteSkillDefinitionRepo, connect,
 };
 
+macro_rules! service {
+    ($pool:expr) => {
+        LaunchProfileService::new(
+            SqliteLaunchProfileRepo::new($pool.clone()),
+            SqliteSkillDefinitionRepo::new($pool.clone()),
+            SqliteLaunchTaskRepo::new($pool.clone()),
+        )
+    };
+}
+
+fn step(ordering: u32, skill_ref: &str, output: OutputExpectation) -> ProfileStep {
+    ProfileStep {
+        ordering,
+        label: skill_ref.to_string(),
+        skill_ref: skill_ref.to_string(),
+        agent_ref: None,
+        provider: AgentProvider::Codex,
+        model: None,
+        reasoning: ReasoningEffort::Medium,
+        executor: StepExecutor::CodexStructured,
+        session_policy: SessionPolicy::Fresh,
+        output_expectation: output,
+        enabled: true,
+    }
+}
+
+/// A plan → implement → review step list the composer would build by picking
+/// configured agents in order.
+fn test_steps() -> Vec<ProfileStep> {
+    vec![
+        step(1, "plan", OutputExpectation::Plan),
+        step(2, "implement", OutputExpectation::Patch),
+        step(3, "review", OutputExpectation::Review),
+    ]
+}
+
 #[tokio::test]
-async fn resolve_snapshot_reads_the_builtin_profile() -> Result<()> {
+async fn resolve_snapshot_resolves_skill_kinds_against_the_catalog() -> Result<()> {
     let pool = connect("sqlite::memory:").await?;
-    let svc = LaunchProfileService::new(
-        SqliteLaunchProfileRepo::new(pool.clone()),
-        SqliteSkillDefinitionRepo::new(pool.clone()),
-        SqliteLaunchTaskRepo::new(pool.clone()),
-    );
-    let snapshot = svc.resolve_snapshot("standard", None).await?;
-    assert_eq!(snapshot.profile_kind, ProfileKind::Standard);
+    let svc = service!(pool);
+    let snapshot = svc.resolve_snapshot("custom", Some(test_steps())).await?;
+    assert_eq!(snapshot.profile_kind, ProfileKind::Custom);
     let refs: Vec<_> = snapshot
         .steps
         .iter()
@@ -44,17 +80,11 @@ async fn resolve_snapshot_reads_the_builtin_profile() -> Result<()> {
 #[tokio::test]
 async fn resolve_snapshot_degrades_unknown_skill_ref_without_a_kind() -> Result<()> {
     let pool = connect("sqlite::memory:").await?;
-    let svc = LaunchProfileService::new(
-        SqliteLaunchProfileRepo::new(pool.clone()),
-        SqliteSkillDefinitionRepo::new(pool.clone()),
-        SqliteLaunchTaskRepo::new(pool.clone()),
-    );
-    let profiles = SqliteLaunchProfileRepo::new(pool.clone());
-
-    let mut steps = profiles.get("standard").await?.expect("standard").steps;
+    let svc = service!(pool);
+    let mut steps = test_steps();
     steps[0].skill_ref = "typo".into();
 
-    let snapshot = svc.resolve_snapshot("standard", Some(steps)).await?;
+    let snapshot = svc.resolve_snapshot("custom", Some(steps)).await?;
     assert_eq!(
         snapshot.steps[0].skill_source,
         SkillSource::Installed("typo".into())
@@ -66,41 +96,36 @@ async fn resolve_snapshot_degrades_unknown_skill_ref_without_a_kind() -> Result<
 #[tokio::test]
 async fn compose_launch_task_persists_a_dynamic_task() -> Result<()> {
     let pool = connect("sqlite::memory:").await?;
-    let svc = LaunchProfileService::new(
-        SqliteLaunchProfileRepo::new(pool.clone()),
-        SqliteSkillDefinitionRepo::new(pool.clone()),
-        SqliteLaunchTaskRepo::new(pool.clone()),
-    );
+    let svc = service!(pool);
     let tasks = SqliteLaunchTaskRepo::new(pool.clone());
 
     let (task, steps) = svc
-        .compose_launch_task("SUP-194", "fast_fix", None, LaunchTaskOverrides::default())
+        .compose_launch_task(
+            "SUP-194",
+            "custom",
+            Some(test_steps()),
+            LaunchTaskOverrides::default(),
+        )
         .await?;
     assert_eq!(task.recipe_kind, LaunchRecipe::Dynamic);
-    assert_eq!(task.profile_id.as_deref(), Some("fast_fix"));
-    assert_eq!(steps.len(), 2);
+    assert_eq!(task.profile_id.as_deref(), Some("custom"));
+    assert_eq!(steps.len(), 3);
 
     let reloaded = tasks.get(task.id).await?.expect("task persisted");
     assert_eq!(reloaded.recipe_kind, LaunchRecipe::Dynamic);
     let snap = reloaded.profile_snapshot.expect("snapshot persisted");
-    assert_eq!(snap.profile_kind, ProfileKind::FastFix);
+    assert_eq!(snap.profile_kind, ProfileKind::Custom);
     Ok(())
 }
 
 #[tokio::test]
 async fn resolve_snapshot_honours_step_overrides() -> Result<()> {
     let pool = connect("sqlite::memory:").await?;
-    let svc = LaunchProfileService::new(
-        SqliteLaunchProfileRepo::new(pool.clone()),
-        SqliteSkillDefinitionRepo::new(pool.clone()),
-        SqliteLaunchTaskRepo::new(pool.clone()),
-    );
-    let profiles = SqliteLaunchProfileRepo::new(pool.clone());
-
-    let mut steps = profiles.get("standard").await?.expect("standard").steps;
+    let svc = service!(pool);
+    let mut steps = test_steps();
     steps[1].enabled = false; // composer disables the implement step
 
-    let snapshot = svc.resolve_snapshot("standard", Some(steps)).await?;
+    let snapshot = svc.resolve_snapshot("custom", Some(steps)).await?;
     assert_eq!(snapshot.steps.len(), 3);
     assert!(snapshot.steps[0].enabled);
     assert!(!snapshot.steps[1].enabled);
@@ -110,11 +135,7 @@ async fn resolve_snapshot_honours_step_overrides() -> Result<()> {
 #[tokio::test]
 async fn unknown_profile_is_a_not_found_error() -> Result<()> {
     let pool = connect("sqlite::memory:").await?;
-    let svc = LaunchProfileService::new(
-        SqliteLaunchProfileRepo::new(pool.clone()),
-        SqliteSkillDefinitionRepo::new(pool.clone()),
-        SqliteLaunchTaskRepo::new(pool.clone()),
-    );
+    let svc = service!(pool);
     let err = svc
         .resolve_snapshot("does_not_exist", None)
         .await
@@ -126,18 +147,12 @@ async fn unknown_profile_is_a_not_found_error() -> Result<()> {
 #[tokio::test]
 async fn enabled_step_with_unimplemented_executor_is_rejected() -> Result<()> {
     let pool = connect("sqlite::memory:").await?;
-    let svc = LaunchProfileService::new(
-        SqliteLaunchProfileRepo::new(pool.clone()),
-        SqliteSkillDefinitionRepo::new(pool.clone()),
-        SqliteLaunchTaskRepo::new(pool.clone()),
-    );
-    let profiles = SqliteLaunchProfileRepo::new(pool.clone());
-
-    let mut steps = profiles.get("standard").await?.expect("standard").steps;
+    let svc = service!(pool);
+    let mut steps = test_steps();
     steps[0].executor = StepExecutor::Future;
 
     let err = svc
-        .resolve_snapshot("standard", Some(steps))
+        .resolve_snapshot("custom", Some(steps))
         .await
         .unwrap_err();
     assert!(matches!(
@@ -150,18 +165,12 @@ async fn enabled_step_with_unimplemented_executor_is_rejected() -> Result<()> {
 #[tokio::test]
 async fn disabled_step_with_unimplemented_executor_is_allowed() -> Result<()> {
     let pool = connect("sqlite::memory:").await?;
-    let svc = LaunchProfileService::new(
-        SqliteLaunchProfileRepo::new(pool.clone()),
-        SqliteSkillDefinitionRepo::new(pool.clone()),
-        SqliteLaunchTaskRepo::new(pool.clone()),
-    );
-    let profiles = SqliteLaunchProfileRepo::new(pool.clone());
-
-    let mut steps = profiles.get("standard").await?.expect("standard").steps;
+    let svc = service!(pool);
+    let mut steps = test_steps();
     steps[0].executor = StepExecutor::Future;
     steps[0].enabled = false;
 
-    let snapshot = svc.resolve_snapshot("standard", Some(steps)).await?;
+    let snapshot = svc.resolve_snapshot("custom", Some(steps)).await?;
     assert!(!snapshot.steps[0].enabled);
     Ok(())
 }

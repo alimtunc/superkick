@@ -3,7 +3,6 @@ import {
 	blankSkill,
 	buildCustomSkill,
 	fileBackedBodyError,
-	isDeletableSkill,
 	isFileBackedSource,
 	isPromptSource,
 	promptTemplateError,
@@ -63,14 +62,6 @@ describe('isFileBackedSource', () => {
 	it('treats installed skills as file-backed (editable body)', () => {
 		expect(isFileBackedSource({ kind: 'installed', value: 'x' })).toBe(true)
 		expect(isFileBackedSource({ kind: 'prompt', value: 'x' })).toBe(false)
-	})
-})
-
-describe('isDeletableSkill', () => {
-	it('custom and imported skills are deletable, builtins are not', () => {
-		expect(isDeletableSkill(makeSkill({ origin: 'custom' }))).toBe(true)
-		expect(isDeletableSkill(makeSkill({ origin: 'imported' }))).toBe(true)
-		expect(isDeletableSkill(makeSkill({ origin: 'builtin' }))).toBe(false)
 	})
 })
 
