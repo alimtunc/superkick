@@ -63,6 +63,19 @@ describe('PrReviewRail', () => {
 		expect(screen.queryByText('Resolves')).toBeNull()
 	})
 
+	it('renders the Checks section with real CI data when present', () => {
+		render(
+			<PrReviewRail
+				pr={pr({ checks: { state: 'passing', total: 4, passing: 4, failing: 0, pending: 0 } })}
+				diffFiles={files}
+				diffLoading={false}
+				onOpenDiff={() => {}}
+			/>
+		)
+		expect(screen.getByText('Checks')).toBeInTheDocument()
+		expect(screen.getByText('4 checks passed')).toBeInTheDocument()
+	})
+
 	it('shows a discreet empty when there are no reviewers', () => {
 		render(
 			<PrReviewRail

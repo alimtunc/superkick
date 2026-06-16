@@ -23,6 +23,14 @@ class MockIntersectionObserver implements IntersectionObserver {
 }
 vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
 
+// jsdom has no ResizeObserver; resizable-panel layout code observes its container.
+class MockResizeObserver implements ResizeObserver {
+	observe() {}
+	unobserve() {}
+	disconnect() {}
+}
+vi.stubGlobal('ResizeObserver', MockResizeObserver)
+
 afterEach(() => {
 	cleanup()
 })

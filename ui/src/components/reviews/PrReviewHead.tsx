@@ -1,4 +1,5 @@
 import { PrBadge } from '@/components/pr/PrBadge'
+import { ExternalLink } from '@/components/ui/external-link'
 import { Pill } from '@/components/ui/pill'
 import type { PrInboxItem, PrReviewTab } from '@/types'
 import { Icon } from '@/ui'
@@ -37,14 +38,12 @@ export function PrReviewHead({ pr, diffStats, tab, onTabChange }: PrReviewHeadPr
 						</Pill>
 					</div>
 					<div className="flex items-center gap-2">
-						<a
+						<ExternalLink
 							href={pr.url}
-							target="_blank"
-							rel="noreferrer"
 							className="min-w-0 truncate text-[15px] font-semibold text-fg hover:underline"
 						>
 							{pr.title}
-						</a>
+						</ExternalLink>
 						{diffStats && (diffStats.additions > 0 || diffStats.deletions > 0) ? (
 							<span className="mono shrink-0 text-[12px]">
 								<span className="text-success">+{diffStats.additions}</span>{' '}
@@ -70,10 +69,10 @@ export function PrReviewHead({ pr, diffStats, tab, onTabChange }: PrReviewHeadPr
 				</div>
 				<div className="flex shrink-0 items-center gap-1">
 					<CopyLinkButton url={pr.url} />
-					<a href={pr.url} target="_blank" rel="noreferrer" className={REVIEW_CHIP_CLASS}>
+					<ExternalLink href={pr.url} className={REVIEW_CHIP_CLASS}>
 						<Icon name="external" size={12} className="ic" />
 						GitHub
-					</a>
+					</ExternalLink>
 				</div>
 			</div>
 

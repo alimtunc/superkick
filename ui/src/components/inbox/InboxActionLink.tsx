@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { ExternalLink } from '@/components/ui/external-link'
 import { useWorkspaceChatStore } from '@/stores/workspaceChat'
 import type { InboxAction } from '@/types'
 import { Link } from '@tanstack/react-router'
@@ -46,15 +47,9 @@ export function InboxActionLink({ action, children, className, ariaLabel }: Inbo
 
 	if (destination.kind === 'external') {
 		return (
-			<a
-				href={destination.href}
-				target="_blank"
-				rel="noreferrer"
-				className={className}
-				aria-label={ariaLabel}
-			>
+			<ExternalLink href={destination.href} className={className} aria-label={ariaLabel}>
 				{children}
-			</a>
+			</ExternalLink>
 		)
 	}
 

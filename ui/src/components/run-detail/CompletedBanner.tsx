@@ -1,4 +1,5 @@
 import { shipSummary } from '@/components/run-detail/runStatusBanner.helpers'
+import { ExternalLink } from '@/components/ui/external-link'
 import type { PullRequest, Run } from '@/types'
 import type { SKIconName } from '@/types/icons'
 import { Icon } from '@/ui/Icon'
@@ -51,10 +52,10 @@ export function CompletedBanner({ run, pr }: CompletedBannerProps) {
 				<p className="opbanner__title">{shipSummary(run)}</p>
 				{pr ? (
 					<div className="opbanner__actions">
-						<a href={pr.url} target="_blank" rel="noopener noreferrer" className="btn btn--sm">
+						<ExternalLink href={pr.url} className="btn btn--sm">
 							<Icon name="external" size={14} className="ic" />
 							View PR #{pr.number}
-						</a>
+						</ExternalLink>
 					</div>
 				) : null}
 			</div>

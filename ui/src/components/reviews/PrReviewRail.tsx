@@ -2,10 +2,11 @@ import { Pill } from '@/components/ui/pill'
 import type { IssuePrDiffFile, PrInboxItem } from '@/types'
 import { Link } from '@tanstack/react-router'
 
+import { PrChecksBadge } from './PrChecksBadge'
 import { ReviewerRow } from './ReviewerRow'
 import { ReviewFileRow } from './ReviewFileRow'
 import { ReviewRailGroup } from './ReviewRailGroup'
-import { prReviewStatus } from './reviewStatus'
+import { checksDetail, prReviewStatus } from './reviewStatus'
 
 const MAX_FILES = 8
 
@@ -19,6 +20,7 @@ interface PrReviewRailProps {
 
 export function PrReviewRail({ pr, linkedIssueId, diffFiles, diffLoading, onOpenDiff }: PrReviewRailProps) {
 	const status = prReviewStatus(pr)
+	const checksBreakdown = pr.checks ? checksDetail(pr.checks) : null
 	const fileCount = diffFiles.length
 	const shown = diffFiles.slice(0, MAX_FILES)
 	const remaining = fileCount - shown.length
@@ -43,6 +45,17 @@ export function PrReviewRail({ pr, linkedIssueId, diffFiles, diffLoading, onOpen
 					</ul>
 				)}
 			</ReviewRailGroup>
+
+			{pr.checks ? (
+				<ReviewRailGroup label="Checks">
+					<div className="flex flex-col items-start gap-1.5">
+						<PrChecksBadge checks={pr.checks} size="sm" />
+						{checksBreakdown ? (
+							<span className="text-[11px] text-fg-dim">{checksBreakdown}</span>
+						) : null}
+					</div>
+				</ReviewRailGroup>
+			) : null}
 
 			{pr.linkedIssueIdentifier ? (
 				<ReviewRailGroup label="Resolves">

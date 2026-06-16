@@ -3,8 +3,9 @@ import { useMemo, useState } from 'react'
 import { IssuePrDiffDrawer } from '@/components/issue-detail/IssuePrDiffDrawer'
 import { PropertyRow } from '@/components/issue-detail/properties/PropertyRow'
 import { PrBadge } from '@/components/pr/PrBadge'
+import { ExternalLink } from '@/components/ui/external-link'
 import type { IssueDetailResponse, IssuePullRequest, LinkedPrSummary } from '@/types'
-import { ExternalLink, FileDiff } from 'lucide-react'
+import { ExternalLink as ExternalLinkIcon, FileDiff } from 'lucide-react'
 
 interface IssuePullRequestsBlockProps {
 	issue: IssueDetailResponse
@@ -20,15 +21,13 @@ export function IssuePullRequestsBlock({ issue, runPr }: IssuePullRequestsBlockP
 	if (issuePrs.length === 0 && runPr) {
 		return (
 			<PropertyRow label="Pull request">
-				<a
+				<ExternalLink
 					href={runPr.url}
-					target="_blank"
-					rel="noreferrer"
 					className="inline-flex min-w-0 items-center hover:opacity-80"
 					title="Open pull request"
 				>
 					<PrBadge pr={runPr} size="sm" />
-				</a>
+				</ExternalLink>
 			</PropertyRow>
 		)
 	}
@@ -58,16 +57,14 @@ export function IssuePullRequestsBlock({ issue, runPr }: IssuePullRequestsBlockP
 							>
 								<FileDiff size={13} strokeWidth={1.75} aria-hidden="true" />
 							</button>
-							<a
+							<ExternalLink
 								href={pr.url}
-								target="_blank"
-								rel="noreferrer"
 								className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[4px] text-fg-dim hover:bg-raised hover:text-fg focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:outline-none"
 								aria-label={`Open pull request #${pr.number} on GitHub`}
 								title="Open on GitHub"
 							>
-								<ExternalLink size={13} strokeWidth={1.75} aria-hidden="true" />
-							</a>
+								<ExternalLinkIcon size={13} strokeWidth={1.75} aria-hidden="true" />
+							</ExternalLink>
 						</span>
 					))}
 				</span>

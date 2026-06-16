@@ -25,6 +25,16 @@ export interface PrReviewer {
 	state?: GithubReviewDecision | null
 }
 
+export type PrChecksState = 'pending' | 'passing' | 'failing'
+
+export interface PrChecksSummary {
+	state: PrChecksState
+	total: number
+	passing: number
+	failing: number
+	pending: number
+}
+
 export interface PrInboxItem {
 	repoSlug: string
 	number: number
@@ -41,11 +51,13 @@ export interface PrInboxItem {
 	reviewCommentCount: number
 	bucket: ReviewBucket
 	linkedIssueIdentifier?: string | null
+	checks?: PrChecksSummary | null
 	updatedAt: string
 }
 
 export interface PrReviewDetail {
 	pullRequest: PrInboxItem
+	body?: string | null
 	linkedIssueId?: string | null
 	createdAt: string
 }

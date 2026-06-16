@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 import { fetchReviewInbox } from '@/api'
 import { EmptyState } from '@/components/ui/state-empty'
@@ -8,11 +8,17 @@ import { errorMessageOr } from '@/lib/errors'
 import { queryKeys } from '@/lib/queryKeys'
 import type { PrInboxItem, ReviewBucket } from '@/types'
 import { useQuery } from '@tanstack/react-query'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 
 import { PrRow } from './PrRow'
 import { REVIEW_BUCKET_ORDER } from './reviewBuckets'
 
+// Completed (merged/closed) PRs are kept out of the active flow and revealed
+// behind an explicit, collapsed-by-default toggle.
+const OPEN_BUCKETS = REVIEW_BUCKET_ORDER.filter((bucket) => bucket.id !== 'completed')
+
 export function ReviewsInbox() {
+	const [showCompleted, setShowCompleted] = useState(false)
 	const { data, isLoading, error, refetch, isRefetching } = useQuery({
 		queryKey: queryKeys.reviews.inbox,
 		queryFn: fetchReviewInbox,
@@ -21,7 +27,8 @@ export function ReviewsInbox() {
 	})
 
 	const grouped = useMemo(() => groupByBucket(data ?? []), [data])
-	const total = data?.length ?? 0
+	const completed = grouped.get('completed') ?? []
+	const total = (data?.length ?? 0) - completed.length
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -55,35 +62,60 @@ export function ReviewsInbox() {
 					</div>
 				) : null}
 
-				{!isLoading && !error && total === 0 ? (
+				{!isLoading && !error && total === 0 && completed.length === 0 ? (
 					<EmptyState
-						title="No pull requests"
+						title="No open pull requests"
 						description="Open PRs for this project will appear here once gh can reach the repo."
 					/>
 				) : null}
 
-				{REVIEW_BUCKET_ORDER.map((bucket) => {
-					const items = grouped.get(bucket.id)
-					if (!items || items.length === 0) return null
-					return (
-						<section key={bucket.id}>
-							<div className="bg-bg sticky top-0 z-10 flex items-center gap-2 border-b border-(--border-faint) px-4 py-1.5">
-								<span
-									aria-hidden="true"
-									className="inline-block size-2 shrink-0 rounded-full"
-									style={{ background: bucket.tone }}
-								/>
-								<span className="text-[12px] font-medium text-fg">{bucket.label}</span>
-								<span className="text-[11px] text-fg-dim">{items.length}</span>
-							</div>
-							{items.map((pr) => (
-								<PrRow key={pr.number} pr={pr} />
-							))}
-						</section>
-					)
-				})}
+				{!isLoading && !error && total === 0 && completed.length > 0 ? (
+					<p className="px-6 py-4 text-[12px] text-fg-dim">No open pull requests.</p>
+				) : null}
+
+				{OPEN_BUCKETS.map((bucket) => renderBucket(bucket, grouped.get(bucket.id)))}
+
+				{completed.length > 0 ? (
+					<div className="border-t border-(--border-faint)">
+						<button
+							type="button"
+							onClick={() => setShowCompleted((value) => !value)}
+							aria-expanded={showCompleted}
+							className="flex w-full items-center gap-1.5 px-4 py-2 text-[12px] text-fg-dim hover:bg-surface hover:text-fg"
+						>
+							{showCompleted ? (
+								<ChevronDown size={13} aria-hidden="true" />
+							) : (
+								<ChevronRight size={13} aria-hidden="true" />
+							)}
+							<span className="font-medium">Completed</span>
+							<span className="text-fg-muted">{completed.length}</span>
+						</button>
+						{showCompleted ? completed.map((pr) => <PrRow key={pr.number} pr={pr} />) : null}
+					</div>
+				) : null}
 			</div>
 		</div>
+	)
+}
+
+function renderBucket(bucket: (typeof REVIEW_BUCKET_ORDER)[number], items: PrInboxItem[] | undefined) {
+	if (!items || items.length === 0) return null
+	return (
+		<section key={bucket.id}>
+			<div className="bg-bg sticky top-0 z-10 flex items-center gap-2 border-b border-(--border-faint) px-4 py-1.5">
+				<span
+					aria-hidden="true"
+					className="inline-block size-2 shrink-0 rounded-full"
+					style={{ background: bucket.tone }}
+				/>
+				<span className="text-[12px] font-medium text-fg">{bucket.label}</span>
+				<span className="text-[11px] text-fg-dim">{items.length}</span>
+			</div>
+			{items.map((pr) => (
+				<PrRow key={pr.number} pr={pr} />
+			))}
+		</section>
 	)
 }
 

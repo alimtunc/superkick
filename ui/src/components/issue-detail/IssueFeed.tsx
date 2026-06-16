@@ -6,6 +6,7 @@ import { IssueCommentCard } from '@/components/issue-detail/IssueCommentCard'
 import { IssueTimelineEvent } from '@/components/issue-detail/IssueTimelineEvent'
 import { OpenRunButton } from '@/components/issue-detail/OpenRunButton'
 import { PrBadge } from '@/components/pr/PrBadge'
+import { ExternalLink } from '@/components/ui/external-link'
 import { buildIssueActivity, fmtRelativeTime, isAgentName, runNarrative } from '@/lib/domain'
 import type {
 	ActivityNodeKind,
@@ -66,14 +67,12 @@ function RunCompletedBody({ run }: { run: LinkedRunSummary }) {
 		<span className="inline-flex items-center gap-x-2 align-middle text-fg-muted">
 			{completionPhrase(run.state)}
 			{run.state === 'completed' && run.pr ? (
-				<a
+				<ExternalLink
 					href={run.pr.url}
-					target="_blank"
-					rel="noopener noreferrer"
 					className="inline-flex shrink-0 rounded-md hover:opacity-80 focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:outline-none"
 				>
 					<PrBadge pr={run.pr} />
-				</a>
+				</ExternalLink>
 			) : null}
 			<OpenRunButton runId={run.id} />
 		</span>
