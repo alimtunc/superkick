@@ -143,8 +143,3 @@ export const PROFILE_KIND_OPTIONS: ProfileKind[] = [
 	'full_session',
 	'custom'
 ]
-
-/** Whether selecting this executor consumes paid Agent SDK credits. */
-export function isPaidExecutor(executor: StepExecutor): boolean {
-	return executor === 'claude_workflow'
-}

@@ -89,6 +89,11 @@ pub struct ClaudeAdapterOptions {
     /// `result` event. 64 covers typical Node stack traces; bump if a real
     /// trace is consistently truncated.
     pub stderr_tail_lines: usize,
+    /// Scrub the API/billing override env (`ANTHROPIC_API_KEY`, …) before
+    /// spawning so a subscription-backed print run can't be silently redirected
+    /// to pay-as-you-go. `false` only when the operator explicitly opted into
+    /// `agent_sdk_credits` billing, where the override env must survive.
+    pub scrub_billing_env: bool,
 }
 
 impl Default for ClaudeAdapterOptions {
@@ -101,6 +106,7 @@ impl Default for ClaudeAdapterOptions {
             system_prompt: None,
             permission_mode: ClaudePermissionMode::default(),
             stderr_tail_lines: 64,
+            scrub_billing_env: true,
         }
     }
 }
@@ -167,6 +173,12 @@ impl ClaudeProtocolAdapter {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
+        // Drop a stray ANTHROPIC_API_KEY so a subscription print run can't be
+        // silently redirected to pay-as-you-go billing; an explicit
+        // agent_sdk_credits opt-in disables this so the SDK billing applies.
+        if self.options.scrub_billing_env {
+            crate::claude_background::scrub_billing_env(&mut command);
+        }
 
         let mut child = command
             .spawn()
@@ -640,5 +652,43 @@ mod tests {
         assert_eq!(ClaudePermissionMode::AcceptEdits.as_arg(), "acceptEdits");
         assert_eq!(ClaudePermissionMode::Plan.as_arg(), "plan");
         assert_eq!(ClaudePermissionMode::Default.as_arg(), "default");
+    }
+
+    #[test]
+    fn spawn_scrubs_billing_env() {
+        use std::ffi::OsStr;
+
+        // Seed every override key, scrub, assert each is marked removed (None).
+        let mut command = Command::new("claude");
+        for key in [
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_AUTH_TOKEN",
+            "ANTHROPIC_BASE_URL",
+        ] {
+            command.env(key, "leak");
+        }
+        crate::claude_background::scrub_billing_env(&mut command);
+
+        for key in [
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_AUTH_TOKEN",
+            "ANTHROPIC_BASE_URL",
+        ] {
+            let entry = command
+                .as_std()
+                .get_envs()
+                .find(|(k, _)| *k == OsStr::new(key));
+            assert_eq!(
+                entry,
+                Some((OsStr::new(key), None)),
+                "{key} must be scrubbed from the print child env"
+            );
+        }
+    }
+
+    #[test]
+    fn default_options_scrub_billing_env() {
+        // Safe default: scrub unless an explicit agent_sdk_credits opt-in disables it.
+        assert!(ClaudeAdapterOptions::default().scrub_billing_env);
     }
 }

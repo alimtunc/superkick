@@ -2,7 +2,6 @@ import { AgentPicker } from '@/components/launch/AgentPicker'
 import { LaunchStepSkillPicker } from '@/components/launch/LaunchStepSkillPicker'
 import { Button } from '@/components/ui/button'
 import { MenuSelect } from '@/components/ui/menu-select'
-import { Pill } from '@/components/ui/pill'
 import { providerLabel } from '@/lib/domain'
 import { stepKindFromSkillRef } from '@/lib/launch/stepKind'
 import {
@@ -10,7 +9,6 @@ import {
 	LAUNCH_PROVIDER_OPTIONS,
 	REASONING_LABEL,
 	executorOptionsFor,
-	isPaidExecutor,
 	reasoningOptionsFor
 } from '@/lib/launchConfigOptions'
 import type { Agent, AgentProvider, ProfileStep, SkillDefinition } from '@/types'
@@ -76,7 +74,6 @@ export function StepListEditor({
 					</div>
 					<span className="w-5 text-[12px] text-fg-dim">{step.ordering}</span>
 					<span className="min-w-0 flex-1 truncate text-[13px] text-fg">{step.label}</span>
-					{isPaidExecutor(step.executor) ? <Pill tone="warn">paid</Pill> : null}
 					<LaunchStepSkillPicker
 						ariaLabel={`${step.label} skill`}
 						skillRef={step.skill_ref}

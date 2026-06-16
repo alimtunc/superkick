@@ -622,8 +622,11 @@ mod tests {
     fn build_launch_config_interactive_claude_drops_dash_dash_and_routes_prompt_to_stdin() {
         use superkick_core::{RunId, StepId};
 
-        let r = resolved(AgentProvider::Claude, None);
-        // Defaults from resolved(): runner_mode = InteractivePty.
+        // Pin the interactive PTY path explicitly — the provider default is now
+        // print_stream_json.
+        let mut r = resolved(AgentProvider::Claude, None);
+        r.runner_mode = RunnerMode::InteractivePty;
+        r.billing_profile = BillingProfile::Subscription;
         assert_eq!(r.runner_mode, RunnerMode::InteractivePty);
 
         let plan = AgentSpawnPlan {
@@ -660,12 +663,14 @@ mod tests {
     fn build_launch_config_interactive_claude_with_subagent_directive_in_stdin() {
         use superkick_core::{RunId, StepId};
 
-        let r = resolved(
+        let mut r = resolved(
             AgentProvider::Claude,
             Some(AgentBackend::ClaudeSubagent {
                 subagent_name: "planner".into(),
             }),
         );
+        // Pin the interactive PTY path — the provider default is now print mode.
+        r.runner_mode = RunnerMode::InteractivePty;
         let plan = AgentSpawnPlan {
             effective_mode: LinearContextMode::None,
             snapshot_block: None,
@@ -753,6 +758,8 @@ mod tests {
     #[test]
     fn build_launch_config_claude_pty_appends_model_and_effort() {
         let mut r = resolved(AgentProvider::Claude, None);
+        // Pin the interactive PTY path — the provider default is now print mode.
+        r.runner_mode = RunnerMode::InteractivePty;
         r.model = Some("opus".into());
 
         let cfg = build_launch_config(

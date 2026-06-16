@@ -107,15 +107,14 @@ async fn seed_defaults_writes_builtin_providers_skills_profiles() -> Result<()> 
 }
 
 #[tokio::test]
-async fn claude_provider_default_is_not_the_paid_sdk_path() -> Result<()> {
+async fn claude_provider_default_is_claude_workflow_on_subscription() -> Result<()> {
     let pool = pool().await?;
     let providers = SqliteProviderSettingsRepo::new(pool.clone());
     let claude = providers
         .get(AgentProvider::Claude)
         .await?
         .expect("claude settings");
-    assert_eq!(claude.default_executor, StepExecutor::InteractivePty);
-    assert!(!claude.default_executor.is_paid_sdk());
+    assert_eq!(claude.default_executor, StepExecutor::ClaudeWorkflow);
     assert_eq!(claude.billing_mode, BillingProfile::Subscription);
     Ok(())
 }

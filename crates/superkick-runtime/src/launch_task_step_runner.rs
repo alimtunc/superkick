@@ -25,8 +25,8 @@ use tracing::{error, info, warn};
 
 use superkick_config::SuperkickConfig;
 use superkick_core::{
-    AgentBackend, AgentCatalog, AgentOrigin, AgentProvider, CoreAgentDefinition, EventKind,
-    EventLevel, FailureClassification, FailureDisposition, LaunchReason, LaunchStepKind,
+    AgentBackend, AgentCatalog, AgentOrigin, AgentProvider, BillingProfile, CoreAgentDefinition,
+    EventKind, EventLevel, FailureClassification, FailureDisposition, LaunchReason, LaunchStepKind,
     LaunchTask, LaunchTaskId, LaunchTaskIntervention, LaunchTaskStep, LaunchTaskStepId,
     LinearContextMode, MemoryEntryId, ReasoningEffort, ResolvedAgent, ResolvedMcpPolicy,
     ResolvedToolPolicy, ResumeKey, ReuseWorktree, RoleRouter, Run, RunId, RunPolicy, RunState,
@@ -79,11 +79,11 @@ const SUMMARY_MAX_CHARS: usize = 512;
 ///    single behaviour source — its provider/model/system_prompt/mcp_policy/
 ///    tool_policy/backend deep-carry from the project catalog. The step's
 ///    executor still selects the runner mode (and so the billing path) so a
-///    profile authored for the structured/paid or background runner keeps it.
+///    profile authored for the structured or background runner keeps it.
 /// 2. **Dynamic (`executor == Some`, skill-first):** the step carries its own
 ///    provider/model/executor snapshot and resolves through a transient
 ///    single-entry catalog so the router still applies runner-mode validation
-///    and the paid-SDK billing invariant.
+///    and the billing default.
 /// 3. **Legacy v1-recipe (`executor == None`):** resolve by `agent_name`
 ///    against the project catalog.
 fn resolve_step_agent(
@@ -109,8 +109,8 @@ fn resolve_step_agent(
 /// Agent-primary resolution (branch 1 above). Deep-carries the catalog agent's
 /// recipe, then lets the step's executor override the runner mode — one builtin
 /// agent is shared by profiles that run it on different runners (e.g. the Claude
-/// planner under both the paid structured and the subscription background
-/// profiles), so the runner mode cannot live on the agent.
+/// planner under both the structured print and the background profiles), so the
+/// runner mode cannot live on the agent.
 fn resolve_catalog_agent(
     agent_ref: &str,
     step: &LaunchTaskStep,
@@ -134,10 +134,9 @@ fn resolve_catalog_agent(
 /// Whether a resolved `(provider, mode)` pair runs on the structured
 /// `ProtocolAdapter` path (real provider events into `run_events`) rather than
 /// the PTY supervisor. The two structured executors are `CodexStructured`
-/// (`Codex`, `ExecJson`) and the opt-in paid `ClaudeWorkflow` (`Claude`,
-/// `PrintStreamJson`). Every other pair — subscription Claude (`InteractivePty`)
-/// and Codex interactive takeover — stays on PTY. Subscription Claude staying
-/// off this path is the `default_for(Claude) == InteractivePty` invariant.
+/// (`Codex`, `ExecJson`) and `ClaudeWorkflow` (`Claude`, `PrintStreamJson`) —
+/// the per-provider defaults. Interactive PTY (either provider) is the takeover
+/// escape hatch and stays on the PTY supervisor.
 fn is_structured_executor(provider: AgentProvider, mode: RunnerMode) -> bool {
     matches!(
         (provider, mode),
@@ -207,8 +206,8 @@ fn resolve_dynamic_agent(
         tool_policy: ResolvedToolPolicy::default(),
         backend,
         runner_mode: Some(runner_mode),
-        // `None` lets `RoleRouter::resolve` apply the forced
-        // claude+print_stream_json → agent_sdk_credits invariant.
+        // `None` lets `RoleRouter::resolve` apply the `(provider, mode)`
+        // billing default.
         billing_profile: None,
         default_reasoning: ReasoningEffort::default(),
         enabled: true,
@@ -1462,6 +1461,8 @@ where
                             claude_executable: Some(PathBuf::from(resolved.program.clone())),
                             model: resolved.model.clone(),
                             reasoning_effort: step_reasoning,
+                            scrub_billing_env: resolved.billing_profile
+                                != BillingProfile::AgentSdkCredits,
                             ..ClaudeAdapterOptions::default()
                         });
                         self.supervisor
@@ -1631,11 +1632,9 @@ mod tests {
         assert_eq!(surviving_reuse_worktree(None), None);
     }
 
-    /// SUP-201: the structured-routing matrix. The two structured executors run
-    /// on the `ProtocolAdapter` path; subscription Claude (`InteractivePty`) and
-    /// interactive takeover stay on the PTY supervisor — the
-    /// `default_for(Claude) == InteractivePty` "keeps Claude off the paid path"
-    /// invariant, enforced at the routing seam.
+    /// SUP-201: the structured-routing matrix. The two structured executors
+    /// (Codex `ExecJson`, Claude `PrintStreamJson`) run on the `ProtocolAdapter`
+    /// path; interactive PTY (either provider) stays on the PTY supervisor.
     #[test]
     fn is_structured_executor_routes_only_the_two_structured_pairs() {
         assert!(
@@ -1738,13 +1737,13 @@ mod tests {
         use superkick_core::{BillingProfile, CLAUDE_PLAN};
         let catalog = AgentCatalog::from_definitions(CoreAgentDefinition::builtins());
         let policy = RunPolicy::allow_all();
-        // The one Claude planner agent runs on the paid structured runner here…
-        let paid = agent_primary_step(CLAUDE_PLAN, StepExecutor::ClaudeWorkflow);
-        let resolved = resolve_step_agent(&paid, &catalog, &policy).expect("resolves");
+        // The one Claude planner agent runs on the structured print runner here…
+        let workflow = agent_primary_step(CLAUDE_PLAN, StepExecutor::ClaudeWorkflow);
+        let resolved = resolve_step_agent(&workflow, &catalog, &policy).expect("resolves");
         assert_eq!(resolved.runner_mode, RunnerMode::PrintStreamJson);
-        assert_eq!(resolved.billing_profile, BillingProfile::AgentSdkCredits);
-        // …and on the subscription background runner there — the runner mode
-        // rides on the step's executor, not the (shared) agent.
+        assert_eq!(resolved.billing_profile, BillingProfile::Subscription);
+        // …and on the background runner there — the runner mode rides on the
+        // step's executor, not the (shared) agent.
         let bg = agent_primary_step(CLAUDE_PLAN, StepExecutor::ClaudeBackground);
         let resolved_bg = resolve_step_agent(&bg, &catalog, &policy).expect("resolves");
         assert_eq!(resolved_bg.runner_mode, RunnerMode::BackgroundSession);

@@ -92,7 +92,7 @@ fn omitted_keys_fall_through_to_provider_defaults() {
     let codex = router.resolve("reviewer").unwrap();
 
     assert_eq!(claude.provider, AgentProvider::Claude);
-    assert_eq!(claude.runner_mode, RunnerMode::InteractivePty);
+    assert_eq!(claude.runner_mode, RunnerMode::PrintStreamJson);
     assert_eq!(claude.billing_profile, BillingProfile::Subscription);
 
     assert_eq!(codex.provider, AgentProvider::Codex);
@@ -101,7 +101,7 @@ fn omitted_keys_fall_through_to_provider_defaults() {
 }
 
 #[test]
-fn claude_print_stream_json_forces_agent_sdk_credits_against_yaml_override() {
+fn claude_print_stream_json_honors_yaml_billing_override() {
     let yaml = indoc! {"
         version: 1
         issue_source: { provider: linear, trigger: in_progress }
@@ -111,16 +111,18 @@ fn claude_print_stream_json_forces_agent_sdk_credits_against_yaml_override() {
             - type: commands
               run: [echo hi]
         agents:
-          forced:
+          overridden:
             provider: claude
             runner_mode: print_stream_json
-            billing_profile: subscription
+            billing_profile: agent_sdk_credits
     "};
     let cfg = load_str(yaml).expect("yaml parse");
     let catalog = cfg.agent_catalog();
     let policy = RunPolicy::allow_all();
     let resolved = RoleRouter::new(&catalog, &policy)
-        .resolve("forced")
+        .resolve("overridden")
         .unwrap();
+    // The force-pin is gone: the explicit override is now honored. (Default,
+    // when omitted, is subscription-backed for now.)
     assert_eq!(resolved.billing_profile, BillingProfile::AgentSdkCredits);
 }

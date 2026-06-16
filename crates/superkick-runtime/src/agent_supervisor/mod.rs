@@ -356,8 +356,9 @@ where
     /// (`EventKind::AgentProtocol`) + `provider_session_id` capture — so the
     /// launch-task Activity/Tools/Logs UI lights up for Claude with zero new UI.
     ///
-    /// This is the opt-in **paid** `ClaudeWorkflow` path; subscription Claude
-    /// stays on the PTY supervisor (`Self::launch`). `resume` carries the Claude
+    /// This is the structured `ClaudeWorkflow` path (the default Claude
+    /// executor); interactive-PTY Claude stays on the PTY supervisor
+    /// (`Self::launch`). `resume` carries the Claude
     /// `session_id` from a prior timed-out segment: when `Some`, the turn
     /// resumes via `claude --resume <id>`. A resume that the CLI cannot honour
     /// surfaces as a structured `Failure` on this same path — the step is never

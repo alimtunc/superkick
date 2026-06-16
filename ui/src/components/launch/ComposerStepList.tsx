@@ -1,8 +1,6 @@
 import { AgentPicker } from '@/components/launch/AgentPicker'
 import { Button } from '@/components/ui/button'
-import { Pill } from '@/components/ui/pill'
 import { stepKindFromSkillRef } from '@/lib/launch/stepKind'
-import { isPaidExecutor } from '@/lib/launchConfigOptions'
 import type { Agent, ProfileStep } from '@/types'
 import { Icon } from '@/ui/Icon'
 import { Toggle } from '@/ui/Toggle'
@@ -68,7 +66,6 @@ export function ComposerStepList({
 						label="Agent"
 						onChange={(name) => onSetStepAgent(step.ordering, findAgent(name))}
 					/>
-					{isPaidExecutor(step.executor) ? <Pill tone="warn">paid</Pill> : null}
 					<span className="flex-1" />
 					<Toggle
 						checked={step.enabled}

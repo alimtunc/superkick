@@ -7,7 +7,7 @@ import { clampReasoningForProvider } from './launchConfigOptions'
 
 const DEFAULT_RUNNER_MODE_BY_PROVIDER: Record<AgentProvider, RunnerMode> = {
 	codex: 'exec_json',
-	claude: 'interactive_pty'
+	claude: 'print_stream_json'
 }
 
 // Inverse of `StepExecutor::runner_mode` in superkick-core. The agent stores
