@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
-import { ConfigSelect } from '@/components/settings/ConfigSelect'
 import { SkillEditorField } from '@/components/settings/SkillEditorField'
+import { MenuSelect } from '@/components/ui/menu-select'
 import { agentExecutor } from '@/lib/agents'
 import {
 	EXECUTOR_LABEL,
@@ -49,7 +49,7 @@ export function AgentEditorAdvanced({
 				<div className="flex flex-col gap-3">
 					<div className="grid grid-cols-2 gap-3">
 						<SkillEditorField label="Reasoning">
-							<ConfigSelect
+							<MenuSelect
 								ariaLabel="Reasoning"
 								value={draft.default_reasoning}
 								options={reasoningOptionsFor(draft.provider)}
@@ -58,7 +58,7 @@ export function AgentEditorAdvanced({
 							/>
 						</SkillEditorField>
 						<SkillEditorField label="Executor">
-							<ConfigSelect
+							<MenuSelect
 								ariaLabel="Executor"
 								value={agentExecutor(draft)}
 								options={executorOptionsFor(draft.provider)}
@@ -67,7 +67,7 @@ export function AgentEditorAdvanced({
 							/>
 						</SkillEditorField>
 						<SkillEditorField label="Linear context">
-							<ConfigSelect
+							<MenuSelect
 								ariaLabel="Linear context"
 								value={draft.linear_context}
 								options={LINEAR_CONTEXT_OPTIONS}

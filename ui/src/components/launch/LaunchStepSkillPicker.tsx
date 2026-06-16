@@ -1,4 +1,4 @@
-import { ConfigSelect } from '@/components/settings/ConfigSelect'
+import { MenuSelect } from '@/components/ui/menu-select'
 import type { SkillDefinition } from '@/types'
 
 interface LaunchStepSkillPickerProps {
@@ -25,7 +25,7 @@ export function LaunchStepSkillPicker({
 	}
 
 	return (
-		<ConfigSelect
+		<MenuSelect
 			ariaLabel={ariaLabel}
 			value={skillRef}
 			options={options}

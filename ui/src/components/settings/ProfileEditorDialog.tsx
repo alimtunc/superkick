@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { ProfileEditor } from '@/components/settings/ProfileEditor'
-import { DialogPopup } from '@/components/ui/dialog-shell'
+import { DialogShell } from '@/components/ui/dialog-shell'
 import { ErrorState } from '@/components/ui/state-error'
 import { useLaunchProfiles } from '@/hooks/useLaunchProfiles'
 import { useSkills } from '@/hooks/useSkills'
@@ -11,7 +11,6 @@ import { slugify } from '@/lib/skills'
 import type { LaunchProfile } from '@/types'
 import { Btn } from '@/ui/Btn'
 import { Icon } from '@/ui/Icon'
-import { Dialog } from '@base-ui/react/dialog'
 
 interface ProfileEditorDialogProps {
 	open: boolean
@@ -60,40 +59,17 @@ export function ProfileEditorDialog({ open, profile, onClose }: ProfileEditorDia
 	}
 
 	return (
-		<Dialog.Root
+		<DialogShell
 			open={open}
 			onOpenChange={(next) => {
 				if (!next) onClose()
 			}}
-		>
-			<DialogPopup popupClassName="dialog" align="top">
-				<div className="dialog__head">
-					<Icon name="doc" size={18} className="ic" />
-					<Dialog.Title className="dialog__title">
-						{isNew ? 'New launch profile' : `Edit ${profile.name}`}
-					</Dialog.Title>
-					<span className="spacer" />
-					<Dialog.Close className="iconbtn" aria-label="Close">
-						<Icon name="x" size={16} className="ic" />
-					</Dialog.Close>
-				</div>
-
-				<div className="dialog__body max-h-[70vh] overflow-y-auto">
-					{skillsError ? (
-						<ErrorState title="Could not load skills" message={skillsError} density="compact" />
-					) : null}
-					<ProfileEditor
-						draft={draft}
-						skills={skills}
-						skillsLoading={skillsLoading}
-						onChange={setDraft}
-					/>
-					{submitError ? (
-						<ErrorState title="Could not save profile" message={submitError} density="compact" />
-					) : null}
-				</div>
-
-				<div className="dialog__foot">
+			popupClassName="dialog"
+			align="top"
+			icon={<Icon name="doc" size={18} className="ic" />}
+			title={isNew ? 'New launch profile' : `Edit ${profile.name}`}
+			footer={
+				<>
 					<span className="spacer" />
 					<Btn kind="ghost" size="sm" onClick={onClose}>
 						Cancel
@@ -101,8 +77,23 @@ export function ProfileEditorDialog({ open, profile, onClose }: ProfileEditorDia
 					<Btn kind="primary" size="sm" disabled={!canSubmit} onClick={handleSubmit}>
 						{isMutating ? 'Saving…' : 'Save profile'}
 					</Btn>
-				</div>
-			</DialogPopup>
-		</Dialog.Root>
+				</>
+			}
+		>
+			<div className="dialog__body max-h-[70vh] overflow-y-auto">
+				{skillsError ? (
+					<ErrorState title="Could not load skills" message={skillsError} density="compact" />
+				) : null}
+				<ProfileEditor
+					draft={draft}
+					skills={skills}
+					skillsLoading={skillsLoading}
+					onChange={setDraft}
+				/>
+				{submitError ? (
+					<ErrorState title="Could not save profile" message={submitError} density="compact" />
+				) : null}
+			</div>
+		</DialogShell>
 	)
 }

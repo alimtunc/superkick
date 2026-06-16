@@ -1,5 +1,5 @@
 import { StepListEditor } from '@/components/launch/StepListEditor'
-import { ConfigSelect } from '@/components/settings/ConfigSelect'
+import { MenuSelect } from '@/components/ui/menu-select'
 import { useAgents } from '@/hooks/useAgents'
 import { PROFILE_KIND_LABEL, PROFILE_KIND_OPTIONS } from '@/lib/launchConfigOptions'
 import {
@@ -40,7 +40,7 @@ export function ProfileEditor({ draft, skills, skillsLoading = false, onChange }
 			<div className="flex flex-wrap items-center gap-4">
 				<div className="flex items-center gap-2">
 					<span className="text-[12px] text-fg-dim">Kind</span>
-					<ConfigSelect<ProfileKind>
+					<MenuSelect<ProfileKind>
 						ariaLabel="Profile kind"
 						value={draft.kind}
 						options={PROFILE_KIND_OPTIONS}

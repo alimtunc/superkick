@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 
-import { ConfigSelect } from '@/components/settings/ConfigSelect'
 import { SkillEditorField } from '@/components/settings/SkillEditorField'
 import { Button } from '@/components/ui/button'
 import { DialogPopup } from '@/components/ui/dialog-shell'
+import { MenuSelect } from '@/components/ui/menu-select'
 import { Pill } from '@/components/ui/pill'
 import { providerLabel } from '@/lib/domain'
 import {
@@ -110,7 +110,7 @@ export function SkillEditor({ open, seed, mode, busy, onOpenChange, onSubmit }: 
 					</label>
 
 					<div className="flex flex-wrap items-center gap-2">
-						<ConfigSelect
+						<MenuSelect
 							ariaLabel="Skill kind"
 							value={draft.kind}
 							options={SKILL_KIND_OPTIONS}
@@ -118,7 +118,7 @@ export function SkillEditor({ open, seed, mode, busy, onOpenChange, onSubmit }: 
 							onChange={(value) => update({ kind: value })}
 						/>
 						{isFileBacked ? (
-							<ConfigSelect
+							<MenuSelect
 								ariaLabel="Skill artifact kind"
 								value={draft.artifact_kind}
 								options={ARTIFACT_KIND_OPTIONS}
@@ -185,7 +185,7 @@ export function SkillEditor({ open, seed, mode, busy, onOpenChange, onSubmit }: 
 
 					<div className="grid grid-cols-2 gap-3">
 						<SkillEditorField label="Provider">
-							<ConfigSelect
+							<MenuSelect
 								ariaLabel="Default provider"
 								value={draft.default_provider}
 								options={LAUNCH_PROVIDER_OPTIONS}
@@ -205,7 +205,7 @@ export function SkillEditor({ open, seed, mode, busy, onOpenChange, onSubmit }: 
 							/>
 						</SkillEditorField>
 						<SkillEditorField label="Reasoning">
-							<ConfigSelect
+							<MenuSelect
 								ariaLabel="Default reasoning"
 								value={draft.default_reasoning}
 								options={reasoningOptionsFor(draft.default_provider)}
@@ -214,7 +214,7 @@ export function SkillEditor({ open, seed, mode, busy, onOpenChange, onSubmit }: 
 							/>
 						</SkillEditorField>
 						<SkillEditorField label="Executor">
-							<ConfigSelect
+							<MenuSelect
 								ariaLabel="Default executor"
 								value={draft.default_executor}
 								options={executorOptionsFor(draft.default_provider)}
@@ -223,7 +223,7 @@ export function SkillEditor({ open, seed, mode, busy, onOpenChange, onSubmit }: 
 							/>
 						</SkillEditorField>
 						<SkillEditorField label="Session policy">
-							<ConfigSelect
+							<MenuSelect
 								ariaLabel="Default session policy"
 								value={draft.default_session_policy}
 								options={SESSION_POLICY_OPTIONS}
@@ -232,7 +232,7 @@ export function SkillEditor({ open, seed, mode, busy, onOpenChange, onSubmit }: 
 							/>
 						</SkillEditorField>
 						<SkillEditorField label="Output">
-							<ConfigSelect
+							<MenuSelect
 								ariaLabel="Default output expectation"
 								value={draft.default_output_expectation}
 								options={OUTPUT_EXPECTATION_OPTIONS}

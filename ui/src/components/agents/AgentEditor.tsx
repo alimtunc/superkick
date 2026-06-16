@@ -1,11 +1,12 @@
 import { AgentAvatarBadge } from '@/components/agents/AgentAvatarBadge'
 import { AgentAvatarPicker } from '@/components/agents/AgentAvatarPicker'
 import { AgentEditorAdvanced } from '@/components/agents/AgentEditorAdvanced'
+import { ModelCombobox } from '@/components/agents/ModelCombobox'
 import { SkillPicker } from '@/components/agents/SkillPicker'
-import { ConfigSelect } from '@/components/settings/ConfigSelect'
 import { SkillEditorField } from '@/components/settings/SkillEditorField'
 import { Button } from '@/components/ui/button'
 import { DialogPopup } from '@/components/ui/dialog-shell'
+import { MenuSelect } from '@/components/ui/menu-select'
 import { Pill } from '@/components/ui/pill'
 import { useAgentDraft } from '@/hooks/useAgentDraft'
 import { useProviderModels } from '@/hooks/useProviderModels'
@@ -51,7 +52,6 @@ export function AgentEditor({ open, seed, mode, busy, onOpenChange, onSubmit }: 
 	}
 
 	const title = mode === 'create' ? 'New agent' : `Edit ${seed.name}`
-	const modelListId = `agent-models-${draft.provider}`
 
 	return (
 		<Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -123,7 +123,7 @@ export function AgentEditor({ open, seed, mode, busy, onOpenChange, onSubmit }: 
 
 					<div className="grid grid-cols-2 gap-3">
 						<SkillEditorField label="Provider">
-							<ConfigSelect
+							<MenuSelect
 								ariaLabel="Provider"
 								value={draft.provider}
 								options={LAUNCH_PROVIDER_OPTIONS}
@@ -132,21 +132,11 @@ export function AgentEditor({ open, seed, mode, busy, onOpenChange, onSubmit }: 
 							/>
 						</SkillEditorField>
 						<SkillEditorField label="Model">
-							<input
-								className="w-full rounded-[6px] border border-border bg-raised px-2 py-1 text-[13px] text-fg"
-								list={modelListId}
-								value={draft.model ?? ''}
-								placeholder="provider default"
-								aria-label="Model"
-								onChange={(event) => update({ model: event.target.value.trim() || null })}
+							<ModelCombobox
+								value={draft.model}
+								models={models}
+								onChange={(model) => update({ model })}
 							/>
-							<datalist id={modelListId}>
-								{models.map((model) => (
-									<option key={model.id} value={model.id}>
-										{model.label}
-									</option>
-								))}
-							</datalist>
 						</SkillEditorField>
 					</div>
 

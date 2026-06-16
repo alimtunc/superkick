@@ -2,7 +2,7 @@ import { MENU_ITEM_CLASS, MenuPopup } from '@/components/ui/menu-shell'
 import { Icon } from '@/ui/Icon'
 import { Menu } from '@base-ui/react/menu'
 
-interface ConfigSelectProps<T extends string> {
+interface MenuSelectProps<T extends string> {
 	value: T
 	options: readonly T[]
 	labels: Record<T, string>
@@ -11,14 +11,14 @@ interface ConfigSelectProps<T extends string> {
 	disabled?: boolean
 }
 
-export function ConfigSelect<T extends string>({
+export function MenuSelect<T extends string>({
 	value,
 	options,
 	labels,
 	onChange,
 	ariaLabel,
 	disabled
-}: ConfigSelectProps<T>) {
+}: MenuSelectProps<T>) {
 	return (
 		<Menu.Root>
 			<Menu.Trigger aria-label={ariaLabel} disabled={disabled} className="select">

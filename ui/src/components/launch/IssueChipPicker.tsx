@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { ComboboxPopup } from '@/components/ui/combobox-shell'
 import { issuesQuery } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 import type { IssueChipPickerValue, LinearIssueListItem } from '@/types'
@@ -74,28 +75,18 @@ export function IssueChipPicker({ value, onChange, disabled }: IssueChipPickerPr
 					<Icon name="chevDown" size={14} className="ic" />
 				</span>
 			</Combobox.Trigger>
-			<Combobox.Portal>
-				<Combobox.Positioner
-					sideOffset={6}
-					align="start"
-					collisionPadding={8}
-					collisionAvoidance={{ side: 'flip', align: 'shift' }}
-					className="z-popover"
-				>
-					<Combobox.Popup className="flex w-90 flex-col gap-1 rounded-[7px] border border-border bg-surface p-2 shadow-lg">
-						<Combobox.Input
-							placeholder="Search issues…"
-							className="rounded-[5px] border border-border bg-raised px-2 py-1.5 text-[12.5px] text-fg placeholder:text-fg-dim focus:border-border-strong focus:outline-none"
-						/>
-						<div className="max-h-72 overflow-y-auto">
-							<Combobox.Empty className="px-2 py-3 text-[11.5px] text-fg-dim">
-								{issuesData.isLoading ? 'Loading…' : 'No matches.'}
-							</Combobox.Empty>
-							<Combobox.List>{renderIssueItem}</Combobox.List>
-						</div>
-					</Combobox.Popup>
-				</Combobox.Positioner>
-			</Combobox.Portal>
+			<ComboboxPopup positionerClassName="z-popover" popupClassName="w-90 gap-1 p-2">
+				<Combobox.Input
+					placeholder="Search issues…"
+					className="rounded-[5px] border border-border bg-raised px-2 py-1.5 text-[12.5px] text-fg placeholder:text-fg-dim focus:border-border-strong focus:outline-none"
+				/>
+				<div className="max-h-72 overflow-y-auto">
+					<Combobox.Empty className="px-2 py-3 text-[11.5px] text-fg-dim">
+						{issuesData.isLoading ? 'Loading…' : 'No matches.'}
+					</Combobox.Empty>
+					<Combobox.List>{renderIssueItem}</Combobox.List>
+				</div>
+			</ComboboxPopup>
 		</Combobox.Root>
 	)
 }
