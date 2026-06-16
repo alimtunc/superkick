@@ -1,3 +1,4 @@
+import { ExternalLink } from '@/components/ui/external-link'
 import type { WorktreeFacts } from '@/types'
 import { Btn, Icon } from '@/ui'
 
@@ -31,9 +32,7 @@ export function WorktreeMini({ facts }: WorktreeMiniProps) {
 					<span className="wfact__k">PR</span>
 					<Icon name="pr" size={13} className="ic" />
 					<span className="wfact__v">
-						<a href={pr.url} target="_blank" rel="noopener noreferrer">
-							#{pr.number}
-						</a>
+						<ExternalLink href={pr.url}>#{pr.number}</ExternalLink>
 					</span>
 				</span>
 			) : null}

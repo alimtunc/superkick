@@ -125,9 +125,9 @@ pub use provider_settings::{
 };
 pub use pull_request::{
     GitHubPullRequestRef, GithubReviewDecision, IssuePullRequest, IssuePullRequestSource,
-    LinkedPrSummary, PrActivityEvent, PrActivityKind, PrDiffFile, PrDiffFileStatus, PrInboxItem,
-    PrReviewDetail, PrReviewEvent, PrReviewer, PrState, PullRequest, ReviewBucket, ShipMode,
-    classify_review_bucket, parse_github_pr_url, parse_pr_number,
+    LinkedPrSummary, PrActivityEvent, PrActivityKind, PrChecksState, PrChecksSummary, PrDiffFile,
+    PrDiffFileStatus, PrInboxItem, PrReviewDetail, PrReviewEvent, PrReviewer, PrState, PullRequest,
+    ReviewBucket, ShipMode, classify_review_bucket, parse_github_pr_url, parse_pr_number,
 };
 pub use queue::{
     DONE_COLUMN_LIMIT, OperatorQueue, QueueInputs, classify as classify_queue, queue_card_reason,

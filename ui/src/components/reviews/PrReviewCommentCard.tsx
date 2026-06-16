@@ -46,7 +46,7 @@ export function PrReviewCommentCard({
 						{filePath}
 					</p>
 				) : null}
-				<div className="comment-card__body">
+				<div className="md">
 					<IssueMarkdown text={body} bare />
 				</div>
 			</div>

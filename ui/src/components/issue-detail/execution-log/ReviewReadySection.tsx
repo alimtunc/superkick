@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useReviewReadyState } from '@/components/issue-detail/execution-log/useReviewReadyState'
 import { PrBadge } from '@/components/pr/PrBadge'
 import { ShipModal } from '@/components/ship/ShipModal'
+import { openExternal } from '@/lib/openExternal'
 import { useRunDrawerStore } from '@/stores/runDrawer'
 import type { IssueDetailResponse, LaunchTaskWithSteps, LinkedRunSummary, Run, WorktreeFacts } from '@/types'
 import { Btn } from '@/ui/Btn'
@@ -78,7 +79,7 @@ export function ReviewReadySection({ issue, task, run, runDetail, worktree }: Re
 							kind="secondary"
 							size="sm"
 							icon="external"
-							onClick={() => window.open(pr.url, '_blank', 'noopener,noreferrer')}
+							onClick={() => void openExternal(pr.url)}
 						>
 							Open PR
 						</Btn>

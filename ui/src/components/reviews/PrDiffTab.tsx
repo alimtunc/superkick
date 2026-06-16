@@ -1,8 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 import { DiffErrorBoundary } from '@/components/diff/DiffErrorBoundary'
 import { DiffFileNavigator } from '@/components/diff/DiffFileNavigator'
 import { FileDiffRow } from '@/components/run-detail/RunWorkspaceTabs/FileDiffRow'
+import {
+	type ImperativePanelHandle,
+	ResizableHandle,
+	ResizablePanel,
+	ResizablePanelGroup
+} from '@/components/ui/resizable'
 import { EmptyState } from '@/components/ui/state-empty'
 import { ErrorState } from '@/components/ui/state-error'
 import { LoadingState } from '@/components/ui/state-loading'
@@ -14,7 +20,9 @@ import { errorMessageOr } from '@/lib/errors'
 import type { DiffViewMode, PrReviewDetail } from '@/types'
 import { Toggle } from '@base-ui/react/toggle'
 import { ToggleGroup } from '@base-ui/react/toggle-group'
-import { FileDiff as FileDiffIcon } from 'lucide-react'
+import { FileDiff as FileDiffIcon, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+
+const FILES_LAYOUT_ID = 'pr-review-diff-files'
 
 import { SubmitReviewBar } from './SubmitReviewBar'
 
@@ -31,6 +39,8 @@ export function PrDiffTab({ detail }: PrDiffTabProps) {
 	const pr = detail.pullRequest
 	const [mode, setMode] = useState<DiffViewMode>('unified')
 	const [fileFilter, setFileFilter] = useState('')
+	const [filesCollapsed, setFilesCollapsed] = useState(false)
+	const filesPanelRef = useRef<ImperativePanelHandle>(null)
 	const { data, isLoading, error, refetch } = usePrDiff(pr.number)
 	const files = useMemo(() => data?.files.map(toFileDiff) ?? [], [data])
 	const rawPatch = useMemo(() => combinePatches(files), [files])
@@ -82,9 +92,33 @@ export function PrDiffTab({ detail }: PrDiffTabProps) {
 		fixWithAi.isPending ||
 		fixWithAi.fixRun !== null
 
+	function toggleFiles() {
+		const panel = filesPanelRef.current
+		if (!panel) return
+		if (panel.isCollapsed()) {
+			panel.expand()
+		} else {
+			panel.collapse()
+		}
+	}
+
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-4 py-2 text-[12px] text-fg-dim">
+				<button
+					type="button"
+					onClick={toggleFiles}
+					aria-pressed={filesCollapsed}
+					title={filesCollapsed ? 'Show files' : 'Hide files'}
+					className="flex items-center gap-1 rounded-[3px] border border-border px-2 py-0.5 text-[11px] text-fg-dim hover:bg-surface hover:text-fg"
+				>
+					{filesCollapsed ? (
+						<PanelLeftOpen size={13} strokeWidth={1.75} aria-hidden="true" />
+					) : (
+						<PanelLeftClose size={13} strokeWidth={1.75} aria-hidden="true" />
+					)}
+					{filesCollapsed ? 'Show files' : 'Hide files'}
+				</button>
 				<span className="flex items-center gap-2">
 					<FileDiffIcon size={14} strokeWidth={1.75} aria-hidden="true" />
 					{files.length} file{files.length === 1 ? '' : 's'}
@@ -150,36 +184,56 @@ export function PrDiffTab({ detail }: PrDiffTabProps) {
 					{fixError}
 				</p>
 			) : null}
-			<div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[280px_minmax(0,1fr)]">
-				<DiffFileNavigator
-					files={files}
-					filter={fileFilter}
-					onFilterChange={setFileFilter}
-					reviewedFiles={reviewedFiles}
-					unresolvedByFile={unresolvedByFile}
-					sectionIdPrefix={SECTION_ID_PREFIX}
-					searchId="pr-review-file-search"
-					showReview
-				/>
-				<div className="min-h-0 overflow-y-auto md:col-start-2 md:row-start-1">
-					<DiffErrorBoundary patch={rawPatch}>
-						{files.map((file, index) => (
-							<FileDiffRow
-								key={`${file.path}:${file.oldPath ?? ''}`}
-								id={fileSectionId(SECTION_ID_PREFIX, index)}
-								file={file}
-								mode={mode}
-								showReview
-								reviewed={reviewedFiles.has(file.path)}
-								unresolvedCount={unresolvedByFile.get(file.path) ?? 0}
-								reviewDisabled={!reviewReady}
-								review={reviewForFile(file)}
-								onReviewedChange={onReviewedChange}
-							/>
-						))}
-					</DiffErrorBoundary>
-				</div>
-			</div>
+			<ResizablePanelGroup
+				direction="horizontal"
+				autoSaveId={FILES_LAYOUT_ID}
+				className="min-h-0 flex-1 overflow-hidden"
+			>
+				<ResizablePanel
+					ref={filesPanelRef}
+					order={1}
+					collapsible
+					collapsedSize={0}
+					defaultSize={22}
+					minSize={14}
+					maxSize={45}
+					onCollapse={() => setFilesCollapsed(true)}
+					onExpand={() => setFilesCollapsed(false)}
+					className="min-h-0"
+				>
+					<DiffFileNavigator
+						files={files}
+						filter={fileFilter}
+						onFilterChange={setFileFilter}
+						reviewedFiles={reviewedFiles}
+						unresolvedByFile={unresolvedByFile}
+						sectionIdPrefix={SECTION_ID_PREFIX}
+						searchId="pr-review-file-search"
+						showReview
+					/>
+				</ResizablePanel>
+				<ResizableHandle withHandle className={filesCollapsed ? 'hidden' : undefined} />
+				<ResizablePanel order={2} minSize={30} className="min-h-0">
+					<div className="h-full min-h-0 overflow-y-auto">
+						<DiffErrorBoundary patch={rawPatch}>
+							{files.map((file, index) => (
+								<FileDiffRow
+									key={`${file.path}:${file.oldPath ?? ''}`}
+									id={fileSectionId(SECTION_ID_PREFIX, index)}
+									file={file}
+									mode={mode}
+									showReview
+									reviewed={reviewedFiles.has(file.path)}
+									unresolvedCount={unresolvedByFile.get(file.path) ?? 0}
+									reviewDisabled={!reviewReady}
+									review={reviewForFile(file)}
+									onReviewedChange={onReviewedChange}
+								/>
+							))}
+						</DiffErrorBoundary>
+					</div>
+				</ResizablePanel>
+			</ResizablePanelGroup>
 			<SubmitReviewBar
 				number={pr.number}
 				headSha={pr.headSha}

@@ -64,3 +64,10 @@ export function pickProjectFolder(): Promise<string | null> {
 		options: { directory: true, multiple: false, title: 'Choose a git repository' }
 	})
 }
+
+// Opens a URL in the system browser via tauri-plugin-opener. The desktop dashboard
+// is a remote page, so `<a target="_blank">` / window.open are dropped by the
+// webview — this routes through the opener plugin instead.
+export function openDesktopUrl(url: string): Promise<void> {
+	return tauriCore().invoke('plugin:opener|open_url', { url, with: null })
+}

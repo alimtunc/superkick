@@ -2,13 +2,14 @@ import type { ReactNode } from 'react'
 
 import { LaunchTaskCancelButton } from '@/components/issue-detail/launch-task-feed/LaunchTaskCancelButton'
 import { PrStateBadge } from '@/components/PrStateBadge'
+import { ExternalLink } from '@/components/ui/external-link'
 import { LAUNCH_STEP_KIND_LABEL } from '@/lib/domain'
 import { WORKTREE_PATH_MAX } from '@/lib/launch/display'
 import { middleTruncate } from '@/lib/path'
 import { useRunDrawerStore } from '@/stores/runDrawer'
 import type { LaunchTask, LaunchTaskStep, PullRequest } from '@/types'
 import { Link } from '@tanstack/react-router'
-import { ArrowUpRight, ExternalLink } from 'lucide-react'
+import { ArrowUpRight, ExternalLink as ExternalLinkIcon } from 'lucide-react'
 
 import { uniqueChangedFiles } from './changedFiles'
 
@@ -128,14 +129,12 @@ export function TaskCockpitNowPanel({
 					</FactRow>
 					{pr ? (
 						<FactRow label="pr">
-							<a
+							<ExternalLink
 								href={pr.url}
-								target="_blank"
-								rel="noopener noreferrer"
 								className="inline-flex min-w-0 items-center gap-1.5 truncate font-mono text-fg hover:text-accent focus-visible:rounded focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none"
 								title={pr.url}
 							>
-								<ExternalLink
+								<ExternalLinkIcon
 									size={11}
 									strokeWidth={1.85}
 									className="shrink-0"
@@ -143,7 +142,7 @@ export function TaskCockpitNowPanel({
 								/>
 								#{pr.number}
 								<PrStateBadge state={pr.state} />
-							</a>
+							</ExternalLink>
 						</FactRow>
 					) : null}
 				</section>

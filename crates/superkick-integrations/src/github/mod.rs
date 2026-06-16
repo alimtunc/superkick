@@ -13,11 +13,12 @@ use tokio::process::Command;
 use tracing::{debug, info};
 
 use superkick_core::{
-    GitHubPullRequestRef, GithubReviewDecision, PrDiffFile, PrDiffFileStatus, PrState,
+    GitHubPullRequestRef, GithubReviewDecision, PrChecksSummary, PrDiffFile, PrDiffFileStatus,
+    PrState,
 };
 
 /// JSON fields requested from `gh pr list` / `gh pr view` for the review inbox.
-const PR_SUMMARY_JSON_FIELDS: &str = "number,title,url,state,isDraft,author,headRefName,baseRefName,headRefOid,reviewDecision,reviewRequests,latestReviews,createdAt,updatedAt";
+const PR_SUMMARY_JSON_FIELDS: &str = "number,title,url,state,isDraft,author,headRefName,baseRefName,headRefOid,reviewDecision,reviewRequests,latestReviews,body,statusCheckRollup,createdAt,updatedAt";
 
 /// Raw response from `gh api repos/{owner}/{repo}/pulls/{number}`.
 #[derive(Debug, Deserialize)]
@@ -335,6 +336,8 @@ pub struct GitHubPrSummary {
     pub review_decision: Option<GithubReviewDecision>,
     pub requested_reviewers: Vec<String>,
     pub latest_reviews: Vec<(String, GithubReviewDecision)>,
+    pub body: Option<String>,
+    pub checks: Option<PrChecksSummary>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -395,6 +398,18 @@ struct GhLatestReview {
     state: Option<String>,
 }
 
+/// One entry of `statusCheckRollup`. GitHub returns a heterogeneous array of
+/// `CheckRun` (status + conclusion) and `StatusContext` (state) nodes.
+#[derive(Debug, Deserialize)]
+struct GhStatusCheck {
+    #[serde(default)]
+    status: Option<String>,
+    #[serde(default)]
+    conclusion: Option<String>,
+    #[serde(default)]
+    state: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 struct GhPrSummaryResponse {
     number: u32,
@@ -420,6 +435,10 @@ struct GhPrSummaryResponse {
     review_requests: Vec<GhReviewRequest>,
     #[serde(rename = "latestReviews", default)]
     latest_reviews: Vec<GhLatestReview>,
+    #[serde(default)]
+    body: Option<String>,
+    #[serde(rename = "statusCheckRollup", default)]
+    status_check_rollup: Vec<GhStatusCheck>,
     #[serde(rename = "createdAt", default)]
     created_at: String,
     #[serde(rename = "updatedAt", default)]
@@ -463,6 +482,49 @@ fn pr_state_from_list(state: &str, is_draft: bool) -> PrState {
         "OPEN" if is_draft => PrState::Draft,
         _ => PrState::Open,
     }
+}
+
+enum CheckOutcome {
+    Passing,
+    Failing,
+    Pending,
+}
+
+/// Classify one rollup node. `CheckRun` carries status+conclusion; `StatusContext`
+/// carries a flat state. Unknown/empty conclusions are treated as pending.
+fn classify_check(check: &GhStatusCheck) -> CheckOutcome {
+    if let Some(status) = check.status.as_deref() {
+        if !status.trim().eq_ignore_ascii_case("COMPLETED") {
+            return CheckOutcome::Pending;
+        }
+        return match check.conclusion.as_deref().map(str::trim) {
+            Some(c) if c.eq_ignore_ascii_case("SUCCESS") => CheckOutcome::Passing,
+            Some(c) if c.eq_ignore_ascii_case("NEUTRAL") || c.eq_ignore_ascii_case("SKIPPED") => {
+                CheckOutcome::Passing
+            }
+            Some("") | None => CheckOutcome::Pending,
+            _ => CheckOutcome::Failing,
+        };
+    }
+    match check.state.as_deref().map(str::trim) {
+        Some(s) if s.eq_ignore_ascii_case("SUCCESS") => CheckOutcome::Passing,
+        Some(s) if s.eq_ignore_ascii_case("FAILURE") || s.eq_ignore_ascii_case("ERROR") => {
+            CheckOutcome::Failing
+        }
+        _ => CheckOutcome::Pending,
+    }
+}
+
+fn aggregate_checks(checks: &[GhStatusCheck]) -> Option<PrChecksSummary> {
+    let (mut passing, mut failing, mut pending) = (0u32, 0u32, 0u32);
+    for check in checks {
+        match classify_check(check) {
+            CheckOutcome::Passing => passing += 1,
+            CheckOutcome::Failing => failing += 1,
+            CheckOutcome::Pending => pending += 1,
+        }
+    }
+    PrChecksSummary::from_counts(passing, failing, pending)
 }
 
 fn summary_from_response(item: GhPrSummaryResponse) -> Result<GitHubPrSummary> {
@@ -512,6 +574,11 @@ fn summary_from_response(item: GhPrSummaryResponse) -> Result<GitHubPrSummary> {
             .filter_map(|request| request.login)
             .collect(),
         latest_reviews,
+        body: item
+            .body
+            .map(|body| body.trim().to_string())
+            .filter(|body| !body.is_empty()),
+        checks: aggregate_checks(&item.status_check_rollup),
         created_at,
         updated_at,
     })
@@ -779,5 +846,28 @@ mod tests {
             parse_github_pr_reference("https://github.com/acme/superkick/pull/42").unwrap();
         assert_eq!(reference.repo_slug, "acme/superkick");
         assert_eq!(reference.number, 42);
+    }
+
+    #[test]
+    fn aggregates_status_check_rollup_from_gh_shape() {
+        let rollup: Vec<GhStatusCheck> = serde_json::from_str(
+            r#"[
+                {"__typename":"CheckRun","name":"build","status":"COMPLETED","conclusion":"SUCCESS"},
+                {"__typename":"CheckRun","name":"flaky","status":"IN_PROGRESS","conclusion":""},
+                {"__typename":"StatusContext","context":"ci/circle","state":"FAILURE"}
+            ]"#,
+        )
+        .unwrap();
+        let summary = aggregate_checks(&rollup).expect("has checks");
+        assert_eq!(summary.total, 3);
+        assert_eq!(summary.passing, 1);
+        assert_eq!(summary.failing, 1);
+        assert_eq!(summary.pending, 1);
+        assert_eq!(summary.state, superkick_core::PrChecksState::Failing);
+    }
+
+    #[test]
+    fn empty_status_check_rollup_is_none() {
+        assert!(aggregate_checks(&[]).is_none());
     }
 }

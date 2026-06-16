@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { ExternalLink } from '@/components/ui/external-link'
 import { type MarkdownBlock, parseMarkdownBlocks } from '@/lib/markdown'
 import { cn } from '@/lib/utils'
 
@@ -104,6 +105,10 @@ function renderBlock(block: MarkdownBlock, index: number, compact: boolean): Rea
 const INLINE_RE = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g
 const LINK_RE = /^\[([^\]]+)\]\(([^)]+)\)$/
 
+function isExternalHref(href: string): boolean {
+	return /^https?:\/\//i.test(href)
+}
+
 function renderInline(text: string, bare = false): ReactNode[] {
 	const nodes: ReactNode[] = []
 	let lastIndex = 0
@@ -138,17 +143,21 @@ function renderInline(text: string, bare = false): ReactNode[] {
 		} else {
 			const link = token.match(LINK_RE)
 			if (link) {
-				nodes.push(
-					<a
-						key={key}
-						href={link[2]}
-						target="_blank"
-						rel="noreferrer"
-						className={bare ? undefined : 'text-accent hover:underline'}
-					>
-						{link[1]}
-					</a>
-				)
+				const href = link[2]
+				const linkClassName = bare ? undefined : 'text-accent hover:underline'
+				if (isExternalHref(href)) {
+					nodes.push(
+						<ExternalLink key={key} href={href} className={linkClassName}>
+							{link[1]}
+						</ExternalLink>
+					)
+				} else {
+					nodes.push(
+						<a key={key} href={href} className={linkClassName}>
+							{link[1]}
+						</a>
+					)
+				}
 			}
 		}
 

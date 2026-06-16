@@ -3,6 +3,7 @@ import type {
 	ActivityNodeRole,
 	GithubReviewDecision,
 	PrActivityEvent,
+	PrChecksSummary,
 	PrInboxItem
 } from '@/types'
 import type { PillTone } from '@/types/ui'
@@ -10,6 +11,28 @@ import type { PillTone } from '@/types/ui'
 interface PrStatusView {
 	label: string
 	tone: PillTone
+}
+
+/** The headline checks label for the badge (e.g. "2 failing", "5 checks passed"). */
+export function checksLabel(checks: PrChecksSummary): string {
+	if (checks.state === 'failing') {
+		return `${checks.failing} failing`
+	}
+	if (checks.state === 'pending') {
+		return `${checks.pending} pending`
+	}
+	return checks.total === 1 ? '1 check passed' : `${checks.total} checks passed`
+}
+
+/** Compact "3 passed · 1 failing" breakdown, or null when nothing is failing/pending. */
+export function checksDetail(checks: PrChecksSummary): string | null {
+	if (checks.failing === 0 && checks.pending === 0) {
+		return null
+	}
+	const parts = [`${checks.passing} passed`]
+	if (checks.failing > 0) parts.push(`${checks.failing} failing`)
+	if (checks.pending > 0) parts.push(`${checks.pending} pending`)
+	return parts.join(' · ')
 }
 
 /** The single Linear-style status pill for a PR (rail + header). */

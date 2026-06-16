@@ -26,7 +26,7 @@ export function DiffFileNavigator({
 	const indexedFiles = filterIndexedFiles(files, filter)
 
 	return (
-		<aside className="flex min-h-0 flex-col border-t border-border bg-canvas md:col-start-1 md:row-start-1 md:border-t-0 md:border-r">
+		<aside className="flex h-full min-h-0 flex-col border-t border-border bg-canvas md:col-start-1 md:row-start-1 md:border-t-0 md:border-r">
 			<div className="border-b border-border px-3 py-2">
 				<label
 					htmlFor={searchId}

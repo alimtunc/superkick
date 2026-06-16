@@ -12,6 +12,7 @@ import type { PrReviewTab } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 
 import { PrActivityTimeline } from './PrActivityTimeline'
+import { PrDescription } from './PrDescription'
 import { PrDiffTab } from './PrDiffTab'
 import { PrReviewHead } from './PrReviewHead'
 import { PrReviewRail } from './PrReviewRail'
@@ -80,6 +81,7 @@ export function PrReviewWorkspace({ number }: PrReviewWorkspaceProps) {
 					>
 						<div className="detail__body">
 							<div className="detail__inner">
+								{data.body ? <PrDescription body={data.body} /> : null}
 								<PrActivityTimeline number={number} headSha={pr.headSha} />
 							</div>
 						</div>
