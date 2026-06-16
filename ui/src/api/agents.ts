@@ -1,4 +1,4 @@
-import type { Agent, ManagedAgent } from '@/types'
+import type { Agent, ManagedAgent, ProfileUsage } from '@/types'
 
 import { deleteVoid, getJson, patchJson, postJson } from './_shared'
 
@@ -25,4 +25,8 @@ export async function updateAgent(name: string, agent: ManagedAgent): Promise<Ma
 
 export async function deleteAgent(name: string): Promise<void> {
 	return deleteVoid(`/agents/${name}`, 'delete agent failed')
+}
+
+export async function fetchAgentUsages(name: string): Promise<ProfileUsage[]> {
+	return getJson(`/agents/${name}/usages`, 'fetch agent usages failed')
 }

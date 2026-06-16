@@ -8,8 +8,8 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::{SqliteConnection, SqlitePool};
 use superkick_core::{
-    AgentProvider, LaunchProfile, OutputExpectation, ProfileKind, ProfileStep, ReasoningEffort,
-    SessionPolicy, StepExecutor,
+    AgentProvider, LaunchProfile, OutputExpectation, ProfileKind, ProfileStep, ProfileUsage,
+    ReasoningEffort, SessionPolicy, StepExecutor,
 };
 
 use super::codec::{deserialize_enum, serialize_enum};
@@ -46,6 +46,34 @@ const PROFILE_UPSERT_SQL: &str = "INSERT INTO launch_profiles (\
 const PROFILE_INSERT_IF_ABSENT_SQL: &str = "INSERT INTO launch_profiles (\
      id, name, kind, is_default, is_readonly, created_at, updated_at\
  ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6) ON CONFLICT(id) DO NOTHING";
+
+const PROFILES_USING_SKILL_SQL: &str = "SELECT p.id AS profile_id, p.name AS profile_name, \
+     s.label AS step_label FROM launch_profile_steps s \
+     JOIN launch_profiles p ON p.id = s.profile_id \
+     WHERE s.skill_ref = ?1 ORDER BY p.created_at, p.id, s.ordering";
+
+const PROFILES_USING_AGENT_SQL: &str = "SELECT p.id AS profile_id, p.name AS profile_name, \
+     s.label AS step_label FROM launch_profile_steps s \
+     JOIN launch_profiles p ON p.id = s.profile_id \
+     WHERE s.agent_ref = ?1 ORDER BY p.created_at, p.id, s.ordering";
+
+/// Collapse the join's per-step rows (ordered so a profile's rows are
+/// contiguous) into one [`ProfileUsage`] per profile, carrying the labels of the
+/// matching steps.
+fn group_usages(rows: Vec<ProfileUsageRow>) -> Vec<ProfileUsage> {
+    let mut out: Vec<ProfileUsage> = Vec::new();
+    for row in rows {
+        match out.last_mut() {
+            Some(last) if last.id == row.profile_id => last.steps.push(row.step_label),
+            _ => out.push(ProfileUsage {
+                id: row.profile_id,
+                name: row.profile_name,
+                steps: vec![row.step_label],
+            }),
+        }
+    }
+    out
+}
 
 async fn insert_profile_row(
     conn: &mut SqliteConnection,
@@ -175,6 +203,31 @@ impl LaunchProfileRepo for SqliteLaunchProfileRepo {
             .with_context(|| format!("delete launch_profile {id}"))?;
         ensure_updated(result, "launch_profile", id)
     }
+
+    async fn profiles_using_skill(&self, skill_ref: &str) -> Result<Vec<ProfileUsage>> {
+        let rows = sqlx::query_as::<_, ProfileUsageRow>(PROFILES_USING_SKILL_SQL)
+            .bind(skill_ref)
+            .fetch_all(&self.pool)
+            .await
+            .with_context(|| format!("list launch profiles using skill {skill_ref}"))?;
+        Ok(group_usages(rows))
+    }
+
+    async fn profiles_using_agent(&self, agent_ref: &str) -> Result<Vec<ProfileUsage>> {
+        let rows = sqlx::query_as::<_, ProfileUsageRow>(PROFILES_USING_AGENT_SQL)
+            .bind(agent_ref)
+            .fetch_all(&self.pool)
+            .await
+            .with_context(|| format!("list launch profiles using agent {agent_ref}"))?;
+        Ok(group_usages(rows))
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct ProfileUsageRow {
+    profile_id: String,
+    profile_name: String,
+    step_label: String,
 }
 
 #[derive(sqlx::FromRow)]

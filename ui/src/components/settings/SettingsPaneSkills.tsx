@@ -11,9 +11,12 @@ import { Pill } from '@/components/ui/pill'
 import { AsyncSection } from '@/components/ui/state-async'
 import { useSkills } from '@/hooks/useSkills'
 import { SKILL_KIND_LABEL } from '@/lib/launchConfigOptions'
-import { blankSkill, skillSourceLabel } from '@/lib/skills'
+import { appendUsageWarning } from '@/lib/profiles'
+import { skillUsagesQuery } from '@/lib/queries'
+import { blankSkill, skillDeleteDescription, skillSourceLabel } from '@/lib/skills'
 import type { SkillDefinition } from '@/types'
 import { Toggle } from '@/ui/Toggle'
+import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 type EditorState = { open: false } | { open: true; mode: 'create' | 'edit'; seed: SkillDefinition }
@@ -23,6 +26,13 @@ export function SettingsPaneSkills() {
 	const [editor, setEditor] = useState<EditorState>({ open: false })
 	const [importOpen, setImportOpen] = useState(false)
 	const [pendingDelete, setPendingDelete] = useState<SkillDefinition | null>(null)
+	const usages = useQuery(skillUsagesQuery(pendingDelete?.id ?? null, pendingDelete !== null)).data ?? []
+	const deleteDescription = pendingDelete
+		? appendUsageWarning(
+				skillDeleteDescription(pendingDelete.label, pendingDelete.origin === 'builtin'),
+				usages
+			)
+		: undefined
 
 	function openCreate(sourceKind: 'prompt' | 'installed') {
 		setEditor({ open: true, mode: 'create', seed: blankSkill(sourceKind) })
@@ -141,13 +151,7 @@ export function SettingsPaneSkills() {
 					if (!open) setPendingDelete(null)
 				}}
 				title="Delete skill?"
-				description={
-					pendingDelete
-						? pendingDelete.origin === 'builtin'
-							? `Delete the built-in skill “${pendingDelete.label}”? It will not be re-created on restart. This cannot be undone.`
-							: `Delete the skill “${pendingDelete.label}”? This cannot be undone.`
-						: undefined
-				}
+				description={deleteDescription}
 				confirmLabel="Delete"
 				destructive
 				busy={isMutating}

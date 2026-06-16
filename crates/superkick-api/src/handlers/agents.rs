@@ -10,10 +10,11 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json};
 use serde::Serialize;
 use superkick_core::{
-    AgentAvatar, AgentOrigin, AgentProvider, BillingProfile, CoreAgentDefinition, ReasoningEffort,
-    RunnerMode, StepExecutor,
+    AgentAvatar, AgentOrigin, AgentProvider, BillingProfile, CoreAgentDefinition, ProfileUsage,
+    ReasoningEffort, RunnerMode, StepExecutor,
 };
 use superkick_runtime::AgentCatalogProvider;
+use superkick_storage::repo::LaunchProfileRepo;
 
 use crate::AppState;
 use crate::error::AppError;
@@ -134,6 +135,21 @@ pub async fn delete_agent(
 ) -> Result<StatusCode, AppError> {
     state.agent_service.delete(&name).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Launch profiles whose steps reference this agent. The delete confirm dialog
+/// fetches it to warn that removing the agent orphans those steps (refs are
+/// FK-free and degrade at launch — this warns, it does not block).
+pub async fn agent_usages(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+) -> Result<Json<Vec<ProfileUsage>>, AppError> {
+    Ok(Json(
+        state
+            .launch_profile_repo
+            .profiles_using_agent(&name)
+            .await?,
+    ))
 }
 
 /// Reset a built-in agent to its shipped defaults, discarding operator edits.

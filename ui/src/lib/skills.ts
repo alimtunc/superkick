@@ -55,6 +55,13 @@ export function skillSourceLabel(skill: SkillDefinition): string {
 	return skill.source.kind === 'installed' ? `installed · ${skill.source.value}` : 'prompt'
 }
 
+/** Destructive-delete copy for a skill; built-ins note they stay gone. */
+export function skillDeleteDescription(label: string, builtin: boolean): string {
+	return builtin
+		? `Delete the built-in skill “${label}”? It will not be re-created on restart. This cannot be undone.`
+		: `Delete the skill “${label}”? This cannot be undone.`
+}
+
 function newPromptSkill(): SkillDefinition {
 	return {
 		id: '',

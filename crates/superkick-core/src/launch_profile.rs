@@ -115,6 +115,16 @@ pub struct LaunchProfile {
     pub steps: Vec<ProfileStep>,
 }
 
+/// A profile that references a given skill or agent, plus the labels of the
+/// steps that do. Returned by the reverse-lookup the delete confirm dialog uses
+/// to warn the operator that removing a skill/agent will orphan profile steps.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProfileUsage {
+    pub id: String,
+    pub name: String,
+    pub steps: Vec<String>,
+}
+
 impl LaunchProfile {
     /// Validate a profile before persistence. Guards operator-authored input;
     /// builtins always pass.

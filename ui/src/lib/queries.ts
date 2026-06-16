@@ -1,4 +1,5 @@
 import {
+	fetchAgentUsages,
 	fetchConversation,
 	fetchDashboardQueue,
 	fetchIssueDetail,
@@ -19,6 +20,7 @@ import {
 	fetchRuntimes,
 	fetchSearch,
 	fetchSkills,
+	fetchSkillUsages,
 	getAgent,
 	listAgents,
 	listImportableSkills,
@@ -207,4 +209,22 @@ export const launchProfilesQuery = () =>
 		queryKey: queryKeys.launchProfiles.all,
 		queryFn: fetchLaunchProfiles,
 		staleTime: 30_000
+	})
+
+// Reverse-lookups for the delete-warning dialogs. Fetched lazily — `enabled`
+// flips on only when the confirm dialog opens, so the roster never pays for it.
+export const skillUsagesQuery = (id: string | null, enabled: boolean) =>
+	queryOptions({
+		queryKey: id ? queryKeys.skills.usages(id) : ['skills', 'usages', 'pending'],
+		queryFn: id && enabled ? () => fetchSkillUsages(id) : skipToken,
+		staleTime: 0,
+		gcTime: 0
+	})
+
+export const agentUsagesQuery = (name: string | null, enabled: boolean) =>
+	queryOptions({
+		queryKey: name ? queryKeys.agents.usages(name) : ['agents', 'usages', 'pending'],
+		queryFn: name && enabled ? () => fetchAgentUsages(name) : skipToken,
+		staleTime: 0,
+		gcTime: 0
 	})
