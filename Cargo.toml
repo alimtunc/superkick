@@ -7,7 +7,7 @@ members = [
     "crates/superkick-integrations",
     "crates/superkick-runtime",
     "crates/superkick-storage",
-    "src-tauri",
+    "apps/desktop",
 ]
 resolver = "2"
 

@@ -22,7 +22,7 @@ Review/ship skills (`/pre-pr-review`, `/ship`, `/test-instructions`) are never a
 Project-specific overrides on top of Turkit's generic triage:
 
 - **Cross-stack → never one-shot.** Pin the contract in a plan first.
-- Any ticket touching `crates/superkick-api` routes **and** `ui/src/` → treat as cross-stack.
+- Any ticket touching `crates/superkick-api` routes **and** `apps/web/src/` → treat as cross-stack.
 - Mentions "migration", "schema change", "storage", or crosses **>3 crates** → plan-then-execute even if one-sentence describable.
 
 ## Worktree initialization
@@ -33,7 +33,7 @@ After creating a worktree, run these three steps **before** any code change:
 
 1. `cp examples/superkick.yaml superkick.yaml`
 2. Copy `.env` from the main worktree root
-3. `cd ui && pnpm install`
+3. `cd apps/web && pnpm install`
 
 **Why:** the `superkick` CLI fails to start without `superkick.yaml` and `.env`, and the UI workspace needs its own `node_modules` (pnpm is not hoisted across worktrees).
 

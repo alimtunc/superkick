@@ -1,7 +1,29 @@
 # Frontend Conventions — Superkick
 
-Source of truth for React 19 / TypeScript code in `ui/`.
+Source of truth for React 19 / TypeScript code in `apps/web/`.
 Applies during implementation and review.
+
+## Project layout
+
+The web app is a workspace package under `apps/web/` (sibling of `apps/desktop/`, the Tauri shell;
+the Rust backend stays in `crates/`). Inside `apps/web/src`:
+
+```txt
+components/
+  primitives/   # shadcn/base-ui wrappers + pure atoms. No domain words.
+  composites/   # generic interaction/layout shells. No domain nouns.
+  app/          # Superkick house patterns reused by 2+ domains (badges, status renderers, error boundary).
+domains/        # per-feature UI + view-models — one folder per product area
+                #   (agents, chat, command, dashboard, diff, inbox, issues, launch, reviews, runs, settings).
+lib/domain/     # headless cross-domain logic + tone/label maps. No React/DOM/Tailwind.
+api/  hooks/  stores/  routes/  types/  styles/  shell/   # shell/ = app chrome (sidebar, topbar, dock)
+```
+
+Import direction (never violate): `primitives ← composites ← app ← domains ← routes`. Each shared
+layer documents its own rules — read the `AGENTS.md` in
+[`apps/web/src/components/`](../../apps/web/src/components/AGENTS.md) and
+[`apps/web/src/domains/`](../../apps/web/src/domains/AGENTS.md) before adding a component. There is
+**no** `src/ui` folder — shadcn/base-ui atoms live in `components/primitives`.
 
 ## React 19 API
 
@@ -33,7 +55,7 @@ Applies during implementation and review.
 
 ## Types
 
-- **Shared type declarations live in `ui/src/types/**`**, split by sub-domain (`runs.ts`, `issues.ts`, `attention.ts`, …). Import through the barrel: `import type { Run } from '@/types'`.
+- **Shared type declarations live in `apps/web/src/types/**`**, split by sub-domain (`runs.ts`, `issues.ts`, `attention.ts`, …). Import through the barrel: `import type { Run } from '@/types'`.
 - Exported type declarations **outside** `src/types/**` are banned, with these narrow exceptions:
   - Component `*Props` interfaces (colocated with their component).
   - Hook return-type aliases defined via `ReturnType<typeof useXxx>` (must stay with the hook).
@@ -52,13 +74,13 @@ Applies during implementation and review.
 
 ## Data fetching & state
 
-- No direct `fetch` in components — go through a typed API function (in `ui/src/api/**` or equivalent).
+- No direct `fetch` in components — go through a typed API function (in `apps/web/src/api/**` or equivalent).
 - Business logic lives in hooks, not in components. A component that computes anything beyond trivial derivation is a hook waiting to be extracted.
 - Server state: TanStack Query. Client state: zustand. URL state: TanStack Router. Do not mix roles.
 
 ## UI components
 
-- Use shadcn components first (`pnpm dlx shadcn@latest add <component>`) — they live in `ui/src/components/ui/`.
+- Use shadcn components first (`pnpm dlx shadcn@latest add <component>`) — they live in `apps/web/src/components/primitives/` (the `components.json` `ui` alias points there).
 - Drop down to `@base-ui/react` primitives only if no shadcn component covers the use case.
 - **Never hand-roll** interactive UI (switch, dialog, dropdown, combobox, tooltip) when a shadcn or base-ui primitive exists.
   - **Why:** hand-rolled interactive components miss accessibility wiring (focus traps, ARIA, keyboard) and diverge in styling from the rest of the app.
@@ -71,5 +93,5 @@ Applies during implementation and review.
 ## Visual design
 
 - Surfaces, density, typography, icons, and interactive states are governed by [visual-design.md](./visual-design.md). Read it before adding a new surface or chip.
-- Status / domain pills go through `Pill` ([ui/src/components/ui/pill.tsx](../../ui/src/components/ui/pill.tsx)). The shadcn `Badge` stays for shadcn-internal slots (form errors, etc.); domain code uses `Pill`.
+- Status / domain pills go through `Pill` ([apps/web/src/components/primitives/pill.tsx](../../apps/web/src/components/primitives/pill.tsx)). The shadcn `Badge` stays for shadcn-internal slots (form errors, etc.); domain code uses `Pill`.
 - Empty / loading / error states use the shared `EmptyState` / `LoadingState` / `ErrorState` primitives — never inline a placeholder string.

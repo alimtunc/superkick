@@ -6,10 +6,10 @@ interactive states across the V1 surfaces (`shell/`, `inbox/`, `issues/`,
 `issue-detail/`, `runs/`, `run-detail/`, `dashboard/`).
 
 > **Migration in progress (SUP-126):** The redesign palette lives in
-> [ui/src/styles/tokens.css](../../ui/src/styles/tokens.css) (`bg-canvas`, `bg-surface`,
+> [apps/web/src/styles/tokens.css](../../apps/web/src/styles/tokens.css) (`bg-canvas`, `bg-surface`,
 > `bg-raised`, `text-fg`, `text-fg-muted`, `text-fg-dim`, `border-border`,
 > `bg-accent`, `bg-success`, `bg-warn`, `bg-danger`, `bg-info`, plus `-soft` variants).
-> New surfaces (`ui/src/shell/`, `ui/src/ui/`) consume those tokens. The Graphite palette
+> New surfaces (`apps/web/src/shell/`, `apps/web/src/components/`) consume those tokens. The Graphite palette
 > below still ships for un-migrated screens and shadcn components — both retire when
 > consumers migrate.
 
@@ -18,7 +18,7 @@ so edge cases can be reasoned about — when in doubt, follow the rationale, not
 
 ## Tokens
 
-All tokens live in [ui/src/index.css](../../ui/src/index.css) under `@theme`. **Never
+All tokens live in [apps/web/src/index.css](../../apps/web/src/index.css) under `@theme`. **Never
 hardcode hex colours, `bg-zinc-*`, `bg-neutral-*`, `bg-gray-*` or arbitrary
 `text-zinc-*` in components.** If a colour is not in the palette it does not belong on
 the surface.
@@ -110,7 +110,7 @@ Default `strokeWidth={1.75}` for the lucide weight to match the type. Always pai
 `aria-hidden="true"` when decorative; otherwise provide a label via the parent's
 `aria-label`.
 
-**Inline-SVG carve-out — `StatusIcon` / `PriorityIcon` in [`ui/src/ui/`](../../ui/src/ui/).**
+**Inline-SVG carve-out — `StatusIcon` / `PriorityIcon` in [`apps/web/src/components/primitives/`](../../apps/web/src/components/primitives/).**
 These two primitives are Linear-style state circles and stacked priority bars; lucide
 has no equivalent (partial-fill progress, dashed backlog ring, stacked-bar urgency).
 They are the *only* sanctioned inline-SVG components — built on the same `currentColor`
@@ -134,7 +134,7 @@ A row that is not a `<button>` or `<a>` but is clickable must carry `tabIndex={0
 
 ## Empty / loading / error
 
-Three shared primitives — see [ui/src/components/ui/state-empty.tsx](../../ui/src/components/ui/state-empty.tsx),
+Three shared primitives — see [apps/web/src/components/primitives/state-empty.tsx](../../apps/web/src/components/primitives/state-empty.tsx),
 `state-loading.tsx`, `state-error.tsx`. Every list view (Inbox sections, Issues list,
 Issues kanban, Runs, Issue Detail activity, Issue Detail comments) must render one of
 these in place of a placeholder string.

@@ -5,7 +5,7 @@ use axum::response::{IntoResponse, Response};
 use rust_embed::RustEmbed;
 
 #[derive(RustEmbed)]
-#[folder = "../../ui/dist"]
+#[folder = "../../apps/web/dist"]
 struct UiAssets;
 
 pub fn router() -> Router {

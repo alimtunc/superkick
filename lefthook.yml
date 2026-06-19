@@ -11,14 +11,14 @@ pre-commit:
 
     # ── Frontend ────────────────────────────────────────────────────────
     oxlint:
-      root: ui/
-      glob: "ui/src/**/*.{ts,tsx}"
+      root: apps/web/
+      glob: "apps/web/src/**/*.{ts,tsx}"
       run: pnpm lint {staged_files}
     oxfmt:
-      root: ui/
-      glob: "ui/src/**/*.{ts,tsx}"
+      root: apps/web/
+      glob: "apps/web/src/**/*.{ts,tsx}"
       run: pnpm fmt:check {staged_files}
     typecheck:
-      root: ui/
-      glob: "ui/src/**/*.{ts,tsx}"
+      root: apps/web/
+      glob: "apps/web/src/**/*.{ts,tsx}"
       run: pnpm tsc --noEmit

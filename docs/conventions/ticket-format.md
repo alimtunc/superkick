@@ -7,8 +7,8 @@ Project-specific shapes that Turkit-generic workflow skills should follow when w
 Before writing a plan, scan for existing pieces to reuse — adaptive to the stack touched:
 
 - **Backend** — crates listed in [CLAUDE.md](../../CLAUDE.md): `superkick-api`, `superkick-core`, `superkick-config`, `superkick-runtime`, `superkick-storage`, `superkick-integrations`. Look at existing `thiserror` error domains, axum extractors, sqlx queries, serde structs.
-- **Frontend** — `ui/src/types/**` (shared barrel), `ui/src/hooks/`, `ui/src/components/`, existing TanStack Query hooks, Zustand stores.
-- **Cross-stack** — both surfaces, plus the API contract boundary (`crates/superkick-api` routes ↔ `ui/src/api.ts`).
+- **Frontend** — `apps/web/src/types/**` (shared barrel), `apps/web/src/hooks/`, `apps/web/src/components/`, existing TanStack Query hooks, Zustand stores.
+- **Cross-stack** — both surfaces, plus the API contract boundary (`crates/superkick-api` routes ↔ `apps/web/src/api`).
 
 ## Plan template
 

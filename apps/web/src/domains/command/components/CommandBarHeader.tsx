@@ -1,0 +1,63 @@
+import type { Ref } from 'react'
+
+import { Icon, Pill } from '@/components/primitives'
+import type { SearchScope } from '@/types'
+
+interface CommandBarHeaderProps {
+	value: string
+	scope: SearchScope
+	scopePinned: boolean
+	onChange: (next: string) => void
+	onKeyDown: (e: React.KeyboardEvent) => void
+	onClearScope: () => void
+	inputRef?: Ref<HTMLInputElement>
+}
+
+const SCOPE_LABEL: Record<SearchScope, string> = {
+	all: 'All',
+	issues: 'Issues only',
+	comments: 'Comments only',
+	files: 'Files only',
+	runs: 'Runs only',
+	actions: 'Actions only'
+}
+
+export function CommandBarHeader({
+	value,
+	scope,
+	scopePinned,
+	onChange,
+	onKeyDown,
+	onClearScope,
+	inputRef
+}: CommandBarHeaderProps) {
+	return (
+		<div className="flex items-center gap-2 border-b border-border px-4 py-3">
+			<Icon name="search" size={18} className="text-fg-dim" aria-hidden="true" />
+			{scopePinned ? (
+				<Pill tone="accent" size="xs">
+					<button
+						type="button"
+						onClick={onClearScope}
+						className="-mx-1 flex items-center gap-1 px-1"
+					>
+						{SCOPE_LABEL[scope]}
+						<Icon name="x" size={10} />
+					</button>
+				</Pill>
+			) : null}
+			<input
+				ref={inputRef}
+				value={value}
+				onChange={(e) => onChange(e.target.value)}
+				onKeyDown={onKeyDown}
+				placeholder="Search issues or run a command…"
+				aria-label="Search"
+				className="flex-1 bg-transparent text-[16px] text-fg outline-none placeholder:text-fg-dim"
+			/>
+			<Pill tone="neutral" size="xs">
+				esc
+			</Pill>
+		</div>
+	)
+}
