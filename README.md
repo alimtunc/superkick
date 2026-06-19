@@ -2,6 +2,11 @@
 
 [![License: BSL 1.1](https://img.shields.io/badge/License-BSL%201.1-blue.svg)](LICENSE)
 
+> **Statut :** Superkick était le MVP. Le projet a été porté vers
+> [Otomat](https://github.com/alimtunc/otomat), un nouveau projet plus propre,
+> full TypeScript. Ce dépôt reste comme archive technique du MVP ; le reste du
+> README documente l'ancien contexte Superkick.
+
 From Linear issue to reviewed PR, on your own machine.
 
 Superkick is a local-first agent orchestrator focused on the path from Linear issue to reviewed PR. The current codebase already provides the local control plane, CLI, dashboard, and run lifecycle foundations for that loop, and is now iterating toward the full end-to-end path.
