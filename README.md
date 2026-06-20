@@ -2,10 +2,10 @@
 
 [![License: BSL 1.1](https://img.shields.io/badge/License-BSL%201.1-blue.svg)](LICENSE)
 
-> **Statut :** Superkick était le MVP. Le projet a été porté vers
-> [Otomat](https://github.com/alimtunc/otomat), un nouveau projet plus propre,
-> full TypeScript. Ce dépôt reste comme archive technique du MVP ; le reste du
-> README documente l'ancien contexte Superkick.
+> **Status:** Superkick was the MVP. The project has moved to
+> [Otomat](https://github.com/alimtunc/otomat), a cleaner full TypeScript
+> project. This repository remains as the technical archive for the MVP; the
+> rest of this README documents the old Superkick context.
 
 From Linear issue to reviewed PR, on your own machine.
 
